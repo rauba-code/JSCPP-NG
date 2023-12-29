@@ -26,6 +26,10 @@ export interface JSCPPConfig {
     loadedLibraries?: string[];
     stdio?: {
         drain?: () => string;
+        cinStop: () => void;
+        cinProceed: () => void;
+        getInput: () => Promise<string>;
+        finishCallback: (ExitCode: number) => void;
         write: (s: string) => void;
     };
     unsigned_overflow?: "error" | "warn" | "ignore";

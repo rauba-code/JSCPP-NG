@@ -1,0 +1,26 @@
+
+> jscpp@2.0.9 build
+> grunt build
+
+Running "clean:build" (clean) task
+>> 1 path cleaned.
+
+Running "peg:build" (peg) task
+Generating parser from "pegjs/ast.pegjs"...
+Parser "src/ast.js" generated in 95ms.
+Generating parser from "pegjs/prepast.pegjs"...
+Parser "src/prepast.js" generated in 34ms.
+
+Running "copy:build" (copy) task
+Copied 4 files
+
+Running "ts:default" (ts) task
+Compiling...
+Using tsc v4.1.5
+src/includes/iostream.ts(55,25): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.
+
+>> 1 syntax error  
+>> Error: tsc return code: 2
+Warning: Task "ts:default" failed. Use --force to continue.
+
+Aborted due to warnings.

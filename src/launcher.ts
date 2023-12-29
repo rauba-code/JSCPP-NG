@@ -36,16 +36,32 @@ for (const alias of Object.keys(headerAlias)) {
     includes[alias] = includes[realName];
 }
 
+type InputFunction = () => Promise<string>;
 
-function run(code: string, input: string, config: JSCPPConfig): Debugger | number {
+function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number {
     let step;
-    let inputbuffer = input.toString();
+    let inputbuffer = ""; //input.toString();
+    let proceed = true;
+    let startTime: number;
+
     const _config: JSCPPConfig = {
         stdio: {
+            cinStop() {
+                handleStop();
+            },
+            cinProceed() {
+                handleProceed();
+            },
             drain() {
                 const x = inputbuffer;
                 inputbuffer = null;
                 return x;
+            },
+            getInput() {
+                return input();
+            },
+            finishCallback(ExitCode: number) {
+
             },
             write(s) {
                 process.stdout.write(s);
@@ -54,6 +70,30 @@ function run(code: string, input: string, config: JSCPPConfig): Debugger | numbe
         includes: this.includes,
         unsigned_overflow: "error"
     };
+
+    function handleStop() {
+        proceed = false;
+    }
+
+    function handleProceed() {
+        proceed = true;
+        performStep();
+    }
+
+    function performStep() {
+        if(proceed) {
+            step = mainGen.next();
+            if (step.done) { 
+                _config.stdio.finishCallback(step.value.v as number);
+                return; 
+            }
+            if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout)) {
+                throw new Error("Time limit exceeded.");
+            }
+            performStep();
+        }
+    }
+
     mergeConfig(_config, config);
     const rt = new CRuntime(_config);
     code = code.toString();
@@ -77,7 +117,9 @@ function run(code: string, input: string, config: JSCPPConfig): Debugger | numbe
         mydebugger.start(rt, mainGen);
         return mydebugger;
     } else {
-        const startTime = Date.now();
+        startTime = Date.now();
+        performStep();
+        /*
         while (true) {
             step = mainGen.next();
             if (step.done) { break; }
@@ -85,7 +127,8 @@ function run(code: string, input: string, config: JSCPPConfig): Debugger | numbe
                 throw new Error("Time limit exceeded.");
             }
         }
-        return step.value.v as number;
+        */
+        //return step.value.v as number;
     }
 }
 

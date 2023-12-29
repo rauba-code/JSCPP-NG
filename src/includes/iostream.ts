@@ -30,7 +30,7 @@ export = {
         const cin = {
             t: cinType,
             v: {
-                buf: stdio.drain(),
+                buf: "", // stdio.drain()
                 istream: stdio,
                 members: {}
             },
@@ -44,53 +44,62 @@ export = {
             handlers: {
                 "o(>>)": {
                     default(rt, _cin: Cin, t: any) {
+                        stdio.cinStop();
                         if (!t.left) {
                             rt.raiseException("only left value can be used as storage");
                         }
                         if (!rt.isPrimitiveType(t.t)) {
                             rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t.t));
                         }
-                        let b = _cin.v.buf;
-                        _cin.v.eofbit = b.length === 0;
-                        let r
-                        let v;
-                        switch (t.t.name) {
-                            case "char": case "signed char": case "unsigned char":
-                                b = _skipSpace(b);
-                                r = _read(rt, /^./, b, t.t);
-                                v = r[0].charCodeAt(0);
-                                break;
-                            case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
-                                b = _skipSpace(b);
-                                r = _read(rt, /^[-+]?(?:([0-9]*)([eE]\+?[0-9]+)?)|0/, b, t.t);
-                                v = parseInt(r[0], 10);
-                                break;
-                            case "float": case "double":
-                                b = _skipSpace(b);
-                                r = _read(rt, /^[-+]?(?:[0-9]*\.[0-9]+([eE][-+]?[0-9]+)?)|(?:([1-9][0-9]*)([eE]\+?[0-9]+)?)/, b, t.t);
-                                v = parseFloat(r[0]);
-                                break;
-                            case "bool":
-                                b = _skipSpace(b);
-                                r = _read(rt, /^(true|false)/, b, t.t);
-                                v = r[0] === "true";
-                                break;
-                            default:
-                                rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t.t));
-                        }
-                        const len = r[0].length;
-                        _cin.v.failbit = len === 0;
-                        if (!_cin.v.failbit) {
-                            t.v = rt.val(t.t, v).v;
-                            _cin.v.buf = b.substring(len);
-                        }
-                        return _cin;
+                        stdio.getInput().then(result => {
+                            _cin.v.buf = result;
+                            let b = _cin.v.buf;
+                            _cin.v.eofbit = b.length === 0;
+                            let r
+                            let v;
+                            switch (t.t.name) {
+                                case "char": case "signed char": case "unsigned char":
+                                    b = _skipSpace(b);
+                                    r = _read(rt, /^./, b, t.t);
+                                    v = r[0].charCodeAt(0);
+                                    break;
+                                case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
+                                    b = _skipSpace(b);
+                                    r = _read(rt, /^[-+]?(?:([0-9]*)([eE]\+?[0-9]+)?)|0/, b, t.t);
+                                    v = parseInt(r[0], 10);
+                                    break;
+                                case "float": case "double":
+                                    b = _skipSpace(b);
+                                    r = _read(rt, /^[-+]?(?:[0-9]*\.[0-9]+([eE][-+]?[0-9]+)?)|(?:([1-9][0-9]*)([eE]\+?[0-9]+)?)/, b, t.t);
+                                    v = parseFloat(r[0]);
+                                    break;
+                                case "bool":
+                                    b = _skipSpace(b);
+                                    r = _read(rt, /^(true|false)/, b, t.t);
+                                    v = r[0] === "true";
+                                    break;
+                                default:
+                                    rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t.t));
+                            }
+                            const len = r[0].length;
+                            _cin.v.failbit = len === 0;
+                            if (!_cin.v.failbit) {
+                                t.v = rt.val(t.t, v).v;
+                                _cin.v.buf = b.substring(len);
+                            }
+                            stdio.cinProceed();
+                            return _cin;
+                        }).catch(() => {
+                            console.log("Some input promise error...");
+                            rt.raiseException("Some input promise error...");
+                        });
                     }
                 }
             }
         };
 
         const _cinString = function (rt: CRuntime, _cin: Cin, t: ArrayVariable) {
+            console.log("string...");
             if (!rt.isStringType(t.t)) {
                 rt.raiseException("only a pointer to string can be used as storage");
             }
@@ -118,6 +127,7 @@ export = {
         rt.regOperator(_cinString, cin.t, ">>", [pchar], cin.t);
 
         const _getline = function (rt: CRuntime, _cin: Cin, t: ArrayVariable, limitV: IntVariable, delimV: IntVariable) {
+            console.log("getline...");
             let removeDelim;
             if (!rt.isStringType(t.t)) {
                 rt.raiseException("only a pointer to string can be used as storage");
@@ -160,6 +170,7 @@ export = {
         rt.regFunc(_getline, cin.t, "getline", [pchar, rt.intTypeLiteral], cin.t);
 
         const _get = function (rt: CRuntime, _cin: Cin) {
+            console.log("get...");
             const b = _cin.v.buf;
             _cin.v.eofbit = b.length === 0;
 
