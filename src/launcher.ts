@@ -91,7 +91,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     }
 
     function performStep() {
-        if(proceed) {
+        while (proceed) {
             step = mainGen.next();
             if (step.done) { 
                 _config.stdio.finishCallback(step.value.v as number);
@@ -100,9 +100,8 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout)) {
                 throw new Error("Time limit exceeded.");
             }
-            performStep();
         }
-    }
+    }    
 
     mergeConfig(_config, config);
     const rt = new CRuntime(_config);
