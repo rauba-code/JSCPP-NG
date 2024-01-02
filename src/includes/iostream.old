@@ -27,6 +27,7 @@ export = {
         } = rt.config;
         const cinType = rt.newClass("istream", []);
 
+        console.log("drain 2");
         const cin = {
             t: cinType,
             v: {

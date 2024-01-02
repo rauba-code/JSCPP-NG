@@ -25,9 +25,12 @@ export interface JSCPPConfig {
     includes?: { [fileName: string]: IncludeModule };
     loadedLibraries?: string[];
     stdio?: {
+        promiseError: (promise_error: string) => void;
         drain?: () => string;
         cinStop: () => void;
         cinProceed: () => void;
+        setReadResult: (result: string) => void;
+        getReadResult: () => string;
         getInput: () => Promise<string>;
         finishCallback: (ExitCode: number) => void;
         write: (s: string) => void;

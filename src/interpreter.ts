@@ -800,16 +800,8 @@ export class Interpreter extends BaseInterpreter {
                     s.type = "LogicalORExpression";
                     return yield* interp.visit(interp, s, param);
                 } else {
-                    // console.log "==================="
-                    // console.log "s.left: " + JSON.stringify(s.left)
-                    // console.log "s.right: " + JSON.stringify(s.right)
-                    // console.log "==================="
                     const left = yield* interp.visit(interp, s.left, param);
                     const right = yield* interp.visit(interp, s.right, param);
-                    // console.log "==================="
-                    // console.log "left: " + JSON.stringify(left)
-                    // console.log "right: " + JSON.stringify(right)
-                    // console.log "==================="
                     const r = rt.getFunc(left.t, rt.makeOperatorFuncName(op), [right.t])(rt, left, right);
                     if (isGenerator(r)) {
                         return yield* r;

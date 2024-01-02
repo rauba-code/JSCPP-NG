@@ -61,6 +61,7 @@ export = {
         const {
             stdio
         } = rt.config;
+        console.log("drain 1");
         let input_stream = stdio.drain();
 
 

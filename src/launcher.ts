@@ -43,14 +43,24 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     let inputbuffer = ""; //input.toString();
     let proceed = true;
     let startTime: number;
+    let readResult = "";
 
     const _config: JSCPPConfig = {
         stdio: {
+            promiseError(promise_error) {
+                console.log(promise_error);
+            },
             cinStop() {
                 handleStop();
             },
             cinProceed() {
                 handleProceed();
+            },
+            setReadResult(result: string) {
+                readResult = result;
+            },
+            getReadResult() {
+                return readResult;
             },
             drain() {
                 const x = inputbuffer;
