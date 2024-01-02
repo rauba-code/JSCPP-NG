@@ -3,6 +3,8 @@ import { ObjectValue, ObjectVariable, Variable } from "../../rt";
 export interface IomanipConfig {
     setprecision?: number;
     fixed?: boolean;
+    left?: boolean;
+    right?: boolean;
     setw?: number;
     setfill?: string;
 }

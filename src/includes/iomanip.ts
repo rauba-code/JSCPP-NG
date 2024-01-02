@@ -32,6 +32,30 @@ export = {
         };
         rt.scope[0].variables["fixed"] = _fixed;
 
+        const _left: IomanipOperator = {
+            t: type,
+            v: {
+                name: "left",
+                f(config: IomanipConfig) {
+                    config.left = true;
+                    config.right = false;
+                }
+            }
+        };
+        rt.scope[0].variables["left"] = _left;
+
+        const _right: IomanipOperator = {
+            t: type,
+            v: {
+                name: "right",
+                f(config: IomanipConfig) {
+                    config.right = true;
+                    config.left = false;
+                }
+            }
+        };
+        rt.scope[0].variables["right"] = _right;
+
         const _setw = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
 
@@ -96,7 +120,11 @@ export = {
                                             rt.raiseException("<< operator in ostream cannot accept " + rt.makeTypeString(o.t));
                                 }
                                 for (let i = 0, end = this.config.setw - tarStr.length; i < end; i++) {
-                                    tarStr = fill + tarStr;
+                                    if (!this.active.left) {
+                                        tarStr = fill + tarStr;
+                                    } else {
+                                        tarStr = tarStr + fill;
+                                    }
                                 }
                                 delete this.active.setw;
                             }
