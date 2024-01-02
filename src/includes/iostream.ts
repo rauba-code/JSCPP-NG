@@ -119,50 +119,59 @@ export = {
             }
 
             for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                tar[i + initialPos] = rt.val(rt.charTypeLiteral, r.charCodeAt(i));
+                tar[i + initialPos] = rt.val(rt.wcharTypeLiteral, r.charCodeAt(i));
             }
-            tar[r.length + initialPos] = rt.val(rt.charTypeLiteral, 0);
+            tar[r.length + initialPos] = rt.val(rt.wcharTypeLiteral, 0);
             return _cin;
         };
         rt.regOperator(_cinString, cin.t, ">>", [pchar], cin.t);
 
         const _getline = function (rt: CRuntime, _cin: Cin, t: ArrayVariable, limitV: IntVariable, delimV: IntVariable) {
-            let removeDelim;
-            if (!rt.isStringType(t.t)) {
-                rt.raiseException("only a pointer to string can be used as storage");
-            }
-            const limit = limitV.v;
-            const delim =
-                (delimV != null) ?
-                    String.fromCharCode(delimV.v)
-                    :
-                    '\n';
-            const b = _cin.v.buf;
-            _cin.v.eofbit = b.length === 0;
+            stdio.cinStop();
+            stdio.getInput().then(result => {
+                let removeDelim;
+                _cin.v.buf = result;
+                if (!rt.isStringType(t.t)) {
+                    rt.raiseException("only a pointer to string can be used as storage");
+                }
+                const limit = limitV.v;
+                const delim =
+                    (delimV != null) ?
+                        String.fromCharCode(delimV.v)
+                        :
+                        '\n';
+                const b = _cin.v.buf;
+                _cin.v.eofbit = b.length === 0;
 
-            let r = _read(rt, new RegExp(`^[^${delim}]*`), b, t.t)[0];
-            if ((r.length + 1) > limit) {
-                r = r.substring(0, limit - 1);
-            }
-            if (b.charAt(r.length) === delim.charAt(0)) {
-                removeDelim = true;
-                _cin.v.failbit = false;
-            } else {
-                _cin.v.failbit = r.length === 0;
-            }
-            _cin.v.buf = b.substring(r.length + (removeDelim ? 1 : 0));
+                let r = _read(rt, new RegExp(`^[^${delim}]*`), b, t.t)[0];
+                if ((r.length + 1) > limit) {
+                    r = r.substring(0, limit - 1);
+                }
+                if (b.charAt(r.length) === delim.charAt(0)) {
+                    removeDelim = true;
+                    _cin.v.failbit = false;
+                } else {
+                    _cin.v.failbit = r.length === 0;
+                }
+                _cin.v.buf = b.substring(r.length + (removeDelim ? 1 : 0));
 
-            const initialPos = t.v.position;
-            const tar = t.v.target;
-            if ((tar.length - initialPos) <= r.length) {
-                rt.raiseException(`target string buffer is ${r.length - (tar.length - initialPos)} too short`);
-            }
+                const initialPos = t.v.position;
+                const tar = t.v.target;
+                if ((tar.length - initialPos) <= r.length) {
+                    rt.raiseException(`target string buffer is ${r.length - (tar.length - initialPos)} too short`);
+                }
 
-            for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                tar[i + initialPos] = rt.val(rt.charTypeLiteral, r.charCodeAt(i));
-            }
-            tar[r.length + initialPos] = rt.val(rt.charTypeLiteral, 0);
-            return _cin;
+                for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
+                    tar[i + initialPos] = rt.val(rt.wcharTypeLiteral, r.charCodeAt(i));
+                }
+                tar[r.length + initialPos] = rt.val(rt.wcharTypeLiteral, 0);
+                stdio.write(b + "\n");
+                stdio.cinProceed();
+                return _cin;
+            }).catch((err) => {
+                console.log(err);
+                stdio.promiseError(err);
+            });
         };
 
         rt.regFunc(_getline, cin.t, "getline", [pchar, rt.intTypeLiteral, rt.charTypeLiteral], cin.t);

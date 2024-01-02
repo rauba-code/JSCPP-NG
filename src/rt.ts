@@ -261,6 +261,7 @@ export class CRuntime {
     floatTypeLiteral: FloatType;
     doubleTypeLiteral: FloatType;
     charTypeLiteral: IntType;
+    wcharTypeLiteral: IntType;
     unsignedcharTypeLiteral: IntType;
     boolTypeLiteral: IntType;
     voidTypeLiteral: VoidType;
@@ -283,6 +284,7 @@ export class CRuntime {
         this.floatTypeLiteral = this.primitiveType("float") as FloatType;
         this.doubleTypeLiteral = this.primitiveType("double") as FloatType;
         this.charTypeLiteral = this.primitiveType("char") as IntType;
+        this.wcharTypeLiteral = this.primitiveType("wchar_t") as IntType;
         this.unsignedcharTypeLiteral = this.primitiveType("unsigned char") as IntType;
         this.boolTypeLiteral = this.primitiveType("bool") as IntType;
         this.voidTypeLiteral = this.primitiveType("void") as VoidType;
