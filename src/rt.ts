@@ -763,6 +763,7 @@ export class CRuntime {
             if (errorMsg && overflow) {
                 if (this.isUnsignedType(type)) {
                     if (this.config.unsigned_overflow === "error") {
+                        console.error(errorMsg);
                         this.raiseException(errorMsg);
                         return false;
                     } else if (this.config.unsigned_overflow === "warn") {
@@ -1340,7 +1341,7 @@ export class CRuntime {
     };
 
     makeCharArrayFromString(str: string, typename?: CBasicType): ArrayVariable {
-        if (!typename) { typename = "char"; }
+        if (!typename) { typename = "wchar_t"; }
         const charType = this.primitiveType(typename);
         const type = this.arrayPointerType(charType, str.length + 1);
         const trailingZero = this.val(charType, 0);

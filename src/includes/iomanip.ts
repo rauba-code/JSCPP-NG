@@ -105,6 +105,7 @@ export = {
                             } else {
                                 fill = " ";
                             }
+                            
                             if (!(rt.isTypeEqualTo(o.t, rt.charTypeLiteral) && ((o.v === 10) || (o.v === 13)))) {
                                 if (!tarStr) {
                                     tarStr = rt.isPrimitiveType(o) ?
