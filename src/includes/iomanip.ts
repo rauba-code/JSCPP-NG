@@ -56,6 +56,45 @@ export = {
         };
         rt.scope[0].variables["right"] = _right;
 
+        const _hex: IomanipOperator = {
+            t: type,
+            v: {
+                name: "hex",
+                f(config: IomanipConfig) {
+                    config.hex = true;
+                    config.oct = false;
+                    config.dec = false;
+                }
+            }
+        };
+        rt.scope[0].variables["hex"] = _hex;
+
+        const _oct: IomanipOperator = {
+            t: type,
+            v: {
+                name: "oct",
+                f(config: IomanipConfig) {
+                    config.oct = true;
+                    config.hex = false;
+                    config.dec = false;
+                }
+            }
+        };
+        rt.scope[0].variables["oct"] = _oct;
+
+        const _dec: IomanipOperator = {
+            t: type,
+            v: {
+                name: "dec",
+                f(config: IomanipConfig) {
+                    config.dec = true;
+                    config.oct = false;
+                    config.hex = false;
+                }
+            }
+        };
+        rt.scope[0].variables["dec"] = _dec;
+
         const _setw = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
 
@@ -98,6 +137,17 @@ export = {
                                 tarStr = o.v.toPrecision(this.config.setprecision).replace(/0+$/, "");
                             }
                         }
+                        if (rt.isNumericType(o) && rt.isIntegerType(o) && !((o.v === 10) || (o.v === 13))) {
+                            if (this.active.hex) {
+                                tarStr = o.v.toString(16);
+                            }
+                            if (this.active.oct) {
+                                tarStr = o.v.toString(8);
+                            }                            
+                            if (this.active.dec) {
+                                tarStr = o.v.toString(10);
+                            }                            
+                        }
                         if (this.active.setw != null) {
                             let fill;
                             if (this.active.setfill != null) {
@@ -139,6 +189,18 @@ export = {
                 };
             }
             m.v.f(_cout.manipulators.config);
+            if (m.v.name == "hex") {
+                delete _cout.manipulators.active["oct"];
+                delete _cout.manipulators.active["dec"];
+            }
+            if (m.v.name == "oct") {
+                delete _cout.manipulators.active["hex"];
+                delete _cout.manipulators.active["dec"];
+            }                            
+            if (m.v.name == "dec") {
+                delete _cout.manipulators.active["oct"];
+                delete _cout.manipulators.active["hex"];
+            }             
             _cout.manipulators.active[m.v.name] = m.v.f;
             return _cout;
         };

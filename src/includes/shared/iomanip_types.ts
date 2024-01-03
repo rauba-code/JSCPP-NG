@@ -5,6 +5,9 @@ export interface IomanipConfig {
     fixed?: boolean;
     left?: boolean;
     right?: boolean;
+    oct?: boolean;
+    dec?: boolean;
+    hex?: boolean;
     setw?: number;
     setfill?: string;
 }
