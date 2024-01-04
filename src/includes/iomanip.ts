@@ -5,7 +5,12 @@ import { IomanipOperator, IomanipConfig, Cout } from "./shared/iomanip_types";
 export = {
     load(rt: CRuntime) {
         const type = rt.newClass("iomanipulator", []);
-        const oType = rt.simpleType("ostream");
+        let oType;
+        try {
+            oType = rt.newClass("ostream", []);
+        } catch (error) {
+            oType = rt.simpleType("ostream");
+        }
 
         const _setprecesion = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
@@ -95,6 +100,30 @@ export = {
         };
         rt.scope[0].variables["dec"] = _dec;
 
+        const _boolalpha: IomanipOperator = {
+            t: type,
+            v: {
+                name: "boolalpha",
+                f(config: IomanipConfig) {
+                    config.boolalpha = true;
+                    config.noboolalpha = false;
+                }
+            }
+        };
+        rt.scope[0].variables["boolalpha"] = _boolalpha;
+
+        const _noboolalpha: IomanipOperator = {
+            t: type,
+            v: {
+                name: "noboolalpha",
+                f(config: IomanipConfig) {
+                    config.noboolalpha = true;
+                    config.boolalpha = false;
+                }
+            }
+        };
+        rt.scope[0].variables["noboolalpha"] = _noboolalpha;
+
         const _setw = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
 
@@ -135,6 +164,12 @@ export = {
                                 tarStr = o.v.toFixed(prec);
                             } else if (this.active.setprecision != null) {
                                 tarStr = o.v.toPrecision(this.config.setprecision).replace(/0+$/, "");
+                            }
+                        }
+                        
+                        if (rt.isBoolType(o.t)) {
+                            if (this.active.boolalpha) {
+                                tarStr = o.v ? "true" : "false";
                             }
                         }
                         if (rt.isNumericType(o) && rt.isIntegerType(o) && !((o.v === 10) || (o.v === 13))) {
@@ -194,6 +229,7 @@ export = {
                 delete _cout.manipulators.active["dec"];
             }
             if (m.v.name == "oct") {
+
                 delete _cout.manipulators.active["hex"];
                 delete _cout.manipulators.active["dec"];
             }                            
@@ -201,6 +237,12 @@ export = {
                 delete _cout.manipulators.active["oct"];
                 delete _cout.manipulators.active["hex"];
             }             
+            if (m.v.name == "boolalpha") {
+                delete _cout.manipulators.active["noboolalpha"];
+            }             
+            if (m.v.name == "noboolalpha") {
+                delete _cout.manipulators.active["boolalpha"];
+            } 
             _cout.manipulators.active[m.v.name] = m.v.f;
             return _cout;
         };

@@ -1272,6 +1272,18 @@ export class CRuntime {
         }
     };
 
+    simpleClassType(type: string) {
+        const clsType: ClassType = {
+            type: "class",
+            name: type
+        };
+        if (this.getTypeSignature(clsType) in this.types) {
+            return clsType;
+        } else {
+            this.raiseException("type " + type + " is not defined");
+        }
+    };
+
     newClass(classname: string, members: Member[]) {
         const clsType: ClassType = {
             type: "class",

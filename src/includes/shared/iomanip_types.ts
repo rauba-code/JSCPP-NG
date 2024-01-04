@@ -8,6 +8,8 @@ export interface IomanipConfig {
     oct?: boolean;
     dec?: boolean;
     hex?: boolean;
+    boolalpha?: boolean;
+    noboolalpha?: boolean;
     setw?: number;
     setfill?: string;
 }
