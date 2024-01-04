@@ -267,6 +267,38 @@ export = {
             }
         }), "global", "strstr", [
             pchar,
+            pchar
+        ], pchar);
+        return rt.regFunc((function (rt, _this, str1, str2) {
+            if (rt.isArrayType(str1) && rt.isArrayType(str2)) {
+                // BM?
+                const arr = str1.v.target;
+                let i = str1.v.position;
+                const tar = str2.v.target;
+                while ((i < arr.length) && (arr[i].v !== 0)) {
+                    let j = str2.v.position;
+                    let _i = i;
+                    while ((j < tar.length) && (str1.v.target[_i].v === str2.v.target[j].v)) {
+                        _i++;
+                        j++;
+                    }
+                    if (j === tar.length) {
+                        break;
+                    }
+                    i++;
+                }
+                if (arr[i].v === 0) {
+                    return rt.val(pchar, rt.nullPointerValue);
+                } else if (i === arr.length) {
+                    return rt.raiseException("target string does not have a pending \"\\0\"");
+                } else {
+                    return rt.val(pchar, rt.makeArrayPointerValue(arr, i));
+                }
+            } else {
+                return rt.raiseException("str1 or str2 is not an array");
+            }
+        }), "global", "strstr", [
+            pchar,
             rt.charTypeLiteral
         ], pchar);
     }
