@@ -89,11 +89,11 @@ export = {
                             }
                             stdio.write(b + "\n");
                             stdio.cinProceed();
-                            return _cin;
                         }).catch((err) => {
                             console.log(err);
                             stdio.promiseError(err);
                         });
+                        return _cin;
                     }
                 }
             }
