@@ -30,7 +30,7 @@ export = {
         const cin = {
             t: cinType,
             v: {
-                buf: "1 2 3 4", // stdio.drain()
+                buf: "", // stdio.drain()
                 istream: stdio,
                 members: {}
             },
@@ -51,12 +51,23 @@ export = {
                         if (!rt.isPrimitiveType(t.t)) {
                             rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t.t));
                         }
-                        stdio.getInput().then(result => {
+
+                        const inputPromise: Promise<[string, boolean]> = new Promise((resolve) => {
+                            let result = _cin.v.buf;
+                            if (!result) {
+                                stdio.getInput().then((result) => {
+                                    resolve([result, false]);
+                                });
+                            } else {
+                                resolve([result, true]);
+                            }
+                        });
+
+                        inputPromise.then(([result, is_raw]) => {
                             _cin.v.buf = result;
                             let b = _cin.v.buf;
                             _cin.v.eofbit = b.length === 0;
-                            let r
-                            let v;
+                            let r, v;
                             switch (t.t.name) {
                                 case "char": case "signed char": case "unsigned char":
                                     b = _skipSpace(b);
@@ -87,7 +98,8 @@ export = {
                                 t.v = rt.val(t.t, v).v;
                                 _cin.v.buf = b.substring(len);
                             }
-                            stdio.write(b + "\n");
+                            if (!is_raw)
+                                stdio.write(b + "\n");
                             stdio.cinProceed();
                         }).catch((err) => {
                             console.log(err);
