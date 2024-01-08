@@ -1330,7 +1330,11 @@ export class CRuntime {
         if ("t" in type) {
             return this.isStringType(type.t);
         }
-        return this.isArrayType(type) && this.isCharType(type.eleType);
+        return (this.isArrayType(type) && this.isCharType(type.eleType)) || this.isStringClass(type);
+    };
+
+    isStringClass(type: VariableType) {
+        return (type.type === "class" && type.name === "string");
     };
 
     getStringFromCharArray(element: ArrayVariable) {
