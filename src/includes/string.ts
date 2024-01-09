@@ -108,5 +108,13 @@ export = {
                 expression: ""
             }
         ]);
+
+        const _isEmpty = function(rt: CRuntime, _this: Variable) {
+            const str = rt.getStringFromCharArray(_this as ArrayVariable);
+            return rt.val(rt.boolTypeLiteral, str.length === 0);
+        };
+
+        rt.regFunc(_isEmpty, newStringType, "empty", [], rt.boolTypeLiteral);
+
     }
 };
