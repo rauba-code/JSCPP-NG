@@ -48,7 +48,7 @@ export = {
                         if (!t.left) {
                             rt.raiseException("only left value can be used as storage");
                         }
-                        if (!rt.isPrimitiveType(t.t)) {
+                        if (!rt.isPrimitiveType(t.t) && !rt.isStringClass(t.t)) {
                             rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t.t));
                         }
 
@@ -69,6 +69,11 @@ export = {
                             _cin.v.eofbit = b.length === 0;
                             let r, v;
                             switch (t.t.name) {
+                                case "string": 
+                                    b = _skipSpace(b);
+                                    r = _read(rt, /^.*$/, b, t.t);
+                                    v = rt.makeCharArrayFromString(r[0]).v;
+                                    break;
                                 case "char": case "signed char": case "unsigned char":
                                     b = _skipSpace(b);
                                     r = _read(rt, /^./, b, t.t);
