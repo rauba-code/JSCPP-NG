@@ -58,13 +58,13 @@ export = {
         };
 
         const _getSubstring = function(rt: CRuntime, left: Variable, pos: IntVariable, npos: IntVariable) {
-            const r = rt.getStringFromCharArray(left as ArrayVariable).substring(pos.v, pos.v + npos?.v);
+            const r = rt.getStringFromCharArray(left as ArrayVariable).substring(pos.v, npos != null ? pos.v + npos.v : undefined);
             left.v = rt.makeCharArrayFromString(r).v;
             return left;
         };
     
         const _getStringLength = function(rt: CRuntime, _this: Variable) {
-            const len = rt.getStringFromCharArray(_this as ArrayVariable).length - 1;
+            const len = rt.getStringFromCharArray(_this as ArrayVariable).length;
             _this = rt.val(rt.intTypeLiteral, len);
             return _this;
         };
