@@ -996,6 +996,8 @@ export class CRuntime {
             } else {
                 this.raiseException("cannot cast a regular pointer to a function");
             }
+        } else if (this.isStringClass(type)) {
+            return this.val(type, value.v);
         } else if (this.isClassType(type)) {
             this.raiseException("not implemented");
         } else if (this.isClassType(value.t)) {
