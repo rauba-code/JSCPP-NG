@@ -44,11 +44,10 @@ export = {
         rt.types[typeSig].handlers = stringHandlers;
 
         const _convertSingleCharIntoStringArray = function(charArray: any) {
-            if (charArray.v.target) {
+            if (charArray.v.target)
                 return charArray;
-            } else {
-                return rt.makeCharArrayFromString(String.fromCharCode(charArray.v as number));
-            }
+
+            return rt.makeCharArrayFromString(String.fromCharCode(charArray.v as number));
         };
 
         const _getSubstring = function(rt: CRuntime, left: Variable, pos: IntVariable, npos: IntVariable) {
@@ -87,12 +86,7 @@ export = {
 
         rt.regFunc(function(rt: CRuntime, _this: Variable, append_str: Variable, subpos: IntVariable, sublen: IntVariable) {
             let r = rt.getStringFromCharArray(_this as ArrayVariable);
-
-            if (!subpos) {
-                r = r + rt.getStringFromCharArray(append_str as ArrayVariable);
-            } else {
-                r = r + rt.getStringFromCharArray(_getSubstring(rt, append_str, subpos, sublen) as ArrayVariable);
-            }
+            r += rt.getStringFromCharArray((!subpos ? append_str : _getSubstring(rt, append_str, subpos, sublen)) as ArrayVariable);
 
             _this.v = rt.makeCharArrayFromString(r).v;
             return _this;

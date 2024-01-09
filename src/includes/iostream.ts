@@ -71,7 +71,7 @@ export = {
                             switch (t.t.name) {
                                 case "string": 
                                     b = _skipSpace(b);
-                                    r = _read(rt, /^.*$/, b, t.t);
+                                    r = _read(rt, /^[^\s]+/, b, t.t);
                                     v = rt.makeCharArrayFromString(r[0]).v;
                                     break;
                                 case "char": case "signed char": case "unsigned char":
