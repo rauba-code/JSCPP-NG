@@ -28,6 +28,13 @@ export = {
                     return left;
                 }
             },
+            "o(==)": {
+                default(rt: CRuntime, left: ArrayVariable, right: ArrayVariable) {
+                    const l = rt.getStringFromCharArray(left);
+                    const r = rt.getStringFromCharArray(right);
+                    return rt.val(rt.boolTypeLiteral, l === r);
+                }
+            },
             "o(+=)": {
                 default(rt: CRuntime, left: Variable, right: ArrayVariable) {
                     const r = stringHandlers["o(+)"].default(rt, left, right);
