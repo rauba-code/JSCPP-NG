@@ -5,14 +5,8 @@ import { IomanipOperator, IomanipConfig, Cout } from "./shared/iomanip_types";
 export = {
     load(rt: CRuntime) {
         const type = rt.newClass("iomanipulator", []);
-        let oType;
-        try {
-            oType = rt.newClass("ostream", []);
-        } catch (error) {
-            oType = rt.simpleType("ostream");
-        }
-
-        const _setprecesion = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
+        
+        const _setprecision = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
 
             v: {
@@ -24,7 +18,7 @@ export = {
 
             left: false
         });
-        rt.regFunc(_setprecesion, "global", "setprecision", [rt.intTypeLiteral], type);
+        rt.regFunc(_setprecision, "global", "setprecision", [rt.intTypeLiteral], type);
 
         const _fixed: IomanipOperator = {
             t: type,
@@ -123,6 +117,9 @@ export = {
             }
         };
         rt.scope[0].variables["noboolalpha"] = _noboolalpha;
+
+        const endl = rt.val(rt.charTypeLiteral, "\n".charCodeAt(0));
+        rt.scope[0].variables["endl"] = endl;
 
         const _setw = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
@@ -229,7 +226,6 @@ export = {
                 delete _cout.manipulators.active["dec"];
             }
             if (m.v.name == "oct") {
-
                 delete _cout.manipulators.active["hex"];
                 delete _cout.manipulators.active["dec"];
             }                            
@@ -247,6 +243,21 @@ export = {
             return _cout;
         };
 
+
+        const _bindOperatorToType = function(className: string) {
+            let type;
+            try {
+                type = rt.newClass(className, []);
+            } catch (error) {
+                type = rt.simpleType(className); 
+            }
+            return type;
+        };
+
+        const oType = _bindOperatorToType("ostream");
         rt.regOperator(_addManipulator, oType, "<<", [type], oType);
+
+        const ofstreamType = _bindOperatorToType("ofstream");
+        rt.regOperator(_addManipulator, ofstreamType, "<<", [type], ofstreamType);
     }
 };

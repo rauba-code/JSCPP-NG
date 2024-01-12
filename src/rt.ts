@@ -24,6 +24,9 @@ export interface JSCPPConfig {
     };
     includes?: { [fileName: string]: IncludeModule };
     loadedLibraries?: string[];
+    fstream?: {
+        open: (fileName: string) => object
+    };
     stdio?: {
         promiseError: (promise_error: string) => void;
         drain?: () => string;
@@ -996,10 +999,12 @@ export class CRuntime {
             } else {
                 this.raiseException("cannot cast a regular pointer to a function");
             }
-        } else if (this.isStringClass(type)) {
-            return this.val(type, value.v);
         } else if (this.isClassType(type)) {
-            this.raiseException("not implemented");
+            if (this.isStringClass(type)) {
+                return this.val(type, value.v);
+            } else {
+                this.raiseException("not implemented");
+            }
         } else if (this.isClassType(value.t)) {
             value = this.getCompatibleFunc(value.t, this.makeOperatorFuncName(type.name), [])(this, value);
             return value;

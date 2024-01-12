@@ -1,25 +1,7 @@
 /* eslint-disable no-shadow */
 import { ArrayVariable, CRuntime, IntVariable, Variable, VariableType, ClassType } from "../rt";
 import { Cin, Cout, IomanipOperator, IomanipConfig } from "./shared/iomanip_types";
-
-const _skipSpace = function (s: string) {
-    const r = /^\s*/.exec(s);
-    if (r && (r.length > 0)) {
-        return s.substring(r[0].length);
-    } else {
-        return s;
-    }
-};
-
-const _read = function (rt: CRuntime, reg: RegExp, buf: string, type: VariableType) {
-    const r = reg.exec(buf);
-    if ((r == null) || (r.length === 0)) {
-        return r;
-        // rt.raiseException("input format mismatch " + rt.makeTypeString(type) + " with buffer=" + buf);
-    } else {
-        return r;
-    }
-};
+import { read, skipSpace } from "./shared/string_utils";
 
 export = {
     load(rt: CRuntime) {
@@ -71,32 +53,28 @@ export = {
                             let r, v;
                             switch (t.t.name) {
                                 case "string": 
-                                    b = _skipSpace(b);
-                                    r = _read(rt, /^[^\s]+/, b, t.t);
-                                    if(r == null) {
-                                        v = rt.makeCharArrayFromString("").v;
-                                    } else {
-                                        v = rt.makeCharArrayFromString(r[0]).v;
-                                    }
+                                    b = skipSpace(b);
+                                    r = read(rt, /^[^\s]+/, b, t.t);
+                                    v = rt.makeCharArrayFromString(r != null ? r[0] : "").v;
                                     break;
                                 case "char": case "signed char": case "unsigned char":
-                                    b = _skipSpace(b);
-                                    r = _read(rt, /^./, b, t.t);
+                                    b = skipSpace(b);
+                                    r = read(rt, /^./, b, t.t);
                                     v = r[0].charCodeAt(0);
                                     break;
                                 case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
-                                    b = _skipSpace(b);
-                                    r = _read(rt, /^[-+]?(?:([0-9]*)([eE]\+?[0-9]+)?)|0/, b, t.t);
+                                    b = skipSpace(b);
+                                    r = read(rt, /^[-+]?(?:([0-9]*)([eE]\+?[0-9]+)?)|0/, b, t.t);
                                     v = parseInt(r[0], 10);
                                     break;
                                 case "float": case "double":
-                                    b = _skipSpace(b);
-                                    r = _read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)$/, b, t.t);  // fixed to allow floats such as 0                                    
+                                    b = skipSpace(b);
+                                    r = read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)$/, b, t.t);  // fixed to allow floats such as 0                                    
                                     v = parseFloat(r[0]);
                                     break;
                                 case "bool":
-                                    b = _skipSpace(b);
-                                    r = _read(rt, /^(true|false)/, b, t.t);
+                                    b = skipSpace(b);
+                                    r = read(rt, /^(true|false)/, b, t.t);
                                     v = r[0] === "true";
                                     break;
                                 default:
@@ -135,8 +113,8 @@ export = {
             let b = _cin.v.buf;
             _cin.v.eofbit = b.length === 0;
 
-            b = _skipSpace(b);
-            const r = _read(rt, /^\S*/, b, t.t)[0];
+            b = skipSpace(b);
+            const r = read(rt, /^\S*/, b, t.t)[0];
             _cin.v.failbit = r.length === 0;
             _cin.v.buf = b.substring(r.length);
 
@@ -171,7 +149,7 @@ export = {
                 const b = _cin.v.buf;
                 _cin.v.eofbit = b.length === 0;
 
-                let r = _read(rt, new RegExp(`^[^${delim}]*`), b, t.t)[0];
+                let r = read(rt, new RegExp(`^[^${delim}]*`), b, t.t)[0];
                 if ((r.length + 1) > limit) {
                     r = r.substring(0, limit - 1);
                 }
@@ -212,7 +190,7 @@ export = {
             if (_cin.v.eofbit) {
                 return rt.val(rt.intTypeLiteral, -1);
             } else {
-                const r = _read(rt, /^.|[\r\n]/, b, rt.charTypeLiteral);
+                const r = read(rt, /^.|[\r\n]/, b, rt.charTypeLiteral);
                 _cin.v.buf = b.substring(r.length);
                 const v = r[0].charCodeAt(0);
                 return rt.val(rt.intTypeLiteral, v);

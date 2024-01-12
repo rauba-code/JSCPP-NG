@@ -9,6 +9,9 @@ import Debugger from "./debugger"
 import * as PEGUtil from "pegjs-util";
 
 const includes: { [fileName: string]: IncludeModule } = {
+    ifstream: require("./includes/ifstream"),
+    ofstream: require("./includes/ofstream"),
+    fstream: require("./includes/fstream"),
     string: require("./includes/string"),
     iostream: require("./includes/iostream"),
     cctype: require("./includes/cctype"),
@@ -19,7 +22,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     cstdlib: require("./includes/cstdlib"),
     ctime: require("./includes/ctime"),
     iomanip: require("./includes/iomanip"),
-    foo: require("./includes/dummy_class_foo")
+    // foo: require("./includes/dummy_class_foo")
 };
 
 const headerAlias: { [filename: string]: string } = {
