@@ -14,7 +14,8 @@ const _skipSpace = function (s: string) {
 const _read = function (rt: CRuntime, reg: RegExp, buf: string, type: VariableType) {
     const r = reg.exec(buf);
     if ((r == null) || (r.length === 0)) {
-        rt.raiseException("input format mismatch " + rt.makeTypeString(type) + " with buffer=" + buf);
+        return r;
+        // rt.raiseException("input format mismatch " + rt.makeTypeString(type) + " with buffer=" + buf);
     } else {
         return r;
     }
@@ -72,7 +73,11 @@ export = {
                                 case "string": 
                                     b = _skipSpace(b);
                                     r = _read(rt, /^[^\s]+/, b, t.t);
-                                    v = rt.makeCharArrayFromString(r[0]).v;
+                                    if(r == null) {
+                                        v = rt.makeCharArrayFromString("").v;
+                                    } else {
+                                        v = rt.makeCharArrayFromString(r[0]).v;
+                                    }
                                     break;
                                 case "char": case "signed char": case "unsigned char":
                                     b = _skipSpace(b);
@@ -97,11 +102,17 @@ export = {
                                 default:
                                     rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t.t));
                             }
-                            const len = r[0].length;
+                            let len = 0;
+                            if (r !== null) {
+                                len = r[0].length;
+                            }
                             _cin.v.failbit = len === 0;
                             if (!_cin.v.failbit) {
                                 t.v = rt.val(t.t, v).v;
                                 _cin.v.buf = b.substring(len);
+                            } else {
+                                t.v = rt.val(t.t, v).v;
+                                _cin.v.buf = "";
                             }
                             if (!is_raw)
                                 stdio.write(b + "\n");

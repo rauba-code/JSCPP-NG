@@ -1,5 +1,5 @@
 /* eslint-disable no-shadow */
-import { CRuntime, ClassType, ArrayVariable, Variable, ObjectVariable, IntType, VariableValue, IntVariable } from "../rt";
+import { CRuntime, ClassType, ArrayVariable, Variable, ObjectVariable, IntType, VariableValue, IntVariable, FloatVariable } from "../rt";
 
 export = {
     load(rt: CRuntime) {
@@ -13,7 +13,7 @@ export = {
             originalConstructor(rt, _this);
             _this.v = rt.makeCharArrayFromString("").v as VariableValue;
         };
-        
+
         const stringHandlers = {
             "o(=)": {
                 default(rt: CRuntime, left: any, right: any) {
@@ -33,6 +33,13 @@ export = {
                     const l = rt.getStringFromCharArray(left);
                     const r = rt.getStringFromCharArray(right);
                     return rt.val(rt.boolTypeLiteral, l === r);
+                }
+            },
+            "o(!=)": {
+                default(rt: CRuntime, left: ArrayVariable, right: ArrayVariable) {
+                    const l = rt.getStringFromCharArray(left);
+                    const r = rt.getStringFromCharArray(right);
+                    return rt.val(rt.boolTypeLiteral, l !== r);
                 }
             },
             "o(+=)": {
@@ -110,11 +117,23 @@ export = {
         ]);
 
         const _isEmpty = function(rt: CRuntime, _this: Variable) {
+            if (_this === null || typeof _this === 'undefined') {
+                return rt.val(rt.boolTypeLiteral, true);
+            }
             const str = rt.getStringFromCharArray(_this as ArrayVariable);
             return rt.val(rt.boolTypeLiteral, str.length === 0);
         };
 
         rt.regFunc(_isEmpty, newStringType, "empty", [], rt.boolTypeLiteral);
+
+        const _to_string = function(rt: CRuntime, _this: Variable, value: IntVariable) {
+            let str;
+            str = value.v.toString();
+            let newString = rt.makeCharArrayFromString(str);
+            return newString;
+        };
+
+        rt.regFunc(_to_string, "global", "to_string", [rt.intTypeLiteral], newStringType);
 
     }
 };

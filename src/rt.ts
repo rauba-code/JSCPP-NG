@@ -1361,7 +1361,8 @@ export class CRuntime {
     };
 
     makeCharArrayFromString(str: string, typename?: CBasicType): ArrayVariable {
-        if (!typename) { typename = "wchar_t"; }
+        // if (!typename) { typename = "wchar_t"; }
+        if (!typename) { typename = "char"; }
         const charType = this.primitiveType(typename);
         const type = this.arrayPointerType(charType, str.length + 1);
         const trailingZero = this.val(charType, 0);
