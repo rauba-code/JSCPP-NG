@@ -169,9 +169,17 @@ export class Interpreter extends BaseInterpreter {
                             rt.raiseException("missing declarator for argument", _param);
                         }
                         _init = _param.Declarator.Initializers;
-                        const _pointer = _param.Declarator.Declarator.Pointer;
+
                         const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
-                        _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                        const _reference = _param.Declarator.Declarator.Reference;
+                        
+                        if (_reference) {
+                            _type = rt.makeReferenceType(_basetype);
+                        } else {
+                            const _pointer = _param.Declarator.Declarator.Pointer;
+                            _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                        }
+                        
                         if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
                             const __basetype = param.basetype;
                             param.basetype = _basetype;

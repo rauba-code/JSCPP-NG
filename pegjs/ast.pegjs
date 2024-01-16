@@ -1,23 +1,23 @@
 {
-function buildRecursiveBinop(a, b){
-  var ret = a;
-  for (var i=0; i<b.length; i++) {
-    ret = addPositionInfo({type:'BinOpExpression', left:ret, op:b[i][0], right:b[i][1]});
-  }
-  return ret;
-};
+  function buildRecursiveBinop(a, b){
+    var ret = a;
+    for (var i=0; i<b.length; i++) {
+      ret = addPositionInfo({type:'BinOpExpression', left:ret, op:b[i][0], right:b[i][1]});
+    }
+    return ret;
+  };
 
-function addPositionInfo(r){
-    var posDetails = peg$computePosDetails(peg$currPos);
-    r.eLine = posDetails.line;
-    r.eColumn = posDetails.column;
-    r.eOffset = peg$currPos;
-    posDetails = peg$computePosDetails(peg$savedPos);
-    r.sLine = posDetails.line;
-    r.sColumn = posDetails.column;
-    r.sOffset = peg$savedPos;
-    return r;
-}
+  function addPositionInfo(r){
+      var posDetails = peg$computePosDetails(peg$currPos);
+      r.eLine = posDetails.line;
+      r.eColumn = posDetails.column;
+      r.eOffset = peg$currPos;
+      posDetails = peg$computePosDetails(peg$savedPos);
+      r.sLine = posDetails.line;
+      r.sColumn = posDetails.column;
+      r.sOffset = peg$savedPos;
+      return r;
+  }
 }
 
 //-------------------------------------------------------------------------
@@ -291,10 +291,14 @@ FunctionDirectDeclarator
     ;
 
 Declarator
-    = a:Pointer? b:DirectDeclarator {
+    = ( a:Pointer? b:DirectDeclarator {
       b.Pointer = a;
       return b;
-    }
+    } )
+    / ( a:Reference? b:DirectDeclarator {
+      b.Reference = a;
+      return b;
+    } )
     ;
 
 DirectDeclarator
@@ -325,7 +329,11 @@ DirectDeclarator
     ;
 
 Pointer
-    = ( STAR a:TypeQualifier* {return a;} )+
+    = ( STAR a:TypeQualifier* { return a; } )+
+    ;
+
+Reference
+    = ( a:TypeQualifier* AND { return a; } )+
     ;
 
 ParameterTypeList

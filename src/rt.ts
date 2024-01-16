@@ -113,6 +113,11 @@ export interface FunctionPointerType {
 
 export type PointerType = NormalPointerType | ArrayType | FunctionPointerType;
 
+export interface ReferenceType {
+    type: "reference",
+    targetType: VariableType
+}
+
 export interface OperatorFunctionType {
     type: "function";
 }
@@ -128,7 +133,7 @@ export interface ClassType {
     name: string;
 }
 
-export type VariableType = PrimitiveType | PointerType | FunctionType | ClassType;
+export type VariableType = PrimitiveType | ReferenceType | PointerType | FunctionType | ClassType;
 
 export type BasicValue = number | boolean;
 
@@ -743,7 +748,11 @@ export class CRuntime {
         }
         const vc = this.scope[this.scope.length - 1];
         // logger.log("defining variable: %j, %j", varname, type);
-        initval = this.clone(this.cast(type, initval), true);
+        if (this.isReferenceType(type)) {
+            initval = this.cast(type, initval);
+        } else {
+            initval = this.clone(this.cast(type, initval), true);
+        }
         if (initval === undefined) {
             vc.variables[varname] = this.defaultValue(type);
             vc.variables[varname].left = true;
@@ -886,6 +895,8 @@ export class CRuntime {
             return !this.isFunctionType(type2);
         } else if (this.isClassType(type1) || this.isClassType(type2)) {
             this.raiseException("not implemented");
+        } else if (this.isPrimitiveType(type1) && this.isReferenceType(type2)) {
+            return this.isReferenceType(type2); 
         }
         return false;
     };
@@ -942,6 +953,8 @@ export class CRuntime {
                     }
                 }
             }
+        } else if (this.isReferenceType(type)) {
+            return value;
         } else if (this.isPointerType(type)) {
             if (this.isArrayType(value)) {
                 if (this.isNormalPointerType(type)) {
@@ -968,7 +981,7 @@ export class CRuntime {
                             this.raiseException(this.makeTypeString(type.targetType) + " is not equal to " + this.makeTypeString(value.t.targetType));
                         }
                     } else {
-                        this.raiseException(this.makeValueString(value) + " is not a normal porinter");
+                        this.raiseException(this.makeValueString(value) + " is not a normal pointer");
                     }
                 } else if (this.isArrayType(type)) {
                     if (this.isNormalPointerType(value)) {
@@ -978,7 +991,7 @@ export class CRuntime {
                             this.raiseException("array element type " + this.makeTypeString(type.eleType) + " is not equal to " + this.makeTypeString(value.t.targetType));
                         }
                     } else {
-                        this.raiseException(this.makeValueString(value) + " is not a normal porinter");
+                        this.raiseException(this.makeValueString(value) + " is not a normal pointer");
                     }
                 } else if (this.isFunctionPointerType(type)) {
                     if (this.isFunctionPointerType(value.t)) {
@@ -1177,7 +1190,15 @@ export class CRuntime {
         if ('t' in type) {
             return type.t !== "dummy" && this.isPointerType(type.t);
         }
-        return type.type === "pointer"
+        return type.type === "pointer";
+    };
+
+    isReferenceType(type: VariableType): type is ReferenceType;
+    isReferenceType(type: Variable | DummyVariable | VariableType) {
+        if ('t' in type) {
+            return type.t !== "dummy" && this.isReferenceType(type.t);
+        }
+        return type.type === "reference";
     };
 
     isClassType(type: VariableType): type is ClassType;
@@ -1242,6 +1263,13 @@ export class CRuntime {
         return {
             type: "pointer",
             ptrType: "normal",
+            targetType
+        };
+    };
+
+    makeReferenceType(targetType: VariableType): ReferenceType {
+        return {
+            type: "reference",
             targetType
         };
     };
