@@ -1,4 +1,4 @@
-import { ArrayVariable, CRuntime, ClassType, Member, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
+import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
 import { read, skipSpace } from "./shared/string_utils";
 
 export = {

@@ -114,8 +114,13 @@ export interface FunctionPointerType {
 export type PointerType = NormalPointerType | ArrayType | FunctionPointerType;
 
 export interface ReferenceType {
-    type: "reference",
-    targetType: VariableType
+    type: "reference";
+    targetType: VariableType;
+}
+
+export interface StructType {
+    type: "struct";
+    name: string;
 }
 
 export interface OperatorFunctionType {
@@ -133,7 +138,7 @@ export interface ClassType {
     name: string;
 }
 
-export type VariableType = PrimitiveType | ReferenceType | PointerType | FunctionType | ClassType;
+export type VariableType = PrimitiveType | ReferenceType | StructType | PointerType | FunctionType | ClassType;
 
 export type BasicValue = number | boolean;
 
@@ -345,7 +350,7 @@ export class CRuntime {
 
     getMember(l: Variable, r: string): Variable {
         const lt = l.t;
-        if (this.isClassType(l)) {
+        if (this.isClassType(l) || this.isStructType(l)) {
             const ltsig = this.getTypeSignature(lt);
             if (this.types.hasOwnProperty(ltsig)) {
                 const t = this.types[ltsig].handlers;
@@ -1086,6 +1091,9 @@ export class CRuntime {
                 case "class":
                     return type1.name === (type2 as any).name;
                     break;
+                case "struct":
+                    return type1.name === (type2 as any).name;
+                    break;
                 case "pointer":
                     type2 = type2 as PointerType;
                     if ((type1.ptrType === type2.ptrType) || ((type1.ptrType !== "function") && (type2.ptrType !== "function"))) {
@@ -1201,6 +1209,19 @@ export class CRuntime {
         return type.type === "reference";
     };
 
+    isStructType(type: VariableType | string): type is StructType;
+    isStructType(type: Variable | DummyVariable): type is ObjectVariable;
+    isStructType(type: any): type is StructType {
+        if (typeof type === "string") {
+            return this.getTypeSignature({ type: "struct", name: type }) in this.types;
+        }
+
+        if ('t' in type) {
+            return type.t !== "dummy" && this.isStructType(type.t);
+        }
+        return type.type === "struct";
+    };
+
     isClassType(type: VariableType): type is ClassType;
     isClassType(type: Variable | DummyVariable): type is ObjectVariable;
     isClassType(type: VariableType | DummyVariable | Variable): type is ClassType {
@@ -1293,17 +1314,23 @@ export class CRuntime {
         } else {
             if (this.isPrimitiveType(type)) {
                 return this.primitiveType(type);
+            } else if (this.isStructType(type)) {
+                return this.simpleStructType(type);
             } else {
-                const clsType: ClassType = {
-                    type: "class",
-                    name: type
-                };
-                if (this.getTypeSignature(clsType) in this.types) {
-                    return clsType;
-                } else {
-                    this.raiseException("type " + type + " is not defined");
-                }
+                return this.simpleClassType(type);
             }
+        }
+    };
+
+    simpleStructType(type: string) {
+        const structType: StructType = {
+            type: "struct",
+            name: type
+        };
+        if (this.getTypeSignature(structType) in this.types) {
+            return structType;
+        } else {
+            this.raiseException("type " + type + " is not defined");
         }
     };
 
@@ -1317,6 +1344,32 @@ export class CRuntime {
         } else {
             this.raiseException("type " + type + " is not defined");
         }
+    };
+
+    newStruct(structname: string, members: Member[]) {
+        const clsType: StructType = {
+            type: "struct",
+            name: structname
+        };
+        const sig = this.getTypeSignature(clsType);
+        if (sig in this.types) {
+            this.raiseException(this.makeTypeString(clsType) + " is already defined");
+        }
+        this.types[sig] = {
+            cConstructor(rt, _this) {
+                const v = _this.v as ObjectValue;
+                v.members = {};
+                let i = 0;
+                while (i < members.length) {
+                    const member = members[i];
+                    v.members[member.name] = (member.initialize != null) ? member.initialize(rt, _this) : rt.defaultValue(member.type, true);
+                    i++;
+                }
+            },
+            members,
+            handlers: {},
+        };
+        return clsType;
     };
 
     newClass(classname: string, members: Member[]) {
@@ -1409,7 +1462,7 @@ export class CRuntime {
     };
 
     getTypeSignature(type: VariableType | "global" | "?" | "dummy") {
-        // (primitive), [class], {pointer}
+        // (primitive), [class], <struct>, {pointer}
         if (typeof (type) === "string") {
             return type;
         }
@@ -1418,6 +1471,8 @@ export class CRuntime {
             ret = "(" + type.name + ")";
         } else if (type.type === "class") {
             ret = "[" + type.name + "]";
+        } else if (type.type === "struct") {
+            ret = "<" + type.name + ">";
         } else if (type.type === "pointer") {
             // !targetType, @size!eleType, !#retType!param1,param2,...
             ret = "{";
@@ -1439,7 +1494,7 @@ export class CRuntime {
     };
 
     makeTypeString(type: VariableType | "global" | "dummy" | "?") {
-        // (primitive), [class], {pointer}
+        // (primitive), [class], <struct>, {pointer}
         let ret;
         if (typeof (type) === "string") {
             ret = "$" + type;
@@ -1447,6 +1502,8 @@ export class CRuntime {
             ret = type.name;
         } else if (type.type === "class") {
             ret = type.name;
+        } else if (type.type === "struct") {
+            ret = `<${type.name}>`;
         } else if (type.type === "pointer") {
             // !targetType, @size!eleType, #retType!param1,param2,...
             ret = "";
@@ -1503,6 +1560,8 @@ export class CRuntime {
             }
         } else if (this.isClassType(l)) {
             display = "<object>";
+        } else if (this.isStructType(l)) {
+            display = "<struct>";
         }
         return display;
     };
@@ -1514,10 +1573,8 @@ export class CRuntime {
     defaultValue(type: VariableType, left = false): Variable {
         if (type.type === "primitive") {
             return this.val(type, NaN, left, true);
-        } else if (type.type === "class") {
-            const ret = this.val(type, {
-                members: {}
-            }, left);
+        } else if (type.type === "class" || type.type === "struct") {
+            const ret = this.val(type, { members: {} }, left);
             this.types[this.getTypeSignature(type)].cConstructor(this, ret);
             return ret;
         } else if (type.type === "pointer") {

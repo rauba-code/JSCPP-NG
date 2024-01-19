@@ -29,7 +29,7 @@ TranslationUnit
     ;
 
 ExternalDeclaration
-    = Namespace / TypedefDeclaration / FunctionDefinition / Declaration
+    = Namespace / TypedefDeclaration / FunctionDefinition / StructDeclaration / Declaration
     ;
 
 Namespace
@@ -152,21 +152,30 @@ Declaration
     }
     ;
 
+StructDeclaration 
+	= StructOrUnion a:Identifier LWING? b:(StructMemberDeclaration*) RWING? SEMI {
+    	return addPositionInfo({ type: 'StructDeclaration', DeclarationIdentifiers: [a], StructMemberList: b, InitVariables: false });
+    }
+    /
+    StructOrUnion LWING b:(StructMemberDeclaration*) RWING c:(x:Identifier COMMA? {return x;})* SEMI? {
+    	return addPositionInfo({ type: 'StructDeclaration', DeclarationIdentifiers: c, StructMemberList: b, InitVariables: true });
+    } 
+
+StructMemberDeclaration
+  = a:TypeSpecifier b:InitDeclaratorList SEMI {
+    return addPositionInfo({type: 'StructMember', MemberType: a, Declarators: b });
+  };
+
 DeclarationSpecifiers
-    = a:(a:( StorageClassSpecifier
-       / TypeQualifier
-       / FunctionSpecifier
-       )*
+    = a:(
+       a:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )*
        b:TypedefName
-       c:( StorageClassSpecifier
-       / TypeQualifier
-       / FunctionSpecifier
-       )* {
+       c:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )* {
         return a.concat([b]).concat(c);
        }
       ) {
           return a;
-        }
+      }
     / a:( a:StorageClassSpecifier {return a;}
       / a:TypeSpecifier {return a;}
       / a:TypeQualifier {return a;}
@@ -199,6 +208,7 @@ StorageClassSpecifier
 TypeSpecifier
     = a: (VOID
     / CHAR
+    / STRING
     / SHORT
     / INT
     / LONG
@@ -208,28 +218,13 @@ TypeSpecifier
     / UNSIGNED
     / BOOL
     / COMPLEX
-    / StructOrUnionSpecifier
     / EnumSpecifier) {
       return a;
     }
     ;
 
-StructOrUnionSpecifier
-    = StructOrUnion
-      ( a:Identifier? LWING StructDeclaration+ RWING {
-        return a;
-      }
-      / Identifier
-      )
-    ;
-
 StructOrUnion
-    = a:(STRUCT
-    / UNION) {return a;}
-    ;
-
-StructDeclaration
-    = SpecifierQualifierList StructDeclaratorList SEMI
+    = a:(STRUCT / UNION) {return a;}
     ;
 
 SpecifierQualifierList
@@ -240,15 +235,6 @@ SpecifierQualifierList
     / ( TypeSpecifier
       / TypeQualifier
       )+
-    ;
-
-StructDeclaratorList
-    = StructDeclarator (COMMA StructDeclarator)*
-    ;
-
-StructDeclarator
-    = Declarator? COLON ConstantExpression
-    / Declarator
     ;
 
 EnumSpecifier
@@ -652,6 +638,7 @@ REGISTER  = a:"register"      !IdChar Spacing {return a;};
 RESTRICT  = a:"restrict"      !IdChar Spacing {return a;};
 RETURN    = a:"return"        !IdChar Spacing {return a;};
 SHORT     = a:"short"         !IdChar Spacing {return a;};
+STRING    = a:"string"        !IdChar Spacing {return a;};
 SIGNED    = a:"signed"        !IdChar Spacing {return a;};
 SIZEOF    = a:"sizeof"        !IdChar Spacing {return a;};
 STATIC    = a:"static"        !IdChar Spacing {return a;};
@@ -671,7 +658,7 @@ ATTRIBUTE = a:"__attribute__" !IdChar Spacing {return a;};
 NAMESPACE = a:"namespace"     !IdChar Spacing {return a;};
 USING     = a:"using"         !IdChar Spacing {return a;};
 TRUE      = a:"true"          !IdChar Spacing {return a;};
-FALSE      = a:"false"          !IdChar Spacing {return a;};
+FALSE     = a:"false"         !IdChar Spacing {return a;};
 
 Keyword
     = ( "auto"

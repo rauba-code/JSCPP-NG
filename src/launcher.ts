@@ -49,7 +49,47 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     let startTime: number;
     let readResult = "";
 
+    const fstream = (function() {
+        const testFiles: any = { 
+            "TestInput.txt": { value: "4 2 2 147.00 80.15 1 2 163.00 95.50 2 1 147.00 80.15 1 1 163.00 95.50" }, 
+            "TestOutput.txt": { value: "" } 
+        };
+
+        const openFiles: any = {};
+
+        return {
+            open: function(fileName: string) {
+                const openFileNode: any = testFiles[fileName] || ({ [fileName]: { value: "" } });
+                openFiles[fileName] = { 
+                    name: fileName,
+                    _open: openFileNode !== null, 
+                    is_open: function() {
+                        return this._open;
+                    },
+                    read: function() {
+                        if (!this.is_open())
+                            return;
+        
+                        return openFileNode.value;
+                    },
+                    write: function(data: string) {
+                        if (!this.is_open())
+                            return;
+        
+                        openFileNode.value += data;
+                    },
+                    close: function() {
+                        this._open = false;
+                    }
+                };
+
+                return openFiles[fileName];
+            }
+        };
+    })();
+
     const _config: JSCPPConfig = {
+        fstream,
         stdio: {
             promiseError(promise_error) {
                 console.log(promise_error);
@@ -72,13 +112,13 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                 return x;
             },
             getInput() {
-                return input();
+                return Promise.resolve(input?.() ?? "'InputFunction' is missing.");
             },
             finishCallback(ExitCode: number) {
 
             },
             write(s) {
-                process.stdout.write(s);
+                process.stdout?.write(s); // write to node.js standard output
             }
         },
         includes: this.includes,

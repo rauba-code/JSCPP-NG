@@ -322,6 +322,42 @@ export class Interpreter extends BaseInterpreter {
                     }
                 }
             },
+            *StructDeclaration(interp, s, param) {
+                ({ rt } = interp);
+
+                for (const identifier of s.DeclarationIdentifiers) {
+                    const structMemberList = [];
+                    for (const structMember of s.StructMemberList) {
+                        for (const dec of structMember.Declarators) {
+                            let init = dec.Initializers;
+                            
+                            param.basetype = rt.simpleType(structMember.MemberType);
+                            const { name, type } = yield* interp.visit(interp, dec.Declarator, param);
+
+                            if (init == null) {
+                                init = rt.defaultValue(type, true);
+                            } else {
+                                init = yield* interp.visit(interp, init.Expression);
+                            }
+
+                            structMemberList.push({
+                                name: name,
+                                type: type,
+                                initialize(rt: any, _this: any) { 
+                                    return init; 
+                                }
+                            });
+                        }
+                    }
+
+                    if (s.InitVariables) {
+                        const structType = rt.newStruct(`initialized_struct_${identifier}`, structMemberList);
+                        rt.defVar(identifier, structType, rt.defaultValue(structType));
+                    } else {
+                        rt.newStruct(identifier, structMemberList);
+                    }
+                }
+            },
             *Initializer_expr(interp, s, param) {
                 ({
                     rt

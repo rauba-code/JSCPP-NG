@@ -1,4 +1,4 @@
-import { ArrayVariable, BoolVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, VariableType, VariableValue } from "../rt";
+import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
 import { IomanipConfig } from "./shared/iomanip_types";
 
 export = {
