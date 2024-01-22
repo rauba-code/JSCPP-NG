@@ -1447,7 +1447,7 @@ export class CRuntime {
     };
 
     makeCharArrayFromString(str: string, typename?: CBasicType): ArrayVariable {
-        // if (!typename) { typename = "wchar_t"; }
+        // if (!typename) { typename = this.detectWideCharacters(str) ? "wchar_t" : "char"; }
         if (!typename) { typename = "char"; }
         const charType = this.primitiveType(typename);
         const type = this.arrayPointerType(charType, str.length + 1);
@@ -1460,6 +1460,12 @@ export class CRuntime {
             }
         };
     };
+
+    detectWideCharacters(str: string): boolean {
+        const wideCharacterRange = /[\u0100-\uffff]/;
+        
+        return wideCharacterRange.test(str);
+    }
 
     getTypeSignature(type: VariableType | "global" | "?" | "dummy") {
         // (primitive), [class], <struct>, {pointer}

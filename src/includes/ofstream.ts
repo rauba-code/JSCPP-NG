@@ -60,6 +60,8 @@ export = {
         rt.regFunc(function(rt: CRuntime, _this: ofStreamObject, right: Variable) {
             const fileName = rt.getStringFromCharArray(right as ArrayVariable);
             const fileObject: any = fstream.open(fileName);
+            
+            fileObject.clear();
             _this.v.members["fileObject"] = fileObject;
         }, writeStreamType, "open", ["?"], rt.intTypeLiteral);
 

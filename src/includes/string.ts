@@ -1,8 +1,12 @@
 /* eslint-disable no-shadow */
-import { CRuntime, ClassType, ArrayVariable, Variable, ObjectVariable, IntType, VariableValue, IntVariable, FloatVariable } from "../rt";
+import { CRuntime, ClassType, ArrayVariable, Variable, ObjectVariable, VariableValue, IntVariable, ObjectValue } from "../rt";
 
 export = {
     load(rt: CRuntime) {
+        interface ifStreamObject extends ObjectVariable {
+            v: ObjectValue
+        };
+        
         const newStringType: ClassType = rt.newClass("string", []);
 
         const typeSig = rt.getTypeSignature(newStringType);
@@ -23,7 +27,7 @@ export = {
             },
             "o(+)": {
                 default(rt: CRuntime, left: Variable, right: ArrayVariable) {
-                    const r = rt.getStringFromCharArray(left as ArrayVariable) + rt.getStringFromCharArray(right);
+                    const r = rt.getStringFromCharArray(left as ArrayVariable) + rt.getStringFromCharArray(_convertSingleCharIntoStringArray(right));
                     left.v = rt.makeCharArrayFromString(r).v;
                     return left;
                 }
@@ -116,6 +120,10 @@ export = {
             }
         ]);
 
+        rt.regFunc(function(rt: CRuntime, _this: Variable) {
+            _this.v = rt.makeCharArrayFromString("").v;
+        }, newStringType, "clear", [], rt.voidTypeLiteral);
+
         const _isEmpty = function(rt: CRuntime, _this: Variable) {
             if (_this === null || typeof _this === 'undefined') {
                 return rt.val(rt.boolTypeLiteral, true);
@@ -135,5 +143,26 @@ export = {
 
         rt.regFunc(_to_string, "global", "to_string", [rt.intTypeLiteral], newStringType);
 
+        rt.regFunc(function(rt: CRuntime, _this: Variable, readStream: ifStreamObject, str: Variable, delim: Variable) {
+            const fileObject: any = readStream.v.members["fileObject"];
+            const delimiter: number = delim != null ? delim.v as number : ("\n").charCodeAt(0);
+
+            let internal_buffer: any = readStream.v.members["_buffer"];
+            if (internal_buffer == null) {
+                internal_buffer = readStream.v.members["_buffer"] = fileObject.read().split(String.fromCharCode(delimiter));
+            }
+
+            const line = internal_buffer.shift();
+            if (line)
+                str.v = rt.makeCharArrayFromString(line).v;
+
+            return rt.val(rt.boolTypeLiteral, line != null);
+        }, "global", "getline", ["?"], rt.boolTypeLiteral, [
+            { 
+                name: "delim", 
+                type: rt.charTypeLiteral, 
+                expression: ""
+            }
+        ]); 
     }
 };

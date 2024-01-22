@@ -72,6 +72,9 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         
                         return openFileNode.value;
                     },
+                    clear: function() {
+                        openFileNode.value = "";
+                    },
                     write: function(data: string) {
                         if (!this.is_open())
                             return;
