@@ -264,60 +264,77 @@ export class Interpreter extends BaseInterpreter {
                 rt.defFunc(scope, name, basetype, argTypes, argNames, stat, interp, optionalArgs);
             },
             *Declaration(interp, s, param) {
-                ({
-                    rt
-                } = interp);
+                const { rt } = interp;
                 const basetype = rt.simpleType(s.DeclarationSpecifiers);
+
                 for (const dec of s.InitDeclaratorList) {
+                    let visitResult;
+                    {
+                        const _basetype = param.basetype;
+                        param.basetype = basetype;
+                        visitResult = yield* interp.visit(interp, dec.Declarator, param);
+                        param.basetype = _basetype;
+                    }
+                    const { name, type } = visitResult;
                     let init = dec.Initializers;
-                    if ((dec.Declarator.right.length > 0) && (dec.Declarator.right[0].type === "DirectDeclarator_modifier_array")) {
-                        const dimensions = [];
-                        for (let j = 0; j < dec.Declarator.right.length; j++) {
-                            let dim = dec.Declarator.right[j];
-                            if (dim.Expression !== null) {
-                                dim = rt.cast(rt.intTypeLiteral, (yield* interp.visit(interp, dim.Expression, param))).v;
-                            } else if (j > 0) {
-                                rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
-                            } else {
-                                if (init.type === "Initializer_expr") {
-                                    const initializer: Variable = yield* interp.visit(interp, init, param);
-                                    if (rt.isCharType(basetype) && rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
-                                        // string init
-                                        dim = initializer.v.target.length;
-                                        init = {
-                                            type: "Initializer_array",
-                                            Initializers: initializer.v.target.map(e => ({
-                                                type: "Initializer_expr",
-                                                shorthand: e
-                                            }))
-                                        };
-                                    } else {
-                                        rt.raiseException("cannot initialize an array to " + rt.makeValString(initializer), init);
-                                    }
+
+                    if (dec.Declarator.right.length > 0) {
+                        if (dec.Declarator.right[0].type === "DirectDeclarator_modifier_array") {
+                            const dimensions = [];
+                            for (let j = 0; j < dec.Declarator.right.length; j++) {
+                                let dim = dec.Declarator.right[j];
+                                if (dim.Expression !== null) {
+                                    dim = rt.cast(rt.intTypeLiteral, (yield* interp.visit(interp, dim.Expression, param))).v;
+                                } else if (j > 0) {
+                                    rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                 } else {
-                                    dim = init.Initializers.length;
+                                    if (init.type === "Initializer_expr") {
+                                        const initializer: Variable = yield* interp.visit(interp, init, param);
+                                        if (rt.isCharType(basetype) && rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
+                                            // string init
+                                            dim = initializer.v.target.length;
+                                            init = {
+                                                type: "Initializer_array",
+                                                Initializers: initializer.v.target.map(e => ({
+                                                    type: "Initializer_expr",
+                                                    shorthand: e
+                                                }))
+                                            };
+                                        } else {
+                                            rt.raiseException("cannot initialize an array to " + rt.makeValString(initializer), init);
+                                        }
+                                    } else {
+                                        dim = init.Initializers.length;
+                                    }
+                                }
+                                dimensions.push(dim);
+                            }
+
+                            param.node = init;
+                            init = yield* interp.arrayInit(dimensions, init, basetype, param);
+                            delete param.node;
+
+                            rt.defVar(name, init.t, init);
+                        } else if (dec.Declarator.right[0].type === "DirectDeclarator_modifier_Constructor") {
+                            const constructorArgs = [];
+                            for (const dim of dec.Declarator.right) {
+                                if (dim.Expressions !== null) {
+                                    for (const argumentExpression of dim.Expressions) {
+                                        const resolvedArgument = yield* interp.visit(interp, argumentExpression, param);
+                                        constructorArgs.push(resolvedArgument);
+                                    }
                                 }
                             }
-                            dimensions.push(dim);
+                            init = rt.makeConstructor(type, constructorArgs, true);
+                            rt.defVar(name, type, init);
                         }
-                        param.node = init;
-                        init = yield* interp.arrayInit(dimensions, init, basetype, param);
-                        delete param.node;
-                        const _basetype = param.basetype;
-                        param.basetype = basetype;
-                        const { name, type } = yield* interp.visit(interp, dec.Declarator, param);
-                        param.basetype = _basetype;
-                        rt.defVar(name, init.t, init);
                     } else {
-                        const _basetype = param.basetype;
-                        param.basetype = basetype;
-                        const { name, type } = yield* interp.visit(interp, dec.Declarator, param);
-                        param.basetype = _basetype;
-                        if ((init == null)) {
+                        if (init == null) {
                             init = rt.defaultValue(type, true);
                         } else {
                             init = yield* interp.visit(interp, init.Expression);
                         }
+
                         rt.defVar(name, type, init);
                     }
                 }

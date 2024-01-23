@@ -266,9 +266,7 @@ FunctionSpecifier
     ;
 
 FunctionDirectDeclarator
-    = a:( a:Identifier {return addPositionInfo({type:'Identifier', Identifier:a});}
-      / LPAR a:Declarator RPAR {return a;}
-      )
+    = a:( a:Identifier {return addPositionInfo({type:'Identifier', Identifier:a});} / LPAR a:Declarator RPAR {return a;} )
       b:( LPAR a:ParameterTypeList RPAR {
         return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList:a});
       }) {
@@ -303,6 +301,9 @@ DirectDeclarator
       / LBRK a:TypeQualifier* STAR RBRK {
         return addPositionInfo({type:'DirectDeclarator_modifier_star_array', Modifier:a.concat['*']});
       }
+      / LPAR a:Constructor RPAR {
+        return addPositionInfo({type:'DirectDeclarator_modifier_Constructor', Expressions:a});
+      }
       / LPAR a:ParameterTypeList RPAR {
         return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList:a});
       }
@@ -320,6 +321,14 @@ Pointer
 
 Reference
     = ( a:TypeQualifier* AND { return a; } )+
+    ;
+
+Constructor
+	= a:AssignmentExpression? b:(COMMA a:AssignmentExpression {return a;})* {
+      if (a)
+        return [a].concat(b);
+      return b;
+    }
     ;
 
 ParameterTypeList
@@ -404,8 +413,7 @@ PrimaryExpression
     ;
 
 PostfixExpression
-    = a:( PrimaryExpression
-      )
+    = a:( PrimaryExpression )
       b:( LBRK c:Expression RBRK {return [0,c];}
       / LPAR c:ArgumentExpressionList? RPAR {return [1,c?c:[]];}
       / DOT c:Identifier {return [2,c];}

@@ -58,11 +58,11 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         const openFiles: any = {};
 
         return {
-            open: function(fileName: string) {
+            open: function(context: object, fileName: string) {
                 const openFileNode: any = testFiles[fileName] || ({ [fileName]: { value: "" } });
                 openFiles[fileName] = { 
                     name: fileName,
-                    _open: openFileNode !== null, 
+                    _open: openFileNode != null, 
                     is_open: function() {
                         return this._open;
                     },

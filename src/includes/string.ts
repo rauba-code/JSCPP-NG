@@ -12,13 +12,14 @@ export = {
         const typeSig = rt.getTypeSignature(newStringType);
         rt.types[typeSig].father = "object";
 
-        const originalConstructor = rt.types[typeSig].cConstructor;
-        rt.types[typeSig].cConstructor = function(rt: CRuntime, _this: Variable) {
-            originalConstructor(rt, _this);
-            _this.v = rt.makeCharArrayFromString("").v as VariableValue;
-        };
-
         const stringHandlers = {
+            "o(())": {
+                default(rt: CRuntime, _this: Variable, ...args: Variable[]) {
+                    const [ init_string ] = args;
+
+                    _this.v = init_string?.v || rt.makeCharArrayFromString("").v as VariableValue;
+                }
+            },
             "o(=)": {
                 default(rt: CRuntime, left: any, right: any) {
                     left.v = _convertSingleCharIntoStringArray(right).v;
@@ -163,6 +164,6 @@ export = {
                 type: rt.charTypeLiteral, 
                 expression: ""
             }
-        ]); 
+        ]);
     }
 };

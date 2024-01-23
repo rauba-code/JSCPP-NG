@@ -1,6 +1,6 @@
 {
   "name": "jscpp",
-  "version": "2.1.9",
+  "version": "2.2.5",
   "description": "A simple C++ interpreter written in JavaScript",
   "keywords": [
     "c++",

@@ -25,6 +25,13 @@ export = {
         
         const readStreamTypeSig = rt.getTypeSignature(readStreamType);
         rt.types[readStreamTypeSig].handlers = {
+            "o(())": {
+                default(rt: CRuntime, _this: ifStreamObject, ...args: Variable[]) {
+                    const [ fileName ] = args;
+                    if (fileName)
+                        _open(rt, _this, fileName);
+                }
+            },
             "o(>>)": {
                 default(rt: CRuntime, _this: ifStreamObject, t: any) {
                     const fileObject: any = _this.v.members["fileObject"];
@@ -77,9 +84,9 @@ export = {
             }
         };
         
-        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject, right: Variable) {
+        const _open = function(rt: CRuntime, _this: ifStreamObject, right: Variable) {
             const fileName = rt.getStringFromCharArray(right as ArrayVariable);
-            const fileObject: any = fstream.open(fileName);
+            const fileObject: any = fstream.open(_this, fileName);
             _this.v.members["fileObject"] = fileObject;
 
             if (fileObject.is_open()) {
@@ -88,8 +95,10 @@ export = {
                     _this.v.members["buffer"].v = rt.makeCharArrayFromString(buffer).v;
                 }
             }            
-        }, readStreamType, "open", ["?"], rt.intTypeLiteral);
-        
+        };
+
+        rt.regFunc(_open, readStreamType, "open", ["?"], rt.intTypeLiteral);
+
         rt.regFunc(function(rt: CRuntime, _this: ifStreamObject) {
             const fileObject: any = _this.v.members["fileObject"];
             const is_open = fileObject.is_open() as boolean;

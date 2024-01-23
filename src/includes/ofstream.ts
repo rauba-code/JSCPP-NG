@@ -24,6 +24,13 @@ export = {
 
         const writeStreamTypeSig = rt.getTypeSignature(writeStreamType);
         rt.types[writeStreamTypeSig].handlers = {
+            "o(())": {
+                default(rt: CRuntime, _this: ofStreamObject, ...args: Variable[]) {
+                    const [ fileName ] = args;
+                    if (fileName)
+                        _open(rt, _this, fileName);
+                }
+            },
             "o(<<)": {
                 default(rt: CRuntime, _this: ofStreamObject, t: any) {
                     const fileObject: any = _this.v.members["fileObject"];
@@ -57,13 +64,15 @@ export = {
             }
         };
 
-        rt.regFunc(function(rt: CRuntime, _this: ofStreamObject, right: Variable) {
+        const _open = function(rt: CRuntime, _this: ofStreamObject, right: Variable) {
             const fileName = rt.getStringFromCharArray(right as ArrayVariable);
-            const fileObject: any = fstream.open(fileName);
+            const fileObject: any = fstream.open(_this, fileName);
             
             fileObject.clear();
             _this.v.members["fileObject"] = fileObject;
-        }, writeStreamType, "open", ["?"], rt.intTypeLiteral);
+        };
+
+        rt.regFunc(_open, writeStreamType, "open", ["?"], rt.intTypeLiteral);
 
         rt.regFunc(function(rt: CRuntime, _this: ofStreamObject) {
             const fileObject: any = _this.v.members["fileObject"];

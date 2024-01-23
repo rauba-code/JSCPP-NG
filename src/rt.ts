@@ -25,7 +25,7 @@ export interface JSCPPConfig {
     includes?: { [fileName: string]: IncludeModule };
     loadedLibraries?: string[];
     fstream?: {
-        open: (fileName: string) => object
+        open: (context: object, fileName: string) => object
     };
     stdio?: {
         promiseError: (promise_error: string) => void;
@@ -65,7 +65,7 @@ export interface Member {
 
 export interface OpHandlerMap {
     handlers: { [opSignature: string]: OpHandler; };
-    cConstructor?: (rt: CRuntime, _this: Variable) => void;
+    cConstructor?: (rt: CRuntime, _this: Variable, args?: Variable[]) => void;
     members?: Member[];
     father?: string;
 };
@@ -1382,18 +1382,16 @@ export class CRuntime {
             this.raiseException(this.makeTypeString(clsType) + " is already defined");
         }
         this.types[sig] = {
-            cConstructor(rt, _this) {
+            cConstructor(rt, _this, args = []) {
                 const v = _this.v as ObjectValue;
                 v.members = {};
                 let i = 0;
                 while (i < members.length) {
                     const member = members[i];
-                    v.members[member.name] = (member.initialize != null) ?
-                        member.initialize(rt, _this)
-                        :
-                        rt.defaultValue(member.type, true);
+                    v.members[member.name] = (member.initialize != null) ? member.initialize(rt, _this) : rt.defaultValue(member.type, true);
                     i++;
                 }
+                rt.types[sig].handlers["o(())"]?.default(rt, _this, ...args);
             },
             members,
             handlers: {},
@@ -1574,6 +1572,12 @@ export class CRuntime {
 
     makeValString(l: Variable | DummyVariable) {
         return this.makeValueString(l) + "(" + this.makeTypeString(l.t) + ")";
+    };
+
+    makeConstructor(type: VariableType, args: Variable[], left = false): Variable {
+        const ret = this.val(type, { members: {} }, left);
+        this.types[this.getTypeSignature(type)].cConstructor(this, ret, args);
+        return ret;
     };
 
     defaultValue(type: VariableType, left = false): Variable {
