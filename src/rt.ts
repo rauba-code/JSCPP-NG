@@ -1375,7 +1375,9 @@ export class CRuntime {
                 }
             },
             members,
-            handlers: {},
+            handlers: {
+                ...defaults.defaultOpHandler.handlers
+            },
         };
         return clsType;
     };

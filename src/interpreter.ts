@@ -360,9 +360,9 @@ export class Interpreter extends BaseInterpreter {
                             structMemberList.push({
                                 name: name,
                                 type: type,
-                                initialize(rt: any, _this: any) { 
-                                    return init; 
-                                }
+                                // initialize(rt: any, _this: any) { 
+                                //     return init; 
+                                // }
                             });
                         }
                     }

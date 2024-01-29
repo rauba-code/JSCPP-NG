@@ -167,7 +167,7 @@ export const numericTypeOrder: (CCharType | CIntType | CFloatType)[] = [
     "double"
 ];
 
-const defaultOpHandler: OpHandlerMap = {
+export const defaultOpHandler: OpHandlerMap = {
     handlers: {
         "o(*)": {
             default(rt, l, r) {
