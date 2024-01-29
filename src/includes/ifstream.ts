@@ -1,4 +1,4 @@
-import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
+import { ArrayVariable, CRuntime, ClassType, IntVariable, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
 import { read, skipSpace } from "./shared/string_utils";
 
 export = {
@@ -110,5 +110,26 @@ export = {
             const fileObject: any = _this.v.members["fileObject"];
             fileObject.close();
         }, readStreamType, "close", [], rt.intTypeLiteral);
+
+        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject, n: IntVariable, delim: Variable) {
+            const buffer = _this.v.members['buffer'] as ArrayVariable;
+            const delimiter: number = delim != null ? delim.v as number : ("\n").charCodeAt(0);
+            const delimChar: string = String.fromCharCode(delimiter);
+            const streamsize = n?.v || 1;
+
+            const chars = Array.from(rt.getStringFromCharArray(buffer));
+            const index: number = delim != null ? chars.findIndex((char, i) => char === delimChar && i >= streamsize - 1) : streamsize;
+            _this.v.members['buffer'].v = rt.makeCharArrayFromString(chars.slice(index).join('')).v;
+
+            return _this;
+        }, readStreamType, "ignore", ["?"], readStreamType, [{ 
+            name: "n", 
+            type: rt.intTypeLiteral, 
+            expression: ""
+        }, { 
+            name: "delim", 
+            type: rt.charTypeLiteral, 
+            expression: ""
+        }]);
     }
 };

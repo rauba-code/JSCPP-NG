@@ -156,15 +156,18 @@ export = {
         rt.regFunc(function(rt: CRuntime, _this: Variable, readStream: ifStreamObject, str: Variable, delim: Variable) {
             const fileObject: any = readStream.v.members["fileObject"];
             const delimiter: number = delim != null ? delim.v as number : ("\n").charCodeAt(0);
+            const delimChar: string = String.fromCharCode(delimiter);
 
             let internal_buffer: any = readStream.v.members["_buffer"];
             if (internal_buffer == null) {
-                internal_buffer = readStream.v.members["_buffer"] = fileObject.read().split(String.fromCharCode(delimiter));
+                internal_buffer = readStream.v.members["_buffer"] = fileObject.read().split(delimChar);
             }
 
             const line = internal_buffer.shift();
-            if (line)
+            if (line) {
                 str.v = rt.makeCharArrayFromString(line).v;
+                readStream.v.members["buffer"].v = rt.makeCharArrayFromString(internal_buffer.join(delimChar)).v;
+            }
 
             return rt.val(rt.boolTypeLiteral, line != null);
         }, "global", "getline", ["?"], rt.boolTypeLiteral, [
