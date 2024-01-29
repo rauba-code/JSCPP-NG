@@ -898,6 +898,8 @@ export class CRuntime {
                 return this.isPointerType(type2);
             }
             return !this.isFunctionType(type2);
+        } else if (this.isClassType(type1) && this.isClassType(type2)) {
+            return this.isClassType(type2);
         } else if (this.isClassType(type1) || this.isClassType(type2)) {
             this.raiseException("not implemented");
         } else if (this.isPrimitiveType(type1) && this.isReferenceType(type2)) {
@@ -957,6 +959,10 @@ export class CRuntime {
                         return this.val(type, value.v);
                     }
                 }
+            }
+        } else if (this.isPrimitiveType(type) && this.isArrayType(value)) {
+            if (this.isTypeEqualTo(type, value.t.eleType)) {
+                return value;
             }
         } else if (this.isReferenceType(type)) {
             return value;
@@ -1227,6 +1233,8 @@ export class CRuntime {
     isClassType(type: VariableType | DummyVariable | Variable): type is ClassType {
         if ('t' in type) {
             return type.t !== "dummy" && this.isClassType(type.t);
+        } else if ('targetType' in type) {
+            return this.isClassType(type.targetType);
         }
         return type.type === "class";
     };

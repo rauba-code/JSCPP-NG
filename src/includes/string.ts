@@ -71,8 +71,7 @@ export = {
 
         const _getSubstring = function(rt: CRuntime, left: Variable, pos: IntVariable, npos: IntVariable) {
             const r = rt.getStringFromCharArray(left as ArrayVariable).substring(pos.v, npos != null ? pos.v + npos.v : undefined);
-            left.v = rt.makeCharArrayFromString(r).v;
-            return left;
+            return rt.makeCharArrayFromString(r);
         };
     
         const _getStringLength = function(rt: CRuntime, _this: Variable) {
