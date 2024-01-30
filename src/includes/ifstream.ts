@@ -16,6 +16,12 @@ export = {
                 return rt.makeCharArrayFromString(""); 
             }
         }, {
+            name: "eof",
+            type: rt.boolTypeLiteral,
+            initialize(rt, _this) { 
+                return rt.val(rt.boolTypeLiteral, false); 
+            }
+        }, {
             name: "fileObject",
             type: {} as VariableType,
             initialize(rt, _this) { 
@@ -32,8 +38,23 @@ export = {
                         _open(rt, _this, fileName);
                 }
             },
+            "o(bool)": {
+                functions: {
+                    ['']: function(rt: CRuntime, _this: ifStreamObject) {
+                        const endOfFile: any = _this.v.members['eof'].v;
+                        if (endOfFile)
+                            return false;
+
+                        return _this;
+                    }
+                },
+            },
             "o(>>)": {
                 default(rt: CRuntime, _this: ifStreamObject, t: any) {
+                    const endOfFile: any = _this.v.members['eof'].v;
+                    if (endOfFile)
+                        return _this;
+
                     const fileObject: any = _this.v.members["fileObject"];
                     if (!fileObject.is_open()) {
                         return rt.raiseException(`>> operator in ifstream could not open - ${fileObject.name}`);
@@ -46,7 +67,7 @@ export = {
                     switch (t.t.name) {
                         case "string": 
                             b = skipSpace(b);
-                            r = read(rt, /^[^\s]+/, b, t.t);
+                            r = b.length === 0 ? ([""]) : read(rt, /^[^\s]+/, b, t.t);
                             v = rt.makeCharArrayFromString(r[0]).v;
                             break;
                         case "char": case "signed char": case "unsigned char":
@@ -74,6 +95,8 @@ export = {
                     }
         
                     const len = r[0].length;
+                    _this.v.members['eof'].v = len === 0;
+                    
                     if (len !== 0) {
                         t.v = rt.val(t.t, v).v;
                         _this.v.members["buffer"].v = rt.makeCharArrayFromString(b.substring(len)).v;
@@ -83,7 +106,7 @@ export = {
                 },
             }
         };
-        
+
         const _open = function(rt: CRuntime, _this: ifStreamObject, right: Variable) {
             const fileName = rt.getStringFromCharArray(right as ArrayVariable);
             const fileObject: any = fstream.open(_this, fileName);

@@ -68,9 +68,49 @@ export = {
                     return left.v.target[right.v];
                 }
             },
+            "o(<)": {
+                default(rt: CRuntime, left: ArrayVariable, right: any) {
+                    const l = rt.getStringFromCharArray(left);
+                    const r = rt.getStringFromCharArray(right);
+                    return rt.val(rt.boolTypeLiteral, _compareStrings(l, r) == -1);
+                }
+            },
+            "o(>)": {
+                default(rt: CRuntime, left: ArrayVariable, right: any) {
+                    const l = rt.getStringFromCharArray(left);
+                    const r = rt.getStringFromCharArray(right);
+                    return rt.val(rt.boolTypeLiteral, _compareStrings(l, r) == 1);
+                }
+            },
         };
 
         rt.types[typeSig].handlers = stringHandlers;
+
+        const _compareStrings = function(str1: string, str2: string) {
+            let len1 = str1.length;
+            let len2 = str2.length;
+            let i = 0;
+        
+            // Compare lengths
+            if (len1 < len2) {
+                return -1;
+            } else if (len1 > len2) {
+                return 1;
+            }
+        
+            // Compare characters
+            while (i < len1) {
+                if (str1.charCodeAt(i) < str2.charCodeAt(i)) {
+                    return -1;
+                } else if (str1.charCodeAt(i) > str2.charCodeAt(i)) {
+                    return 1;
+                }
+                i++;
+            }
+        
+            // Strings are equal
+            return 0;
+        };
 
         const _convertSingleCharIntoStringArray = function(charArray: any) {
             if (charArray.v.target)
