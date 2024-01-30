@@ -1487,6 +1487,8 @@ export class CRuntime {
             ret = "[" + type.name + "]";
         } else if (type.type === "struct") {
             ret = "<" + type.name + ">";
+        } else if (type.type === "reference") {
+            ret = this.getTypeSignature(type.targetType);
         } else if (type.type === "pointer") {
             // !targetType, @size!eleType, !#retType!param1,param2,...
             ret = "{";

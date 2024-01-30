@@ -69,7 +69,7 @@ export = {
                                     break;
                                 case "float": case "double":
                                     b = skipSpace(b);
-                                    r = read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)$/, b, t.t);  // fixed to allow floats such as 0                                    
+                                    r = read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0                                    
                                     v = parseFloat(r[0]);
                                     break;
                                 case "bool":
