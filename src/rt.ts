@@ -919,6 +919,9 @@ export class CRuntime {
             return;
         }
         if (this.isTypeEqualTo(value.t, type)) {
+            if (this.isStructType(type) && value.left && (value as any).array == null) {
+                return this.cloneDeep(value);
+            }
             return value;
         }
         if (this.isPrimitiveType(type) && this.isPrimitiveType(value.t)) {
@@ -1035,6 +1038,10 @@ export class CRuntime {
         } else {
             this.raiseException("cast failed from type " + this.makeTypeString(type) + " to " + this.makeTypeString(value.t));
         }
+    };
+
+    cloneDeep(obj: any): Object {
+        return JSON.parse(JSON.stringify(obj));
     };
 
     clone(v: Variable, isInitializing?: boolean) {
@@ -1359,24 +1366,33 @@ export class CRuntime {
             type: "struct",
             name: structname
         };
+
         const sig = this.getTypeSignature(clsType);
         if (sig in this.types) {
             this.raiseException(this.makeTypeString(clsType) + " is already defined");
         }
+
         this.types[sig] = {
             cConstructor(rt, _this) {
                 const v = _this.v as ObjectValue;
                 v.members = {};
-                let i = 0;
-                while (i < members.length) {
-                    const member = members[i];
+                for (const member of members) {
                     v.members[member.name] = (member.initialize != null) ? member.initialize(rt, _this) : rt.defaultValue(member.type, true);
-                    i++;
                 }
             },
             members,
             handlers: {
-                ...defaults.defaultOpHandler.handlers
+                // ...defaults.defaultOpHandler.handlers,
+                "o(=)": {
+                    default(rt: CRuntime, l: any, r: any) {
+                        if (!l.left) {
+                            rt.raiseException(rt.makeValString(l) + " is not a left value");
+                        }
+
+                        l.v = rt.cast(l.t, r).v;
+                        return l;      
+                    },
+                },
             },
         };
         return clsType;
