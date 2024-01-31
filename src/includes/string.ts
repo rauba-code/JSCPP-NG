@@ -87,16 +87,8 @@ export = {
         rt.types[typeSig].handlers = stringHandlers;
 
         const _compareStrings = function(str1: string, str2: string) {
-            let len1 = str1.length;
-            let len2 = str2.length;
             let i = 0;
-        
-            // Compare lengths
-            if (len1 < len2) {
-                return -1;
-            } else if (len1 > len2) {
-                return 1;
-            }
+            const len1 = str1.length;
         
             // Compare characters
             while (i < len1) {
