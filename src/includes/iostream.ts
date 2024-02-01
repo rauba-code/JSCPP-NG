@@ -222,6 +222,7 @@ export = {
             left: false
         };
         rt.scope[0].variables["cout"] = cout;
+        rt.scope[0].variables["cerr"] = cout;
 
         rt.types[rt.getTypeSignature(cout.t)] = {
             father: "object",

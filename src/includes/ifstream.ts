@@ -1,4 +1,4 @@
-import { ArrayVariable, CRuntime, ClassType, IntVariable, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
+import { ArrayVariable, CRuntime, ClassType, IntVariable, ObjectValue, ObjectVariable, PointerValue, Variable, VariableType } from "../rt";
 import { read, skipSpace } from "./shared/string_utils";
 
 export = {
@@ -61,9 +61,12 @@ export = {
                     }
         
                     const buffer = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
-        
+                    if (rt.isPointerType(t)) {
+                        return _ptrToValue(rt, _this, t, buffer);
+                    }
+
                     let r, v, b = buffer;
-        
+
                     switch (t.t.name) {
                         case "string": 
                             b = skipSpace(b);
@@ -72,7 +75,7 @@ export = {
                             break;
                         case "char": case "signed char": case "unsigned char":
                             b = skipSpace(b);
-                            r = read(rt, /^./, b, t.t);
+                            r = b.length === 0 ? ([""]) : read(rt, /^./, b, t.t);
                             v = r[0].charCodeAt(0);
                             break;
                         case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
@@ -104,6 +107,21 @@ export = {
         
                     return _this;
                 },
+            }
+        };
+
+        const _ptrToValue = function(rt: CRuntime, _this: ifStreamObject, right: any, buffer: string) {
+            if (rt.isArrayType(right)) {
+                const inputHandler = rt.types[readStreamTypeSig].handlers["o(>>)"].default;
+                const requiredInputLength = buffer.split(' ')[0].length;
+                const varArray = (right as any).v.target;
+                for(let i=0; i < varArray.length; i++) {
+                    if (i >= requiredInputLength)
+                        break;
+
+                    const variable = varArray[i];
+                    inputHandler(rt, _this, variable);
+                }                
             }
         };
 
