@@ -154,5 +154,23 @@ export = {
             type: rt.charTypeLiteral, 
             expression: ""
         }]);
+
+        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject, charVar: Variable) {
+            let buffer = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
+
+            if (buffer.length === 0) {
+                _this.v.members['eof'].v = true;
+                charVar.v = rt.val(rt.charTypeLiteral, 0).v;
+                return rt.val(rt.boolTypeLiteral, false);
+            }
+
+            const char = buffer.charAt(0);
+            buffer = buffer.substring(1);
+            charVar.v = rt.val(rt.charTypeLiteral, char.charCodeAt(0)).v;
+            _this.v.members["buffer"].v = rt.makeCharArrayFromString(buffer).v;
+
+            return rt.val(rt.boolTypeLiteral, true);
+        }, readStreamType, "get", ["?"], rt.boolTypeLiteral);
+
     }
 };
