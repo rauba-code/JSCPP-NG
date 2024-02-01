@@ -110,10 +110,10 @@ export = {
             }
         };
 
-        const _ptrToValue = function(rt: CRuntime, _this: ifStreamObject, right: any, buffer: string) {
+        const _ptrToValue = function(rt: CRuntime, _this: ifStreamObject, right: any, buffer: string, streamSize: number = undefined) {
             if (rt.isArrayType(right)) {
                 const inputHandler = rt.types[readStreamTypeSig].handlers["o(>>)"].default;
-                const requiredInputLength = buffer.split(' ')[0].length;
+                const requiredInputLength = streamSize || buffer.split(' ')[0].length;
                 const varArray = (right as any).v.target;
                 for(let i=0; i < varArray.length; i++) {
                     if (i >= requiredInputLength)
@@ -173,8 +173,14 @@ export = {
             expression: ""
         }]);
 
-        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject, charVar: Variable) {
+        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject, charVar: Variable, streamSize: Variable) {
             let buffer = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
+
+            if (!charVar) {
+                charVar = rt.val(rt.charTypeLiteral, 0);
+            } else if (rt.isPointerType(charVar)) {
+                return _ptrToValue(rt, _this, charVar, buffer, streamSize.v as number);
+            }
 
             if (buffer.length === 0) {
                 _this.v.members['eof'].v = true;
@@ -187,8 +193,16 @@ export = {
             charVar.v = rt.val(rt.charTypeLiteral, char.charCodeAt(0)).v;
             _this.v.members["buffer"].v = rt.makeCharArrayFromString(buffer).v;
 
-            return rt.val(rt.boolTypeLiteral, true);
-        }, readStreamType, "get", ["?"], rt.boolTypeLiteral);
+            return charVar;
+        }, readStreamType, "get", ["?"], rt.boolTypeLiteral, [{ 
+            name: "charVar", 
+            type: rt.charTypeLiteral, 
+            expression: ""
+        }, { 
+            name: "streamSize", 
+            type: rt.intTypeLiteral, 
+            expression: ""
+        }]);
 
     }
 };
