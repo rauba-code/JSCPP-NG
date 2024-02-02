@@ -50,7 +50,7 @@ export = {
                 },
             },
             "o(>>)": {
-                default(rt: CRuntime, _this: ifStreamObject, t: any) {
+                default(rt: CRuntime, _this: ifStreamObject, t: any, ignoreSpaces: any = false) {
                     const endOfFile: any = _this.v.members['eof'].v;
                     if (endOfFile)
                         return _this;
@@ -74,7 +74,7 @@ export = {
                             v = rt.makeCharArrayFromString(r[0]).v;
                             break;
                         case "char": case "signed char": case "unsigned char":
-                            b = skipSpace(b);
+                            b = !ignoreSpaces ? skipSpace(b) : b;
                             r = b.length === 0 ? ([""]) : read(rt, /^./, b, t.t);
                             v = r[0].charCodeAt(0);
                             break;
@@ -113,14 +113,15 @@ export = {
         const _ptrToValue = function(rt: CRuntime, _this: ifStreamObject, right: any, buffer: string, streamSize: number = undefined) {
             if (rt.isArrayType(right)) {
                 const inputHandler = rt.types[readStreamTypeSig].handlers["o(>>)"].default;
-                const requiredInputLength = streamSize || buffer.split(' ')[0].length;
+                const dontIgnoreSpaces: any = streamSize > 0;
+                const requiredInputLength = streamSize - 1 || buffer.split(' ')[0].length;
                 const varArray = (right as any).v.target;
                 for(let i=0; i < varArray.length; i++) {
                     if (i >= requiredInputLength)
                         break;
 
                     const variable = varArray[i];
-                    inputHandler(rt, _this, variable);
+                    inputHandler(rt, _this, variable, dontIgnoreSpaces);
                 }                
             }
         };
@@ -147,6 +148,12 @@ export = {
             return rt.val(rt.boolTypeLiteral, is_open);
         }, readStreamType, "is_open", [], rt.boolTypeLiteral);
         
+        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject) {
+            const is_end_of_file: any = _this.v.members['eof'].v;
+
+            return rt.val(rt.boolTypeLiteral, is_end_of_file);
+        }, readStreamType, "eof", [], rt.boolTypeLiteral);
+
         rt.regFunc(function(rt: CRuntime, _this: ifStreamObject) {
             const fileObject: any = _this.v.members["fileObject"];
             fileObject.close();

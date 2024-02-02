@@ -122,6 +122,16 @@ export = {
             return _this;
         };
 
+        rt.regFunc(function(rt: CRuntime, _this: Variable) {
+            const limits = rt.config.limits["int"];
+
+            return {
+                t: rt.intTypeLiteral,
+                v: limits.max,
+                left: false
+            };
+        }, newStringType, "max_size", [], rt.intTypeLiteral);
+
         rt.regFunc(_getStringLength, newStringType, "length", [], rt.intTypeLiteral);
 		rt.regFunc(_getStringLength, newStringType, "size", [], rt.intTypeLiteral);
         rt.regFunc(_getSubstring, newStringType, "substr", [rt.intTypeLiteral], newStringType, [{ 
@@ -192,13 +202,14 @@ export = {
 
             let internal_buffer: any = readStream.v.members["_buffer"];
             if (internal_buffer == null) {
-                internal_buffer = readStream.v.members["_buffer"] = fileObject.read().split(delimChar);
+                internal_buffer = readStream.v.members["_buffer"] = (rt.getStringFromCharArray(readStream.v.members["buffer"] as ArrayVariable) || fileObject.read()).split(delimChar);
             }
 
             const line = internal_buffer.shift();
             if (line) {
                 str.v = rt.makeCharArrayFromString(line).v;
                 readStream.v.members["buffer"].v = rt.makeCharArrayFromString(internal_buffer.join(delimChar)).v;
+                readStream.v.members["eof"].v = internal_buffer.length === 0;
             }
 
             return rt.val(rt.boolTypeLiteral, line != null);
