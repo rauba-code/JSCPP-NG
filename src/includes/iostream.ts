@@ -89,7 +89,7 @@ export = {
                                 t.v = rt.val(t.t, v).v;
                                 _cin.v.buf = b.substring(len);
                             } else {
-                                t.v = rt.val(t.t, v).v;
+                                t.v = rt.val(t.t, v, false, true).v;
                                 _cin.v.buf = "";
                             }
                             if (!is_raw)
