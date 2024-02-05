@@ -220,5 +220,12 @@ export = {
                 expression: ""
             }
         ]);
+
+        rt.regFunc(function(rt: CRuntime, _this: Variable, concatCount: Variable, charToRepeat: Variable) {
+            if (rt.isPrimitiveType(charToRepeat)) {
+                return rt.val(newStringType, rt.makeCharArrayFromString(String.fromCharCode(charToRepeat.v as number).repeat(concatCount.v as number)).v);
+            }
+            // rt.raiseException("no matching function for call");
+        }, "global", "string", [rt.intTypeLiteral, rt.charTypeLiteral], newStringType);
     }
 };
