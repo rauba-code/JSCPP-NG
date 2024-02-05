@@ -1,4 +1,5 @@
 import * as defaults from "./defaults";
+import * as Flatted from 'flatted';
 import { BaseInterpreter, Interpreter } from "./interpreter";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 export type CCharType = "char" | "signed char" | "unsigned char" | "wchar_t" | "unsigned wchar_t" | "char16_t" | "unsigned char16_t" | "char32_t" | "unsigned char32_t";
@@ -898,12 +899,14 @@ export class CRuntime {
                 return this.isPointerType(type2);
             }
             return !this.isFunctionType(type2);
+        } else if (this.isStringType(type1) && this.isStringType(type2)) {
+            return true;
         } else if (this.isClassType(type1) && this.isClassType(type2)) {
-            return this.isClassType(type2);
+            return true;
+        } else if (this.isPrimitiveType(type1) && this.isReferenceType(type2)) {
+            return true; 
         } else if (this.isClassType(type1) || this.isClassType(type2)) {
             this.raiseException("not implemented");
-        } else if (this.isPrimitiveType(type1) && this.isReferenceType(type2)) {
-            return this.isReferenceType(type2); 
         }
         return false;
     };
@@ -967,6 +970,8 @@ export class CRuntime {
             if (this.isTypeEqualTo(type, value.t.eleType)) {
                 return value;
             }
+        } else if (this.isStructType(type)) {
+            return value;        
         } else if (this.isReferenceType(type)) {
             return value;
         } else if (this.isPointerType(type)) {
@@ -1041,7 +1046,7 @@ export class CRuntime {
     };
 
     cloneDeep(obj: any): Object {
-        return JSON.parse(JSON.stringify(obj));
+        return Flatted.parse(Flatted.stringify(obj));
     };
 
     clone(v: Variable, isInitializing?: boolean) {
@@ -1441,6 +1446,8 @@ export class CRuntime {
     isStringType(type: Variable | VariableType) {
         if ("t" in type) {
             return this.isStringType(type.t);
+        } else if ('targetType' in type) {
+            return this.isStringType(type.targetType);
         }
         return (this.isArrayType(type) && this.isCharType(type.eleType)) || this.isStringClass(type);
     };
@@ -1650,6 +1657,29 @@ export class CRuntime {
             throw new Error(posInfo + " " + message);
         } else {
             throw new Error(message);
+        }
+    };
+
+    raiseSoftException(message: string, currentNode?: any) {
+        if (this.interp) {
+            if (currentNode == null) {
+                ({
+                    currentNode
+                } = this.interp);
+            }
+            const posInfo =
+                (() => {
+                    if (currentNode != null) {
+                        const ln = currentNode.sLine;
+                        const col = currentNode.sColumn;
+                        return ln + ":" + col;
+                    } else {
+                        return "<position unavailable>";
+                    }
+                })();
+            console.error(posInfo + " " + message);
+        } else {
+            console.error(message);
         }
     };
 
