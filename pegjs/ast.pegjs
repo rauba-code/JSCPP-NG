@@ -61,7 +61,7 @@ NamespaceAliasDefinition
     ;
 
 TypedefDeclaration
-    = TYPEDEF a:DeclarationSpecifiers b:Declarator c:(COMMA a:Declarator {return a;})* SEMI {
+    = TYPEDEF a:DeclarationSpecifiers b:Declarator c:(COMMA ac:Declarator {return ac;})* SEMI {
       return addPositionInfo({type:'TypedefDeclaration', DeclarationSpecifiers:a, Declarators:[b].concat(c)});
     }
     ;
@@ -98,7 +98,7 @@ Label
     / DEFAULT COLON {return addPositionInfo({type: 'Label_default'});}
 
 CompoundStatement
-    = LWING a:(Statement / Declaration)* RWING {
+    = LWING a:(UsingDirective / Statement / Declaration)* RWING {
         return addPositionInfo({type: 'CompoundStatement', Statements: a});
       }
     ;
@@ -267,8 +267,8 @@ FunctionSpecifier
 
 FunctionDirectDeclarator
     = a:( a:Identifier {return addPositionInfo({type:'Identifier', Identifier:a});} / LPAR a:Declarator RPAR {return a;} )
-      b:( LPAR a:ParameterTypeList RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList:a});
+      b:( LPAR ac:ParameterTypeList RPAR {
+        return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList:ac});
       }) {
         return addPositionInfo({type:'DirectDeclarator', left:a, right:b});
       }
@@ -289,26 +289,26 @@ DirectDeclarator
     = a:( a:Identifier {return addPositionInfo({type:'Identifier', Identifier:a});}
       / LPAR a:Declarator RPAR {return a;}
       )
-      b:( LBRK a:TypeQualifier* b:AssignmentExpression? RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:a||[], Expression: b});
+      b:( LBRK ac:TypeQualifier* b:AssignmentExpression? RBRK {
+        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:ac||[], Expression: b});
       }
-      / LBRK STATIC a:TypeQualifier* b:AssignmentExpression RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:['static'].concat(a), Expression: b});
+      / LBRK STATIC ac:TypeQualifier* b:AssignmentExpression RBRK {
+        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:['static'].concat(ac), Expression: b});
       }
-      / LBRK a:TypeQualifier+ STATIC b:AssignmentExpression RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:['static'].concat(a), Expression: b});
+      / LBRK ac:TypeQualifier+ STATIC b:AssignmentExpression RBRK {
+        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:['static'].concat(ac), Expression: b});
       }
-      / LBRK a:TypeQualifier* STAR RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_star_array', Modifier:a.concat['*']});
+      / LBRK ac:TypeQualifier* STAR RBRK {
+        return addPositionInfo({type:'DirectDeclarator_modifier_star_array', Modifier:ac.concat['*']});
       }
-      / LPAR a:Constructor RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_Constructor', Expressions:a});
+      / LPAR ac:Constructor RPAR {
+        return addPositionInfo({type:'DirectDeclarator_modifier_Constructor', Expressions:ac});
       }
-      / LPAR a:ParameterTypeList RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList:a});
+      / LPAR ac:ParameterTypeList RPAR {
+        return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList:ac});
       }
-      / LPAR a:IdentifierList? RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_IdentifierList', IdentifierList:a});
+      / LPAR ac:IdentifierList? RPAR {
+        return addPositionInfo({type:'DirectDeclarator_modifier_IdentifierList', IdentifierList:ac});
       }
       )* {
         return addPositionInfo({type:'DirectDeclarator', left:a, right:b});
@@ -324,7 +324,7 @@ Reference
     ;
 
 Constructor
-	= a:AssignmentExpression? b:(COMMA a:AssignmentExpression {return a;})* {
+	= a:AssignmentExpression? b:(COMMA ac:AssignmentExpression {return ac;})* {
       if (a)
         return [a].concat(b);
       return b;
@@ -338,7 +338,7 @@ ParameterTypeList
     ;
 
 ParameterList
-    = a:ParameterDeclaration? b:(COMMA a:ParameterDeclaration {return a;})* {
+    = a:ParameterDeclaration? b:(COMMA ac:ParameterDeclaration {return ac;})* {
       if (a)
         return [a].concat(b);
       else
@@ -397,7 +397,7 @@ Initializer
     ;
 
 InitializerList
-    = a:Initializer b:(COMMA a:Initializer {return a;})* {return [a].concat(b);}
+    = a:Initializer b:(COMMA ac:Initializer {return ac;})* {return [a].concat(b);}
     ;
 
 
@@ -406,7 +406,7 @@ InitializerList
 //-------------------------------------------------------------------------
 
 PrimaryExpression
-    = a:Identifier {return addPositionInfo({type:'IdentifierExpression', Identifier:a});}
+	= a:ScopedIdentifier {return addPositionInfo({type:'IdentifierExpression', Identifier:a});}
     / a:Constant {return addPositionInfo({type:'ConstantExpression', Expression:a});}
     / a:StringLiteral {return addPositionInfo({type:'StringLiteralExpression', value:a});}
     / LPAR a:Expression RPAR {return addPositionInfo({type:'ParenthesesExpression', Expression:a});}
@@ -724,14 +724,25 @@ Keyword
 //-------------------------------------------------------------------------
 
 ScopedIdentifier
-    = a:SCOPEOP? b:(a:Identifier SCOPEOP {return a;})* c:Identifier {
-      var scope = a ? "global" : null;
-
-      for (var i = 0;i<b.length;i++) {
-        scope = addPositionInfo({type: "ScopedIdentifier", scope: scope, Identifier: b[i]})
+    = a:SCOPEOP? b:(ac:Identifier SCOPEOP {return ac;})* c:Identifier {
+      if (a || b.length > 0) {
+            var scope = a ? "global" : null;
+            for (var i = 0; i < b.length; i++) {
+                scope = addPositionInfo({type: "ScopedIdentifier", scope: scope, Identifier: b[i]});
+            }
+            return addPositionInfo({type: "ScopedIdentifier", scope: scope, Identifier: c});
+      } else {
+          // If no namespace specifier, treat it as a simple identifier
+          return c;
       }
+      
+      // var scope = a ? "global" : null;
 
-      return addPositionInfo({type: "ScopedIdentifier", scope:scope, Identifier: c});
+      // for (var i = 0;i<b.length;i++) {
+      //   scope = addPositionInfo({type: "ScopedIdentifier", scope: scope, Identifier: b[i]})
+      // }
+
+      // return addPositionInfo({type: "ScopedIdentifier", scope:scope, Identifier: c});
     }
     ;
 

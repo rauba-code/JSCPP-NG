@@ -7,17 +7,10 @@ export = {
             v: ObjectValue
         };
         
-        const newStringType: ClassType = rt.newClass("string", [
-            {
-                name: "npos",
-                type: rt.intTypeLiteral,
-                initialize(rt, _this) { 
-                    const npos = rt.val(rt.intTypeLiteral, -1, true);
-                    rt.scope[0].variables["npos"] = npos;
-                    return npos;
-                }
-            }
-        ]);
+        const npos = rt.val(rt.intTypeLiteral, -1, true);
+        rt.addToNamespace("string", "npos", npos);
+
+        const newStringType: ClassType = rt.newClass("string", []);
 
         const typeSig = rt.getTypeSignature(newStringType);
         rt.types[typeSig].father = "object";

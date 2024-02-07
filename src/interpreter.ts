@@ -654,10 +654,12 @@ export class Interpreter extends BaseInterpreter {
                 return ["return"];
             },
             IdentifierExpression(interp, s, param) {
-                ({
-                    rt
-                } = interp);
-                return rt.readVar(s.Identifier);
+                ({ rt } = interp);
+
+                const globalScope = rt.scope.find((scope) => scope.$name === "global");
+                const currentScope = rt.scope[rt.scope.length - 1];
+                const varname = interp.resolveIdentifier(s.Identifier);
+                return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(globalScope, varname) || rt.getFromNamespace(varname) || rt.readVar(varname);
             },
             *ParenthesesExpression(interp, s, param) {
                 ({
@@ -1031,11 +1033,12 @@ export class Interpreter extends BaseInterpreter {
                 rt.raiseException("not implemented");
             },
             UsingDirective(interp, s, param) {
-                ({
-                    rt
-                } = interp);
+                ({ rt } = interp);
+                
                 const id = s.Identifier;
-                // rt.raiseException("not implemented");
+                const currentScope = rt.scope[rt.scope.length - 1];
+
+                Object.assign(currentScope.variables, { ...rt.namespace[id], [id]: rt.namespace[id] });
             },
             UsingDeclaration(interp, s, param) {
                 ({
@@ -1164,7 +1167,6 @@ export class Interpreter extends BaseInterpreter {
                                 } else if (_init.type === "Initializer_array") {
                                     initval = {
                                         type: "Initializer_expr",
-                                        shorthand: (yield* this.arrayInit(dimensions.slice(1), _init, type, param))
                                     };
                                 } else {
                                     this.rt.raiseException("Not implemented initializer type: " + _init.type);
@@ -1256,4 +1258,23 @@ export class Interpreter extends BaseInterpreter {
         }
     };
 
+    resolveIdentifier(obj: any) {
+        if (typeof obj !== 'object' || !obj.type) return obj;
+    
+        let identifier = '';
+        let currentObj = obj;
+    
+        while (currentObj) {
+            if (currentObj.type === 'ScopedIdentifier') {
+                identifier = currentObj.Identifier + (identifier ? '::' + identifier : '');
+                currentObj = currentObj.scope;
+            } else if (currentObj.type === 'IdentifierExpression') {
+                currentObj = identifier;
+            } else { 
+                break;
+            }
+        }
+    
+        return identifier;
+    };
 }

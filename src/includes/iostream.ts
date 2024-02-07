@@ -8,8 +8,9 @@ export = {
         const {
             stdio
         } = rt.config;
-        const cinType = rt.newClass("istream", []);
 
+        const pchar = rt.normalPointerType(rt.charTypeLiteral);
+        const cinType = rt.newClass("istream", []);
         const cin = {
             t: cinType,
             v: {
@@ -19,8 +20,8 @@ export = {
             },
             left: false
         };
-        rt.scope[0].variables["cin"] = cin;
-        const pchar = rt.normalPointerType(rt.charTypeLiteral);
+        
+        rt.addToNamespace("std", "cin", cin);
 
         rt.types[rt.getTypeSignature(cinType)] = {
             father: "object",
@@ -221,8 +222,9 @@ export = {
             },
             left: false
         };
-        rt.scope[0].variables["cout"] = cout;
-        rt.scope[0].variables["cerr"] = cout;
+
+        rt.addToNamespace("std", "cout", cout);
+        rt.addToNamespace("std", "cerr", cout);
 
         rt.types[rt.getTypeSignature(cout.t)] = {
             father: "object",
@@ -254,7 +256,7 @@ export = {
         };
 
         const endl = rt.val(rt.charTypeLiteral, "\n".charCodeAt(0));
-        rt.scope[0].variables["endl"] = endl;
+        rt.addToNamespace("std", "endl", endl);
 
         const _left: IomanipOperator = {
             t: type,
@@ -266,7 +268,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["left"] = _left;
+        rt.addToNamespace("std", "left", _left);
 
         const _right: IomanipOperator = {
             t: type,
@@ -278,7 +280,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["right"] = _right;
+        rt.addToNamespace("std", "right", _right);
 
         const _hex: IomanipOperator = {
             t: type,
@@ -291,7 +293,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["hex"] = _hex;
+        rt.addToNamespace("std", "hex", _hex);
 
         const _oct: IomanipOperator = {
             t: type,
@@ -304,7 +306,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["oct"] = _oct;
+        rt.addToNamespace("std", "oct", _oct);
 
         const _dec: IomanipOperator = {
             t: type,
@@ -317,7 +319,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["dec"] = _dec;
+        rt.addToNamespace("std", "dec", _dec);
 
         const _boolalpha: IomanipOperator = {
             t: type,
@@ -329,7 +331,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["boolalpha"] = _boolalpha;
+        rt.addToNamespace("std", "boolalpha", _boolalpha);
 
         const _noboolalpha: IomanipOperator = {
             t: type,
@@ -341,7 +343,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["noboolalpha"] = _noboolalpha;
+        rt.addToNamespace("std", "noboolalpha", _noboolalpha);
 
         const _addIOManipulator = function (rt: CRuntime, _cout: Cout, m: IomanipOperator) {
             if (!_cout.manipulators) {

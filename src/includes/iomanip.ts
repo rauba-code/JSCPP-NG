@@ -29,7 +29,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["fixed"] = _fixed;
+        rt.addToNamespace("std", "fixed", _fixed);
 
         const _left: IomanipOperator = {
             t: type,
@@ -41,7 +41,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["left"] = _left;
+        rt.addToNamespace("std", "left", _left);
 
         const _right: IomanipOperator = {
             t: type,
@@ -53,7 +53,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["right"] = _right;
+        rt.addToNamespace("std", "right", _right);
 
         const _hex: IomanipOperator = {
             t: type,
@@ -66,7 +66,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["hex"] = _hex;
+        rt.addToNamespace("std", "hex", _hex);
 
         const _oct: IomanipOperator = {
             t: type,
@@ -79,7 +79,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["oct"] = _oct;
+        rt.addToNamespace("std", "oct", _oct);
 
         const _dec: IomanipOperator = {
             t: type,
@@ -92,7 +92,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["dec"] = _dec;
+        rt.addToNamespace("std", "dec", _dec);
 
         const _boolalpha: IomanipOperator = {
             t: type,
@@ -104,7 +104,7 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["boolalpha"] = _boolalpha;
+        rt.addToNamespace("std", "boolalpha", _boolalpha);
 
         const _noboolalpha: IomanipOperator = {
             t: type,
@@ -116,10 +116,10 @@ export = {
                 }
             }
         };
-        rt.scope[0].variables["noboolalpha"] = _noboolalpha;
+        rt.addToNamespace("std", "noboolalpha", _noboolalpha);
 
         const endl = rt.val(rt.charTypeLiteral, "\n".charCodeAt(0));
-        rt.scope[0].variables["endl"] = endl;
+        rt.addToNamespace("std", "endl", endl);
 
         const _setw = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,

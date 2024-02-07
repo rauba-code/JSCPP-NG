@@ -244,6 +244,12 @@ export interface RuntimeScope {
     };
 }
 
+export interface NamespaceScope {
+    [namespace: string]: {
+        [objectName: string]: Variable;
+    };
+}
+
 export interface OptionalArg { name: string, type: VariableType, expression: any }
 
 type CFunction = (rt: CRuntime, _this: Variable, ...args: (Variable | DummyVariable)[]) => any;
@@ -283,6 +289,7 @@ export class CRuntime {
     voidPointerType: PointerType;
     nullPointer: PointerVariable;
     scope: RuntimeScope[];
+    namespace: NamespaceScope;
     typedefs: { [name: string]: VariableType };
     interp: BaseInterpreter;
 
@@ -306,6 +313,7 @@ export class CRuntime {
         this.voidPointerType = this.normalPointerType(this.voidTypeLiteral);
         this.nullPointer = this.val(this.voidPointerType, this.nullPointerValue) as PointerVariable;
         this.scope = [{ "$name": "global", variables: {} }];
+        this.namespace = {};
         this.typedefs = {};
     }
 
@@ -727,6 +735,10 @@ export class CRuntime {
         }
     };
 
+    readScopedVar(scope: RuntimeScope, varname: string) {
+        return this.resolveNamespacePath(scope.variables, varname);
+    };
+
     readVar(varname: string) {
         let i = this.scope.length - 1;
         while (i >= 0) {
@@ -1051,6 +1063,51 @@ export class CRuntime {
 
     clone(v: Variable, isInitializing?: boolean) {
         return this.val(v.t, v.v, false, isInitializing);
+    };
+
+    addToNamespace(namespacePath: string, name: string, obj: any) {
+        const namespaces = namespacePath.split('::');
+        let currentNamespace: any = this.namespace;
+    
+        for (let i = 0; i < namespaces.length; i++) {
+            const namespace = namespaces[i];
+            if (!currentNamespace[namespace])
+                currentNamespace[namespace] = {};
+            currentNamespace = currentNamespace[namespace];
+        }
+    
+        currentNamespace[name] = obj;
+    };
+
+    resolveNamespacePath(obj: any, path: string) {
+        const keys = path.split('::');
+        
+        let current = obj;
+        for (const key of keys) {
+          if (current.hasOwnProperty(key)) {
+            current = current[key];
+          } else {
+            return undefined;
+          }
+        }
+      
+        return current;
+    };
+
+    getFromNamespace(namespacePath: string) {
+        const namespaces = namespacePath.split('::');
+        if (namespaces.length <= 1)
+            return null;
+
+        let currentNamespaceObj: any = this.namespace;
+        for (let i = 0; i < namespaces.length; i++) {
+            const namespace = namespaces[i];
+            if (!(namespace in currentNamespaceObj))
+                return undefined;
+            currentNamespaceObj = currentNamespaceObj[namespace];
+        }
+
+        return currentNamespaceObj;
     };
 
     enterScope(scopename: string) {
