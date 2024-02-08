@@ -1,6 +1,7 @@
 import * as defaults from "./defaults";
 import * as Flatted from 'flatted';
 import { BaseInterpreter, Interpreter } from "./interpreter";
+import { resolveIdentifier } from "./includes/shared/string_utils";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 export type CCharType = "char" | "signed char" | "unsigned char" | "wchar_t" | "unsigned wchar_t" | "char16_t" | "unsigned char16_t" | "char32_t" | "unsigned char32_t";
 export type CIntType = "short" | "short int" | "signed short" | "signed short int" | "unsigned short" | "unsigned short int" | "int" | "signed int" | "unsigned" | "unsigned int" | "long" | "long int" | "long int" | "signed long" | "signed long int" | "unsigned long" | "unsigned long int" | "long long" | "long long int" | "long long int" | "signed long long" | "signed long long int" | "unsigned long long" | "unsigned long long int" | "bool";
@@ -1394,9 +1395,7 @@ export class CRuntime {
             } else if (this.isStructType(type)) {
                 return this.simpleStructType(type);
             } else if (this.isNamespaceType(type)) {
-                const interp = this.interp as Interpreter;
-                const paths = interp.resolveIdentifier(type).split("::");
-                return this.simpleType(paths.at(-1));
+                return this.simpleType(resolveIdentifier(type).split("::").at(-1));
             } else {
                 return this.simpleClassType(type);
             }
@@ -1518,10 +1517,7 @@ export class CRuntime {
     };
 
     isNamespaceType(type: string | Variable | VariableType) {
-        const interp = this.interp as Interpreter;
-        const namespacePath = interp.resolveIdentifier(type);
-        const namespaces = namespacePath.split('::');
-        return namespaces.length > 1;
+        return resolveIdentifier(type).split('::').length > 1;
     };
 
     getStringFromCharArray(element: ArrayVariable) {

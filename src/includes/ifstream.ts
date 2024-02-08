@@ -125,8 +125,7 @@ export = {
                         break;
                     }
 
-                    const variable = varArray[i];
-                    inputHandler(rt, _this, variable, dontIgnoreSpaces);
+                    inputHandler(rt, _this, varArray[i], dontIgnoreSpaces);
                 }
             }
             

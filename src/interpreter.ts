@@ -1,3 +1,4 @@
+import { resolveIdentifier } from "./includes/shared/string_utils";
 import { ArrayType, CRuntime, Variable, VariableType } from "./rt";
 
 /*
@@ -658,7 +659,7 @@ export class Interpreter extends BaseInterpreter {
 
                 const globalScope = rt.scope.find((scope) => scope.$name === "global");
                 const currentScope = rt.scope[rt.scope.length - 1];
-                const varname = interp.resolveIdentifier(s.Identifier);
+                const varname = resolveIdentifier(s.Identifier);
                 return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(globalScope, varname) || rt.getFromNamespace(varname) || rt.readVar(varname);
             },
             *ParenthesesExpression(interp, s, param) {
@@ -1256,25 +1257,5 @@ export class Interpreter extends BaseInterpreter {
         } else {
             return basetype;
         }
-    };
-
-    resolveIdentifier(obj: any) {
-        if (typeof obj !== 'object' || !obj.type) return obj;
-    
-        let identifier = '';
-        let currentObj = obj;
-    
-        while (currentObj) {
-            if (currentObj.type === 'ScopedIdentifier') {
-                identifier = currentObj.Identifier + (identifier ? '::' + identifier : '');
-                currentObj = currentObj.scope;
-            } else if (currentObj.type === 'IdentifierExpression') {
-                currentObj = identifier;
-            } else { 
-                break;
-            }
-        }
-    
-        return identifier;
     };
 }

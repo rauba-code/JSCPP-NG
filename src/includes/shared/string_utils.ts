@@ -17,3 +17,23 @@ export const read = function (rt: CRuntime, reg: RegExp, buf: string, type: Vari
         return r;
     }
 };
+
+export const resolveIdentifier = function(obj: any) {
+    if (typeof obj !== 'object' || !obj.type) return obj;
+
+    let identifier = '';
+    let currentObj = obj;
+
+    while (currentObj) {
+        if (currentObj.type === 'ScopedIdentifier') {
+            identifier = currentObj.Identifier + (identifier ? '::' + identifier : '');
+            currentObj = currentObj.scope;
+        } else if (currentObj.type === 'IdentifierExpression') {
+            currentObj = identifier;
+        } else { 
+            break;
+        }
+    }
+
+    return identifier;
+};
