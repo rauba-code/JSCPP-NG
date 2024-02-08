@@ -7,10 +7,11 @@ export = {
             v: ObjectValue
         };
         
-        const npos = rt.val(rt.intTypeLiteral, -1, true);
-        rt.addToNamespace("string", "npos", npos);
-
         const newStringType: ClassType = rt.newClass("string", []);
+        rt.addToNamespace("std", "string", newStringType);
+
+        const npos = rt.val(rt.intTypeLiteral, -1, true);
+        rt.addToNamespace("std::string", "npos", npos);
 
         const typeSig = rt.getTypeSignature(newStringType);
         rt.types[typeSig].father = "object";

@@ -1393,6 +1393,10 @@ export class CRuntime {
                 return this.primitiveType(type);
             } else if (this.isStructType(type)) {
                 return this.simpleStructType(type);
+            } else if (this.isNamespaceType(type)) {
+                const interp = this.interp as Interpreter;
+                const paths = interp.resolveIdentifier(type).split("::");
+                return this.simpleType(paths.at(-1));
             } else {
                 return this.simpleClassType(type);
             }
@@ -1511,6 +1515,13 @@ export class CRuntime {
 
     isStringClass(type: VariableType) {
         return (type.type === "class" && type.name === "string");
+    };
+
+    isNamespaceType(type: string | Variable | VariableType) {
+        const interp = this.interp as Interpreter;
+        const namespacePath = interp.resolveIdentifier(type);
+        const namespaces = namespacePath.split('::');
+        return namespaces.length > 1;
     };
 
     getStringFromCharArray(element: ArrayVariable) {
@@ -1674,7 +1685,7 @@ export class CRuntime {
 
     defaultValue(type: VariableType, left = false): Variable {
         if (type.type === "primitive") {
-            return this.val(type, NaN, left, true);
+            return this.val(type, 0, left, true);
         } else if (type.type === "class" || type.type === "struct") {
             const ret = this.val(type, { members: {} }, left);
             this.types[this.getTypeSignature(type)].cConstructor(this, ret);

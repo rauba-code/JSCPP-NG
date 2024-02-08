@@ -28,6 +28,8 @@ export = {
                 return {} as ObjectVariable; 
             }
         }]);
+
+        rt.addToNamespace("std", "ifstream", readStreamType);
         
         const readStreamTypeSig = rt.getTypeSignature(readStreamType);
         rt.types[readStreamTypeSig].handlers = {
@@ -114,16 +116,21 @@ export = {
             if (rt.isArrayType(right)) {
                 const inputHandler = rt.types[readStreamTypeSig].handlers["o(>>)"].default;
                 const dontIgnoreSpaces: any = streamSize > 0;
-                const requiredInputLength = streamSize - 1 || buffer.split(' ')[0].length;
+                const requiredInputLength = streamSize - 1 || buffer.split(' ').filter(Boolean)[0].length;
                 const varArray = (right as any).v.target;
                 for(let i=0; i < varArray.length; i++) {
-                    if (i >= requiredInputLength)
+                    if (i >= requiredInputLength) {
+                        if (rt.isStringType(right))
+                            varArray[i].v = 0;
                         break;
+                    }
 
                     const variable = varArray[i];
                     inputHandler(rt, _this, variable, dontIgnoreSpaces);
-                }                
+                }
             }
+            
+            return _this;                
         };
 
         const _open = function(rt: CRuntime, _this: ifStreamObject, right: Variable) {

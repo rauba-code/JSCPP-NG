@@ -169,7 +169,7 @@ StructMemberDeclaration
 DeclarationSpecifiers
     = a:(
        a:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )*
-       b:TypedefName
+       b:( ScopedIdentifier / TypedefName )
        c:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )* {
         return a.concat([b]).concat(c);
        }

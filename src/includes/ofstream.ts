@@ -21,6 +21,7 @@ export = {
                 return {} as ObjectVariable; 
             }
         }]);
+        rt.addToNamespace("std", "ofstream", writeStreamType);
 
         const writeStreamTypeSig = rt.getTypeSignature(writeStreamType);
         rt.types[writeStreamTypeSig].handlers = {
