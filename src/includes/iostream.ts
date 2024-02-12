@@ -24,7 +24,6 @@ export = {
         rt.addToNamespace("std", "cin", cin);
 
         rt.types[rt.getTypeSignature(cinType)] = {
-            father: "object",
             handlers: {
                 "o(>>)": {
                     default(rt, _cin: Cin, t: any) {
@@ -226,31 +225,29 @@ export = {
         rt.addToNamespace("std", "cout", cout);
         rt.addToNamespace("std", "cerr", cout);
 
-        rt.types[rt.getTypeSignature(cout.t)] = {
-            father: "object",
-            handlers: {
-                "o(<<)": {
-                    default(rt, _cout: Cout, t: Variable) {
-                        let r;
-                        if (_cout.manipulators != null) {
-                            t = _cout.manipulators.use(t);
-                        }
-                        if (rt.isPrimitiveType(t.t)) {
-                            if (t.t.name.indexOf("char") >= 0) {
-                                r = String.fromCharCode(t.v as number);
-                            } else if (t.t.name === "bool") {
-                                r = t.v ? "1" : "0";
-                            } else {
-                                r = t.v.toString();
-                            }
-                        } else if (rt.isStringType(t)) {
-                            r = rt.getStringFromCharArray(t);
-                        } else {
-                            rt.raiseException("<< operator in ostream cannot accept " + rt.makeTypeString(t.t));
-                        }
-                        _cout.v.ostream.write(r);
-                        return _cout;
+        const coutTypeSig = rt.getTypeSignature(cout.t);
+        rt.types[coutTypeSig].handlers = {
+            "o(<<)": {
+                default(rt, _cout: Cout, t: Variable) {
+                    let r;
+                    if (_cout.manipulators != null) {
+                        t = _cout.manipulators.use(t);
                     }
+                    if (rt.isPrimitiveType(t.t)) {
+                        if (t.t.name.indexOf("char") >= 0) {
+                            r = String.fromCharCode(t.v as number);
+                        } else if (t.t.name === "bool") {
+                            r = t.v ? "1" : "0";
+                        } else {
+                            r = t.v.toString();
+                        }
+                    } else if (rt.isStringType(t)) {
+                        r = rt.getStringFromCharArray(t);
+                    } else {
+                        rt.raiseException("<< operator in ostream cannot accept " + rt.makeTypeString(t.t));
+                    }
+                    _cout.v.ostream.write(r);
+                    return _cout;
                 }
             }
         };

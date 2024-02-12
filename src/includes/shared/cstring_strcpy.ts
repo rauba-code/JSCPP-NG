@@ -1,7 +1,6 @@
 import { CRuntime, Variable } from "../../rt";
 
 export = function (rt: CRuntime, _this: Variable, dest: Variable, src: Variable) {
-
     if (rt.isArrayType(dest) && rt.isArrayType(src)) {
         const srcarr = src.v.target;
         let i = src.v.position;
@@ -14,7 +13,7 @@ export = function (rt: CRuntime, _this: Variable, dest: Variable, src: Variable)
         }
         if (i === srcarr.length) {
             rt.raiseException("source string does not have a pending \"\\0\"");
-        } else if (j === (destarr.length - 1)) {
+        } else if (j === destarr.length) {
             rt.raiseException("destination array is not big enough");
         } else {
             destarr[j] = rt.val(rt.charTypeLiteral, 0);

@@ -14,7 +14,6 @@ export = {
         rt.addToNamespace("std::string", "npos", npos);
 
         const typeSig = rt.getTypeSignature(newStringType);
-        rt.types[typeSig].father = "object";
 
         const stringHandlers = {
             "o(())": {

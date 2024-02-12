@@ -115,8 +115,8 @@ export = {
         const _ptrToValue = function(rt: CRuntime, _this: ifStreamObject, right: any, buffer: string, streamSize: number = undefined) {
             if (rt.isArrayType(right)) {
                 const inputHandler = rt.types[readStreamTypeSig].handlers["o(>>)"].default;
-                const dontIgnoreSpaces: any = streamSize > 0;
-                const requiredInputLength = streamSize - 1 || buffer.split(' ').filter(Boolean)[0].length;
+                const maxPossibleInputLength = skipSpace(buffer).split(/\s+/g)[0].length;
+                const requiredInputLength = streamSize > 0 ? Math.min(maxPossibleInputLength, streamSize - 1) : maxPossibleInputLength;
                 const varArray = (right as any).v.target;
                 for(let i=0; i < varArray.length; i++) {
                     if (i >= requiredInputLength) {
@@ -125,7 +125,7 @@ export = {
                         break;
                     }
 
-                    inputHandler(rt, _this, varArray[i], dontIgnoreSpaces);
+                    inputHandler(rt, _this, varArray[i]);
                 }
             }
             
@@ -169,10 +169,10 @@ export = {
             const buffer = _this.v.members['buffer'] as ArrayVariable;
             const delimiter: number = delim != null ? delim.v as number : ("\n").charCodeAt(0);
             const delimChar: string = String.fromCharCode(delimiter);
-            const streamsize = n?.v || 1;
+            const streamsize = n?.v || delimChar.length;
 
-            const chars = Array.from(rt.getStringFromCharArray(buffer));
-            const index: number = delim != null ? chars.findIndex((char, i) => char === delimChar && i >= streamsize - 1) : streamsize;
+            const chars = Array.from(skipSpace(rt.getStringFromCharArray(buffer)));
+            const index: number = chars.findIndex((char, i) => char === delimChar && i >= streamsize - 1);
             _this.v.members['buffer'].v = rt.makeCharArrayFromString(chars.slice(index).join('')).v;
 
             return _this;
@@ -186,7 +186,7 @@ export = {
             expression: ""
         }]);
 
-        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject, charVar: Variable, streamSize: Variable) {
+        const _get = function(rt: CRuntime, _this: ifStreamObject, charVar: Variable, streamSize: Variable) {
             let buffer = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
 
             if (!charVar) {
@@ -207,7 +207,19 @@ export = {
             _this.v.members["buffer"].v = rt.makeCharArrayFromString(buffer).v;
 
             return charVar;
-        }, readStreamType, "get", ["?"], rt.boolTypeLiteral, [{ 
+        };
+
+        rt.regFunc(_get, readStreamType, "get", ["?"], rt.boolTypeLiteral, [{ 
+            name: "charVar", 
+            type: rt.charTypeLiteral, 
+            expression: ""
+        }, { 
+            name: "streamSize", 
+            type: rt.intTypeLiteral, 
+            expression: ""
+        }]);
+
+        rt.regFunc(_get, readStreamType, "getline", ["?"], rt.boolTypeLiteral, [{ 
             name: "charVar", 
             type: rt.charTypeLiteral, 
             expression: ""

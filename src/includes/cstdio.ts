@@ -107,7 +107,7 @@ export = {
 
         const _sprintf = function (rt: CRuntime, _this: Variable, target: Variable, format: ArrayVariable, ...params: Variable[]) {
             const retval = __printf(format, ...params);
-            _strcpy(rt, null, [target, retval]);
+            _strcpy(rt, null, target, retval);
             return rt.val(rt.intTypeLiteral, retval.v.target.length);
         };
 

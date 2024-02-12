@@ -4,7 +4,7 @@ import { IomanipOperator, IomanipConfig, Cout } from "./shared/iomanip_types";
 
 export = {
     load(rt: CRuntime) {
-        const type = rt.newClass("iomanipulator", []);
+        const type = rt.newClass("iomanip", []);
         
         const _setprecision = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
@@ -19,6 +19,7 @@ export = {
             left: false
         });
         rt.regFunc(_setprecision, "global", "setprecision", [rt.intTypeLiteral], type);
+        rt.addToNamespace("std", "setprecision", rt.readVar("setprecision"));
 
         const _fixed: IomanipOperator = {
             t: type,
@@ -243,11 +244,11 @@ export = {
             return _cout;
         };
 
-
         const _bindOperatorToType = function(className: string) {
             let type;
             try {
                 type = rt.newClass(className, []);
+                rt.types[rt.getTypeSignature(type)].father = "iomanip";
             } catch (error) {
                 type = rt.simpleType(className); 
             }
