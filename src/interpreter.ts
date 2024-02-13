@@ -1120,6 +1120,9 @@ export class Interpreter extends BaseInterpreter {
         }
 
         for(const lib of lastToLoad) {
+            if (!loadedLibraries.includes(lib))
+                continue;
+
             includes[lib].load(this.rt);
         }
     };
