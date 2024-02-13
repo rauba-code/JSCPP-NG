@@ -324,11 +324,10 @@ export class CRuntime {
         } = this.config;
         if (name in includes) {
             const lib = includes[name];
-            if (this.config.loadedLibraries.includes(name)) {
+            if (this.config.loadedLibraries.includes(name))
                 return;
-            }
             this.config.loadedLibraries.push(name);
-            lib.load(this);
+            // lib.load(this);
         } else {
             this.raiseException("cannot find library: " + name);
         }
@@ -1472,7 +1471,9 @@ export class CRuntime {
         if (sig in this.types) {
             this.raiseException(this.makeTypeString(clsType) + " is already defined");
         }
+
         this.types[sig] = {
+            father: classname,
             cConstructor(rt, _this, args = []) {
                 const v = _this.v as ObjectValue;
                 v.members = {};
@@ -1487,6 +1488,7 @@ export class CRuntime {
             members,
             handlers: {},
         };
+
         return clsType;
     };
 

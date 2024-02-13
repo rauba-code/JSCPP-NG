@@ -398,6 +398,5 @@ export = {
         };
 
         rt.regOperator(_addIOManipulator, coutType, "<<", [type], coutType);
-
     }
 };

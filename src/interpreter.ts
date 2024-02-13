@@ -45,9 +45,7 @@ export class Interpreter extends BaseInterpreter {
         super(rt);
         this.visitors = {
             *TranslationUnit(interp, s, param) {
-                ({
-                    rt
-                } = interp);
+                ({ rt } = interp);
                 let i = 0;
                 while (i < s.ExternalDeclarations.length) {
                     const dec = s.ExternalDeclarations[i];
@@ -1102,9 +1100,28 @@ export class Interpreter extends BaseInterpreter {
     };
 
     *run(tree: any, source: string, param?: any) {
+        if (tree.type === "TranslationUnit")
+            this.processIncludes();
+
         this.rt.interp = this;
         this.source = source;
         return yield* this.visit(this, tree, param);
+    };
+
+    processIncludes() {
+        const lastToLoad = ["iomanip"];
+        const { includes, loadedLibraries } = this.rt.config;
+
+        for(const lib of loadedLibraries) {
+            if (lastToLoad.includes(lib))
+                continue;
+
+            includes[lib].load(this.rt);
+        }
+
+        for(const lib of lastToLoad) {
+            includes[lib].load(this.rt);
+        }
     };
 
     *arrayInit(dimensions: number[], init: any, type: VariableType, param: any): Generator<void, Variable, any> {
