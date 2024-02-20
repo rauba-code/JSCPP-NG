@@ -193,6 +193,10 @@ export = {
             const delimiter: number = delim != null ? delim.v as number : ("\n").charCodeAt(0);
             const delimChar: string = String.fromCharCode(delimiter);
 
+            if (readStream.v.members["eof"].v) {
+                return rt.val(rt.charTypeLiteral, 0);
+            }
+
             let internal_buffer: any = readStream.v.members["_buffer"];
             if (internal_buffer == null) {
                 internal_buffer = readStream.v.members["_buffer"] = (rt.getStringFromCharArray(readStream.v.members["buffer"] as ArrayVariable) || fileObject.read()).split(delimChar);

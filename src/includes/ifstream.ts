@@ -112,11 +112,12 @@ export = {
             }
         };
 
+        // Supposed to work only with 'char' type, not 'string'
         const _ptrToValue = function(rt: CRuntime, _this: ifStreamObject, right: any, buffer: string, streamSize: number = undefined) {
             if (rt.isArrayType(right)) {
                 const inputHandler = rt.types[readStreamTypeSig].handlers["o(>>)"].default;
-                const maxPossibleInputLength = skipSpace(buffer).split(/\s+/g)[0].length;
-                const requiredInputLength = streamSize > 0 ? Math.min(maxPossibleInputLength, streamSize - 1) : maxPossibleInputLength;
+                const extractCharacters: boolean = streamSize > 0;
+                const requiredInputLength = extractCharacters ? Math.min(streamSize - 1, buffer.length) : skipSpace(buffer).split(/\s+/g)[0].length;
                 const varArray = (right as any).v.target;
                 for(let i=0; i < varArray.length; i++) {
                     if (i >= requiredInputLength) {
@@ -125,10 +126,12 @@ export = {
                         break;
                     }
 
-                    inputHandler(rt, _this, varArray[i]);
+                    inputHandler(rt, _this, varArray[i], extractCharacters as any);
                 }
             }
             
+            _this.v.members["eof"].v = rt.getStringFromCharArray(_this.v.members["buffer"] as any).length === 0;
+
             return _this;                
         };
 
@@ -187,7 +190,15 @@ export = {
         }]);
 
         const _get = function(rt: CRuntime, _this: ifStreamObject, charVar: Variable, streamSize: Variable) {
+            if (rt.isStringClass(charVar.t))
+                rt.raiseException(`>> 'get' in ifstream cannot accept type '${rt.makeTypeString(charVar.t)}'`);
+
             let buffer = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
+
+            if (_this.v.members['eof'].v) {
+                charVar.v = rt.makeCharArrayFromString("").v;
+                return charVar;
+            }
 
             if (!charVar) {
                 charVar = rt.val(rt.charTypeLiteral, 0);
