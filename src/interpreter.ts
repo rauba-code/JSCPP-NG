@@ -1185,9 +1185,25 @@ export class Interpreter extends BaseInterpreter {
                                         type: "Initializer_expr",
                                         shorthand: (yield* this.visit(this, _init.Expression, param))
                                     };
+                                } else if (_init.type === "Initializer_array" && type.type === "struct") {
+                                    const defaultStructObject: any = this.rt.defaultValue(this.arrayType(dimensions.slice(1), type));
+                                    const orderedKeys = Object.keys(defaultStructObject.v.members); 
+
+                                    let k = 0;
+                                    while (k < _init.Initializers.length) {
+                                        const propertyValue = (yield* this.visit(this, _init.Initializers[k].Expression, param));
+                                        defaultStructObject.v.members[orderedKeys[k]].v = propertyValue.v;
+                                        k++;
+                                    }
+
+                                    initval = {
+                                        type: "Initializer_expr",
+                                        shorthand: defaultStructObject
+                                    };
                                 } else if (_init.type === "Initializer_array") {
                                     initval = {
                                         type: "Initializer_expr",
+                                        shorthand: (yield* this.arrayInit(dimensions.slice(1), _init, type, param))
                                     };
                                 } else {
                                     this.rt.raiseException("Not implemented initializer type: " + _init.type);

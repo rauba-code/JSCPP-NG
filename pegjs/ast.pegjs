@@ -290,28 +290,28 @@ DirectDeclarator
       / LPAR a:Declarator RPAR {return a;}
       )
       b:( LBRK ac:TypeQualifier* b:AssignmentExpression? RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:ac||[], Expression: b});
+        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ac || [], Expression: b});
       }
       / LBRK STATIC ac:TypeQualifier* b:AssignmentExpression RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:['static'].concat(ac), Expression: b});
+        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ['static'].concat(ac), Expression: b});
       }
       / LBRK ac:TypeQualifier+ STATIC b:AssignmentExpression RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier:['static'].concat(ac), Expression: b});
+        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ['static'].concat(ac), Expression: b});
       }
       / LBRK ac:TypeQualifier* STAR RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_star_array', Modifier:ac.concat['*']});
+        return addPositionInfo({type:'DirectDeclarator_modifier_star_array', Modifier: ac.concat['*']});
       }
       / LPAR ac:Constructor RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_Constructor', Expressions:ac});
+        return addPositionInfo({type:'DirectDeclarator_modifier_Constructor', Expressions: ac});
       }
       / LPAR ac:ParameterTypeList RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList:ac});
+        return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList: ac});
       }
       / LPAR ac:IdentifierList? RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_IdentifierList', IdentifierList:ac});
+        return addPositionInfo({type:'DirectDeclarator_modifier_IdentifierList', IdentifierList: ac});
       }
       )* {
-        return addPositionInfo({type:'DirectDeclarator', left:a, right:b});
+        return addPositionInfo({type:'DirectDeclarator', left: a, right: b});
       }
     ;
 
@@ -842,13 +842,13 @@ FloatConstant
     ;
 
 DecimalFloatConstant
-    = a:Fraction b:Exponent? {return addPositionInfo({type:'DecimalFloatConstant', value:a+b||''});}
-    / a:[0-9]+ b:Exponent {return addPositionInfo({type:'DecimalFloatConstant', value:a.join('')+b});}
+    = a:Fraction b:Exponent? { return addPositionInfo({type:'DecimalFloatConstant', value: a + (b || '') });}
+    / a:[0-9]+ b:Exponent { return addPositionInfo({type:'DecimalFloatConstant', value: a.join('') + b });}
     ;
 
 HexFloatConstant
-    = a:HexPrefix b:HexFraction c:BinaryExponent? {return addPositionInfo({type:'HexFloatConstant', value:a+b+c||''});}
-    / a:HexPrefix b:HexDigit+ c:BinaryExponent {return addPositionInfo({type:'HexFloatConstant', value:a+b.join('')+c});}
+    = a:HexPrefix b:HexFraction c:BinaryExponent? {return addPositionInfo({type:'HexFloatConstant', value: a + b + (c || '') });}
+    / a:HexPrefix b:HexDigit+ c:BinaryExponent {return addPositionInfo({type:'HexFloatConstant', value: a + b.join('') + c });}
     ;
 
 Fraction
