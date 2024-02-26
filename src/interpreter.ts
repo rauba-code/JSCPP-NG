@@ -934,6 +934,19 @@ export class Interpreter extends BaseInterpreter {
             *StringLiteralExpression(interp, s, param) {
                 return yield* interp.visit(interp, s.value, param);
             },
+            *StructExpression(interp, s, param) {
+                const currentStruct = yield* interp.visit(interp, s.left, param);
+                const orderedKeys = Object.keys(currentStruct.v.members); 
+
+                let k = 0;
+                while (k < s.Initializers.length) {
+                    const propertyValue = yield* interp.visit(interp, s.Initializers[k].Expression, param);
+                    currentStruct.v.members[orderedKeys[k]].v = propertyValue.v;
+                    k++;
+                }
+
+                return currentStruct;
+            },
             StringLiteral(interp, s, param) {
                 ({
                     rt

@@ -566,13 +566,16 @@ ConditionalExpression
     }
     ;
 
+StructAssignmentExpression = LWING a:InitializerList COMMA? RWING { return addPositionInfo({ type:'StructExpression', Initializers:a });};
+
 AssignmentExpression
-    = a:UnaryExpression b:AssignmentOperator c:AssignmentExpression {
+    = a:UnaryExpression b:AssignmentOperator c:(AssignmentExpression / StructAssignmentExpression) {
+      c.type === 'StructExpression' && (c.left = a); 
       return addPositionInfo({type:'BinOpExpression', op:b, left:a, right:c});
     }
     / ConditionalExpression
     ;
-
+    
 AssignmentOperator
     = EQU
     / STAREQU
