@@ -672,6 +672,8 @@ export class Interpreter extends BaseInterpreter {
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
                 const index = yield* interp.visit(interp, s.index, param);
+
+                param.structType = ret.t.eleType;
                 const r = rt.getFunc(ret.t, rt.makeOperatorFuncName("[]"), [index.t])(rt, ret, index);
                 if (isGenerator(r)) {
                     return yield* r;
@@ -935,17 +937,40 @@ export class Interpreter extends BaseInterpreter {
                 return yield* interp.visit(interp, s.value, param);
             },
             *StructExpression(interp, s, param) {
-                const currentStruct = yield* interp.visit(interp, s.left, param);
-                const orderedKeys = Object.keys(currentStruct.v.members); 
+                ({ rt } = interp);
 
-                let k = 0;
-                while (k < s.Initializers.length) {
-                    const propertyValue = yield* interp.visit(interp, s.Initializers[k].Expression, param);
-                    currentStruct.v.members[orderedKeys[k]].v = propertyValue.v;
-                    k++;
-                }
+                const convertToObjectArray = function*(expr: any) {
+                    if (expr.type === 'StructExpression') {
+                        return expr.values.map((value: any) => convertToObjectArray(value.Expression).next().value );
+                    } else {
+                        return yield* interp.visit(interp, expr, param);
+                    }
+                };
 
-                return currentStruct;
+                const valuesToStruct = function(arrayValues: any) {
+                    const fillerStruct: any = rt.defaultValue(param.structType);
+                    const orderedKeys = Object.keys(fillerStruct.v.members); 
+    
+                    for(let k = 0; k < arrayValues.length; k++) {
+                        const memberName = orderedKeys[k];
+                        const memberValue = arrayValues[k];
+                        fillerStruct.v.members[memberName].v = memberValue.v;
+                    }
+
+                    return fillerStruct;
+                };
+            
+                const arrayValues = yield* convertToObjectArray(s);
+
+                if (Array.isArray(arrayValues[0])) {
+                    const structArray = [];
+                    for(const valueArray of arrayValues) {
+                        structArray.push(valuesToStruct(valueArray));
+                    }
+                    return rt.val(rt.arrayPointerType(param.structType, structArray.length), rt.makeArrayPointerValue(structArray, 0));
+                } 
+
+                return valuesToStruct(arrayValues);
             },
             StringLiteral(interp, s, param) {
                 ({
@@ -1198,21 +1223,6 @@ export class Interpreter extends BaseInterpreter {
                                         type: "Initializer_expr",
                                         shorthand: (yield* this.visit(this, _init.Expression, param))
                                     };
-                                } else if (_init.type === "Initializer_array" && type.type === "struct") {
-                                    const defaultStructObject: any = this.rt.defaultValue(this.arrayType(dimensions.slice(1), type));
-                                    const orderedKeys = Object.keys(defaultStructObject.v.members); 
-
-                                    let k = 0;
-                                    while (k < _init.Initializers.length) {
-                                        const propertyValue = (yield* this.visit(this, _init.Initializers[k].Expression, param));
-                                        defaultStructObject.v.members[orderedKeys[k]].v = propertyValue.v;
-                                        k++;
-                                    }
-
-                                    initval = {
-                                        type: "Initializer_expr",
-                                        shorthand: defaultStructObject
-                                    };
                                 } else if (_init.type === "Initializer_array") {
                                     initval = {
                                         type: "Initializer_expr",
@@ -1240,6 +1250,7 @@ export class Interpreter extends BaseInterpreter {
                     if ("shorthand" in init) {
                         initializer = init.shorthand;
                     } else {
+                        param.structType = type;
                         initializer = yield* this.visit(this, init, param);
                     }
                     if (this.rt.isArrayType(initializer) && this.rt.isTypeEqualTo(type, initializer.t.eleType)) {

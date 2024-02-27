@@ -410,6 +410,7 @@ PrimaryExpression
     / a:Constant {return addPositionInfo({type:'ConstantExpression', Expression:a});}
     / a:StringLiteral {return addPositionInfo({type:'StringLiteralExpression', value:a});}
     / LPAR a:Expression RPAR {return addPositionInfo({type:'ParenthesesExpression', Expression:a});}
+    / a:StructExpression { return addPositionInfo({type:'StructExpression', values:a}); }
     ;
 
 PostfixExpression
@@ -559,18 +560,17 @@ LogicalORExpression
 ConditionalExpression
     = a:LogicalORExpression b:(QUERY Expression COLON LogicalORExpression)* {
       var ret = a;
-      for (var i=0;i<b.length;i++) {
+      for (var i = 0; i < b.length; i++) {
         ret = addPositionInfo({type:'ConditionalExpression', cond:ret, t:b[i][1], f:b[i][3]});
       }
       return ret;
     }
     ;
 
-StructAssignmentExpression = LWING a:InitializerList COMMA? RWING { return addPositionInfo({ type:'StructExpression', Initializers:a });};
+StructExpression = LWING d:InitializerList COMMA? RWING { return d; };
 
 AssignmentExpression
-    = a:UnaryExpression b:AssignmentOperator c:(AssignmentExpression / StructAssignmentExpression) {
-      c.type === 'StructExpression' && (c.left = a); 
+    = a:UnaryExpression b:AssignmentOperator c:AssignmentExpression {
       return addPositionInfo({type:'BinOpExpression', op:b, left:a, right:c});
     }
     / ConditionalExpression
