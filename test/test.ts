@@ -1,7 +1,7 @@
 type Callback = (result: boolean) => void;
 import { strict as assert } from 'assert';
 import * as fs from "fs";
-import JSCPP from "../src/launcher";
+import JSCPP, { InputFunction } from "../src/launcher";
 import * as chai from "chai";
 import * as yaml from "js-yaml";
 import * as Mocha from "mocha";
@@ -35,12 +35,11 @@ interface Test {
 
 const testFolder = './test/';
 
-const prepareOutput = function (str: string) {
+const prepareOutput = function(str: string) {
     if (str != null) {
         return str.replace(/\r\n/g, "\n").replace(/\r/, "\n").replace(/[ \t]+\n/, "\n").replace(/\s$/, "");
-    } else {
-        return null;
     }
+    return "";
 };
 
 if (process.argv[2] === "direct") {
@@ -64,9 +63,7 @@ const skippedTest: { name: string; reason: string }[] = [];
 
 const doTest = function (test: TestCase, cb: (result: boolean | "skip", reason?: string) => void) {
     let success = true;
-    let {
-        cases
-    } = test;
+    let { cases } = test;
     if (!Array.isArray(cases)) {
         cases = [cases];
     }
@@ -79,21 +76,16 @@ function doCases(cases: SingleTestCase[], cb: Callback) {
     for (const sample of cases) {
         const cppFile = sample.cpp;
         const code = fs.readFileSync(testFolder + cppFile, "utf-8");
-        const input = sample.in || "";
-        const expected = prepareOutput(sample.out);
-        const except = prepareOutput(sample.exception);
-        const {
-            exitcode
-        } = sample;
-        const {
-            config
-        } = sample;
+        const input = () => Promise.resolve(sample.in ?? "");
+        const expected = prepareOutput(sample.out ?? "default_expected");
+        const except = prepareOutput(sample.exception ?? "default_exception");
+        const { exitcode, config } = sample;
         _describe(`${cppFile}`, () => doSample(code, input, expected, except, exitcode, config, (result: boolean) => success = success && result));
     }
     cb(success);
 };
 
-function doSample(code: string, input: string, expected: string, except: string, exp_exitcode: number, config: any, cb: Callback) {
+function doSample(code: string, input: InputFunction, expected: string | null, except: string | null, exp_exitcode: number | undefined, config: any, cb: Callback) {
     let exitcode: number;
     let outputBuffer = "";
 
@@ -113,7 +105,7 @@ function doSample(code: string, input: string, expected: string, except: string,
         if (except) {
             _it("expected exception", function () {
                 const eStr = prepareOutput(e.toString());
-                const ok = eStr.match(except);
+                const ok = eStr!.match(except);
                 assert.ok(ok);
                 cb(ok != null);
             });
@@ -156,10 +148,9 @@ for (const testName of Object.keys(tests.tests)) {
 const totalNum = todolist.length;
 
 const tryAddTest = function (testName: string, test: TestCase) {
-    const {
-        after
-    } = test;
-    let waitingFor = null;
+    const { after } = test;
+
+    let waitingFor: string = "";
     if (after != null) {
         for (const dep of after) {
             if (!passedTest.includes(dep)) {
@@ -177,11 +168,12 @@ const tryAddTest = function (testName: string, test: TestCase) {
         }
     }
 
-    if (waitingFor !== null) {
+    if (waitingFor !== "") {
         if (!pendingTests.has(waitingFor)) {
             pendingTests.set(waitingFor, []);
         }
-        pendingTests.get(waitingFor).push({
+        
+        pendingTests.get(waitingFor)?.push({
             name: testName,
             test
         });
@@ -193,7 +185,7 @@ const tryAddTest = function (testName: string, test: TestCase) {
 const pendingTests = new Map<string, Test[]>();
 
 function testFinished(testName: string) {
-    return (function (result: boolean | "skip", reason: string) {
+    return (function (result: boolean | "skip", reason?: string) {
         if (result === true) {
             passedTest.push(testName);
         } else if (result === false) {
@@ -201,14 +193,14 @@ function testFinished(testName: string) {
         } else if (result === "skip") {
             skippedTest.push({
                 name: testName,
-                reason
+                reason: reason ?? "undefined"
             });
         }
 
         if (pendingTests.has(testName)) {
-            let awaitingTask: Test;
+            let awaitingTask: Test | undefined;
             const tasks = pendingTests.get(testName);
-            while ((awaitingTask = tasks.pop()) != null) {
+            while (tasks != null && (awaitingTask = tasks.pop()) != null) {
                 if (result === true) {
                     tryAddTest(awaitingTask.name, awaitingTask.test);
                 } else if (result === false) {
@@ -243,7 +235,7 @@ function testFinished(testName: string) {
     });
 };
 
-let task: Test;
+let task: Test | undefined;
 while ((task = todolist.shift())) {
     tryAddTest(task.name, task.test);
 }

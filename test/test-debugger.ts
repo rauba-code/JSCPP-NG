@@ -18,7 +18,7 @@ describe("Test debugger", () => {
             a *= 10;
             return 0;
         }`;
-        const mydebugger = JSCPP.run(code, "5", { debug: true });
+        const mydebugger = JSCPP.run(code, () => Promise.resolve("5"), { debug: true });
 
         if (isNotNumber(mydebugger)) {
             mydebugger.setStopConditions({

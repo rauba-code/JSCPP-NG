@@ -1,6 +1,6 @@
 #include <iostream>
 using namespace std;
-int  main()
+int main()
 {
     int a;
     cin >> a;
@@ -12,5 +12,6 @@ int  main()
     cout << x << endl;
     cin.getline(x, 80);
     cout << x << endl;
+    
     return 0;
 }

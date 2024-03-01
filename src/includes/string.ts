@@ -197,10 +197,7 @@ export = {
                 return rt.val(rt.charTypeLiteral, 0);
             }
 
-            let internal_buffer: any = readStream.v.members["_buffer"];
-            if (internal_buffer == null) {
-                internal_buffer = readStream.v.members["_buffer"] = (rt.getStringFromCharArray(readStream.v.members["buffer"] as ArrayVariable) || fileObject.read()).split(delimChar);
-            }
+            const internal_buffer: any = (rt.getStringFromCharArray(readStream.v.members["buffer"] as ArrayVariable) || fileObject.read()).split(delimChar);
 
             const line = internal_buffer.shift();
             if (line) {
@@ -217,6 +214,8 @@ export = {
                 expression: ""
             }
         ]);
+
+        rt.addToNamespace("std", "getline", rt.readVar("getline"));
 
         rt.regFunc(function(rt: CRuntime, _this: Variable, concatCount: Variable, charToRepeat: Variable) {
             if (rt.isPrimitiveType(charToRepeat)) {

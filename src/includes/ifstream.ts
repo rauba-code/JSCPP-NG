@@ -77,7 +77,7 @@ export = {
                             break;
                         case "char": case "signed char": case "unsigned char":
                             b = !ignoreSpaces ? skipSpace(b) : b;
-                            r = b.length === 0 ? ([""]) : read(rt, /^./, b, t.t);
+                            r = b.length === 0 ? ([""]) : read(rt, /^(?:.|\s)/, b, t.t);
                             v = r[0].charCodeAt(0);
                             break;
                         case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
@@ -113,24 +113,43 @@ export = {
         };
 
         // Supposed to work only with 'char' type, not 'string'
-        const _ptrToValue = function(rt: CRuntime, _this: ifStreamObject, right: any, buffer: string, streamSize: number = undefined) {
+        const _ptrToValue = function(rt: CRuntime, _this: ifStreamObject, right: any, buffer: string, streamSize: number = undefined, delimChar: string | RegExp = undefined, extractDelimiter: boolean = true) {
             if (rt.isArrayType(right)) {
-                const inputHandler = rt.types[readStreamTypeSig].handlers["o(>>)"].default;
-                const extractCharacters: boolean = streamSize > 0;
-                const requiredInputLength = extractCharacters ? Math.min(streamSize - 1, buffer.length) : skipSpace(buffer).split(/\s+/g)[0].length;
-                const varArray = (right as any).v.target;
-                for(let i=0; i < varArray.length; i++) {
-                    if (i >= requiredInputLength) {
-                        if (rt.isStringType(right))
-                            varArray[i].v = 0;
-                        break;
+                _this.v.members["eof"].v = rt.getStringFromCharArray(_this.v.members["buffer"] as any).length === 0;
+
+                if (!_this.v.members["eof"].v) {
+                    const inputHandler = rt.types[readStreamTypeSig].handlers["o(>>)"].default;
+
+                    if (!streamSize) {
+                        delimChar = /\s+/g;
+                        streamSize = skipSpace(buffer).split(delimChar)[0].length + 1;
+                        extractDelimiter = false;
                     }
 
-                    inputHandler(rt, _this, varArray[i], extractCharacters as any);
-                }
-            }
-            
-            _this.v.members["eof"].v = rt.getStringFromCharArray(_this.v.members["buffer"] as any).length === 0;
+                    let requiredInputLength = Math.min(streamSize - 1, buffer.length);
+                    let stopExtractingAt = requiredInputLength;
+
+                    if (delimChar) {
+                        const delimiterIdx = buffer.search(delimChar);
+                        if (delimiterIdx !== -1) {
+                            if (!extractDelimiter)
+                                stopExtractingAt = delimiterIdx; 
+                            requiredInputLength = delimiterIdx + 1;
+                        }                        
+                    }
+
+                    const varArray = (right as any).v.target;
+                    for(let i=0; i < varArray.length; i++) {
+                        if (i >= requiredInputLength) {
+                            if (rt.isStringType(right))
+                                varArray[stopExtractingAt].v = 0;
+                            break;
+                        }
+    
+                        inputHandler(rt, _this, varArray[i], true as any);                            
+                    }
+                }                
+            }            
 
             return _this;                
         };
@@ -172,12 +191,16 @@ export = {
             const buffer = _this.v.members['buffer'] as ArrayVariable;
             const delimiter: number = delim != null ? delim.v as number : ("\n").charCodeAt(0);
             const delimChar: string = String.fromCharCode(delimiter);
-            const streamsize = n?.v || delimChar.length;
+            const requiredStreamSize = n?.v || delimChar.length;
 
-            const chars = Array.from(skipSpace(rt.getStringFromCharArray(buffer)));
-            const index: number = chars.findIndex((char, i) => char === delimChar && i >= streamsize - 1);
-            _this.v.members['buffer'].v = rt.makeCharArrayFromString(chars.slice(index).join('')).v;
+            const chars = rt.getStringFromCharArray(buffer);
 
+            const extracted = chars.substring(0, requiredStreamSize);
+            const delimIndex = extracted.indexOf(delimChar);
+            const result = chars.substring((requiredStreamSize < chars.length ? requiredStreamSize : (delimIndex !== -1 ? delimIndex + 1 : chars.length)));
+
+            buffer.v = rt.makeCharArrayFromString(result).v;
+                
             return _this;
         }, readStreamType, "ignore", ["?"], readStreamType, [{ 
             name: "n", 
@@ -189,7 +212,7 @@ export = {
             expression: ""
         }]);
 
-        const _get = function(rt: CRuntime, _this: ifStreamObject, charVar: Variable, streamSize: Variable) {
+        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject, charVar: Variable, streamSize: Variable) {
             if (rt.isStringClass(charVar.t))
                 rt.raiseException(`>> 'get' in ifstream cannot accept type '${rt.makeTypeString(charVar.t)}'`);
 
@@ -203,7 +226,8 @@ export = {
             if (!charVar) {
                 charVar = rt.val(rt.charTypeLiteral, 0);
             } else if (rt.isPointerType(charVar)) {
-                return _ptrToValue(rt, _this, charVar, buffer, streamSize.v as number);
+                charVar.v = (rt.cloneDeep(charVar) as any).v;             
+                return _ptrToValue(rt, _this, charVar, skipSpace(buffer), streamSize.v as number);
             }
 
             if (buffer.length === 0) {
@@ -218,9 +242,7 @@ export = {
             _this.v.members["buffer"].v = rt.makeCharArrayFromString(buffer).v;
 
             return charVar;
-        };
-
-        rt.regFunc(_get, readStreamType, "get", ["?"], rt.boolTypeLiteral, [{ 
+        }, readStreamType, "get", ["?"], rt.boolTypeLiteral, [{ 
             name: "charVar", 
             type: rt.charTypeLiteral, 
             expression: ""
@@ -230,7 +252,37 @@ export = {
             expression: ""
         }]);
 
-        rt.regFunc(_get, readStreamType, "getline", ["?"], rt.boolTypeLiteral, [{ 
+        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject, charVar: Variable, streamSize: Variable) {
+            if (rt.isStringClass(charVar.t))
+                rt.raiseException(`>> 'getline' in ifstream cannot accept type '${rt.makeTypeString(charVar.t)}'`);
+
+            let buffer = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
+
+            if (_this.v.members['eof'].v) {
+                charVar.v = rt.makeCharArrayFromString("").v;
+                return charVar;
+            }
+
+            if (!charVar) {
+                charVar = rt.val(rt.charTypeLiteral, 0);
+            } else if (rt.isPointerType(charVar)) {  
+                charVar.v = (rt.cloneDeep(charVar) as any).v;             
+                return _ptrToValue(rt, _this, charVar, skipSpace(buffer), streamSize.v as number, "\n", false);
+            }
+
+            if (buffer.length === 0) {
+                _this.v.members['eof'].v = true;
+                charVar.v = rt.val(rt.charTypeLiteral, 0).v;
+                return rt.val(rt.boolTypeLiteral, false);
+            }
+
+            const char = buffer.charAt(0);
+            buffer = buffer.substring(1);
+            charVar.v = rt.val(rt.charTypeLiteral, char.charCodeAt(0)).v;
+            _this.v.members["buffer"].v = rt.makeCharArrayFromString(buffer).v;
+
+            return charVar;
+        }, readStreamType, "getline", ["?"], rt.boolTypeLiteral, [{ 
             name: "charVar", 
             type: rt.charTypeLiteral, 
             expression: ""

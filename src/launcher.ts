@@ -40,7 +40,7 @@ for (const alias of Object.keys(headerAlias)) {
     includes[alias] = includes[realName];
 }
 
-type InputFunction = () => Promise<string>;
+export type InputFunction = () => Promise<string>;
 
 function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number {
     let step;
