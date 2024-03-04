@@ -187,11 +187,25 @@ export = {
         };
 
         rt.regFunc(_to_string, "global", "to_string", [rt.intTypeLiteral], newStringType);
+        rt.addToNamespace("std", "to_string", rt.readVar("to_string"));
 
         rt.regFunc(function(rt: CRuntime, _this: Variable, readStream: ifStreamObject, str: Variable, delim: Variable) {
             const fileObject: any = readStream.v.members["fileObject"];
             const delimiter: number = delim != null ? delim.v as number : ("\n").charCodeAt(0);
             const delimChar: string = String.fromCharCode(delimiter);
+
+            if (!fileObject && readStream.t.name === "istream") {
+                const iStream: any = (readStream.v as any).istream;
+
+                iStream.cinStop();
+                iStream.getInput().then((input: string) => {
+                    iStream.write(`${input}\n`);
+                    str.v = rt.makeCharArrayFromString(input).v;
+                    iStream.cinProceed();
+                });
+
+                return rt.val(rt.boolTypeLiteral, true);
+            }
 
             if (readStream.v.members["eof"].v) {
                 return rt.val(rt.charTypeLiteral, 0);

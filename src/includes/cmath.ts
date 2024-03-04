@@ -28,5 +28,6 @@ export = {
         rt.regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.floor(x.v))), g, "floor", [tDouble], tDouble);
         rt.regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.abs(x.v))), g, "fabs", [tDouble], tDouble);
         rt.regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.abs(x.v))), g, "abs", [tDouble], tDouble);
+        rt.regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.round(x.v))), g, "round", [tDouble], tDouble);
     }
 };
