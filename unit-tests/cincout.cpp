@@ -11,7 +11,7 @@ int main()
     cin.getline(x, 80);
     cout << x << endl;
     cin.getline(x, 80);
-    cout << x << endl;
+    cout << x;
     
     return 0;
 }

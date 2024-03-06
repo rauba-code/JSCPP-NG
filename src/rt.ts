@@ -43,6 +43,7 @@ export interface JSCPPConfig {
     unsigned_overflow?: "error" | "warn" | "ignore";
     maxTimeout?: number;
     debug?: boolean;
+    stopExecutionCheck?: () => boolean;
 }
 
 export type OpHandler = {

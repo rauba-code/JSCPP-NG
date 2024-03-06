@@ -33,7 +33,7 @@ interface Test {
     test: TestCase
 }
 
-const testFolder = './test/';
+const testFolder = './unit-tests/';
 
 const prepareOutput = function(str: string) {
     if (str != null) {
@@ -134,7 +134,6 @@ function doSample(code: string, input: InputFunction, expected: string | null, e
 };
 
 const tests = yaml.load(fs.readFileSync(testFolder + "test.yaml", "utf-8")) as { tests: { [testName: string]: TestCase } };
-
 const todolist: Test[] = [];
 
 for (const testName of Object.keys(tests.tests)) {

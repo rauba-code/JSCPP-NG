@@ -138,18 +138,31 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     }
 
     function performStep() {
-        while (proceed) {
-            step = mainGen.next();
-            if (step.done) { 
-                _config.stdio.finishCallback(step.value.v as number);
-                return; 
-            }
-            if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout)) {
-                throw new Error("Time limit exceeded.");
-            }
-        }
-    }    
+        const stepExecution = function() {
+            if (!proceed) return;
 
+            if (_config.stopExecutionCheck?.()) {
+                _config.stdio.write("\nExecution terminated.");
+                return;
+            }
+    
+            const step = mainGen.next();
+            if (step.done) {
+                _config.stdio.finishCallback(step.value.v as number);
+                return;
+            }
+    
+            if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout)) {
+                _config.stdio.write("\nTime limit exceeded.");
+                return;
+            }
+
+            setTimeout(stepExecution, 0);
+        };
+    
+        stepExecution();
+    }
+    
     mergeConfig(_config, config);
     const rt = new CRuntime(_config);
     code = code.toString();
