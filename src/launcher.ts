@@ -125,7 +125,8 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             }
         },
         includes: this.includes,
-        unsigned_overflow: "error"
+        unsigned_overflow: "error",
+
     };
 
     function handleStop() {
@@ -137,20 +138,24 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         performStep();
     }
 
+    let performedSteps = 0;
     function performStep() {
         while (proceed) {
             if (_config.stopExecutionCheck?.())
-                throw new Error("Execution stopped forcefully.");
+                throw new Error("Execution terminated.");
             
             step = mainGen.next();
+            performedSteps++;
+
             if (step.done) { 
                 _config.stdio.finishCallback(step.value.v as number);
                 return; 
             }
-            
-            if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout)) {
+
+            if (performedSteps > _config.maxExecutionSteps)
+                throw new Error("The execution step limit has been reached.");
+            else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
                 throw new Error("Time limit exceeded.");
-            }
         }
     }    
 

@@ -41,8 +41,10 @@ export interface JSCPPConfig {
         write: (s: string) => void;
     };
     unsigned_overflow?: "error" | "warn" | "ignore";
-    maxTimeout?: number;
+    
     debug?: boolean;
+    maxExecutionSteps?: number;
+    maxTimeout?: number;
     stopExecutionCheck?: () => boolean;
 }
 
