@@ -126,7 +126,6 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         },
         includes: this.includes,
         unsigned_overflow: "error",
-
     };
 
     function handleStop() {
@@ -139,7 +138,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     }
 
     let performedSteps = 0;
-    function performStep() {
+    async function performStep() {
         while (proceed) {
             if (_config.stopExecutionCheck?.())
                 throw new Error("Execution terminated.");
@@ -156,6 +155,10 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                 throw new Error("The execution step limit has been reached.");
             else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
                 throw new Error("Time limit exceeded.");
+
+            if ((performedSteps % _config.eventLoopSteps) === 0) {
+                await new Promise((resolve) => setImmediate(resolve));
+            }
         }
     }    
 
