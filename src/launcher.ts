@@ -139,26 +139,30 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
 
     let performedSteps = 0;
     async function performStep() {
-        while (proceed) {
-            if (_config.stopExecutionCheck?.())
-                throw new Error("Execution terminated.");
-            
-            step = mainGen.next();
-            performedSteps++;
-
-            if (step.done) { 
-                _config.stdio.finishCallback(step.value.v as number);
-                return; 
+        try {
+            while (proceed) {
+                if (_config.stopExecutionCheck?.())
+                    throw new Error("Execution terminated.");
+                
+                step = mainGen.next();
+                performedSteps++;
+    
+                if (step.done) { 
+                    _config.stdio.finishCallback(step.value.v as number);
+                    return; 
+                }
+    
+                if (performedSteps > _config.maxExecutionSteps)
+                    throw new Error("The execution step limit has been reached.");
+                else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
+                    throw new Error("Time limit exceeded.");
+    
+                if ((performedSteps % _config.eventLoopSteps) === 0) {
+                    await new Promise((resolve) => setImmediate(resolve));
+                }
             }
-
-            if (performedSteps > _config.maxExecutionSteps)
-                throw new Error("The execution step limit has been reached.");
-            else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
-                throw new Error("Time limit exceeded.");
-
-            if ((performedSteps % _config.eventLoopSteps) === 0) {
-                await new Promise((resolve) => setImmediate(resolve));
-            }
+        } catch (error) {
+            _config.stdio.write(error.message);
         }
     }    
 
@@ -187,6 +191,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     } else {
         startTime = Date.now();
         performStep();
+
         /*
         while (true) {
             step = mainGen.next();
