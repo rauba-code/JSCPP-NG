@@ -68,7 +68,6 @@ export = {
                     }
 
                     let r, v, b = buffer;
-
                     switch (t.t.name) {
                         case "string": 
                             b = skipSpace(b);
@@ -87,12 +86,12 @@ export = {
                             break;
                         case "float": case "double":
                             b = skipSpace(b);
-                            r = read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0                                    
+                            r = b.length === 0 ? ([""]) : read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0                                    
                             v = parseFloat(r[0]);
                             break;
                         case "bool":
                             b = skipSpace(b);
-                            r = read(rt, /^(true|false)/, b, t.t);
+                            r = b.length === 0 ? ([""]) : read(rt, /^(true|false)/, b, t.t);
                             v = r[0] === "true";
                             break;
                         default:

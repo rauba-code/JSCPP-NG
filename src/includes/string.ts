@@ -214,7 +214,7 @@ export = {
             const internal_buffer: any = (rt.getStringFromCharArray(readStream.v.members["buffer"] as ArrayVariable) || fileObject.read()).split(delimChar);
 
             const line = internal_buffer.shift();
-            if (line) {
+            if (line != null) {
                 str.v = rt.makeCharArrayFromString(line).v;
                 readStream.v.members["buffer"].v = rt.makeCharArrayFromString(internal_buffer.join(delimChar)).v;
                 readStream.v.members["eof"].v = internal_buffer.length === 0;
