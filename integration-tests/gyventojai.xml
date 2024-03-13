@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <fstream>
+#include <iomanip>
+
+using namespace std;
+
+const int MAX_SIZE = 50;
+
+// Duomenų skaitymo funkcija
+void readData(const char* filename, int houseNumbers[], int residents[], int& count) {
+    ifstream inFile(filename);
+    count = 0;
+    while (inFile >> houseNumbers[count] >> residents[count]) {
+        count++;
+    }
+    inFile.close();
+}
+
+// Bendro gyventojų skaičiaus funkcija
+int totalResidents(int residents[], int count) {
+    int total = 0;
+    for (int i = 0; i < count; i++) {
+        total += residents[i];
+    }
+    return total;
+}
+
+// Vidurkio skaičiavimo funkcija
+double averageResidents(int houseNumbers[], int residents[], int count, bool isOdd) {
+    int total = 0, houses = 0;
+    for (int i = 0; i < count; i++) {
+        if ((houseNumbers[i] % 2 == 0) == !isOdd) {
+            total += residents[i];
+            houses++;
+        }
+    }
+    return houses > 0 ? (double)(total) / houses : 0.0;
+}
+
+int main() {
+    int houseNumbers[MAX_SIZE], residents[MAX_SIZE], count;
+    readData("gyventojai_data.txt", houseNumbers, residents, count);
+
+    int total = totalResidents(residents, count);
+    int oddTotal = totalResidents(residents, count) - averageResidents(houseNumbers, residents, count, false) * (count / 2);
+    int evenTotal = total - oddTotal;
+    double avgOdd = averageResidents(houseNumbers, residents, count, true);
+    double avgEven = averageResidents(houseNumbers, residents, count, false);
+
+    ofstream outFile("gyventojai_res.txt");
+    outFile << total << endl
+            << oddTotal << endl
+            << evenTotal << endl
+            << fixed << setprecision(1) << avgOdd << endl
+            << fixed << setprecision(1) << avgEven << endl;
+    outFile.close();
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="gyventojai_data.txt" visible="1"><![CDATA[1 5
+2 4
+3 4
+4 5
+5 6
+6 5
+7 0
+8 0
+9 5
+10 0]]></input>
+   <output filename="gyventojai_res.txt" visible="1"><![CDATA[34
+20
+14
+4.0
+2.8]]></output>
+  </files>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="gyventojai_data.txt" visible="1"><![CDATA[1 3
+2 2
+3 4
+4 1
+5 5
+6 3
+7 6
+8 4
+9 2
+10 1]]></input>
+   <output filename="gyventojai_res.txt" visible="1"><![CDATA[31
+20
+11
+4.0
+2.2]]></output>
+  </files>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="gyventojai_data.txt" visible="1"><![CDATA[1 10
+2 9
+3 8
+4 7
+5 6
+6 5
+7 4
+8 3
+9 2
+10 1]]></input>
+   <output filename="gyventojai_res.txt" visible="1"><![CDATA[55
+30
+25
+6.0
+5.0]]></output>
+  </files>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="gyventojai_data.txt" visible="1"><![CDATA[1 1
+2 2
+3 3
+4 4
+5 5
+6 6
+7 7
+8 8
+9 9
+10 10]]></input>
+   <output filename="gyventojai_res.txt" visible="1"><![CDATA[55
+25
+30
+5.0
+6.0]]></output>
+  </files>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="gyventojai_data.txt" visible="1"><![CDATA[1 0
+2 0
+3 1
+4 1
+5 2
+6 2
+7 3
+8 3
+9 4
+10 4]]></input>
+   <output filename="gyventojai_res.txt" visible="1"><![CDATA[20
+10
+10
+2.0
+2.0]]></output>
+  </files>
+ </test>
+</tests>

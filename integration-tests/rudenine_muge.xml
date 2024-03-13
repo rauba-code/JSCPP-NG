@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iostream>
+#include <fstream>
+#include <iomanip> // Dėl setprecision
+
+using namespace std;
+
+const int MAX_FARMERS = 50;
+
+// Sumos skaičiavimo funkcija
+int calculateTotal(int potatoes[], int n) {
+    int total = 0;
+    for (int i = 0; i < n; ++i) {
+        total += potatoes[i];
+    }
+    return total;
+}
+
+// Skaičiuoja, kiek ūkininkų pardavė daugiau nei 50 kg bulvių
+int countFarmersOver50(int potatoes[], int n) {
+    int count = 0;
+    for (int i = 0; i < n; ++i) {
+        if (potatoes[i] > 50) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+// Skaičiuoja vidurkį
+double calculateAverage(int total, int n) {
+    return (double)(total) / n;
+}
+
+int main() {
+    ifstream inputFile("Duomenys.txt");
+    ofstream outputFile("Rezultatai.txt");
+    int potatoes[MAX_FARMERS];
+    int n = 0; // Ūkininkų skaičius
+
+    // Skaitymas iš failo
+    while (inputFile >> potatoes[n]) {
+        ++n;
+    }
+
+    int total = calculateTotal(potatoes, n);
+    int over50 = countFarmersOver50(potatoes, n);
+    double average = calculateAverage(total, n);
+
+    // Rezultatų išvedimas
+    outputFile << total << endl;
+    outputFile << over50 << endl;
+    outputFile << fixed << setprecision(1) << average << endl;
+
+    inputFile.close();
+    outputFile.close();
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[56
+49
+87]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[192
+2
+64.0]]></output>
+  </files>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[7
+5
+15
+25
+35
+45
+55
+65]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[252
+2
+31.5]]></output>
+  </files>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[6
+25
+50
+75
+100
+125
+150]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[531
+4
+75.9]]></output>
+  </files>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[5
+100
+200
+300
+400
+500]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[1505
+5
+250.8]]></output>
+  </files>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[4
+10
+20
+30
+40]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[104
+0
+20.8]]></output>
+  </files>
+ </test>
+ <test id="test_6">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[3
+45
+55
+65]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[168
+2
+42.0]]></output>
+  </files>
+ </test>
+</tests>

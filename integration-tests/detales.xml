@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <fstream>
+#include <iomanip>
+
+using namespace std;
+
+const int MAX_DETALIU = 50;
+
+// Struktūra detalei saugoti
+struct Detale {
+    int kodas, kiekis, brokuotos;
+    double kainaVieneto;
+};
+
+// Funkcija duomenų skaitymui
+void skaitytiDuomenis(const char* failoPavadinimas, Detale detales[], int& detaliuSk) {
+    ifstream fd(failoPavadinimas);
+    detaliuSk = 0;
+    while (fd >> detales[detaliuSk].kodas >> detales[detaliuSk].kiekis >> detales[detaliuSk].kainaVieneto >> detales[detaliuSk].brokuotos) {
+        detaliuSk++;
+    }
+    fd.close();
+}
+
+// Funkcija detalių kainų sumai
+double detaliuKainosSuma(Detale detales[], int detaliuSk, bool arBrokuotos) {
+    double suma = 0.0;
+    for (int i = 0; i < detaliuSk; i++) {
+        int kiekis = arBrokuotos ? detales[i].brokuotos : detales[i].kiekis - detales[i].brokuotos;
+        suma += kiekis * detales[i].kainaVieneto;
+    }
+    return suma;
+}
+
+// Funkcija brokuotų detalių kiekiui
+int brokuotuDetaliuKiekis(Detale detales[], int detaliuSk) {
+    int brokuotos = 0;
+    for (int i = 0; i < detaliuSk; i++) {
+        brokuotos += detales[i].brokuotos;
+    }
+    return brokuotos;
+}
+
+// Rezultatų išvedimo funkcija
+void isvestiRezultatus(const char* failoPavadinimas, Detale detales[], int detaliuSk) {
+    ofstream fr(failoPavadinimas);
+    int brokuotosViso = brokuotuDetaliuKiekis(detales, detaliuSk);
+    double visosDetaliuSuma = detaliuKainosSuma(detales, detaliuSk, false) + detaliuKainosSuma(detales, detaliuSk, true);
+    double nuostoliuProcentai = (detaliuKainosSuma(detales, detaliuSk, true) / visosDetaliuSuma) * 100;
+    
+    for (int i = 0; i < detaliuSk; i++) {
+        fr << detales[i].kodas << " " << detales[i].kiekis << " " << fixed << setprecision(2) << detales[i].kainaVieneto << " " << detales[i].brokuotos << " " << detales[i].kiekis - detales[i].brokuotos << endl
+           << detaliuKainosSuma(detales + i, 1, false) << " " << detaliuKainosSuma(detales + i, 1, false) + detaliuKainosSuma(detales + i, 1, true) << endl;
+    }
+    fr << brokuotosViso << endl;
+    fr << fixed << setprecision(2) << visosDetaliuSuma << endl;
+    fr << fixed << setprecision(2) << nuostoliuProcentai << endl;
+    
+    fr.close();
+}
+
+int main() {
+    Detale detales[MAX_DETALIU];
+    int detaliuSk;
+
+    skaitytiDuomenis("detales.txt", detales, detaliuSk);
+    isvestiRezultatus("detalesrez.txt", detales, detaliuSk);
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="detales.txt" visible="1"><![CDATA[123 12 1.20 5
+213 15 2.30 9
+415 14 3.21 2 ]]></input>
+   <output filename="detalesrez.txt" visible="1"><![CDATA[123 12 1.20 5 7
+8.40 14.40
+213 15 2.30 9 6
+13.80 34.50
+415 14 3.21 2 12
+38.52 44.94
+16
+93.84
+35.29]]></output>
+  </files>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="detales.txt" visible="1"><![CDATA[321 20 1.50 3
+432 25 2.00 5
+543 30 2.50 7
+654 10 3.00 1
+765 15 3.50 4]]></input>
+   <output filename="detalesrez.txt" visible="1"><![CDATA[321 20 1.50 3 17
+25.50 30.00
+432 25 2.00 5 20
+40.00 50.00
+543 30 2.50 7 23
+57.50 75.00
+654 10 3.00 1 9
+27.00 30.00
+765 15 3.50 4 11
+38.50 52.50
+20
+237.50
+20.63]]></output>
+  </files>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="detales.txt" visible="1"><![CDATA[111 10 0.90 1
+222 12 1.10 2
+333 15 1.30 3
+444 18 1.50 4
+555 20 1.70 5]]></input>
+   <output filename="detalesrez.txt" visible="1"><![CDATA[111 10 0.90 1 9
+8.10 9.00
+222 12 1.10 2 10
+11.00 13.20
+333 15 1.30 3 12
+15.60 19.50
+444 18 1.50 4 14
+21.00 27.00
+555 20 1.70 5 15
+25.50 34.00
+15
+102.70
+20.93]]></output>
+  </files>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="detales.txt" visible="1"><![CDATA[888 50 2.20 10
+999 40 2.40 8
+101 35 2.60 7
+202 30 2.80 6
+303 25 3.00 5]]></input>
+   <output filename="detalesrez.txt" visible="1"><![CDATA[888 50 2.20 10 40
+88.00 110.00
+999 40 2.40 8 32
+76.80 96.00
+101 35 2.60 7 28
+72.80 91.00
+202 30 2.80 6 24
+67.20 84.00
+303 25 3.00 5 20
+60.00 75.00
+36
+456.00
+20.00]]></output>
+  </files>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="detales.txt" visible="1"><![CDATA[135 16 1.75 4
+246 18 2.25 6
+357 20 2.75 8
+468 22 3.25 10
+579 24 3.75 12]]></input>
+   <output filename="detalesrez.txt" visible="1"><![CDATA[135 16 1.75 4 12
+21.00 28.00
+246 18 2.25 6 12
+27.00 40.50
+357 20 2.75 8 12
+33.00 55.00
+468 22 3.25 10 12
+39.00 71.50
+579 24 3.75 12 12
+45.00 90.00
+40
+285.00
+42.11]]></output>
+  </files>
+ </test>
+</tests>

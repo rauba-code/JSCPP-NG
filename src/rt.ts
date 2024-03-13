@@ -30,6 +30,7 @@ export interface JSCPPConfig {
         open: (context: object, fileName: string) => object
     };
     stdio?: {
+        isMochaTest?: boolean;
         promiseError: (promise_error: string) => void;
         drain?: () => string;
         cinStop: () => void;

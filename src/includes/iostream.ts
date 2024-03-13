@@ -5,9 +5,7 @@ import { read, skipSpace } from "./shared/string_utils";
 
 export = {
     load(rt: CRuntime) {
-        const {
-            stdio
-        } = rt.config;
+        const { stdio } = rt.config;
 
         const pchar = rt.normalPointerType(rt.charTypeLiteral);
         const cinType = rt.newClass("istream", []);
@@ -92,8 +90,13 @@ export = {
                                 t.v = rt.val(t.t, v, false, true).v;
                                 _cin.v.buf = "";
                             }
-                            if (!is_raw)
+
+                            if (stdio.isMochaTest) {
+                                stdio.write(v + "\n");
+                            } else if (!is_raw) {
                                 stdio.write(b + "\n");
+                            } 
+
                             stdio.cinProceed();
                         }).catch((err) => {
                             console.log(err);

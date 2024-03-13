@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <fstream>
+#include <iostream>
+#include <iomanip>
+#include <string>
+#include <cmath>
+
+using namespace std;
+
+const int MAX_MOkiniai = 50;
+
+struct Mokinys {
+    string vardas;
+    int atvykimoLaikas; // Laikas minutėmis nuo 0:00
+};
+
+int konvertuotiLaika(int val, int min) {
+    return val * 60 + min;
+}
+
+void skaitytiDuomenis(const char* filename, int &toleruojamasVelavimas, int &pamokosPradzia, Mokinys mokiniai[], int &n) {
+    ifstream fin(filename);
+    int v, m;
+    fin >> toleruojamasVelavimas >> v >> m;
+    pamokosPradzia = konvertuotiLaika(v, m);
+    n = 0;
+    while (fin >> mokiniai[n].vardas >> v >> m) {
+        mokiniai[n].atvykimoLaikas = konvertuotiLaika(v, m);
+        n++;
+    }
+    fin.close();
+}
+
+void irasytiRezultatus(const char* filename, Mokinys mokiniai[], int pamokosPradzia, int toleruojamasVelavimas, int n) {
+    ofstream fout(filename);
+    int sumaAnksciau = 0, sumaVelavo = 0;
+    int skAnksciau = 0, skVelavo = 0;
+
+    for (int i = 0; i < n; i++) {
+        int skirtumas = mokiniai[i].atvykimoLaikas - pamokosPradzia;
+        if (skirtumas <= toleruojamasVelavimas) {
+            sumaAnksciau += (skirtumas * -1); // (skirtumas < 0) ? -skirtumas : 0; // Tik teigiami skaičiai
+            if (skirtumas < 0) skAnksciau++;
+        } else if (skirtumas > 0) {
+            sumaVelavo += skirtumas;
+            skVelavo++;
+        }
+    }
+
+    if (skAnksciau > 0 || n - skVelavo > 0) {
+        fout << "Nevelavo " << skAnksciau + (n - skVelavo - skAnksciau) << " mokiniai:" << endl;
+        for (int i = 0; i < n; i++) {
+            int skirtumas = mokiniai[i].atvykimoLaikas - pamokosPradzia;
+            if (skirtumas <= toleruojamasVelavimas) {
+                fout << mokiniai[i].vardas << " " << (skirtumas * -1) << endl;
+            }
+        }
+        fout << "Vidutiniskai atejo anksciau, min: " << fixed << setprecision(1) << (double)sumaAnksciau / (skAnksciau + (n - skVelavo - skAnksciau)) << endl;
+    } else {
+        fout << "Nevelavo mokiniai nera" << endl;
+    }
+
+    if (skVelavo > 0) {
+        fout << "Pavelavo " << skVelavo << " mokiniai:" << endl;
+        for (int i = 0; i < n; i++) {
+            int skirtumas = mokiniai[i].atvykimoLaikas - pamokosPradzia;
+            if (skirtumas > toleruojamasVelavimas) {
+                fout << mokiniai[i].vardas << " -" << skirtumas << endl;
+            }
+        }
+        fout << "Vidutiniskai velavo, min: " << fixed << setprecision(1) << (double)sumaVelavo / skVelavo << endl;
+    } else {
+        fout << "Veluojanciu nera" << endl;
+    }
+    fout.close();
+}
+
+int main() {
+    int toleruojamasVelavimas, pamokosPradzia, n;
+    Mokinys mokiniai[MAX_MOkiniai];
+
+    skaitytiDuomenis("velavimas.txt", toleruojamasVelavimas, pamokosPradzia, mokiniai, n);
+    irasytiRezultatus("velavimas_res.txt", mokiniai, pamokosPradzia, toleruojamasVelavimas, n);
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="velavimas.txt" visible="1"><![CDATA[5 12 15
+Adomas 12 5
+Erika 12 15
+Dominykas 12 23
+Paulius 12 18
+Marius 11 57
+Laurynas 12 0
+Gytis 12 22]]></input>
+   <output filename="velavimas_res.txt" visible="1"><![CDATA[Nevelavo 5 mokiniai:
+Adomas 10
+Erika 0
+Paulius -3
+Marius 18
+Laurynas 15
+Vidutiniskai atejo anksciau, min: 8.0
+Pavelavo 2 mokiniai:
+Dominykas -8
+Gytis -7
+Vidutiniskai velavo, min: 7.5]]></output>
+  </files>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="velavimas.txt" visible="1"><![CDATA[10 8 30
+Jonas 8 40
+Gabija 8 20
+Martynas 8 30
+Ieva 8 35
+Rokas 9 0]]></input>
+   <output filename="velavimas_res.txt" visible="1"><![CDATA[Nevelavo 4 mokiniai:
+Jonas -10
+Gabija 10
+Martynas 0
+Ieva -5
+Vidutiniskai atejo anksciau, min: -1.3
+Pavelavo 1 mokiniai:
+Rokas -30
+Vidutiniskai velavo, min: 30.0]]></output>
+  </files>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="velavimas.txt" visible="1"><![CDATA[3 9 45
+Simona 9 48
+Justas 9 44
+Monika 9 42
+Tomas 9 46
+Lukas 9 49]]></input>
+   <output filename="velavimas_res.txt" visible="1"><![CDATA[Nevelavo 4 mokiniai:
+Simona -3
+Justas 1
+Monika 3
+Tomas -1
+Vidutiniskai atejo anksciau, min: 0.0
+Pavelavo 1 mokiniai:
+Lukas -4
+Vidutiniskai velavo, min: 4.0]]></output>
+  </files>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="velavimas.txt" visible="1"><![CDATA[15 14 0
+Darius 13 50
+Laura 14 10
+Ugne 14 5
+Edgaras 14 0
+Emilija 14 15]]></input>
+   <output filename="velavimas_res.txt" visible="1"><![CDATA[Nevelavo 5 mokiniai:
+Darius 10
+Laura -10
+Ugne -5
+Edgaras 0
+Emilija -15
+Vidutiniskai atejo anksciau, min: -4.0
+Veluojanciu nera]]></output>
+  </files>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="velavimas.txt" visible="1"><![CDATA[5 10 15
+Greta 10 14
+Nojus 10 20
+Elze 10 10
+Matas 10 15
+Emilis 10 16]]></input>
+   <output filename="velavimas_res.txt" visible="1"><![CDATA[Nevelavo 5 mokiniai:
+Greta 1
+Nojus -5
+Elze 5
+Matas 0
+Emilis -1
+Vidutiniskai atejo anksciau, min: 0.0
+Veluojanciu nera]]></output>
+  </files>
+ </test>
+</tests>

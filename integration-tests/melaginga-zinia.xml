@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code>
+<![CDATA[
+   #include <iostream>
+   using namespace std;
+
+   int main() {
+      // k - litai, t - max svoris
+
+      double k, t;
+      cout << "Kiek baudos skyrė teismas (tūkst. Lt.)? ";
+      cin >> k;
+      cout << "Kiek tonų talpina priekaba? ";
+      cin >> t;
+
+      double WeightMoney = k * 100 * 0.83 *1000;
+      double CarryingCapacity = t * 1000000;
+
+      if (WeightMoney >= CarryingCapacity) {
+         cout << "Monetos į mašinos priekabą netilps";
+      } else {
+         cout << "Monetos į mašinos priekabą tilps";
+      }
+
+      return 0;
+   }
+]]>
+</code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[15000
+1]]></input>
+   <output visible="1"><![CDATA[Kiek baudos skyrė teismas (tūkst. Lt.)? 15000
+Kiek tonų talpina priekaba? 1
+Monetos į mašinos priekabą netilps]]></output>
+  </console>
+  <files/>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[15000
+0]]></input>
+   <output visible="1"><![CDATA[Kiek baudos skyrė teismas (tūkst. Lt.)? 15000
+Kiek tonų talpina priekaba? 0
+Monetos į mašinos priekabą netilps]]></output>
+  </console>
+  <files/>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[15000
+1.5]]></input>
+   <output visible="1"><![CDATA[Kiek baudos skyrė teismas (tūkst. Lt.)? 15000
+Kiek tonų talpina priekaba? 1.5
+Monetos į mašinos priekabą netilps]]></output>
+  </console>
+  <files/>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[800
+80]]></input>
+   <output visible="1"><![CDATA[Kiek baudos skyrė teismas (tūkst. Lt.)? 800
+Kiek tonų talpina priekaba? 80
+Monetos į mašinos priekabą tilps]]></output>
+  </console>
+  <files/>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[1234
+2]]></input>
+   <output visible="1"><![CDATA[Kiek baudos skyrė teismas (tūkst. Lt.)? 1234
+Kiek tonų talpina priekaba? 2
+Monetos į mašinos priekabą netilps]]></output>
+  </console>
+  <files/>
+ </test>
+ <test id="test_6">
+  <console>
+   <input visible="1"><![CDATA[12345
+2]]></input>
+   <output visible="1"><![CDATA[Kiek baudos skyrė teismas (tūkst. Lt.)? 12345
+Kiek tonų talpina priekaba? 2
+Monetos į mašinos priekabą netilps]]></output>
+  </console>
+  <files/>
+ </test>
+</tests>

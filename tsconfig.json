@@ -18,6 +18,8 @@
         "Gruntfile.js"
     ],
     "include": [
-        "src"
+        "src",
+        "unit-tests",
+        "integration-tests"
     ]
 }
