@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <fstream>
+#include <string>
+
+int main() {
+    std::ifstream inputFile("eilerastis.txt");
+    std::ofstream outputFile("eilerastis_kopija.txt");
+    std::string line;
+
+    while (getline(inputFile, line)) {
+        outputFile << line << '\n';
+    }
+
+    inputFile.close();
+    outputFile.close();
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="eilerastis.txt" visible="1"><![CDATA[Mano batai buvo du,
+Vienas dingo - nerandu
+As su vienu batuku,
+Niekur eiti negaliu.]]></input>
+   <output filename="eilerastis_kopija.txt" visible="1"><![CDATA[Mano batai buvo du,
+Vienas dingo - nerandu
+As su vienu batuku,
+Niekur eiti negaliu.]]></output>
+  </files>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="eilerastis.txt" visible="1"><![CDATA[Dvi rankytes iesko batu
+Dvi akytes juos pamato
+As apsiausiu batukus
+Ir keliausiu pas vaikus]]></input>
+   <output filename="eilerastis_kopija.txt" visible="1"><![CDATA[Dvi rankytes iesko batu
+Dvi akytes juos pamato
+As apsiausiu batukus
+Ir keliausiu pas vaikus]]></output>
+  </files>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="eilerastis.txt" visible="1"><![CDATA[Tupi zvirblis kamine
+Su lapine kepure
+Tu zvirbleli pulsi,
+Visas susikulsi.]]></input>
+   <output filename="eilerastis_kopija.txt" visible="1"><![CDATA[Tupi zvirblis kamine
+Su lapine kepure
+Tu zvirbleli pulsi,
+Visas susikulsi.]]></output>
+  </files>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="eilerastis.txt" visible="1"><![CDATA[Bare ponas katineli
+Kam sudauze asoteli
+Katineli nu nu nu,
+Tave musti ketinu!
+
+Lape snape kepe zuvi
+Vilkas varvino liezuvi
+Ei, lapute, buk kaimyne
+Duok vilkeliui puse blyno]]></input>
+   <output filename="eilerastis_kopija.txt" visible="1"><![CDATA[Bare ponas katineli
+Kam sudauze asoteli
+Katineli nu nu nu,
+Tave musti ketinu!
+
+Lape snape kepe zuvi
+Vilkas varvino liezuvi
+Ei, lapute, buk kaimyne
+Duok vilkeliui puse blyno]]></output>
+  </files>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="eilerastis.txt" visible="1"><![CDATA[Ant pirmo tilto sedejau,
+I zalia lanka ziurejau.
+Zalioj lankoj zalia zole,
+Zalioj zolej zalia varle.
+Vaje vaje vaje vaje,
+Kokia simpatiska varle
+
+Ant antro (trecio) tilto sedejau...]]></input>
+   <output filename="eilerastis_kopija.txt" visible="1"><![CDATA[Ant pirmo tilto sedejau,
+I zalia lanka ziurejau.
+Zalioj lankoj zalia zole,
+Zalioj zolej zalia varle.
+Vaje vaje vaje vaje,
+Kokia simpatiska varle
+
+Ant antro (trecio) tilto sedejau...]]></output>
+  </files>
+ </test>
+ <test id="test_6">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="eilerastis.txt" visible="1"><![CDATA[Dvi varlytes lankoje
+Po lapu tupejo
+I menuli vakare
+Jos liudnai ziurejo]]></input>
+   <output filename="eilerastis_kopija.txt" visible="1"><![CDATA[Dvi varlytes lankoje
+Po lapu tupejo
+I menuli vakare
+Jos liudnai ziurejo]]></output>
+  </files>
+ </test>
+</tests>

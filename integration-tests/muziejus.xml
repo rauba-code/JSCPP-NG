@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iostream>
+#include <fstream>
+
+const int INTERVALS = 20; // 10:00-20:00 kas 30 minučių yra 20 intervalų
+
+int findIndex(int hour, int minute) {
+    return (hour - 10) * 2 + (minute >= 30 ? 1 : 0);
+}
+
+bool isVisitorCounted(int arriveHour, int arriveMinute, int leaveHour, int leaveMinute, int intervalStartHour, int intervalStartMinute) {
+    int intervalEndHour = intervalStartHour + (intervalStartMinute + 30) / 60;
+    int intervalEndMinute = (intervalStartMinute + 30) % 60;
+    int intervalStartTime = intervalStartHour * 60 + intervalStartMinute;
+    int intervalEndTime = intervalEndHour * 60 + intervalEndMinute;
+    int arriveTime = arriveHour * 60 + arriveMinute;
+    int leaveTime = leaveHour * 60 + leaveMinute;
+
+    // Check if the visitor stayed at least 20 minutes in the interval
+    int latestStart = arriveTime > intervalStartTime ? arriveTime : intervalStartTime;
+    int earliestEnd = leaveTime < intervalEndTime ? leaveTime : intervalEndTime;
+    return earliestEnd - latestStart >= 20;
+}
+
+int main() {
+    std::ifstream duomenys("Duomenys.txt");
+    std::ofstream rezultatai("Rezultatai.txt");
+
+    int visitorCounts[INTERVALS];
+    int maxVisitors = 0, maxVisitorsInterval = 0;
+
+    int arriveHour, arriveMinute, leaveHour, leaveMinute;
+    while (duomenys >> arriveHour >> arriveMinute >> leaveHour >> leaveMinute) {
+        for (int i = 0; i < INTERVALS; ++i) {
+            int intervalStartHour = 10 + i / 2;
+            int intervalStartMinute = (i % 2) * 30;
+            if (isVisitorCounted(arriveHour, arriveMinute, leaveHour, leaveMinute, intervalStartHour, intervalStartMinute)) {
+                visitorCounts[i]++;
+                if (visitorCounts[i] >= maxVisitors) {
+                    maxVisitors = visitorCounts[i];
+                    maxVisitorsInterval = i;
+                }
+            }
+        }
+    }
+
+    int maxIntervalStartHour = 10 + maxVisitorsInterval / 2;
+    int maxIntervalStartMinute = (maxVisitorsInterval % 2) * 30;
+    int maxIntervalEndMinute = maxIntervalStartMinute + 30;
+
+    rezultatai << maxIntervalStartHour << ":" << (maxIntervalStartMinute < 10 ? "0" : "") << maxIntervalStartMinute << "-"
+               << maxIntervalStartHour + (maxIntervalEndMinute / 60) << ":" << (maxIntervalEndMinute % 60 < 10 ? "0" : "") << maxIntervalEndMinute % 60
+               << std::endl << maxVisitors;
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[10 35 12 15
+10 15 14 10
+12 0 15 25
+13 10 16 30
+12 25 15 10
+14 56 15 5
+13 42 16 23
+15 0 17 35]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[15:00-15:30
+4]]></output>
+  </files>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[10 00 10 45
+10 15 11 10
+10 30 11 05
+10 45 11 30
+11 00 11 45
+11 15 12 00
+11 30 12 15
+11 45 12 30
+12 00 12 45
+12 15 13 00]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[12:00-12:30
+2]]></output>
+  </files>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[14 00 14 40
+14 20 15 00
+14 40 15 20
+15 00 15 40
+15 20 16 00
+15 40 16 20
+16 00 16 40
+16 20 17 00]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[16:00-16:30
+2]]></output>
+  </files>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[17 10 17 50
+17 20 18 00
+17 30 18 10
+17 40 18 20
+17 50 18 30
+18 00 18 40
+18 10 18 50
+18 20 19 00
+18 30 19 10]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[18:00-18:30
+4]]></output>
+  </files>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[12 05 12 55
+12 30 13 20
+12 45 13 35
+13 00 13 50
+13 15 14 05
+13 30 14 20
+13 45 14 35
+14 00 14 50]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[14:00-14:30
+3]]></output>
+  </files>
+ </test>
+ <test id="test_6">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[15 10 15 55
+15 25 16 15
+15 40 16 30
+15 55 16 45
+16 10 16 55
+16 25 17 10
+16 40 17 25
+16 55 17 40]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[16:30-17:00
+3]]></output>
+  </files>
+ </test>
+</tests>

@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iostream>
+#include <fstream>
+#include <cmath>
+#include <iomanip>
+
+struct Point {
+    double x, y;
+};
+
+double distance(const Point& a, const Point& b) {
+    return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
+}
+
+int main() {
+    std::ifstream duomenys("Duomenys.txt");
+    std::ofstream rezultatai("Rezultatai.txt");
+
+    int M;
+    double N;
+    duomenys >> M >> N;
+
+    Point points[100]; // Maksimalus įmanomas dydis pagal užduoties sąlygas
+
+    for (int i = 0; i < M; ++i) {
+        duomenys >> points[i].x >> points[i].y;
+    }
+
+    // Inicijuojame minSpeed ir maxSpeed su pradine pirmos dalelės reikšme
+    double firstSpeed = distance(points[0], points[1]) / N;
+    double minSpeed = firstSpeed;
+    double maxSpeed = firstSpeed;
+    double avgSpeed = 0;
+    double totalDistance = 0;
+
+    for (int i = 1; i < M; ++i) {
+        double dist = distance(points[i-1], points[i]);
+        totalDistance += dist;
+        double speed = dist / N;
+        avgSpeed += speed;
+
+        if (speed < minSpeed) minSpeed = speed;
+        if (speed > maxSpeed) maxSpeed = speed;
+    }
+
+    avgSpeed /= (M - 1);
+
+    rezultatai << std::fixed << std::setprecision(2);
+    rezultatai << "Minimalus greitis: " << minSpeed << " mm/s\n";
+    rezultatai << "Vidutinis greitis: " << avgSpeed << " mm/s\n";
+    rezultatai << "Maksimalus greitis: " << maxSpeed << " mm/s\n";
+    rezultatai << "Nukeliautas kelias: " << totalDistance << " mm\n";
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[5 2
+1.8 2.7
+-0.5 4.3
+-1.4 3.2
+0.1 1.4
+0.7 -0.5]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[Minimalus greitis: 0.71 mm/s
+Vidutinis greitis: 1.07 mm/s
+Maksimalus greitis: 1.40 mm/s
+Nukeliautas kelias: 8.56 mm]]></output>
+  </files>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[8 4
+0.0 0.0
+4.0 3.0
+8.0 6.0
+12.0 9.0
+16.0 12.0
+20.0 15.0
+24.0 18.0
+28.0 21.0]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[Minimalus greitis: 1.25 mm/s
+Vidutinis greitis: 1.25 mm/s
+Maksimalus greitis: 1.25 mm/s
+Nukeliautas kelias: 35.00 mm]]></output>
+  </files>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[7 1
+-1.0 -1.0
+-2.0 -2.0
+-3.0 -3.0
+0.0 0.0
+3.0 3.0
+2.0 2.0
+1.0 1.0]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[Minimalus greitis: 1.41 mm/s
+Vidutinis greitis: 2.36 mm/s
+Maksimalus greitis: 4.24 mm/s
+Nukeliautas kelias: 14.14 mm]]></output>
+  </files>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[5 5
+-5.0 -5.0
+0.0 0.0
+5.0 5.0
+10.0 10.0
+15.0 15.0]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[Minimalus greitis: 1.41 mm/s
+Vidutinis greitis: 1.41 mm/s
+Maksimalus greitis: 1.41 mm/s
+Nukeliautas kelias: 28.28 mm]]></output>
+  </files>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[6 2
+1.0 1.0
+2.0 2.0
+3.0 3.0
+4.0 4.0
+5.0 5.0
+6.0 6.0]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[Minimalus greitis: 0.71 mm/s
+Vidutinis greitis: 0.71 mm/s
+Maksimalus greitis: 0.71 mm/s
+Nukeliautas kelias: 7.07 mm]]></output>
+  </files>
+ </test>
+ <test id="test_6">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[4 3
+-2.0 -2.0
+-3.0 1.0
+2.0 2.0
+4.0 -1.0]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[Minimalus greitis: 1.05 mm/s
+Vidutinis greitis: 1.32 mm/s
+Maksimalus greitis: 1.70 mm/s
+Nukeliautas kelias: 11.87 mm]]></output>
+  </files>
+ </test>
+</tests>

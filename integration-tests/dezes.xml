@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iostream>
+#include <fstream>
+#include <iomanip>
+
+int main() {
+    std::ifstream duomenys("Duomenys.txt");
+    std::ofstream rezultatai("Rezultatai.txt");
+
+    double svoriai[101]; // Papildomas vienetas maksimaliam dėžių skaičiui, kad tilptų keltuvo galia
+    int n = 0; // Elementų skaičius, įskaitant keltuvo galią
+    double svoris;
+
+    while (duomenys >> svoris) {
+        svoriai[n++] = svoris;
+    }
+
+    double keltuvoGalios = svoriai[n-1]; // Paskutinis elementas yra keltuvo galia
+    n--; // Sumažiname masyvo dydį, atmetant keltuvo galią
+
+    double maxSvoris = svoriai[0], minSvoris = svoriai[0], bendrasSvoris = 0;
+    int maxIndex = 1, minIndex = 1;
+
+    for (int i = 0; i < n; i++) {
+        bendrasSvoris += svoriai[i];
+        if (svoriai[i] > maxSvoris) {
+            maxSvoris = svoriai[i];
+            maxIndex = i + 1;
+        }
+        if (svoriai[i] < minSvoris) {
+            minSvoris = svoriai[i];
+            minIndex = i + 1;
+        }
+    }
+    double vidurkis = bendrasSvoris / n;
+
+    bool keltuvasPaves = bendrasSvoris <= keltuvoGalios;
+
+    rezultatai << std::fixed << std::setprecision(2) << vidurkis << std::endl
+               << maxIndex << std::endl
+               << minIndex << std::endl
+               << (keltuvasPaves ? "Taip" : "Ne") << std::endl;
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[10.2 11.5 20.65
+20]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[14.12
+3
+1
+Ne]]></output>
+  </files>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[40.0 42.5 39.0 43.5 41.0 44.0 38.5 45.0
+300]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[41.69
+8
+7
+Ne]]></output>
+  </files>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[5.5 4.0 6.0 3.5 7.0 2.5 8.0 1.5
+50]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[4.75
+7
+8
+Taip]]></output>
+  </files>
+ </test>
+ <test id="test_4">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[10.0 12.5 9.0 13.5 11.0 14.0 8.5 15.0
+100]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[11.69
+8
+7
+Taip]]></output>
+  </files>
+ </test>
+ <test id="test_5">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[25.0 30.0 28.5 32.0 27.0 33.5 26.5 31.0
+200]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[29.19
+6
+1
+Ne]]></output>
+  </files>
+ </test>
+ <test id="test_6">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[]]></output>
+  </console>
+  <files>
+   <input filename="Duomenys.txt" visible="1"><![CDATA[20.5 15.2 22.5 18.0 19.5 21.0 16.5
+150]]></input>
+   <output filename="Rezultatai.txt" visible="1"><![CDATA[19.03
+3
+2
+Taip]]></output>
+  </files>
+ </test>
+</tests>
