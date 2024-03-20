@@ -988,11 +988,7 @@ export class Interpreter extends BaseInterpreter {
                         const {
                             limits
                         } = rt.config;
-                        const typeName =
-                            (maxCode <= limits["char"].max) && (minCode >= limits["char"].min) ?
-                                "char"
-                                :
-                                "wchar_t";
+                        const typeName = (maxCode <= limits["char"].max) && (minCode >= limits["char"].min) ? "char" : "wchar_t";
                         return rt.makeCharArrayFromString(s.value, typeName);
                     case "L":
                         return rt.makeCharArrayFromString(s.value, "wchar_t");

@@ -393,6 +393,7 @@ TypedefName
 
 Initializer
     = a:AssignmentExpression {return addPositionInfo({type:'Initializer_expr', Expression:a});}
+    / LWING a:StructInitializerList COMMA? RWING { return addPositionInfo({type:'StructExpression', values:a}); }
     / LWING a:InitializerList COMMA? RWING {return addPositionInfo({type:'Initializer_array', Initializers:a});}
     ;
 
@@ -400,7 +401,10 @@ InitializerList
     = a:Initializer b:(COMMA ac:Initializer {return ac;})* {return [a].concat(b);}
     ;
 
-
+StructInitializerList
+    = LWING a:Initializer RWING b:(COMMA LWING ac:Initializer RWING {return ac;})* {return [a].concat(b);}
+    ;
+    
 //-------------------------------------------------------------------------
 //  A.2.1  Expressions
 //-------------------------------------------------------------------------
@@ -410,7 +414,6 @@ PrimaryExpression
     / a:Constant {return addPositionInfo({type:'ConstantExpression', Expression:a});}
     / a:StringLiteral {return addPositionInfo({type:'StringLiteralExpression', value:a});}
     / LPAR a:Expression RPAR {return addPositionInfo({type:'ParenthesesExpression', Expression:a});}
-    / a:StructExpression { return addPositionInfo({type:'StructExpression', values:a}); }
     ;
 
 PostfixExpression
@@ -566,8 +569,6 @@ ConditionalExpression
       return ret;
     }
     ;
-
-StructExpression = LWING d:InitializerList COMMA? RWING { return d; };
 
 AssignmentExpression
     = a:UnaryExpression b:AssignmentOperator c:AssignmentExpression {

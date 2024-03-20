@@ -148,8 +148,9 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                 performedSteps++;
     
                 if (step.done) { 
-                    _config.stdio.finishCallback(step.value.v as number);
-                    return; 
+                    const exitCode = step.value.v as number
+                    _config.stdio.finishCallback(exitCode);
+                    return exitCode; 
                 }
     
                 if (performedSteps > _config.maxExecutionSteps)

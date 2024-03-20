@@ -76,31 +76,39 @@ function doCases(cases: SingleTestCase[], cb: Callback) {
     for (const sample of cases) {
         const cppFile = sample.cpp;
         const code = fs.readFileSync(testFolder + cppFile, "utf-8");
-        const input = () => Promise.resolve(sample.in ?? "");
-        const expected = prepareOutput(sample.out ?? "default_expected");
-        const except = prepareOutput(sample.exception ?? "default_exception");
+        const input = sample.in;
+        const expected = sample.out;
+        const except = sample.exception ?? "default_exception";
         const { exitcode, config } = sample;
         _describe(`${cppFile}`, () => doSample(code, input, expected, except, exitcode, config, (result: boolean) => success = success && result));
     }
     cb(success);
 };
 
-function doSample(code: string, input: InputFunction, expected: string | null, except: string | null, exp_exitcode: number | undefined, config: any, cb: Callback) {
+function doSample(code: string, input: string, expected: string | null, except: string | null, exp_exitcode: number | undefined, config: any, cb: Callback) {
     let exitcode: number;
     let outputBuffer = "";
+    let takenInputIdx = 0;
 
     config = {
         ...config,
         stdio: {
+            isMochaTest: true,
             write(str: string) {
                 outputBuffer += str;
                 return str.length;
-            }
+            },
+            finishCallback(ExitCode: number) {
+                exitcode = ExitCode;
+            },
+            getInput() { 
+                return Promise.resolve(input.split("\n")[takenInputIdx++]);
+            },
         },
-        maxTimeout: 5000
+        //maxTimeout: 5 * 1000
     };
     try {
-        exitcode = JSCPP.run(code, input, config) as number;
+        JSCPP.run(code, () => Promise.resolve(input), config);
     } catch (e) {
         if (except) {
             _it("expected exception", function () {
@@ -116,13 +124,15 @@ function doSample(code: string, input: InputFunction, expected: string | null, e
                 cb(false);
             });
         }
-    }
-    finally {
+    } finally {
         if (expected != null) {
-            const output = prepareOutput(outputBuffer);
-            _it("should match expected output", function () {
-                expect(output).to.equal(expected);
-                return cb(output === expected);
+            // const output = prepareOutput(outputBuffer);
+            _it("should match expected output", function() {
+                const trimmedOutputBuffer = outputBuffer.trimEnd();
+                const trimmedExpectedBuffer = expected.trimEnd();
+
+                expect(trimmedOutputBuffer).to.equal(trimmedExpectedBuffer);
+                return cb(trimmedOutputBuffer === trimmedExpectedBuffer);
             });
         } else if (exp_exitcode != null) {
             _it("should match exit code", function () {

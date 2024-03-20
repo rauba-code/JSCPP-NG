@@ -92,7 +92,7 @@ export = {
                             }
 
                             if (stdio.isMochaTest) {
-                                stdio.write(v + "\n");
+                                stdio.write((rt.isCharType(t.t) ? String.fromCharCode(v as number) : v) + "\n");
                             } else if (!is_raw) {
                                 stdio.write(b + "\n");
                             } 
@@ -112,25 +112,34 @@ export = {
             if (!rt.isStringType(t.t)) {
                 rt.raiseException("only a pointer to string can be used as storage");
             }
+            stdio.cinStop();
+            stdio.getInput().then(result => {
+                _cin.v.buf = result;
 
-            let b = _cin.v.buf;
-            _cin.v.eofbit = b.length === 0;
+                let b = _cin.v.buf;
+                _cin.v.eofbit = b.length === 0;
 
-            b = skipSpace(b);
-            const r = read(rt, /^\S*/, b, t.t)[0];
-            _cin.v.failbit = r.length === 0;
-            _cin.v.buf = b.substring(r.length);
+                b = skipSpace(b);
+                const r = read(rt, /^\S*/, b, t.t)[0];
+                _cin.v.failbit = r.length === 0;
+                _cin.v.buf = b.substring(r.length);
 
-            const initialPos = t.v.position;
-            const tar = t.v.target;
-            if ((tar.length - initialPos) <= r.length) {
-                rt.raiseException(`target string buffer is ${r.length - (tar.length - initialPos)} too short`);
-            }
+                const initialPos = t.v.position;
+                const tar = t.v.target;
+                if ((tar.length - initialPos) <= r.length) {
+                    rt.raiseException(`target string buffer is ${r.length - (tar.length - initialPos)} too short`);
+                }
 
-            for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                tar[i + initialPos] = rt.val(rt.wcharTypeLiteral, r.charCodeAt(i));
-            }
-            tar[r.length + initialPos] = rt.val(rt.wcharTypeLiteral, 0);
+                for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
+                    tar[i + initialPos] = rt.val(rt.charTypeLiteral, r.charCodeAt(i));
+                }
+                tar[r.length + initialPos] = rt.val(rt.charTypeLiteral, 0);                
+                stdio.cinProceed();
+            }).catch((err) => {
+                console.log(err);
+                stdio.promiseError(err);
+            });
+
             return _cin;
         };
         rt.regOperator(_cinString, cin.t, ">>", [pchar], cin.t);
@@ -144,11 +153,7 @@ export = {
                     rt.raiseException("only a pointer to string can be used as storage");
                 }
                 const limit = limitV.v;
-                const delim =
-                    (delimV != null) ?
-                        String.fromCharCode(delimV.v)
-                        :
-                        '\n';
+                const delim = (delimV != null) ? String.fromCharCode(delimV.v) : '\n';
                 const b = _cin.v.buf;
                 _cin.v.eofbit = b.length === 0;
 
@@ -162,6 +167,7 @@ export = {
                 } else {
                     _cin.v.failbit = r.length === 0;
                 }
+                
                 _cin.v.buf = b.substring(r.length + (removeDelim ? 1 : 0));
 
                 const initialPos = t.v.position;
@@ -171,9 +177,10 @@ export = {
                 }
 
                 for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                    tar[i + initialPos] = rt.val(rt.wcharTypeLiteral, r.charCodeAt(i));
+                    tar[i + initialPos] = rt.val(rt.charTypeLiteral, r.charCodeAt(i));
                 }
-                tar[r.length + initialPos] = rt.val(rt.wcharTypeLiteral, 0);
+                tar[r.length + initialPos] = rt.val(rt.charTypeLiteral, 0);
+
                 stdio.write(b + "\n");
                 stdio.cinProceed();
             }).catch((err) => {
@@ -191,7 +198,7 @@ export = {
             _cin.v.eofbit = b.length === 0;
 
             if (_cin.v.eofbit) {
-                return rt.val(rt.intTypeLiteral, -1);
+                return rt.val(rt.intTypeLiteral, "\n".charCodeAt(0));
             } else {
                 const r = read(rt, /^.|[\r\n]/, b, rt.charTypeLiteral);
                 _cin.v.buf = b.substring(r.length);

@@ -1399,7 +1399,7 @@ export class CRuntime {
             } else if (this.isStructType(type)) {
                 return this.simpleStructType(type);
             } else if (this.isNamespaceType(type)) {
-                return this.simpleType(resolveIdentifier(type).split("::").at(-1));
+                return this.simpleType(resolveIdentifier(type).split("::").pop());
             } else {
                 return this.simpleClassType(type);
             }

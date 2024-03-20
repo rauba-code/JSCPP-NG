@@ -352,7 +352,7 @@ const readAllTests = (function() {
 
     return function() {
         const files = fs.readdirSync(testFolder);
-        const xmlFiles = files.filter((file) => path.extname(file) === '.xml');
+        const xmlFiles = files.filter((file) => path.extname(file) === '.xml'/*  && file == "dalele.xml" */ );
     
         const tests: Test[] = [];
         xmlFiles.forEach((xmlFile) => {

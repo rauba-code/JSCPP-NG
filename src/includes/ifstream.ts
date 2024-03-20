@@ -11,7 +11,7 @@ export = {
 
         const readStreamType: ClassType = rt.newClass("ifstream", [{
             name: "buffer",
-            type: rt.arrayPointerType(rt.wcharTypeLiteral, 0),
+            type: rt.arrayPointerType(rt.charTypeLiteral, 0),
             initialize(rt, _this) { 
                 return rt.makeCharArrayFromString(""); 
             }
