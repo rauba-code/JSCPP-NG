@@ -9,7 +9,7 @@ function isNotNumber<T>(mydebugger: T | number): mydebugger is T {
 }
 
 describe("Test debugger", () => {
-    it("Should debug line by line", () => {
+    it("Should debug line by line", async () => {
         const code = `#include <iostream>
         using namespace std;
         int main() {
@@ -18,7 +18,22 @@ describe("Test debugger", () => {
             a *= 10;
             return 0;
         }`;
-        const mydebugger = JSCPP.run(code, () => Promise.resolve("5"), { debug: true });
+
+        let proceed = true;
+        const mydebugger = JSCPP.run(code, () => Promise.resolve("5"), { 
+            debug: true, 
+            stdio: {
+                cinStop() {
+                    proceed = false;
+                },
+                cinProceed() {
+                    proceed = true;
+                },
+                cinState() {
+                   return proceed; 
+                },
+            } as any
+        });
 
         if (isNotNumber(mydebugger)) {
             mydebugger.setStopConditions({
@@ -31,12 +46,13 @@ describe("Test debugger", () => {
             expect(mydebugger.nextLine().trim()).equals("cin >> a;");
             expect(mydebugger.variable("a")).deep.equals({
                 type: "int",
-                value: NaN,
+                value: 0,
             });
 
             done = mydebugger.continue();
             expect(done).false;
             expect(mydebugger.nextLine().trim()).equals("a *= 10;");
+            await mydebugger.wait(); // wait for cin output to be processed
             expect(mydebugger.variable("a")).deep.equals({
                 type: "int",
                 value: 5,

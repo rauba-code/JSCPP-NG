@@ -28,6 +28,7 @@
     "debugger-test": "mocha --require ts-node/register unit-tests/test-debugger.ts --bail",
     "unit-test": "mocha --require ts-node/register unit-tests/test.ts --bail",
     "integration-test": "mocha --require ts-node/register integration-tests/test.ts --bail",
+    "test": "npx concurrently 'npm:*-test'",
     "prepublish": "grunt build"
   },
   "nyc": {

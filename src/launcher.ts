@@ -22,7 +22,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     cstdlib: require("./includes/cstdlib"),
     ctime: require("./includes/ctime"),
     iomanip: require("./includes/iomanip"),
-    // foo: require("./includes/dummy_class_foo")
+    foo: require("./includes/dummy_class_foo")
 };
 
 const headerAlias: { [filename: string]: string } = {
@@ -103,6 +103,9 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             cinProceed() {
                 handleProceed();
             },
+            cinState() {
+                return proceed;
+            },
             setReadResult(result: string) {
                 readResult = result;
             },
@@ -163,7 +166,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                 }
             }
         } catch (error) {
-            _config.stdio.write(error.message);
+            _config.stdio.promiseError(error.message);
         }
     }    
 
@@ -192,7 +195,6 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     } else {
         startTime = Date.now();
         performStep();
-
         /*
         while (true) {
             step = mainGen.next();

@@ -35,6 +35,7 @@ export interface JSCPPConfig {
         drain?: () => string;
         cinStop: () => void;
         cinProceed: () => void;
+        cinState: () => boolean;
         setReadResult: (result: string) => void;
         getReadResult: () => string;
         getInput: () => Promise<string>;

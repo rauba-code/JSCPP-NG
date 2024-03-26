@@ -1,5 +1,5 @@
 import { resolveIdentifier } from "./includes/shared/string_utils";
-import { ArrayType, CRuntime, Variable, VariableType } from "./rt";
+import { ArrayType, CRuntime, RuntimeScope, Variable, VariableType } from "./rt";
 
 /*
  * decaffeinate suggestions:
@@ -657,8 +657,10 @@ export class Interpreter extends BaseInterpreter {
 
                 const globalScope = rt.scope.find((scope) => scope.$name === "global");
                 const currentScope = rt.scope[rt.scope.length - 1];
+                const declarationScope = rt.scope.slice().reverse().find((scope, idx) => scope.$name.includes("function") && rt.scope[idx + 1].$name === "CompoundStatement") || ({ variables: {} }) as RuntimeScope;
+
                 const varname = resolveIdentifier(s.Identifier);
-                return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(globalScope, varname) || rt.getFromNamespace(varname) || rt.readVar(varname);
+                return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || rt.readScopedVar(globalScope, varname) || rt.getFromNamespace(varname) || rt.readVar(varname);
             },
             *ParenthesesExpression(interp, s, param) {
                 ({

@@ -101,32 +101,34 @@ function doSample(code: string, input: string, expected: string | null, except: 
             finishCallback(ExitCode: number) {
                 exitcode = ExitCode;
             },
+            promiseError(e: string) {
+                if (except) {
+                    _it("expected exception", function() {
+                        const eStr = prepareOutput(e.toString());
+                        const ok = eStr!.match(except);
+                        assert.ok(ok);
+                        cb(ok != null);
+                    });
+                } else {
+                    _it("an error occurred", function () {
+                        console.log(e);
+                        assert.ok(false);
+                        cb(false);
+                    });
+                }
+            },
             getInput() { 
                 return Promise.resolve(input.split("\n")[takenInputIdx++]);
             },
         },
-        //maxTimeout: 5 * 1000
+        // maxTimeout: 5 * 1000 // should be set insided test.yaml for each test-case
     };
     try {
         JSCPP.run(code, () => Promise.resolve(input), config);
     } catch (e) {
-        if (except) {
-            _it("expected exception", function () {
-                const eStr = prepareOutput(e.toString());
-                const ok = eStr!.match(except);
-                assert.ok(ok);
-                cb(ok != null);
-            });
-        } else {
-            _it("an error occurred", function () {
-                console.log(e);
-                assert.ok(false);
-                cb(false);
-            });
-        }
+        config.stdio.promiseError(e);
     } finally {
         if (expected != null) {
-            // const output = prepareOutput(outputBuffer);
             _it("should match expected output", function() {
                 const trimmedOutputBuffer = outputBuffer.trimEnd();
                 const trimmedExpectedBuffer = expected.trimEnd();

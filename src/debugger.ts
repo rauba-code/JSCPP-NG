@@ -84,6 +84,12 @@ export default class Debugger {
         return this.gen = gen;
     }
 
+    async wait() {
+        while(!this.rt.config.stdio.cinState()) {
+           await new Promise((resolve) => setImmediate(resolve));
+        }
+    }
+
     continue() {
         while (true) {
             const done = this.next();
