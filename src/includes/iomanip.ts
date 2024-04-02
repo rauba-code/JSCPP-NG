@@ -133,6 +133,7 @@ export = {
             }
         });
         rt.regFunc(_setw, "global", "setw", [rt.intTypeLiteral], type);
+        rt.addToNamespace("std", "setw", rt.readVar("setw"));
 
         const _setfill = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
@@ -145,6 +146,7 @@ export = {
             }
         });
         rt.regFunc(_setfill, "global", "setfill", [rt.charTypeLiteral], type);
+        rt.addToNamespace("std", "setfill", rt.readVar("setfill"));
 
         const _addManipulator = function (rt: CRuntime, _cout: Cout, m: IomanipOperator) {
             if (!_cout.manipulators) {

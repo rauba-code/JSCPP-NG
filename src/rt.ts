@@ -758,6 +758,18 @@ export class CRuntime {
         this.raiseException("variable " + varname + " does not exist");
     };
 
+    deleteVar(varname: string) {
+        let i = this.scope.length - 1;
+        while (i >= 0) {
+            const vc = this.scope[i];
+            if (vc.variables[varname] != null) {
+                delete vc.variables[varname];
+            }
+            i--;
+        }
+        this.raiseException("variable " + varname + " does not exist");
+    };
+
     varAlreadyDefined(varname: string) {
         const vc = this.scope[this.scope.length - 1];
         return varname in vc;

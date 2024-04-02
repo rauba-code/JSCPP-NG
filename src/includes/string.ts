@@ -237,5 +237,15 @@ export = {
             }
             // rt.raiseException("no matching function for call");
         }, "global", "string", [rt.intTypeLiteral, rt.charTypeLiteral], newStringType);
+
+        rt.regFunc(function(rt: CRuntime, left: Variable, pos: IntVariable, length: IntVariable) {
+            const str = rt.getStringFromCharArray(left as ArrayVariable);
+            const r = str.slice(0, pos.v) + str.slice(pos.v + (length?.v ?? str.length));
+            left.v = rt.makeCharArrayFromString(r).v;
+        }, newStringType, "erase", [rt.intTypeLiteral], newStringType, [{ 
+            name: "length", 
+            type: rt.intTypeLiteral, 
+            expression: ""
+        }]);
     }
 };
