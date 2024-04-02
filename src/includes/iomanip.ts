@@ -20,6 +20,7 @@ export = {
         });
         rt.regFunc(_setprecision, "global", "setprecision", [rt.intTypeLiteral], type);
         rt.addToNamespace("std", "setprecision", rt.readVar("setprecision"));
+        rt.deleteVar("setprecision");
 
         const _fixed: IomanipOperator = {
             t: type,
@@ -134,6 +135,7 @@ export = {
         });
         rt.regFunc(_setw, "global", "setw", [rt.intTypeLiteral], type);
         rt.addToNamespace("std", "setw", rt.readVar("setw"));
+        rt.deleteVar("setw");
 
         const _setfill = (rt: CRuntime, _this: Variable, x: IntVariable): IomanipOperator => ({
             t: type,
@@ -147,6 +149,7 @@ export = {
         });
         rt.regFunc(_setfill, "global", "setfill", [rt.charTypeLiteral], type);
         rt.addToNamespace("std", "setfill", rt.readVar("setfill"));
+        rt.deleteVar("setfill");
 
         const _addManipulator = function (rt: CRuntime, _cout: Cout, m: IomanipOperator) {
             if (!_cout.manipulators) {

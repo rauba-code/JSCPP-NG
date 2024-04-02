@@ -764,6 +764,7 @@ export class CRuntime {
             const vc = this.scope[i];
             if (vc.variables[varname] != null) {
                 delete vc.variables[varname];
+                return;
             }
             i--;
         }
