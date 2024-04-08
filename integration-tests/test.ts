@@ -74,7 +74,7 @@ const testRunner = (function() {
 
         let { code, scenarios: { input, output: expected, input_filename, output_filename }, exception, exitcode, config } = sample;
 
-        const fstream = (input_filename && output_filename) && (function() {
+        const fstream = (input_filename || output_filename) && (function() {
             const testFiles: any = { 
                 [input_filename]: { value: input }, 
                 [output_filename]: { value: "" } 
@@ -153,7 +153,7 @@ const testRunner = (function() {
         } finally {
             if (expected != null) {
                 _it("should match expected output", function() {
-                    (fstream as any)?.getExpectedOutput();
+                    output_filename && (fstream as any)?.getExpectedOutput();
 
                     const trimmedOutputBuffer = outputBuffer.trimEnd();
                     const trimmedExpectedBuffer = expected.trimEnd();
@@ -318,11 +318,20 @@ const objectToTest = (function() {
             return ({} as TestScenario);
 
         return {
-            input_filename: parsed.input["@_filename"],
-            output_filename: parsed.output["@_filename"],
-            input: parsed.input["#text"],
-            output: parsed.output["#text"]
+            input_filename: parsed.input?.["@_filename"],
+            output_filename: parsed.output?.["@_filename"],
+            input: parsed.input?.["#text"],
+            output: parsed.output?.["#text"]
         };
+    };
+
+    const mergeScenarios = function(obj1: any, obj2: any): TestScenario {
+        const result = { ...obj1 };
+        for (const key in obj2) {
+            if (obj2[key] != null)
+                result[key] = obj2[key];
+        }
+        return result;
     };
 
     return function(object: any): Test {
@@ -332,14 +341,11 @@ const objectToTest = (function() {
             name: fileName,
             test: {
                 after: [],
-                cases: object.tests.test.map((test: any) => ({
+                cases: [object.tests.test].flat().map((test: any) => ({
                     testID: test["@_id"],
                     fileName: fileName,
                     code: object.code,
-                    scenarios: {
-                        ...parseConsoleInput(test.console),
-                        ...parseFileInput(test.files)
-                    }
+                    scenarios: mergeScenarios(parseConsoleInput(test.console), parseFileInput(test.files))
                 }) as SingleTestCase)
             }
         };
@@ -352,7 +358,8 @@ const readAllTests = (function() {
 
     return function() {
         const files = fs.readdirSync(testFolder);
-        const xmlFiles = files.filter((file) => path.extname(file) === '.xml'/*  && file == "dalele.xml" */ );
+        const xmlFiles = files.filter((file) => path.extname(file) === '.xml');
+        // const xmlFiles = files.filter((file) => path.extname(file) === '.xml' && file == "subjects.xml" );
     
         const tests: Test[] = [];
         xmlFiles.forEach((xmlFile) => {

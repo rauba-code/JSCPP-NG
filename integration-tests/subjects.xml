@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iostream>
+#include <fstream>
+#include <string>
+
+struct Subject {
+    std::string name;
+    int chosenStudents;
+    int maxGroupSize;
+    int requiredGroups;
+};
+
+void readData(Subject subjects[], int& subjectsCount, int& totalStudents, const std::string& fileName) {
+    std::ifstream fin(fileName);
+
+    subjectsCount = 0;
+    totalStudents = 0;
+
+    Subject subject;
+    while(fin >> subject.name >> subject.chosenStudents >> subject.maxGroupSize >> subject.requiredGroups) {
+        subjects[subjectsCount++] = subject;
+        totalStudents += subject.chosenStudents;
+    }
+
+    fin.close();
+}
+
+int main() {
+    const int MAX_SUBJECTS = 100; // Assuming a maximum of 100 subjects
+    Subject subjects[MAX_SUBJECTS];
+    int subjectsCount = 0;
+    int totalStudents = 0;
+
+    readData(subjects, subjectsCount, totalStudents, "Subjects.txt");
+
+    std::cout << "Total subjects: " << subjectsCount << std::endl;
+    std::cout << "Total students: " << totalStudents << std::endl;
+
+    return 0;
+}
+]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[Total subjects: 4
+Total students: 345]]></output>
+  </console>
+  <files>
+   <input filename="Subjects.txt" visible="1"><![CDATA[Mathematics 100 5 10
+Physics 80 4 8
+Chemistry 75 3 7
+Biology 90 5 10
+Computer Science 120 6 12
+]]></input>
+  </files>
+ </test>
+</tests>

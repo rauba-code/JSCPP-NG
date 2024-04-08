@@ -1400,7 +1400,7 @@ export class CRuntime {
     simpleType(type: string | string[]): VariableType {
         if (Array.isArray(type)) {
             if (type.length > 1) {
-                const typeStr = type.filter(t => {
+                const typeStr = type.map((t) => (t as any).Identifier ?? t).filter(t => {
                     return !this.config.specifiers.includes(t as Specifier);
                 }).join(" ");
                 return this.simpleType(typeStr);

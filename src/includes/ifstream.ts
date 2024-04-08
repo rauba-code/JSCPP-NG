@@ -182,6 +182,17 @@ export = {
         }, readStreamType, "eof", [], rt.boolTypeLiteral);
 
         rt.regFunc(function(rt: CRuntime, _this: ifStreamObject) {
+            const buffer: string = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
+
+            if (buffer.length === 0) {
+                _this.v.members['eof'].v = true;
+                return rt.val(rt.charTypeLiteral, 0);
+            }
+
+            return rt.val(rt.charTypeLiteral, buffer.charAt(0).charCodeAt(0));
+        }, readStreamType, "peek", [], rt.charTypeLiteral);
+
+        rt.regFunc(function(rt: CRuntime, _this: ifStreamObject) {
             const fileObject: any = _this.v.members["fileObject"];
             fileObject.close();
         }, readStreamType, "close", [], rt.intTypeLiteral);

@@ -162,7 +162,7 @@ StructDeclaration
     } 
 
 StructMemberDeclaration
-  = a:(TypeSpecifier / Identifier) b:InitDeclaratorList SEMI {
+  = a:(TypeSpecifier / ScopedIdentifier) b:InitDeclaratorList SEMI {
     return addPositionInfo({type: 'StructMember', MemberType: a, Declarators: b });
   };
 
