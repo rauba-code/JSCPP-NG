@@ -12,6 +12,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     ifstream: require("./includes/ifstream"),
     ofstream: require("./includes/ofstream"),
     fstream: require("./includes/fstream"),
+    sstream: require("./includes/sstream"),
     string: require("./includes/string"),
     iostream: require("./includes/iostream"),
     cctype: require("./includes/cctype"),
