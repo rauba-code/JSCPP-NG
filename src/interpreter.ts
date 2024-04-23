@@ -264,6 +264,7 @@ export class Interpreter extends BaseInterpreter {
             },
             *Declaration(interp, s, param) {
                 const { rt } = interp;
+                const readonly = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
                 const basetype = rt.simpleType(s.DeclarationSpecifiers);
 
                 for (const dec of s.InitDeclaratorList) {
@@ -312,7 +313,7 @@ export class Interpreter extends BaseInterpreter {
                             param.node = init;
                             init = yield* interp.arrayInit(dimensions, init, basetype, param);
                             delete param.node;
-
+                            init.readonly = readonly;
                             rt.defVar(name, init.t, init);
                         } else if (dec.Declarator.right[0].type === "DirectDeclarator_modifier_Constructor") {
                             const constructorArgs = [];
@@ -325,6 +326,7 @@ export class Interpreter extends BaseInterpreter {
                                 }
                             }
                             init = rt.makeConstructor(type, constructorArgs, true);
+                            init.readonly = readonly;
                             rt.defVar(name, type, init);
                         }
                     } else {
@@ -334,6 +336,7 @@ export class Interpreter extends BaseInterpreter {
                             init = yield* interp.visit(interp, init.Expression);
                         }
 
+                        init.readonly = readonly;
                         rt.defVar(name, type, init);
                     }
                 }

@@ -385,12 +385,14 @@ export const defaultOpHandler: OpHandlerMap = {
         },
         "o(=)": {
             default(rt, l, r) {
-                if (l.left) {
-                    l.v = rt.cast(l.t, r).v;
-                    return l;
-                } else {
+                if (!l.left) {
                     rt.raiseException(rt.makeValString(l) + " is not a left value");
+                } else if (l.readonly) {
+                    rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
                 }
+
+                l.v = rt.cast(l.t, r).v;
+                return l;
             }
         },
         "o(+=)": {
@@ -596,6 +598,8 @@ types["pointer"] = {
             default(rt, l, r) {
                 if (!l.left) {
                     rt.raiseException(rt.makeValString(l) + " is not a left value");
+                } else if (l.readonly) {
+                    rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
                 }
                 const t = rt.cast(l.t, r);
                 l.t = t.t;

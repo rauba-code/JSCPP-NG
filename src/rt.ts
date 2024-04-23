@@ -242,6 +242,7 @@ export interface ArrayElementVariable {
 
 export type Variable = {
     left?: boolean;
+    readonly?: boolean;
 } & (PrimitiveVariable | PointerVariable | ObjectVariable | FunctionVariable | ArrayElementVariable);
 
 export interface RuntimeScope {
@@ -783,20 +784,19 @@ export class CRuntime {
         if (this.varAlreadyDefined(varname)) {
             this.raiseException("variable " + varname + " already defined");
         }
+
+        const readonly = initval.readonly;
         const vc = this.scope[this.scope.length - 1];
         // logger.log("defining variable: %j, %j", varname, type);
         if (this.isReferenceType(type)) {
             initval = this.cast(type, initval);
         } else {
             initval = this.clone(this.cast(type, initval), true);
-        }
-        if (initval === undefined) {
-            vc.variables[varname] = this.defaultValue(type);
-            vc.variables[varname].left = true;
-        } else {
-            vc.variables[varname] = initval;
-            vc.variables[varname].left = true;
-        }
+        }        
+
+        vc.variables[varname] = initval === undefined ? this.defaultValue(type) : initval;
+        vc.variables[varname].readonly = readonly;
+        vc.variables[varname].left = true;
     };
 
     booleanToNumber(b: BasicValue) {
@@ -1470,6 +1470,8 @@ export class CRuntime {
                     default(rt: CRuntime, l: any, r: any) {
                         if (!l.left) {
                             rt.raiseException(rt.makeValString(l) + " is not a left value");
+                        } else if (l.readonly) {
+                            rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
                         }
 
                         l.v = rt.cast(l.t, r).v;

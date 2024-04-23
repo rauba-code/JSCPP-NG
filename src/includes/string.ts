@@ -25,6 +25,12 @@ export = {
             },
             "o(=)": {
                 default(rt: CRuntime, left: any, right: any) {
+                    if (!left.left) {
+                        rt.raiseException(rt.makeValString(left) + " is not a left value");
+                    } else if (left.readonly) {
+                        rt.raiseException(`assignment of read-only variable ${rt.makeValString(left)}`);
+                    }
+
                     left.v = _convertSingleCharIntoStringArray(right).v;
                     return left;                    
                 },
