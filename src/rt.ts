@@ -243,6 +243,7 @@ export interface ArrayElementVariable {
 export type Variable = {
     left?: boolean;
     readonly?: boolean;
+    dataType?: PrimitiveType;
 } & (PrimitiveVariable | PointerVariable | ObjectVariable | FunctionVariable | ArrayElementVariable);
 
 export interface RuntimeScope {
@@ -785,6 +786,7 @@ export class CRuntime {
             this.raiseException("variable " + varname + " already defined");
         }
 
+        const dataType = initval.dataType;
         const readonly = initval.readonly;
         const vc = this.scope[this.scope.length - 1];
         // logger.log("defining variable: %j, %j", varname, type);
@@ -797,6 +799,8 @@ export class CRuntime {
         vc.variables[varname] = initval === undefined ? this.defaultValue(type) : initval;
         vc.variables[varname].readonly = readonly;
         vc.variables[varname].left = true;
+        if (dataType)
+            vc.variables[varname].dataType = dataType;
     };
 
     booleanToNumber(b: BasicValue) {
@@ -1064,6 +1068,8 @@ export class CRuntime {
             }
         } else if (this.isClassType(type)) {
             if (this.isStringClass(type)) {
+                return this.val(type, value.v);
+            } else if (this.isVectorClass(type)) {
                 return this.val(type, value.v);
             } else {
                 this.raiseException("not implemented");
@@ -1537,6 +1543,10 @@ export class CRuntime {
 
     isStringClass(type: VariableType) {
         return (type.type === "class" && type.name === "string");
+    };
+
+    isVectorClass(type: VariableType) {
+        return (type.type === "class" && type.name === "vector");
     };
 
     isNamespaceType(type: string | Variable | VariableType) {

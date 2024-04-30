@@ -98,7 +98,7 @@ Label
     / DEFAULT COLON {return addPositionInfo({type: 'Label_default'});}
 
 CompoundStatement
-    = LWING a:(UsingDirective / Statement / Declaration)* RWING {
+    = LWING a:(UsingDirective / STLDeclaration / Statement / Declaration)* RWING {
         return addPositionInfo({type: 'CompoundStatement', Statements: a});
       }
     ;
@@ -238,11 +238,7 @@ SpecifierQualifierList
     ;
 
 EnumSpecifier
-    = ENUM
-      ( Identifier? LWING EnumeratorList COMMA? RWING
-      / Identifier
-      )
-    ;
+    = ENUM ( Identifier? LWING EnumeratorList COMMA? RWING / Identifier );
 
 EnumeratorList
     = Enumerator (COMMA Enumerator)*
@@ -259,8 +255,7 @@ TypeQualifier
     ;
 
 FunctionSpecifier
-    = a:(INLINE
-    / STDCALL) {
+    = a:(INLINE / STDCALL) {
       return a;
     }
     ;
@@ -285,33 +280,38 @@ Declarator
     } )
     ;
 
+STLDeclaration = 
+	a:(TypeSpecifier / Identifier) LT b:(TypeSpecifier / Identifier) GT c:Identifier d:(EQU? d:Initializer { return d; })? SEMI {
+    	return addPositionInfo({type:'STLDeclaration', Identifier: c, Specifier: a, Type: b, Initializer: d });
+    }
+	;
+
 DirectDeclarator
-    = a:( a:Identifier {return addPositionInfo({type:'Identifier', Identifier:a});}
-      / LPAR a:Declarator RPAR {return a;}
-      )
-      b:( LBRK ac:TypeQualifier* b:AssignmentExpression? RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ac || [], Expression: b});
-      }
-      / LBRK STATIC ac:TypeQualifier* b:AssignmentExpression RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ['static'].concat(ac), Expression: b});
-      }
-      / LBRK ac:TypeQualifier+ STATIC b:AssignmentExpression RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ['static'].concat(ac), Expression: b});
-      }
-      / LBRK ac:TypeQualifier* STAR RBRK {
-        return addPositionInfo({type:'DirectDeclarator_modifier_star_array', Modifier: ac.concat['*']});
-      }
-      / LPAR ac:Constructor RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_Constructor', Expressions: ac});
-      }
-      / LPAR ac:ParameterTypeList RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList: ac});
-      }
-      / LPAR ac:IdentifierList? RPAR {
-        return addPositionInfo({type:'DirectDeclarator_modifier_IdentifierList', IdentifierList: ac});
-      }
+    = a:( a:Identifier { return addPositionInfo({type:'Identifier', Identifier:a}); } / LPAR a:Declarator RPAR { return a; } )
+      b:( 
+        LBRK ac:TypeQualifier* b:AssignmentExpression? RBRK {
+          return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ac || [], Expression: b});
+        }
+        / LBRK STATIC ac:TypeQualifier* b:AssignmentExpression RBRK {
+          return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ['static'].concat(ac), Expression: b});
+        }
+        / LBRK ac:TypeQualifier+ STATIC b:AssignmentExpression RBRK {
+          return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ['static'].concat(ac), Expression: b});
+        }
+        / LBRK ac:TypeQualifier* STAR RBRK {
+          return addPositionInfo({type:'DirectDeclarator_modifier_star_array', Modifier: ac.concat['*']});
+        }
+        / LPAR ac:Constructor RPAR {
+          return addPositionInfo({type:'DirectDeclarator_modifier_Constructor', Expressions: ac});
+        }
+        / LPAR ac:ParameterTypeList RPAR {
+          return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList: ac});
+        }
+        / LPAR ac:IdentifierList? RPAR {
+          return addPositionInfo({type:'DirectDeclarator_modifier_IdentifierList', IdentifierList: ac});
+        }
       )* {
-        return addPositionInfo({type:'DirectDeclarator', left: a, right: b});
+        return addPositionInfo({ type:'DirectDeclarator', left: a, right: b });
       }
     ;
 

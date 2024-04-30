@@ -23,6 +23,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     cstdlib: require("./includes/cstdlib"),
     ctime: require("./includes/ctime"),
     iomanip: require("./includes/iomanip"),
+    vector: require("./includes/vector"),
     foo: require("./includes/dummy_class_foo")
 };
 

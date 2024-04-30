@@ -54,12 +54,8 @@ export class Interpreter extends BaseInterpreter {
                 }
             },
             *DirectDeclarator(interp, s, param) {
-                ({
-                    rt
-                } = interp);
-                let {
-                    basetype
-                } = param;
+                ({ rt } = interp);
+                let { basetype } = param;
                 basetype = interp.buildRecursivePointerType(s.Pointer, basetype, 0);
                 if (s.right.length === 1) {
                     let varargs;
@@ -67,9 +63,7 @@ export class Interpreter extends BaseInterpreter {
                     let ptl = null;
                     if (right.type === "DirectDeclarator_modifier_ParameterTypeList") {
                         ptl = right.ParameterTypeList;
-                        ({
-                            varargs
-                        } = ptl);
+                        ({ varargs } = ptl);
                     } else if ((right.type === "DirectDeclarator_modifier_IdentifierList") && (right.IdentifierList === null)) {
                         ptl = right.ParameterTypeList;
                         varargs = false;
@@ -313,6 +307,8 @@ export class Interpreter extends BaseInterpreter {
                             param.node = init;
                             init = yield* interp.arrayInit(dimensions, init, basetype, param);
                             delete param.node;
+
+                            init.dataType = dec.Declarator.left.DataType;
                             init.readonly = readonly;
                             rt.defVar(name, init.t, init);
                         } else if (dec.Declarator.right[0].type === "DirectDeclarator_modifier_Constructor") {
@@ -326,6 +322,8 @@ export class Interpreter extends BaseInterpreter {
                                 }
                             }
                             init = rt.makeConstructor(type, constructorArgs, true);
+                            
+                            init.dataType = dec.Declarator.left.DataType;
                             init.readonly = readonly;
                             rt.defVar(name, type, init);
                         }
@@ -336,10 +334,30 @@ export class Interpreter extends BaseInterpreter {
                             init = yield* interp.visit(interp, init.Expression);
                         }
 
+                        init.dataType = dec.Declarator.left.DataType;
                         init.readonly = readonly;
                         rt.defVar(name, type, init);
                     }
                 }
+            },
+            *STLDeclaration(interp, s, param) {
+                ({ rt } = interp);
+
+                const basetype = rt.simpleType(s.Specifier);
+                if (!rt.isVectorClass(basetype))
+                    rt.raiseException("Only vectors are currently supported for STL Declaration!");
+
+                const vectorClass: any = rt.defaultValue(basetype, true);
+
+                const STLType = rt.simpleType(s.Type);
+                if (s.Initializer != null) {
+                    const initializer: any = yield* interp.arrayInit([s.Initializer.Initializers.length], s.Initializer, STLType, param);
+                    vectorClass.v.members.element_container = initializer.v.target;
+                }                
+
+                vectorClass.dataType = STLType;
+                vectorClass.readonly = false;
+                rt.defVar(s.Identifier, basetype, vectorClass);
             },
             *StructDeclaration(interp, s, param) {
                 ({ rt } = interp);
