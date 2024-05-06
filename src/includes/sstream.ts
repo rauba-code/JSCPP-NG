@@ -17,8 +17,8 @@ export = {
         }, {
             name: "extracted_buffer",
             type: rt.arrayPointerType(rt.charTypeLiteral, 0),
-            initialize(rt, _this) { 
-                return rt.makeCharArrayFromString(""); 
+            initialize(rt, _this) {
+                return null; 
             }
         }, {
             name: "inserted_buffer",
@@ -73,11 +73,7 @@ export = {
                     if (endOfString)
                         return _this;
         
-                    let extracted_buffer = _this.v.members["extracted_buffer"] as ArrayVariable;
-                    if (!rt.getStringFromCharArray(extracted_buffer)) {
-                        extracted_buffer = getString(rt, _this) as ArrayVariable;
-                    }
-
+                    const extracted_buffer = (_this.v.members["extracted_buffer"] || (_this.v.members["extracted_buffer"] = getString(rt, _this))) as ArrayVariable;
                     const buffer = rt.getStringFromCharArray(extracted_buffer);
 
                     let r, v, b = buffer;
