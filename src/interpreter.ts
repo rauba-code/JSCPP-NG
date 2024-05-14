@@ -163,7 +163,8 @@ export class Interpreter extends BaseInterpreter {
                         }
                         _init = _param.Declarator.Initializers;
 
-                        const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
+                        const _STLSpecifier = _param.DeclarationSpecifiers.find((specifier: any) => specifier.type === "STLIdentifier")?.DeclarationSpecifiers;
+                        const _basetype = rt.simpleType(_STLSpecifier || _param.DeclarationSpecifiers);
                         const _reference = _param.Declarator.Declarator.Reference;
                         
                         if (_reference) {
@@ -343,7 +344,7 @@ export class Interpreter extends BaseInterpreter {
             *STLDeclaration(interp, s, param) {
                 ({ rt } = interp);
 
-                const basetype = rt.simpleType(s.Specifier);
+                const basetype = rt.simpleType(s.DeclarationSpecifiers);
                 if (!rt.isVectorClass(basetype))
                     rt.raiseException("Only vectors are currently supported for STL Declaration!");
 

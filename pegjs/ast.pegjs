@@ -147,7 +147,8 @@ JumpStatement
 //-------------------------------------------------------------------------
 
 Declaration
-    = a:DeclarationSpecifiers b:InitDeclaratorList? SEMI {
+    = STLDeclaration 
+    / a:DeclarationSpecifiers b:InitDeclaratorList? SEMI {
       return addPositionInfo({type: 'Declaration', DeclarationSpecifiers:a, InitDeclaratorList:b});
     }
     ;
@@ -162,7 +163,7 @@ StructDeclaration
     } 
 
 StructMemberDeclaration
-  = a:(TypeSpecifier / ScopedIdentifier) b:InitDeclaratorList SEMI {
+  = a:TypeScopedIdentifier b:InitDeclaratorList SEMI {
     return addPositionInfo({type: 'StructMember', MemberType: a, Declarators: b });
   };
 
@@ -280,9 +281,17 @@ Declarator
     } )
     ;
 
+TypeScopedIdentifier = TypeSpecifier / ScopedIdentifier;
+
+STLIdentifier =
+	a:DeclarationSpecifiers LT b:TypeScopedIdentifier GT c:InitDeclarator {
+    	return addPositionInfo({type:'STLIdentifier', DeclarationSpecifiers: a, Type: b, Declarator: c });
+    }
+	;
+
 STLDeclaration = 
-	a:(TypeSpecifier / Identifier) LT b:(TypeSpecifier / Identifier) GT c:Identifier d:(EQU? d:Initializer { return d; })? SEMI {
-    	return addPositionInfo({type:'STLDeclaration', Identifier: c, Specifier: a, Type: b, Initializer: d });
+	a:STLIdentifier d:(EQU? d:Initializer { return d; })? SEMI {
+    	return addPositionInfo({type:'STLDeclaration', Identifier: a.Identifier ?? a.Declarator.Declarator.left.Identifier, DeclarationSpecifiers: a.DeclarationSpecifiers, Type: a.Type, Initializer: d ?? a.Declarator.Initializers });
     }
 	;
 
@@ -347,11 +356,9 @@ ParameterList
     ;
 
 ParameterDeclaration
-    = a:DeclarationSpecifiers
-      b:( InitDeclarator
-      / AbstractDeclarator
-      )? {
-        return addPositionInfo({type:'ParameterDeclaration', DeclarationSpecifiers:a, Declarator:b});
+    = a:( a:STLIdentifier { return [a]; } / DeclarationSpecifiers )
+      b:( InitDeclarator / AbstractDeclarator )? {
+        return addPositionInfo({type:'ParameterDeclaration', DeclarationSpecifiers: a, Declarator: b || a[0].Declarator });
       }
     ;
 

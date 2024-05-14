@@ -28,7 +28,7 @@ export = {
         rt.regFunc(function(rt: CRuntime, _this: any, val: Variable) {
             // const vectorDataType = _this.dataType;
             const element_container = _getElementContainer(_this);
-            element_container.push(val);
+            element_container.push(rt.cloneDeep(val));
         }, vectorType, "push_back", ["?"], rt.voidTypeLiteral);
 
         rt.regFunc(function(rt: CRuntime, _this: any) {
