@@ -163,8 +163,8 @@ export class Interpreter extends BaseInterpreter {
                         }
                         _init = _param.Declarator.Initializers;
 
-                        const _STLSpecifier = _param.DeclarationSpecifiers.find((specifier: any) => specifier.type === "STLIdentifier")?.DeclarationSpecifiers;
-                        const _basetype = rt.simpleType(_STLSpecifier || _param.DeclarationSpecifiers);
+                        const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: any) => specifier?.DeclarationSpecifiers || specifier);
+                        const _basetype = rt.simpleType(_declarationSpecifiers);
                         const _reference = _param.Declarator.Declarator.Reference;
                         
                         if (_reference) {
@@ -227,7 +227,7 @@ export class Interpreter extends BaseInterpreter {
                     }
                     i++;
                 }
-                return {argTypes , argNames, optionalArgs};
+                return {argTypes, argNames, optionalArgs};
             },
             *FunctionDefinition(interp, s, param) {
                 ({
