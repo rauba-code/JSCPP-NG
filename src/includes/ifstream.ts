@@ -33,6 +33,12 @@ export = {
         
         const readStreamTypeSig = rt.getTypeSignature(readStreamType);
         rt.types[readStreamTypeSig].handlers = {
+            "o(!)": {
+                default(rt: CRuntime, _this: ifStreamObject) {
+                    const fileObject: any = _this.v.members["fileObject"];
+                    return rt.val(rt.boolTypeLiteral, !fileObject.is_open());
+                }
+            },
             "o(())": {
                 default(rt: CRuntime, _this: ifStreamObject, ...args: Variable[]) {
                     const [ fileName ] = args;
