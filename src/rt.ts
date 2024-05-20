@@ -396,12 +396,13 @@ export class CRuntime {
         }
     };
 
-    defFunc(lt: VariableType, name: string, retType: VariableType, argTypes: VariableType[], argNames: string[], stmts: any, interp: Interpreter, optionalArgs: OptionalArg[]) {
+    defFunc(lt: VariableType, name: string, retType: VariableType, argTypes: VariableType[], argNames: string[], stmts: any, interp: Interpreter, optionalArgs: OptionalArg[], readonlyArgs: boolean[]) {
         if (stmts != null) {
             const f = function* (rt: CRuntime, _this: Variable, ...args: Variable[]) {
                 // logger.warn("calling function: %j", name);
                 rt.enterScope("function " + name);
-                argNames.forEach(function (argName, i) {
+                argNames.forEach(function(argName, i) {
+                    args[i].readonly = readonlyArgs[i];
                     rt.defVar(argName, argTypes[i], args[i]);
                 });
                 for (let i = 0, end = optionalArgs.length; i < end; i++) {

@@ -147,13 +147,17 @@ export class Interpreter extends BaseInterpreter {
             *ParameterTypeList(interp, s, param) {
                 const argTypes = [];
                 const argNames = [];
+                const readonlyArgs: boolean[] = [];
                 const optionalArgs = [];
+
                 let i = 0;
                 while (i < s.ParameterList.length) {
                     const _param = s.ParameterList[i];
+                    
                     let _type;
                     let _init = null;
                     let _name = null;
+                    let _readonly = false;
                     if (param.insideDirectDeclarator_modifier_ParameterTypeList) {
                         const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                         _type = _basetype;
@@ -166,6 +170,7 @@ export class Interpreter extends BaseInterpreter {
                         const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: any) => specifier?.DeclarationSpecifiers || specifier);
                         const _basetype = rt.simpleType(_declarationSpecifiers);
                         const _reference = _param.Declarator.Declarator.Reference;
+                        _readonly = _declarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
                         
                         if (_reference) {
                             _type = rt.makeReferenceType(_basetype);
@@ -224,10 +229,11 @@ export class Interpreter extends BaseInterpreter {
                         }
                         argTypes.push(_type);
                         argNames.push(_name);
+                        readonlyArgs.push(_readonly);
                     }
                     i++;
                 }
-                return {argTypes, argNames, optionalArgs};
+                return { argTypes, argNames, optionalArgs, readonlyArgs };
             },
             *FunctionDefinition(interp, s, param) {
                 ({
@@ -253,9 +259,9 @@ export class Interpreter extends BaseInterpreter {
                 } else {
                     rt.raiseException("unacceptable argument list", s.Declarator.right);
                 }
-                const {argTypes , argNames, optionalArgs} = yield* interp.visit(interp, ptl, param);
+                const { argTypes , argNames, optionalArgs, readonlyArgs } = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
-                rt.defFunc(scope, name, basetype, argTypes, argNames, stat, interp, optionalArgs);
+                rt.defFunc(scope, name, basetype, argTypes, argNames, stat, interp, optionalArgs, readonlyArgs);
             },
             *Declaration(interp, s, param) {
                 const { rt } = interp;
