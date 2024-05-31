@@ -1467,7 +1467,7 @@ export class CRuntime {
                 const v = _this.v as ObjectValue;
                 v.members = {};
                 for (const member of members) {
-                    v.members[member.name] = (member.initialize != null) ? member.initialize(rt, _this) : rt.defaultValue(member.type, true);
+                    v.members[member.name] = (member.initialize != null) ? rt.cloneDeep(member.initialize(rt, _this)) as Variable : rt.defaultValue(member.type, true);
                 }
             },
             members,
