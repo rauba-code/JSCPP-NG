@@ -265,8 +265,9 @@ export class Interpreter extends BaseInterpreter {
             },
             *Declaration(interp, s, param) {
                 const { rt } = interp;
+                const deducedType = s.DeclarationSpecifiers.includes("auto");
                 const readonly = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
-                const basetype = rt.simpleType(s.DeclarationSpecifiers);
+                const basetype = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param)).t) : rt.simpleType(s.DeclarationSpecifiers);
 
                 for (const dec of s.InitDeclaratorList) {
                     let visitResult;
@@ -387,9 +388,10 @@ export class Interpreter extends BaseInterpreter {
                             structMemberList.push({
                                 name: name,
                                 type: type,
-                                // initialize(rt: any, _this: any) { 
-                                //     return init; 
-                                // }
+                                initialize(rt: any, _this: any) {
+                                    init.left = true;
+                                    return init; 
+                                }                                 
                             });
                         }
                     }
@@ -600,6 +602,53 @@ export class Interpreter extends BaseInterpreter {
                         if (!cond) { break; }
                     }
                 }
+                rt.exitScope(param.scope);
+                param.scope = scope_bak;
+                return return_val;
+            },
+            *IterationStatement_foreach(interp, s, param) {
+                let return_val;
+                ({ rt } = interp);
+                const scope_bak = param.scope;
+                param.scope = "IterationStatement_foreach";
+                rt.enterScope(param.scope);
+
+                const iterable = yield* interp.visit(interp, s.Expression, param);
+
+                if (s.Initializer) {
+                    param.deducedType = iterable.dataType ?? iterable.t;
+
+                    yield* interp.visit(interp, s.Initializer, param);
+                }
+
+                const variable = rt.readVar(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
+                const iterator = rt.getFunc(iterable.t, "__iterator", [])(rt, iterable);
+
+                if (!iterator) {
+                    rt.raiseException(`Variable '${s.Expression.Identifier}' is not iterator type.`);
+                }
+
+                for(const element of iterator) {   
+                    variable.v = element.v;
+                                   
+                    const r = yield* interp.visit(interp, s.Statement, param);
+                    if (r instanceof Array) {
+                        let end_loop;
+                        switch (r[0]) {
+                            case "continue":
+                                break;
+                            case "break":
+                                end_loop = true;
+                                break;
+                            case "return":
+                                return_val = r;
+                                end_loop = true;
+                                break;
+                        }
+                        if (end_loop) { break; }
+                    }
+                }
+
                 rt.exitScope(param.scope);
                 param.scope = scope_bak;
                 return return_val;

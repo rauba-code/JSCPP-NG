@@ -120,11 +120,10 @@ SelectionStatement
     ;
 
 IterationStatement
-    = WHILE LPAR a:Expression RPAR b:Statement {return addPositionInfo({type:'IterationStatement_while', Expression:a, Statement:b});}
-    / DO a:Statement WHILE LPAR b:Expression RPAR SEMI {return addPositionInfo({type:'IterationStatement_do', Expression:b, Statement:a});}
-    / FOR LPAR a:(Declaration/ExpressionStatement)? c:Expression? SEMI d:Expression? RPAR e:Statement {
-      return addPositionInfo({type:'IterationStatement_for', Initializer:a, Expression:c, Loop:d, Statement:e});
-    }
+    = WHILE LPAR a:Expression RPAR b:Statement { return addPositionInfo({type:'IterationStatement_while', Expression:a, Statement:b}); }
+    / DO a:Statement WHILE LPAR b:Expression RPAR SEMI { return addPositionInfo({type:'IterationStatement_do', Expression:b, Statement:a}); }
+    / FOR LPAR a:(Declaration/ExpressionStatement)? c:Expression? SEMI d:Expression? RPAR e:Statement { return addPositionInfo({type:'IterationStatement_for', Initializer:a, Expression:c, Loop:d, Statement:e}); }
+    / FOR LPAR a:DeclarationFOREACH COLON b:Expression RPAR c:Statement { return addPositionInfo({type:'IterationStatement_foreach', Initializer:a, Expression:b, Statement:c}); }
     ;
 
 JumpStatement
@@ -145,6 +144,13 @@ JumpStatement
 //-------------------------------------------------------------------------
 //  A.2.2  Declarations
 //-------------------------------------------------------------------------
+
+DeclarationFOREACH
+    = STLDeclaration 
+    / a:DeclarationSpecifiers b:InitDeclaratorList? {
+      return addPositionInfo({type: 'Declaration', DeclarationSpecifiers:a, InitDeclaratorList:b});
+    }
+    ;
 
 Declaration
     = STLDeclaration 
@@ -199,7 +205,6 @@ InitDeclarator
 StorageClassSpecifier
     = a:(EXTERN
     / STATIC
-    / AUTO
     / REGISTER
     / ATTRIBUTE LPAR LPAR (!RPAR _)* RPAR RPAR) {
       return a;
@@ -208,6 +213,7 @@ StorageClassSpecifier
 
 TypeSpecifier
     = a: (VOID
+    / AUTO
     / CHAR
     / STRING
     / SHORT
