@@ -6,7 +6,7 @@ export = {
         interface ifStreamObject extends ObjectVariable {
             v: ObjectValue
         };
-        
+
         const newStringType: ClassType = rt.newClass("string", []);
         rt.addToNamespace("std", "string", newStringType);
 
@@ -32,7 +32,7 @@ export = {
                     }
 
                     left.v = _convertSingleCharIntoStringArray(right).v;
-                    return left;                    
+                    return left;
                 },
             },
             "o(+)": {
@@ -71,14 +71,14 @@ export = {
                 default(rt: CRuntime, left: ArrayVariable, right: any) {
                     const l = rt.getStringFromCharArray(left);
                     const r = rt.getStringFromCharArray(right);
-                    return rt.val(rt.boolTypeLiteral, _compareStrings(l, r) == -1);
+                    return rt.val(rt.boolTypeLiteral, _compareStrings(l, r) === -1);
                 }
             },
             "o(>)": {
                 default(rt: CRuntime, left: ArrayVariable, right: any) {
                     const l = rt.getStringFromCharArray(left);
                     const r = rt.getStringFromCharArray(right);
-                    return rt.val(rt.boolTypeLiteral, _compareStrings(l, r) == 1);
+                    return rt.val(rt.boolTypeLiteral, _compareStrings(l, r) === 1);
                 }
             },
         };
@@ -88,7 +88,7 @@ export = {
         const _compareStrings = function(str1: string, str2: string) {
             let i = 0;
             const len1 = str1.length;
-        
+
             // Compare characters
             while (i < len1) {
                 if (str1.charCodeAt(i) < str2.charCodeAt(i)) {
@@ -98,7 +98,7 @@ export = {
                 }
                 i++;
             }
-        
+
             // Strings are equal
             return 0;
         };
@@ -114,7 +114,7 @@ export = {
             const r = rt.getStringFromCharArray(left as ArrayVariable).substring(pos.v, npos != null ? pos.v + npos.v : undefined);
             return rt.makeCharArrayFromString(r);
         };
-    
+
         const _getStringLength = function(rt: CRuntime, _this: Variable) {
             const len = rt.getStringFromCharArray(_this as ArrayVariable).length;
             _this = rt.val(rt.intTypeLiteral, len);
@@ -132,10 +132,10 @@ export = {
         }, newStringType, "max_size", [], rt.intTypeLiteral);
 
         rt.regFunc(_getStringLength, newStringType, "length", [], rt.intTypeLiteral);
-		rt.regFunc(_getStringLength, newStringType, "size", [], rt.intTypeLiteral);
-        rt.regFunc(_getSubstring, newStringType, "substr", [rt.intTypeLiteral], newStringType, [{ 
-            name: "npos", 
-            type: rt.intTypeLiteral, 
+        rt.regFunc(_getStringLength, newStringType, "size", [], rt.intTypeLiteral);
+        rt.regFunc(_getSubstring, newStringType, "substr", [rt.intTypeLiteral], newStringType, [{
+            name: "npos",
+            type: rt.intTypeLiteral,
             expression: ""
         }]);
 
@@ -143,13 +143,13 @@ export = {
             const index = rt.getStringFromCharArray(_convertSingleCharIntoStringArray(left)).indexOf(rt.getStringFromCharArray(_convertSingleCharIntoStringArray(str)).substring(0, n?.v), pos?.v);
             left = rt.val(rt.intTypeLiteral, index);
             return left;
-        }, newStringType, "find", ["?"], newStringType, [{ 
-            name: "pos", 
-            type: rt.intTypeLiteral, 
+        }, newStringType, "find", ["?"], newStringType, [{
+            name: "pos",
+            type: rt.intTypeLiteral,
             expression: ""
-        }, { 
-            name: "n", 
-            type: rt.intTypeLiteral, 
+        }, {
+            name: "n",
+            type: rt.intTypeLiteral,
             expression: ""
         }]);
 
@@ -160,13 +160,13 @@ export = {
             _this.v = rt.makeCharArrayFromString(r).v;
             return _this;
         }, newStringType, "append", ["?"], newStringType, [
-            { 
-                name: "subpos", 
-                type: rt.intTypeLiteral, 
+            {
+                name: "subpos",
+                type: rt.intTypeLiteral,
                 expression: ""
-            }, { 
-                name: "sublen", 
-                type: rt.intTypeLiteral, 
+            }, {
+                name: "sublen",
+                type: rt.intTypeLiteral,
                 expression: ""
             }
         ]);
@@ -186,9 +186,8 @@ export = {
         rt.regFunc(_isEmpty, newStringType, "empty", [], rt.boolTypeLiteral);
 
         const _to_string = function(rt: CRuntime, _this: Variable, value: IntVariable) {
-            let str;
-            str = value.v.toString();
-            let newString = rt.makeCharArrayFromString(str);
+            const str = value.v.toString();
+            const newString = rt.makeCharArrayFromString(str);
             return newString;
         };
 
@@ -228,9 +227,9 @@ export = {
 
             return rt.val(rt.boolTypeLiteral, line != null);
         }, "global", "getline", ["?"], rt.boolTypeLiteral, [
-            { 
-                name: "delim", 
-                type: rt.charTypeLiteral, 
+            {
+                name: "delim",
+                type: rt.charTypeLiteral,
                 expression: ""
             }
         ]);
@@ -248,9 +247,9 @@ export = {
             const str = rt.getStringFromCharArray(left as ArrayVariable);
             const r = str.slice(0, pos.v) + str.slice(pos.v + (length?.v ?? str.length));
             left.v = rt.makeCharArrayFromString(r).v;
-        }, newStringType, "erase", [rt.intTypeLiteral], newStringType, [{ 
-            name: "length", 
-            type: rt.intTypeLiteral, 
+        }, newStringType, "erase", [rt.intTypeLiteral], newStringType, [{
+            name: "length",
+            type: rt.intTypeLiteral,
             expression: ""
         }]);
     }
