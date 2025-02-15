@@ -252,5 +252,12 @@ export = {
             type: rt.intTypeLiteral,
             expression: ""
         }]);
+
+        // conversion functions, as defined in: https://en.cppreference.com/w/cpp/string/basic_string/stof
+
+        rt.regFunc(function(rt: CRuntime, _fn: Variable, str: Variable) {
+            const carr = rt.getStringFromCharArray(str as ArrayVariable);
+            return rt.val(rt.doubleTypeLiteral, parseFloat(carr));
+        }, "global", "stod", [newStringType], rt.doubleTypeLiteral);
     }
 };
