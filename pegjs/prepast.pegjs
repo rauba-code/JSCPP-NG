@@ -48,17 +48,17 @@ PrepFunctionMacro = SHARP DEFINE a:Identifier b:PrepFunctionMacroArgs c:PrepMacr
     return addPositionInfo({type:'PrepFunctionMacro', Identifier:a, Args:b, Replacement:c});
 };
 
-PrepFunctionMacroArgs = LPAR a:Identifier b:(COMMA a:Identifier {return a;})* RPAR {
+PrepFunctionMacroArgs = LPAR a:Identifier b:(COMMA a1:Identifier {return a1;})* RPAR {
     return [a].concat(b);
 };
 
-PrepFunctionMacroCallArgs = LPAR a:PrepMacroMacroCallText b:(COMMA a:PrepMacroMacroCallText {return a;})* RPAR {
+PrepFunctionMacroCallArgs = LPAR a:PrepMacroMacroCallText b:(COMMA a1:PrepMacroMacroCallText {return a1;})* RPAR {
     return [a].concat(b);
 };
 
 PrepMacroMacroCallText = a:(a:Identifier b:PrepFunctionMacroCallArgs c:InlineSpacing{
     return {type:'PrepFunctionMacroCall', Identifier:a, Args:b, space:c};
-    } / Identifier / SeperatorArgs)+ {
+    } / Identifier / StringLiteral / SeperatorArgs)+ {
     var ret = [];
     var lastString = null;
     for (var i=0;i<a.length;i++){
@@ -128,7 +128,7 @@ PrepIfndef = SHARP IFNDEF a:Identifier {return addPositionInfo({type:'PrepIfndef
 
 PrepEndif = SHARP ENDIF {return addPositionInfo({type:'PrepEndif'});};
 
-PrepElse = SHARP ELSE {return addPositionInfo({type:'PrepElse'});};
+PrepElse = SHARP P_ELSE {return addPositionInfo({type:'PrepElse'});};
 
 SHARP = "#" InlineSpacing;
 DEFINE = "define" InlineSpacing;
@@ -137,7 +137,7 @@ INCLUDE = "include" InlineSpacing;
 IFDEF = "ifdef" InlineSpacing;
 IFNDEF = "ifndef" InlineSpacing;
 ENDIF = "endif" InlineSpacing;
-ELSE = "else" InlineSpacing;
+P_ELSE = "else" InlineSpacing;
 
 
 //-------------------------------------------------------------------------
@@ -275,11 +275,11 @@ Identifier = !Keyword a:IdNondigit b:IdChar* c:InlineSpacing {
     return {type: 'Identifier', val:a+b.join(''), space:c}
 };
 
-SeperatorArgs = a:(Keyword / !IdNondigit ![\r\n,)] a:_ {return a;}) b:InlineSpacing {
+SeperatorArgs = a:(Keyword / !IdNondigit ![\"\r\n,)] a:_ {return a;}) b:InlineSpacing {
     return {type: 'Seperator', val:a, space:b}
 };
 
-Seperator = a:(Keyword / Constant / StringLiteral / !IdNondigit ![\r\n] a:_ {return a;}) b:InlineSpacing {
+Seperator = a:(Keyword / Constant / StringLiteral / !IdNondigit ![\r\n\"] a:_ {return a;}) b:InlineSpacing {
     return {type: 'Seperator', val:handleConstant(input, a), space:b}
 };
 
@@ -354,8 +354,6 @@ HexConstant     = HexPrefix a:HexDigit+ {return addPositionInfo({type:'HexConsta
 
 HexPrefix       = "0x" / "0X" ;
 
-HexDigit        = [a-f] / [A-F] / [0-9] ;
-
 BinaryPrefix    = "0b" ;
 
 BinaryDigit     = [0-1] ;
@@ -417,7 +415,7 @@ CharacterConstant = "L"? "'" a:Char* "'" Spacing {
   return addPositionInfo({type:'CharacterConstant', Char: a});
 };
 
-Char = a:Escape {return a;} / !['\n\\] a:_ {return a;};
+Char = a:Escape {return a;} / ![\'\n\\] a:_ {return a;};
 
 Escape
     = a:(SimpleEscape
@@ -426,7 +424,7 @@ Escape
     / UniversalCharacter) {return a;}
     ;
 
-SimpleEscape = a:"\\" b:['\"?\\abfnrtv] {return eval('"' + a + b +'"');};
+SimpleEscape = a:"\\" b:[\'\"?\\abfnrtv] {return eval('"' + a + b +'"');};
 OctalEscape  = a:"\\" b:[0-7] c:[0-7]? d:[0-7]? {
   var ret = "\"";
   ret += a;
@@ -448,11 +446,11 @@ StringLiteral = a:("L" / "u8" / "u" / "U")? b:(RawStringLiteral / EscapedStringL
   return addPositionInfo({type: 'StringLiteral', prefix:a, value:b});
 };
 
-RawStringLiteral = "R" a:(["] a:RawStringChar* ["] Spacing {return a.join('');})+ {
+RawStringLiteral = "R" a:(QUO a:RawStringChar* QUO Spacing {return a.join('');})+ {
   return a.join('');
 };
 
-EscapedStringLiteral = a:(["] a:StringChar* ["] Spacing {return a.join('');})+ {
+EscapedStringLiteral = a:(QUO a:StringChar* QUO Spacing {return a.join('');})+ {
   return a.join('');
 };
 
@@ -474,3 +472,4 @@ QUO        =  a:"\""        InlineSpacing {return a;};
 EOT        =  !_    ;
 
 _          =  . ;
+
