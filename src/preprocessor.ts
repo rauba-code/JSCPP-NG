@@ -164,6 +164,8 @@ class Preprocessor extends BaseInterpreter {
                 return this.replaceMacro(node) + node.space;
             } else if (node.type === "PrepFunctionMacroCall") {
                 return this.replaceMacroFunction(node);
+            } else if (node.type === "StringLiteral") {
+                return (node.prefix ?? "") + JSON.stringify(node.value);
             }
             this.macroStack.pop();
         }
@@ -200,6 +202,8 @@ class Preprocessor extends BaseInterpreter {
                     if (rep[i].type === "Seperator") {
                         const v = this.work(rep[i]);
                         ret += v;
+                    } else if (rep[i].type === "StringLiteral") {
+                        this.raiseException("StringLiteral handling in macros is not yet implemented!");
                     } else {
                         let argi = -1;
                         let j = 0;
