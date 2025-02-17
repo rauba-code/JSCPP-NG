@@ -203,7 +203,7 @@ class Preprocessor extends BaseInterpreter {
                         const v = this.work(rep[i]);
                         ret += v;
                     } else if (rep[i].type === "StringLiteral") {
-                        this.raiseException("StringLiteral handling in macros is not yet implemented!");
+                        this.rt.raiseException("StringLiteral handling in macros is not yet implemented!");
                     } else {
                         let argi = -1;
                         let j = 0;
