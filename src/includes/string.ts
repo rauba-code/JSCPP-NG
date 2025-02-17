@@ -255,9 +255,21 @@ export = {
 
         // conversion functions, as defined in: https://en.cppreference.com/w/cpp/string/basic_string/stof
 
-        rt.regFunc(function(rt: CRuntime, _fn: Variable, str: Variable) {
-            const carr = rt.getStringFromCharArray(str as ArrayVariable);
-            return rt.val(rt.doubleTypeLiteral, parseFloat(carr));
-        }, "global", "stod", [newStringType], rt.doubleTypeLiteral);
+        const _addConversion = function(_rt: CRuntime, fnName: string, outType: any, parseFn: any) {
+            rt.regFunc(function(rt: CRuntime, _fn: Variable, str: Variable) {
+                const carr = rt.getStringFromCharArray(str as ArrayVariable);
+                return rt.val(outType, parseFn(carr));
+            }, "global", fnName, [newStringType], outType);
+        }
+
+        // TODO: read 'pos' and 'base' parameters
+        _addConversion(rt, "stod", rt.doubleTypeLiteral, parseFloat);
+        _addConversion(rt, "stof", rt.floatTypeLiteral, parseFloat);
+        _addConversion(rt, "stoi", rt.intTypeLiteral, parseInt);
+        _addConversion(rt, "stol", rt.longTypeLiteral, parseInt);
+        // (stold) the engine does not support 'long double' types
+        // (stoll) the engine does not support 'long long' types
+        // (stoul, stoull) the engine does not support 'unsigned long' and 'unsigned long long' types
+
     }
 };
