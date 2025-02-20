@@ -43,7 +43,7 @@ export interface JSCPPConfig {
         write: (s: string) => void;
     };
     unsigned_overflow?: "error" | "warn" | "ignore";
-    
+
     debug?: boolean;
     maxExecutionSteps?: number;
     maxTimeout?: number;
@@ -795,7 +795,7 @@ export class CRuntime {
             initval = this.cast(type, initval);
         } else {
             initval = this.clone(this.cast(type, initval), true);
-        }        
+        }
 
         vc.variables[varname] = initval === undefined ? this.defaultValue(type) : initval;
         vc.variables[varname].readonly = readonly;
@@ -940,7 +940,7 @@ export class CRuntime {
         } else if (this.isClassType(type1) && this.isClassType(type2)) {
             return true;
         } else if (this.isPrimitiveType(type1) && this.isReferenceType(type2)) {
-            return true; 
+            return true;
         } else if (this.isClassType(type1) || this.isClassType(type2)) {
             this.raiseException("not implemented");
         }
@@ -1007,7 +1007,7 @@ export class CRuntime {
                 return value;
             }
         } else if (this.isStructType(type)) {
-            return value;        
+            return value;
         } else if (this.isReferenceType(type)) {
             return value;
         } else if (this.isPointerType(type)) {
@@ -1094,29 +1094,29 @@ export class CRuntime {
     addToNamespace(namespacePath: string, name: string, obj: any) {
         const namespaces = namespacePath.split('::');
         let currentNamespace: any = this.namespace;
-    
+
         for (let i = 0; i < namespaces.length; i++) {
             const namespace = namespaces[i];
             if (!currentNamespace[namespace])
                 currentNamespace[namespace] = {};
             currentNamespace = currentNamespace[namespace];
         }
-    
+
         currentNamespace[name] = obj;
     };
 
     resolveNamespacePath(obj: any, path: string) {
         const keys = path.split('::');
-        
+
         let current = obj;
         for (const key of keys) {
-          if (current.hasOwnProperty(key)) {
-            current = current[key];
-          } else {
-            return undefined;
-          }
+            if (current.hasOwnProperty(key)) {
+                current = current[key];
+            } else {
+                return undefined;
+            }
         }
-      
+
         return current;
     };
 
@@ -1482,7 +1482,7 @@ export class CRuntime {
                         }
 
                         l.v = rt.cast(l.t, r).v;
-                        return l;      
+                        return l;
                     },
                 },
             },
@@ -1592,7 +1592,7 @@ export class CRuntime {
 
     detectWideCharacters(str: string): boolean {
         const wideCharacterRange = /[\u0100-\uffff]/;
-        
+
         return wideCharacterRange.test(str);
     }
 

@@ -46,44 +46,44 @@ export type InputFunction = () => Promise<string>;
 
 function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number {
     let step;
-    let inputbuffer = ""; //input.toString();
+    let inputbuffer = ""; // input.toString();
     let proceed = true;
     let startTime: number;
     let readResult = "";
 
     const fstream = (function() {
-        const testFiles: any = { 
-            "TestInput.txt": { value: "4 2 2 147.00 80.15 1 2 163.00 95.50 2 1 147.00 80.15 1 1 163.00 95.50" }, 
-            "TestOutput.txt": { value: "" } 
+        const testFiles: any = {
+            "TestInput.txt": { value: "4 2 2 147.00 80.15 1 2 163.00 95.50 2 1 147.00 80.15 1 1 163.00 95.50" },
+            "TestOutput.txt": { value: "" }
         };
 
         const openFiles: any = {};
 
         return {
-            open: function(context: object, fileName: string) {
+            open(context: object, fileName: string) {
                 const openFileNode: any = testFiles[fileName] || ({ [fileName]: { value: "" } });
-                openFiles[fileName] = { 
+                openFiles[fileName] = {
                     name: fileName,
-                    _open: openFileNode != null, 
-                    is_open: function() {
+                    _open: openFileNode != null,
+                    is_open() {
                         return this._open;
                     },
-                    read: function() {
+                    read() {
                         if (!this.is_open())
                             return;
-        
+
                         return openFileNode.value;
                     },
-                    clear: function() {
+                    clear() {
                         openFileNode.value = "";
                     },
-                    write: function(data: string) {
+                    write(data: string) {
                         if (!this.is_open())
                             return;
-        
+
                         openFileNode.value += data;
                     },
-                    close: function() {
+                    close() {
                         this._open = false;
                     }
                 };
@@ -108,8 +108,8 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             cinState() {
                 return proceed;
             },
-            setReadResult(result: string) {
-                readResult = result;
+            setReadResult(_result: string) {
+                readResult = _result;
             },
             getReadResult() {
                 return readResult;
@@ -148,21 +148,21 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             while (proceed) {
                 if (_config.stopExecutionCheck?.())
                     throw new Error("Execution terminated.");
-                
+
                 step = mainGen.next();
                 performedSteps++;
-    
-                if (step.done) { 
+
+                if (step.done) {
                     const exitCode = step.value.v as number
                     _config.stdio.finishCallback(exitCode);
-                    return exitCode; 
+                    return exitCode;
                 }
-    
+
                 if (performedSteps > _config.maxExecutionSteps)
                     throw new Error("The execution step limit has been reached.");
                 else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
                     throw new Error("Time limit exceeded.");
-    
+
                 if ((performedSteps % _config.eventLoopSteps) === 0) {
                     await new Promise((resolve) => setImmediate(resolve));
                 }
@@ -170,7 +170,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         } catch (error) {
             _config.stdio.promiseError(error.message);
         }
-    }    
+    }
 
     mergeConfig(_config, config);
     const rt = new CRuntime(_config);
@@ -206,7 +206,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             }
         }
         */
-        //return step.value.v as number;
+        // return step.value.v as number;
     }
 }
 
