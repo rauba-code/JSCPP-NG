@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iostream>
+
+using namespace std;
+
+void echo(const char *a) { cout << a << endl; }
+
+int main() {
+
+  echo("1) Labas, Arnoldai!");
+  echo("2) Labas, Arnoldai, /\\, \x21\naaaa!");
+  echo("3) Labas, Arnoldai, /\\, \x21\naa//aa!");
+  /*bzzt//bzzt*/ echo("4) Laba/*s, Arnoldai, /\\, \x21\naa*//*aa!");
+  ///*bzzt//bzzt*/echo("ERR) Laba/*s, Arnoldai, /\\, \x21\naa*//*aa!");
+  echo("5) This spring, the /*collective farmers */ work in the fields!");
+
+  return 0;
+}
+]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[1) Labas, Arnoldai!
+2) Labas, Arnoldai, /\, !
+aaaa!
+3) Labas, Arnoldai, /\, !
+aa//aa!
+4) Laba/*s, Arnoldai, /\, !
+aa*//*aa!
+5) This spring, the /*collective farmers */ work in the fields!]]></output>
+  </console>
+  <files/>
+ </test>
+</tests>

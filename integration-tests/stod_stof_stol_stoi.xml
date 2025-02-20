@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+
+using namespace std;
+
+int main() {
+  string line;
+  getline(cin, line);
+
+  string cell;
+  stringstream line_stream(line);
+
+  getline(line_stream, cell, ' ');
+  int num_int = stoi(cell);
+  getline(line_stream, cell, ' ');
+  long num_long = stol(cell);
+  getline(line_stream, cell, ' ');
+  float num_float = stof(cell);
+  getline(line_stream, cell, ' ');
+  double num_double = stod(cell);
+
+  cout << num_int << ' ';
+  cout << num_long << ' ';
+  cout << fixed << setprecision(3) << num_float << ' ';
+  cout << fixed << setprecision(3) << num_double << endl;
+
+  return 0;
+}
+]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[-13373542 2048325 6.6523 -3.14159265358979323]]></input>
+   <output visible="1"><![CDATA[-13373542 2048325 6.6523 -3.14159265358979323
+-13373542 2048325 6.652 -3.142]]></output>
+  </console>
+  <files/>
+ </test>
+ <test id="test_2">
+  <console>
+   <input visible="1"><![CDATA[+13373542 -2048325 -3.14159265358979323e+3 +1e8]]></input>
+   <output visible="1"><![CDATA[+13373542 -2048325 -3.14159265358979323e+3 +1e8
+13373542 -2048325 -3141.593 100000000.000]]></output>
+  </console>
+  <files/>
+ </test>
+ <test id="test_3">
+  <console>
+   <input visible="1"><![CDATA[+0 -0 .4e-1 1e-1]]></input>
+   <output visible="1"><![CDATA[+0 -0 .4e-1 1e-1
+0 0 0.040 0.100]]></output>
+  </console>
+  <files/>
+ </test>
+</tests>
