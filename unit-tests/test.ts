@@ -117,7 +117,7 @@ function doSample(code: string, input: string, expected: string | null, except: 
                     });
                 }
             },
-            getInput() { 
+            getInput() {
                 return Promise.resolve(input.split("\n")[takenInputIdx++]);
             },
         },
