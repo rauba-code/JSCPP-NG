@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+using namespace std;
+
+const int MAKS_REAKTORIU = 100;
+
+// Duomenų saugojimas paprastuose masyvuose
+string pavadinimai[MAKS_REAKTORIU], elektrines[MAKS_REAKTORIU], salys[MAKS_REAKTORIU];
+string pradzios[MAKS_REAKTORIU], pabaigos[MAKS_REAKTORIU], busenos[MAKS_REAKTORIU];
+int dydis = 0; // Faktinis duomenų kiekis
+
+// CSV failo nuskaitymas į masyvus
+void nuskaitytiDuomenis(const string &failoPavadinimas) {
+    ifstream failas(failoPavadinimas);
+
+    string eilute;
+    getline(failas, eilute); // Praleidžiame antraštę
+    while (getline(failas, eilute) && dydis < MAKS_REAKTORIU) {
+        stringstream ss(eilute);
+        getline(ss, pavadinimai[dydis], ';');
+        getline(ss, elektrines[dydis], ';');
+        getline(ss, salys[dydis], ';');
+        getline(ss, pradzios[dydis], ';');
+        getline(ss, pabaigos[dydis], ';');
+        getline(ss, busenos[dydis], ';');
+        dydis++;
+    }
+    failas.close();
+}
+
+// Rikiavimas pagal reaktoriaus pavadinimą (Burbuliuko metodas)
+void rikiuotiPagalPavadinima() {
+    for (int i = 0; i < dydis - 1; i++) {
+        for (int j = 0; j < dydis - i - 1; j++) {
+            if (pavadinimai[j] > pavadinimai[j + 1]) {
+                // Rankinis sukeitimas be swap()
+                string laikinas;
+                laikinas = pavadinimai[j]; pavadinimai[j] = pavadinimai[j + 1]; pavadinimai[j + 1] = laikinas;
+                laikinas = elektrines[j]; elektrines[j] = elektrines[j + 1]; elektrines[j + 1] = laikinas;
+                laikinas = salys[j]; salys[j] = salys[j + 1]; salys[j + 1] = laikinas;
+                laikinas = pradzios[j]; pradzios[j] = pradzios[j + 1]; pradzios[j + 1] = laikinas;
+                laikinas = pabaigos[j]; pabaigos[j] = pabaigos[j + 1]; pabaigos[j + 1] = laikinas;
+                laikinas = busenos[j]; busenos[j] = busenos[j + 1]; busenos[j + 1] = laikinas;
+            }
+        }
+    }
+}
+
+// CSV išsaugojimas
+void issaugotiDuomenis(const string &failoPavadinimas) {
+    ofstream failas(failoPavadinimas);
+
+    failas << "Reaktorius;Atomine elektrine;Salis;Eksploatavimo pradzia;Eksploatavimo pabaiga;Busena\n";
+    for (int i = 0; i < dydis; i++) {
+        failas << pavadinimai[i] << ";" << elektrines[i] << ";" << salys[i] << ";"
+               << pradzios[i] << ";" << pabaigos[i] << ";" << busenos[i] << "\n";
+    }
+    failas.close();
+    cout << "Duomenys issaugoti i " << failoPavadinimas << endl;
+}
+
+// Spausdinimas į konsolę
+void spausdintiDuomenis() {
+    cout << "Reaktorius | Elektrine | Salis | Pradzia | Pabaiga | Busena\n";
+    for (int i = 0; i < dydis; i++) {
+        cout << pavadinimai[i] << " | " << elektrines[i] << " | " << salys[i]
+             << " | " << pradzios[i] << " | " << pabaigos[i] << " | " << busenos[i] << endl;
+    }
+}
+
+int main() {
+    string failas = "atom.csv";
+    nuskaitytiDuomenis(failas);
+
+    cout << "Pradiniai duomenys:\n";
+    spausdintiDuomenis();
+
+    rikiuotiPagalPavadinima();
+
+    cout << "\nSurikiuoti duomenys:\n";
+    spausdintiDuomenis();
+
+    issaugotiDuomenis("atom1.csv");
+
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[Pradiniai duomenys:
+Reaktorius | Elektrine | Salis | Pradzia | Pabaiga | Busena
+Ignalina-1 | Ignalinos AE | Lietuva | 1983 | 2004 | Ismontuojamas
+Ignalina-2 | Ignalinos AE | Lietuva | 1987 | 2009 | Ismontuojamas
+Ignalina-3 | Ignalinos AE | Lietuva |  |  | Projektas atsauktas
+Ignalina-4 | Ignalinos AE | Lietuva |  |  | Projektas atsauktas
+Forsmark-1 | Forsmarko AE | Svedija | 1980 |  | Aktyvus
+Forsmark-2 | Forsmarko AE | Svedija | 1981 |  | Aktyvus
+Forsmark-3 | Forsmarko AE | Svedija | 1985 |  | Aktyvus
+
+Surikiuoti duomenys:
+Reaktorius | Elektrine | Salis | Pradzia | Pabaiga | Busena
+Forsmark-1 | Forsmarko AE | Svedija | 1980 |  | Aktyvus
+Forsmark-2 | Forsmarko AE | Svedija | 1981 |  | Aktyvus
+Forsmark-3 | Forsmarko AE | Svedija | 1985 |  | Aktyvus
+Ignalina-1 | Ignalinos AE | Lietuva | 1983 | 2004 | Ismontuojamas
+Ignalina-2 | Ignalinos AE | Lietuva | 1987 | 2009 | Ismontuojamas
+Ignalina-3 | Ignalinos AE | Lietuva |  |  | Projektas atsauktas
+Ignalina-4 | Ignalinos AE | Lietuva |  |  | Projektas atsauktas
+Duomenys issaugoti i atom1.csv
+]]></output>
+  </console>
+  <files>
+   <input filename="atom.csv" visible="1"><![CDATA[Reaktorius;Atomine elektrine;Salis;Eksploatavimo pradzia;Eksploatavimo pabaiga;Busena
+Ignalina-1;Ignalinos AE;Lietuva;1983;2004;Ismontuojamas
+Ignalina-2;Ignalinos AE;Lietuva;1987;2009;Ismontuojamas
+Ignalina-3;Ignalinos AE;Lietuva;;;Projektas atsauktas
+Ignalina-4;Ignalinos AE;Lietuva;;;Projektas atsauktas
+Forsmark-1;Forsmarko AE;Svedija;1980;;Aktyvus
+Forsmark-2;Forsmarko AE;Svedija;1981;;Aktyvus
+Forsmark-3;Forsmarko AE;Svedija;1985;;Aktyvus
+]]></input>
+   <output filename="atom1.csv" visible="1"><![CDATA[Reaktorius;Atomine elektrine;Salis;Eksploatavimo pradzia;Eksploatavimo pabaiga;Busena
+Forsmark-1;Forsmarko AE;Svedija;1980;;Aktyvus
+Forsmark-2;Forsmarko AE;Svedija;1981;;Aktyvus
+Forsmark-3;Forsmarko AE;Svedija;1985;;Aktyvus
+Ignalina-1;Ignalinos AE;Lietuva;1983;2004;Ismontuojamas
+Ignalina-2;Ignalinos AE;Lietuva;1987;2009;Ismontuojamas
+Ignalina-3;Ignalinos AE;Lietuva;;;Projektas atsauktas
+Ignalina-4;Ignalinos AE;Lietuva;;;Projektas atsauktas
+]]></output>
+  </files>
+ </test>
+</tests>
