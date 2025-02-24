@@ -1,5 +1,5 @@
 import { resolveIdentifier } from "./includes/shared/string_utils";
-import { ArrayType, ArrayValue, CRuntime, RuntimeScope, Variable, VariableType } from "./rt";
+import { ArrayType, CRuntime, RuntimeScope, Variable, VariableType } from "./rt";
 
 /*
  * decaffeinate suggestions:

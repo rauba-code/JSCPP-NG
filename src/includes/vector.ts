@@ -27,6 +27,11 @@ export = {
                     this.elements.pop();
                 }
             }
+
+            erase(start: Variable, end: Variable) {
+                this.elements.splice(start.v as number, ((end?.v as number) - (start.v as number)) || 1);
+                return this;
+            }
             
             size() {
                 return this.elements.length;
@@ -44,14 +49,25 @@ export = {
                 return this.elements[index];
             }
         }
-        
+
+        const vectorType: ClassType = rt.newClass("vector", [{
+            name: "element_container",
+            type: [] as any,
+            initialize(rt, _this) { 
+                return new Vector([]) as any; 
+            }
+        }]);
+        rt.addToNamespace("std", "vector", vectorType);
+
         class Iterator {
             vector: Vector;
             index: number;
+            t: ClassType;
 
             constructor(vector: Vector) {
                 this.vector = vector;
                 this.index = 0;
+                this.t = vectorType;
             }
         
             begin() {
@@ -75,16 +91,7 @@ export = {
                 return this;
             }
         }
-
-        const vectorType: ClassType = rt.newClass("vector", [{
-            name: "element_container",
-            type: [] as any,
-            initialize(rt, _this) { 
-                return new Vector([]) as any; 
-            }
-        }]);
-        rt.addToNamespace("std", "vector", vectorType);
-
+        
         const _getElementContainer = function(_this: any) {
             return _this.v.members["element_container"];
         };
@@ -95,6 +102,16 @@ export = {
                 default(rt, _this: any, r: Variable) {
                     const element_container = _getElementContainer(_this);
                     return element_container.get(r.v as number);
+                }
+            },
+            "o(!=)": {
+                default(rt, _this: any, r: Variable) {
+                    debugger;
+                }
+            },
+            "o(+)": {
+                default(rt, _this: any, r: Variable) {
+                    return r;
                 }
             }
         };
@@ -109,6 +126,11 @@ export = {
             const element_container = _getElementContainer(_this);
             element_container.pop_back();
         }, vectorType, "pop_back", [], rt.voidTypeLiteral);
+
+        rt.regFunc(function(rt: CRuntime, _this: any, start: Variable, end: Variable) {
+            const element_container = _getElementContainer(_this);
+            element_container.erase(start, end);
+        }, vectorType, "erase", ["?"], rt.voidTypeLiteral);
 
         rt.regFunc(function(rt: CRuntime, _this: any) {
             const element_container = _getElementContainer(_this);
