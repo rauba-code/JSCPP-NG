@@ -1,5 +1,6 @@
 /* eslint-disable no-shadow */
 import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable } from "../rt";
+import { ios_base, getBit } from "./shared/ios_base";
 import { read, skipSpace } from "./shared/string_utils";
 
 export = {
@@ -11,28 +12,32 @@ export = {
         const stringStreamType: ClassType = rt.newClass("stringstream", [{
             name: "buffer",
             type: rt.arrayPointerType(rt.charTypeLiteral, 0),
-            initialize(rt, _this) { 
-                return rt.makeCharArrayFromString(""); 
+            initialize(rt, _this) {
+                return rt.makeCharArrayFromString("");
             }
         }, {
             name: "extracted_buffer",
             type: rt.arrayPointerType(rt.charTypeLiteral, 0),
             initialize(rt, _this) {
-                return null; 
+                return null;
             }
         }, {
             name: "inserted_buffer",
             type: [] as any,
-            initialize(rt, _this) { 
-                return [] as any; 
+            initialize(rt, _this) {
+                return [] as any;
             }
         }, {
-            name: "eof",
-            type: rt.boolTypeLiteral,
-            initialize(rt, _this) { 
-                return rt.val(rt.boolTypeLiteral, false); 
+            name: "state",
+            type: rt.intTypeLiteral,
+            initialize(rt, _this) {
+                return rt.val(rt.intTypeLiteral, ios_base.iostate.goodbit);
             }
         }]);
+
+        function setBitTrue(_this: stringStreamObject, bit: number) {
+            _this.v.members["state"].v = (_this.v.members["state"].v as number) | bit;
+        }
 
         rt.addToNamespace("std", "stringstream", stringStreamType);
 
@@ -41,15 +46,16 @@ export = {
             "o(())": {
                 default(rt: CRuntime, _this: stringStreamObject, ...args: Variable[]) {
                     const [ string ] = args;
-                    
+
                     _this.v.members["buffer"] = rt.clone(string);
                     (_this.v.members["inserted_buffer"] as any) = [];
                 }
             },
             "o(bool)": {
                 functions: {
-                    ['']: function(rt: CRuntime, _this: stringStreamObject) {
-                        const endOfString: any = _this.v.members['eof'].v;
+                    [''](rt: CRuntime, _this: stringStreamObject) {
+                        const state: any = _this.v.members["state"].v as number;
+                        const endOfString: boolean = getBit(state, ios_base.iostate.eofbit);
                         if (endOfString)
                             return false;
 
@@ -69,16 +75,19 @@ export = {
             },
             "o(>>)": {
                 default(rt: CRuntime, _this: stringStreamObject, t: any) {
-                    const endOfString: any = _this.v.members['eof'].v;
+                    const state: any = _this.v.members["state"].v as number;
+                    const endOfString: boolean = getBit(state, ios_base.iostate.eofbit);
                     if (endOfString)
                         return _this;
-        
+
                     const extracted_buffer = (_this.v.members["extracted_buffer"] || (_this.v.members["extracted_buffer"] = getString(rt, _this))) as ArrayVariable;
                     const buffer = rt.getStringFromCharArray(extracted_buffer);
 
-                    let r, v, b = buffer;
+                    let r;
+                    let v;
+                    let b = buffer;
                     switch (t.t.name) {
-                        case "string": 
+                        case "string":
                             b = skipSpace(b);
                             r = b.length === 0 ? ([""]) : read(rt, /^[^\s]+/, b, t.t);
                             v = rt.makeCharArrayFromString(r[0]).v;
@@ -95,7 +104,7 @@ export = {
                             break;
                         case "float": case "double":
                             b = skipSpace(b);
-                            r = b.length === 0 ? ([""]) : read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0                                    
+                            r = b.length === 0 ? ([""]) : read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0
                             v = parseFloat(r[0]);
                             break;
                         case "bool":
@@ -108,13 +117,15 @@ export = {
                     }
 
                     const len = r[0].length;
-                    _this.v.members['eof'].v = len === 0;
-                    
+                    if (len === 0) {
+                        setBitTrue(this, ios_base.iostate.eofbit);
+                    }
+
                     if (len !== 0) {
                         t.v = rt.val(t.t, v).v;
                         _this.v.members["extracted_buffer"].v = rt.makeCharArrayFromString(b.substring(len)).v;
                     }
-        
+
                     return _this;
                 },
             }

@@ -75,46 +75,46 @@ const testRunner = (function() {
         let { code, scenarios: { input, output: expected, input_filename, output_filename }, exception, exitcode, config } = sample;
 
         const fstream = (input_filename || output_filename) && (function() {
-            const testFiles: any = { 
-                [input_filename]: { value: input }, 
-                [output_filename]: { value: "" } 
+            const testFiles: any = {
+                [input_filename]: { value: input },
+                [output_filename]: { value: "" }
             };
-    
+
             const openFiles: any = {};
-    
+
             return {
-                open: function(context: object, fileName: string) {
+                open(context: object, fileName: string) {
                     const openFileNode: any = testFiles[fileName] || ({ [fileName]: { value: "" } });
-                    openFiles[fileName] = { 
+                    openFiles[fileName] = {
                         name: fileName,
-                        _open: openFileNode != null, 
-                        is_open: function() {
+                        _open: openFileNode != null,
+                        is_open() {
                             return this._open;
                         },
-                        read: function() {
+                        read() {
                             if (!this.is_open())
                                 return;
-            
+
                             return openFileNode.value;
                         },
-                        clear: function() {
+                        clear() {
                             openFileNode.value = "";
                         },
-                        write: function(data: string) {
+                        write(data: string) {
                             if (!this.is_open())
                                 return;
-            
+
                             openFileNode.value += data;
                         },
-                        close: function() {
+                        close() {
                             this._open = false;
                         }
                     };
-    
+
                     return openFiles[fileName];
                 },
 
-                getExpectedOutput: function() {
+                getExpectedOutput() {
                     outputBuffer = testFiles[output_filename as string].value;
                 }
             };
@@ -153,7 +153,9 @@ const testRunner = (function() {
         } finally {
             if (expected != null) {
                 _it("should match expected output", function() {
-                    output_filename && (fstream as any)?.getExpectedOutput();
+                    if (output_filename) {
+                        (fstream as any)?.getExpectedOutput();
+                    }
 
                     const trimmedOutputBuffer = outputBuffer.trimEnd();
                     const trimmedExpectedBuffer = expected.trimEnd();
@@ -173,7 +175,7 @@ const testRunner = (function() {
     const doCases = function(cases: SingleTestCase[], cb: Callback) {
         let success = true;
 
-        for(let i=0; i < cases.length; i++) {
+        for (let i = 0; i < cases.length; i++) {
             const sample = cases[i];
 
             _describe((sample.testID ?? `test_${i + 1}`), () => doSample(sample, (result: boolean) => success = success && result));
@@ -244,7 +246,7 @@ const testRunner = (function() {
 
     const tryAddTest = function (testName: string, test: TestCase) {
         const { after } = test;
-    
+
         let waitingFor: string = "";
         if (after != null) {
             for (const dep of after) {
@@ -262,12 +264,12 @@ const testRunner = (function() {
                 }
             }
         }
-    
+
         if (waitingFor !== "") {
             if (!pendingTests.has(waitingFor)) {
                 pendingTests.set(waitingFor, []);
             }
-            
+
             pendingTests.get(waitingFor)?.push({
                 name: testName,
                 test
@@ -278,7 +280,7 @@ const testRunner = (function() {
     };
 
     return {
-        run: function(tests: Test[]) {
+        run(tests: Test[]) {
             todolist = tests;
 
             let task: Test | undefined;
@@ -297,7 +299,7 @@ const parseFromXML = (function() {
     return function(filePath: string, fileName: string): object {
         const xml_content = fs.readFileSync(filePath + fileName, "utf-8");
         const parsedObject = parser.parse(xml_content);
-        
+
         return {
             fileName,
             ...parsedObject
@@ -336,14 +338,14 @@ const objectToTest = (function() {
 
     return function(object: any): Test {
         const fileName: string = object.fileName.replace(".xml", "");
-    
+
         return {
             name: fileName,
             test: {
                 after: [],
                 cases: [object.tests.test].flat().map((test: any) => ({
                     testID: test["@_id"],
-                    fileName: fileName,
+                    fileName,
                     code: object.code,
                     scenarios: mergeScenarios(parseConsoleInput(test.console), parseFileInput(test.files))
                 }) as SingleTestCase)
@@ -360,7 +362,7 @@ const readAllTests = (function() {
         const files = fs.readdirSync(testFolder);
         const xmlFiles = files.filter((file) => path.extname(file) === '.xml');
         // const xmlFiles = files.filter((file) => path.extname(file) === '.xml' && file == "subjects.xml" );
-    
+
         const tests: Test[] = [];
         xmlFiles.forEach((xmlFile) => {
             const test: Test = objectToTest(parseFromXML(testFolder, xmlFile));

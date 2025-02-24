@@ -1,5 +1,6 @@
 /* eslint-disable no-shadow */
 import { CRuntime, ClassType, ArrayVariable, Variable, ObjectVariable, VariableValue, IntVariable, ObjectValue } from "../rt";
+import { ios_base, getBit } from "./shared/ios_base"
 
 export = {
     load(rt: CRuntime) {
@@ -195,6 +196,11 @@ export = {
         rt.addToNamespace("std", "to_string", rt.readVar("to_string"));
 
         rt.regFunc(function(rt: CRuntime, _this: Variable, readStream: ifStreamObject, str: Variable, delim: Variable) {
+
+            function setBitTrue(_this: ifStreamObject, bit: number) {
+                _this.v.members["state"].v = (_this.v.members["state"].v as number) | bit;
+            }
+
             const fileObject: any = readStream.v.members["fileObject"];
             const delimiter: number = delim != null ? delim.v as number : ("\n").charCodeAt(0);
             const delimChar: string = String.fromCharCode(delimiter);
@@ -212,20 +218,37 @@ export = {
                 return rt.val(rt.boolTypeLiteral, true);
             }
 
-            if (readStream.v.members["eof"].v) {
+            if (getBit(readStream.v.members['state'].v as number, ios_base.iostate.eofbit)) {
                 return rt.val(rt.charTypeLiteral, 0);
             }
 
-            const internal_buffer: any = (rt.getStringFromCharArray(readStream.v.members["buffer"] as ArrayVariable) || fileObject.read()).split(delimChar);
+            const internal_buffer: any = (rt.getStringFromCharArray(readStream.v.members["buffer"] as ArrayVariable)).split(delimChar);
 
             const line = internal_buffer.shift();
             if (line != null) {
                 str.v = rt.makeCharArrayFromString(line).v;
                 readStream.v.members["buffer"].v = rt.makeCharArrayFromString(internal_buffer.join(delimChar)).v;
-                readStream.v.members["eof"].v = internal_buffer.length === 0;
+                if (internal_buffer.length === 0) {
+                    // The stream approached the file end while reading.
+                    // Successful if the stream has read any text.
+                    setBitTrue(readStream, ios_base.iostate.eofbit);
+                    if (line.length === 0) {
+                        // The stream did not find a separator nor
+                        // read any text.
+                        setBitTrue(readStream, ios_base.iostate.failbit);
+                    }
+                }
+            } else {
+                // Empty string -- no data nor separator has been read (thus failbit).
+                // Immediately approached file end (thus eofbit).
+                setBitTrue(readStream, ios_base.iostate.eofbit);
+                setBitTrue(readStream, ios_base.iostate.failbit);
             }
 
-            return rt.val(rt.boolTypeLiteral, line != null);
+            // pass a [readStream::operator bool()] as a return value.
+            const readStreamTypeSig = rt.getTypeSignature(readStream.t);
+            const val = rt.types[readStreamTypeSig].handlers["o(bool)"].functions[''](rt, readStream);
+            return rt.val(rt.boolTypeLiteral, val !== false);
         }, "global", "getline", ["?"], rt.boolTypeLiteral, [
             {
                 name: "delim",

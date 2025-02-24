@@ -1,6 +1,6 @@
 import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
 import { IomanipConfig } from "./shared/iomanip_types";
-import { ios_base_openmode } from "./shared/fstream_modes";
+import { ios_base } from "./shared/ios_base";
 
 export = {
     load(rt: CRuntime) {
@@ -71,11 +71,11 @@ export = {
         };
 
         const _open = function(_rt: CRuntime, _this: ofStreamObject, right: Variable, mode: Variable) {
-            const _mode = mode?.v ?? ios_base_openmode.out;
+            const _mode = mode?.v ?? ios_base.openmode.out;
             const fileName = _rt.getStringFromCharArray(right as ArrayVariable);
             const fileObject: any = fstream.open(_this, fileName);
 
-            if (_mode !== ios_base_openmode.app) {
+            if (_mode !== ios_base.openmode.app) {
                 fileObject.clear();
             }
             _this.v.members["fileObject"] = fileObject;
