@@ -1,5 +1,5 @@
 import { resolveIdentifier } from "./includes/shared/string_utils";
-import { ArrayType, CRuntime, RuntimeScope, Variable, VariableType } from "./rt";
+import { ArrayType, ArrayValue, CRuntime, RuntimeScope, Variable, VariableType } from "./rt";
 
 /*
  * decaffeinate suggestions:
@@ -360,7 +360,7 @@ export class Interpreter extends BaseInterpreter {
                 const STLType = rt.simpleType(s.Type);
                 if (s.Initializer != null) {
                     const initializer: any = yield* interp.arrayInit([s.Initializer.Initializers.length], s.Initializer, STLType, param);
-                    vectorClass.v.members.element_container = initializer.v.target;
+                    vectorClass.v.members.element_container.elements = initializer.v.target;
                 }                
 
                 vectorClass.dataType = STLType;
@@ -622,7 +622,14 @@ export class Interpreter extends BaseInterpreter {
                 }
 
                 const variable = rt.readVar(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
-                const iterator = rt.getFunc(iterable.t, "__iterator", [])(rt, iterable);
+                let iterator = null;
+                try {
+                    iterator = rt.getFunc(iterable.t, "__iterator", [])(rt, iterable);
+                } catch(ex) {
+                    if (rt.isArrayType(iterable.t)) {
+                        iterator = iterable.v.target[Symbol.iterator]();
+                    }
+                }
 
                 if (!iterator) {
                     rt.raiseException(`Variable '${s.Expression.Identifier}' is not iterator type.`);

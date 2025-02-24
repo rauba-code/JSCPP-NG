@@ -70,6 +70,10 @@ export = {
                 }
                 return { value: this.vector.elements[this.index++], done: false };
             }
+
+            [Symbol.iterator]() {
+                return this;
+            }
         }
 
         const vectorType: ClassType = rt.newClass("vector", [{
@@ -100,6 +104,11 @@ export = {
             const element_container = _getElementContainer(_this);
             element_container.push_back(rt.cloneDeep(val));
         }, vectorType, "push_back", ["?"], rt.voidTypeLiteral);
+
+        rt.regFunc(function(rt: CRuntime, _this: any) {
+            const element_container = _getElementContainer(_this);
+            element_container.pop_back();
+        }, vectorType, "pop_back", [], rt.voidTypeLiteral);
 
         rt.regFunc(function(rt: CRuntime, _this: any) {
             const element_container = _getElementContainer(_this);
