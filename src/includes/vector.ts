@@ -4,6 +4,7 @@ export = {
     load(rt: CRuntime) {
 
         class Vector {
+            dataType: any;
             elements: any[];
             iterator: Iterator;
 
@@ -45,7 +46,7 @@ export = {
                 if (count.v as number < currentSize) {
                     this.elements.length = count.v as number;
                 } else {
-                    this.elements.push(...new Array((count.v as number) - currentSize).fill(value ?? rt.defaultValue(this.front().t)));
+                    this.elements.push(...new Array((count.v as number) - currentSize).fill(value ?? rt.defaultValue(this.dataType)));
                 }
             }
             

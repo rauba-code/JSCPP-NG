@@ -363,7 +363,7 @@ export class Interpreter extends BaseInterpreter {
                     vectorClass.v.members.element_container.elements = initializer.v.target;
                 }                
 
-                vectorClass.dataType = STLType;
+                vectorClass.dataType = vectorClass.v.members.element_container.dataType = STLType;
                 vectorClass.readonly = false;
                 rt.defVar(s.Identifier, basetype, vectorClass);
             },
