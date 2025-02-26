@@ -1,17 +1,19 @@
-import { CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
+import { CRuntime, ClassType, Variable, VariableType } from "../rt";
 
 export = {
     load(rt: CRuntime) {
 
         class Vector {
             elements: any[];
+            iterator: Iterator;
 
             constructor(elements: any[]) {
                 this.elements = elements;
             }
         
             [Symbol.iterator]() {
-                return new Iterator(this);
+                this.iterator = new Iterator(this);
+                return this.iterator;
             }
 
             push_back(value: any) {
@@ -28,9 +30,23 @@ export = {
                 }
             }
 
+            insert(start: any, end: any) {
+                this.elements.splice(((start as any).v?.index ?? start.v) as number, 0, end);
+                return this.iterator;
+            }
+
             erase(start: Variable, end: Variable) {
-                this.elements.splice(start.v as number, ((end?.v as number) - (start.v as number)) || 1);
-                return this;
+                this.elements.splice(((start as any).v?.index ?? start.v) as number, ((end?.v as number) - (start.v as number)) || 1);
+                return this.iterator;
+            }
+
+            resize(count: any, value: any) {
+                const currentSize = this.size();
+                if (count.v as number < currentSize) {
+                    this.elements.length = count.v as number;
+                } else {
+                    this.elements.push(...new Array((count.v as number) - currentSize).fill(value ?? rt.defaultValue(this.front().t)));
+                }
             }
             
             size() {
@@ -48,6 +64,10 @@ export = {
             get(index: number) {
                 return this.elements[index];
             }
+
+            clear() {
+                this.elements = [];
+            }
         }
 
         const vectorType: ClassType = rt.newClass("vector", [{
@@ -62,12 +82,15 @@ export = {
         class Iterator {
             vector: Vector;
             index: number;
+            v: Iterator;
             t: ClassType;
 
             constructor(vector: Vector) {
                 this.vector = vector;
                 this.index = 0;
+
                 this.t = vectorType;
+                this.v = this;
             }
         
             begin() {
@@ -105,13 +128,33 @@ export = {
                 }
             },
             "o(!=)": {
-                default(rt, _this: any, r: Variable) {
-                    debugger;
+                default(rt, _left: any, _right: any) {
+                    return rt.val(rt.boolTypeLiteral, _left.v.index != _right.index);
                 }
             },
-            "o(+)": {
-                default(rt, _this: any, r: Variable) {
-                    return r;
+            "o(+)": { // vector .begin() + value
+                default(rt, _left: any, _right: Variable) {
+                    return _right;
+                }
+            },
+            "o(-)": { // vector .end() - value
+                default(rt, _left: any, _right: Variable) {
+                    return rt.val(rt.intTypeLiteral, (_left.index - (_right as any).v));
+                }
+            },
+            "o(*)": {
+                default(rt, _left: any, _right: Variable) {
+                    return _left.v.vector.get(_left.v.index);
+                }
+            },
+            "o(=)": {
+                default(rt, _left: any, _right: Variable) {
+                    //_left.v = _right.v;
+                }
+            },
+            "o(++)": { // vector it++;
+                default(rt, _left: any, _right: Variable) {
+                    _left.v.next();
                 }
             }
         };
@@ -127,10 +170,25 @@ export = {
             element_container.pop_back();
         }, vectorType, "pop_back", [], rt.voidTypeLiteral);
 
+        rt.regFunc(function(rt: CRuntime, _this: any, count: Variable, value: Variable) {
+            const element_container = _getElementContainer(_this);
+            return element_container.resize(count, value);
+        }, vectorType, "resize", ["?"], "?" as unknown as VariableType);
+
         rt.regFunc(function(rt: CRuntime, _this: any, start: Variable, end: Variable) {
             const element_container = _getElementContainer(_this);
-            element_container.erase(start, end);
-        }, vectorType, "erase", ["?"], rt.voidTypeLiteral);
+            return element_container.insert(start, end);
+        }, vectorType, "insert", ["?"], "?" as unknown as VariableType);
+
+        rt.regFunc(function(rt: CRuntime, _this: any, start: Variable, end: Variable) {
+            const element_container = _getElementContainer(_this);
+            return element_container.erase(start, end);
+        }, vectorType, "erase", ["?"], "?" as unknown as VariableType);
+
+        rt.regFunc(function(rt: CRuntime, _this: any) {
+            const element_container = _getElementContainer(_this);
+            element_container.clear();
+        }, vectorType, "clear", [], rt.voidTypeLiteral);
 
         rt.regFunc(function(rt: CRuntime, _this: any) {
             const element_container = _getElementContainer(_this);
