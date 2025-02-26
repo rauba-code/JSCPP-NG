@@ -30,34 +30,37 @@ export = {
       // 9 unwritten) Exists (*val1 < *val2).
       // 10 unwritten) Exists (val1 - val2).
       type RandomIt = Variable | NormalPointerVariable | ArrayVariable;
-      /* function pointerTypeTemplate(t: RandomIt): [string] {
-          return [t.t?.type, t.t?.value, t.t?.eleType?.type, t.t?.eletype?.name];
-      }
-      function checkTypeTemplateEquality(a: [string], b: [string]): boolean {
-          if (a.length !== b.length) {
-              return false;
-          }
-          const len: number = a.length;
-          for (i in len) {
-              if (a[i] !== b[i]) {
-                  return false;
-              }
-          }
-          return true;
-      }*/
-      rt.regFunc(function(_rt: CRuntime, _this: Variable, first: RandomIt, last: RandomIt) {
-          if (first?.t === undefined) {
+      rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: RandomIt, _last: RandomIt) {
+          if (_first?.t === undefined) {
               _rt.raiseException("sort(): parameter 'first' is undefined")
           }
-          if (last?.t === undefined) {
+          if (_last?.t === undefined) {
               _rt.raiseException("sort(): parameter 'last' is undefined")
           }
-          console.log(first);
-          console.log(last);
-          if (!(_.isEqual(first.t, last.t))) {
+          // console.log(_first);
+          // console.log(_last);
+          if (!(_.isEqual(_first.t, _last.t))) {
               _rt.raiseException("sort(): parameters 'first' and 'last' have different types");
           }
-          _rt.raiseException("sort(): Not yet implemented")
+          if (rt.isArrayType(_first) && rt.isArrayType(_last)) {
+              const first = _first as ArrayVariable;
+              const last = _last as ArrayVariable;
+              if (first.v.target !== last.v.target) {
+                  _rt.raiseException("sort(): undefined behaviour caused by pointers 'first' and 'last' pointing to different arrays");
+              }
+              const first_pos = first.v.position;
+              const last_pos = last.v.position;
+              const value_array = new Array();
+              for (let i = first_pos; i < last_pos; i++) {
+                  value_array.push(first.v.target[i].v);
+              }
+              value_array.sort();
+              for (let i = first_pos; i < last_pos; i++) {
+                  first.v.target[i].v = value_array[i - first_pos];
+              }
+          } else {
+              _rt.raiseException("sort(): not yet implemented")
+          }
       }, "global", "sort", ["?"], rt.voidTypeLiteral)
     }
 };
