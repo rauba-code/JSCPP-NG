@@ -119,7 +119,7 @@ export = {
                             v = r[0] === "true";
                             break;
                         default:
-                            _rt.raiseException(">> operator in ifstream cannot accept " + _rt.makeTypeString(t.t));
+                            _rt.raiseException(">> operator in ifstream cannot accept " + _rt.makeTypeString(t?.t));
                     }
 
                     const len = r[0].length;

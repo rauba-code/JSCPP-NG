@@ -206,7 +206,7 @@ export = {
                                         : rt.isStringType(o) ?
                                             rt.getStringFromCharArray(o)
                                             :
-                                            rt.raiseException("<< operator in ostream cannot accept " + rt.makeTypeString(o.t));
+                                            rt.raiseException("<< operator in ostream cannot accept " + rt.makeTypeString(o?.t));
                                 }
                                 for (let i = 0, end = this.config.setw - tarStr.length; i < end; i++) {
                                     if (!this.active.left) {

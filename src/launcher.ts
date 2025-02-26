@@ -24,6 +24,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     ctime: require("./includes/ctime"),
     iomanip: require("./includes/iomanip"),
     vector: require("./includes/vector"),
+    algorithm: require("./includes/algorithm"),
     foo: require("./includes/dummy_class_foo")
 };
 

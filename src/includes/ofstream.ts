@@ -60,7 +60,7 @@ export = {
                     } else if (_rt.isStringType(t)) {
                         result = _rt.getStringFromCharArray(t);
                     } else {
-                        _rt.raiseException("<< operator in ofstream cannot accept " + _rt.makeTypeString(t.t));
+                        _rt.raiseException("<< operator in ofstream cannot accept " + _rt.makeTypeString(t?.t));
                     }
 
                     fileObject.write(result);

@@ -30,7 +30,7 @@ export = {
                             rt.raiseException("only left value can be used as storage");
                         }
                         if (!rt.isPrimitiveType(t.t) && !rt.isStringClass(t.t)) {
-                            rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t.t));
+                            rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t?.t));
                         }
 
                         const inputPromise: Promise<[string, boolean]> = new Promise((resolve) => {
@@ -76,7 +76,7 @@ export = {
                                     v = r[0] === "true";
                                     break;
                                 default:
-                                    rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t.t));
+                                    rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t?.t));
                             }
                             let len = 0;
                             if (r !== null) {
@@ -254,7 +254,7 @@ export = {
                     } else if (rt.isStringType(t)) {
                         r = rt.getStringFromCharArray(t);
                     } else {
-                        rt.raiseException("<< operator in ostream cannot accept " + rt.makeTypeString(t.t));
+                        rt.raiseException("<< operator in ostream cannot accept " + rt.makeTypeString(t?.t));
                     }
                     _cout.v.ostream.write(r);
                     return _cout;
