@@ -48,8 +48,14 @@ export = {
               if (first.v.target !== last.v.target) {
                   _rt.raiseException("sort(): undefined behaviour caused by pointers 'first' and 'last' pointing to different arrays");
               }
+              if (first.t.eleType?.type !== "primitive") {
+                  _rt.raiseException("sort(): behaviour for arrays of non-primitive types is not yet implemented");
+              }
               const first_pos = first.v.position;
               const last_pos = last.v.position;
+              if (first_pos > last_pos || first_pos < 0 || last_pos > first.t.size) {
+                  _rt.raiseException("sort(): undefined behaviour caused by invalid pointer positions");
+              }
               const value_array = new Array();
               for (let i = first_pos; i < last_pos; i++) {
                   value_array.push(first.v.target[i].v);
@@ -58,6 +64,28 @@ export = {
               for (let i = first_pos; i < last_pos; i++) {
                   first.v.target[i].v = value_array[i - first_pos];
               }
+          } else if ((_first as any).vector !== undefined && (_last as any).vector !== undefined) {
+              const first = _first as any;
+              const last = _last as any;
+              if (first.vector !== last.vector) {
+                  _rt.raiseException("sort(): undefined behaviour caused by pointers 'first' and 'last' pointing to different vectors");
+              }
+              // TODO: check vector elements' value
+              // TODO: merge vector and static array behaviour into a single function
+              const first_pos = first.index;
+              const last_pos = last.index;
+              if (first_pos > last_pos || first_pos < 0 || last_pos > first.vector.elements.length) {
+                  _rt.raiseException("sort(): undefined behaviour caused by invalid pointer positions");
+              }
+              const value_array = new Array();
+              for (let i = first_pos; i < last_pos; i++) {
+                  value_array.push(first.vector.elements[i].v);
+              }
+              value_array.sort();
+              for (let i = first_pos; i < last_pos; i++) {
+                  first.vector.elements[i].v = value_array[i - first_pos];
+              }
+
           } else {
               _rt.raiseException("sort(): not yet implemented")
           }
