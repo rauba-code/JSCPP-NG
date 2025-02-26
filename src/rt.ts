@@ -670,7 +670,7 @@ export class CRuntime {
                             v.target = f;
                         }
                     } else {
-                        this.raiseException(name + " is already defined as " + this.makeTypeString(func.t));
+                        this.raiseException(name + " is already defined as " + this.makeTypeString(func?.t));
                     }
                 } else {
                     this.defVar(name, type, this.val(type, {
@@ -969,7 +969,7 @@ export class CRuntime {
             } else if (["float", "double"].includes(type.name)) {
                 if (!this.isNumericType(value)) {
                     this.raiseException("cannot cast " + this.makeValueString(value) + " to " + this.makeTypeString(type));
-                } else if (this.inrange(type, value.v, "overflow when casting " + this.makeTypeString(value.t) + " to " + this.makeTypeString(type))) {
+                } else if (this.inrange(type, value.v, "overflow when casting " + this.makeTypeString(value?.t) + " to " + this.makeTypeString(type))) {
                     value.v = this.ensureUnsigned(type, value.v);
                     return this.val(type, value.v);
                 }
@@ -1016,13 +1016,13 @@ export class CRuntime {
                     if (this.isTypeEqualTo(type.targetType, value.t.eleType)) {
                         return value;
                     } else {
-                        this.raiseException(this.makeTypeString(type.targetType) + " is not equal to array element type " + this.makeTypeString(value.t.eleType));
+                        this.raiseException(this.makeTypeString(type?.targetType) + " is not equal to array element type " + this.makeTypeString(value?.t.eleType));
                     }
                 } else if (this.isArrayType(type)) {
                     if (this.isTypeEqualTo(type.eleType, value.t.eleType)) {
                         return value;
                     } else {
-                        this.raiseException("array element type " + this.makeTypeString(type.eleType) + " is not equal to array element type " + this.makeTypeString(value.t.eleType));
+                        this.raiseException("array element type " + this.makeTypeString(type?.eleType) + " is not equal to array element type " + this.makeTypeString(value?.t.eleType));
                     }
                 } else {
                     this.raiseException("cannot cast a function to a regular pointer");
@@ -1033,7 +1033,7 @@ export class CRuntime {
                         if (this.isTypeEqualTo(type.targetType, value.t.targetType)) {
                             return value;
                         } else {
-                            this.raiseException(this.makeTypeString(type.targetType) + " is not equal to " + this.makeTypeString(value.t.targetType));
+                            this.raiseException(this.makeTypeString(type?.targetType) + " is not equal to " + this.makeTypeString(value?.t.targetType));
                         }
                     } else {
                         this.raiseException(this.makeValueString(value) + " is not a normal pointer");
@@ -1043,7 +1043,7 @@ export class CRuntime {
                         if (this.isTypeEqualTo(type.eleType, value.t.targetType)) {
                             return value;
                         } else {
-                            this.raiseException("array element type " + this.makeTypeString(type.eleType) + " is not equal to " + this.makeTypeString(value.t.targetType));
+                            this.raiseException("array element type " + this.makeTypeString(type?.eleType) + " is not equal to " + this.makeTypeString(value?.t.targetType));
                         }
                     } else {
                         this.raiseException(this.makeValueString(value) + " is not a normal pointer");
@@ -1079,7 +1079,7 @@ export class CRuntime {
             value = this.getCompatibleFunc(value.t, this.makeOperatorFuncName(type.name), [])(this, value);
             return value;
         } else {
-            this.raiseException("cast failed from type " + this.makeTypeString(type) + " to " + this.makeTypeString(value.t));
+            this.raiseException("cast failed from type " + this.makeTypeString(type) + " to " + this.makeTypeString(value?.t));
         }
     };
 
@@ -1630,10 +1630,13 @@ export class CRuntime {
         return ret;
     };
 
-    makeTypeString(type: VariableType | "global" | "dummy" | "?") {
+    makeTypeString(type: VariableType | "global" | "dummy" | "?" | undefined) {
         // (primitive), [class], <struct>, {pointer}
         let ret;
-        if (typeof (type) === "string") {
+        if (type === undefined) {
+            ret = "<unknown>";
+        }
+        else if (typeof (type) === "string") {
             ret = "$" + type;
         } else if (type.type === "primitive") {
             ret = type.name;
@@ -1645,11 +1648,11 @@ export class CRuntime {
             // !targetType, @size!eleType, #retType!param1,param2,...
             ret = "";
             if (type.ptrType === "normal") {
-                ret += this.makeTypeString(type.targetType) + "*";
+                ret += this.makeTypeString(type?.targetType) + "*";
             } else if (type.ptrType === "array") {
-                ret += this.makeTypeString(type.eleType) + `[${type.size}]`;
+                ret += this.makeTypeString(type?.eleType) + `[${type.size}]`;
             } else if (type.ptrType === "function") {
-                ret += this.makeTypeString(type.targetType.retType) + "(*f)" + "(" + type.targetType.signature.map(e => {
+                ret += this.makeTypeString(type?.targetType.retType) + "(*f)" + "(" + type.targetType.signature.map(e => {
                     return this.makeTypeString(e);
                 }).join(",") + ")";
             }
@@ -1704,7 +1707,7 @@ export class CRuntime {
     };
 
     makeValString(l: Variable | DummyVariable) {
-        return this.makeValueString(l) + "(" + this.makeTypeString(l.t) + ")";
+        return this.makeValueString(l) + "(" + this.makeTypeString(l?.t) + ")";
     };
 
     makeConstructor(type: VariableType, args: Variable[], left = false): Variable {

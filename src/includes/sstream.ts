@@ -131,7 +131,7 @@ export = {
                         v = r[0] === "true";
                         break;
                     default:
-                        rt.raiseException(">> operator in stringstream cannot accept " + rt.makeTypeString(t.t));
+                        rt.raiseException(">> operator in stringstream cannot accept " + rt.makeTypeString(t?.t));
                 }
 
                 const len = r[0].length;

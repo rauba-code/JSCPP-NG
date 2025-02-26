@@ -167,14 +167,18 @@ export const numericTypeOrder: (CCharType | CIntType | CFloatType)[] = [
     "double"
 ];
 
+function raiseSupportException(rt: any, l: any, r: any, op: string) {
+    rt.raiseException(rt.makeTypeString(l?.t) + " does not support " + op + " on " + rt.makeTypeString(r?.t));
+}
+
 export const defaultOpHandler: OpHandlerMap = {
     handlers: {
         "o(*)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support * on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "*");
                 } else if (!rt.isNumericType(l)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support * on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "*");
                 } else {
                     const ret = rt.booleanToNumber(l.v) * rt.booleanToNumber(r.v);
                     const rett = rt.promoteNumeric(l.t, r.t);
@@ -185,9 +189,9 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(/)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support / on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "/");
                 } else if (!rt.isNumericType(l)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support / on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "/");
                 } else {
                     let ret = rt.booleanToNumber(l.v) / rt.booleanToNumber(r.v);
                     if (rt.isIntegerType(l.t) && rt.isIntegerType(r.t)) {
@@ -201,7 +205,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(%)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(r) || !rt.isIntegerType(l) || !rt.isIntegerType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support % on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "%");
                 } else {
                     const ret = rt.booleanToNumber(l.v) % rt.booleanToNumber(r.v);
                     const rett = rt.promoteNumeric(l.t, r.t);
@@ -219,7 +223,7 @@ export const defaultOpHandler: OpHandlerMap = {
                         const i = rt.cast(rt.intTypeLiteral, l).v;
                         return rt.val(r.t, rt.makeArrayPointerValue(r.v.target, r.v.position + i));
                     } else if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
-                        rt.raiseException(rt.makeTypeString(l.t) + " does not support + on " + rt.makeTypeString(r.t));
+                        raiseSupportException(rt, l, r, "+");
                     } else {
                         const ret = rt.booleanToNumber(l.v) + rt.booleanToNumber(r.v);
                         const rett = rt.promoteNumeric(l.t, r.t);
@@ -238,7 +242,7 @@ export const defaultOpHandler: OpHandlerMap = {
                 } else {
                     // binary
                     if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
-                        rt.raiseException(rt.makeTypeString(l.t) + " does not support - on " + rt.makeTypeString(r.t));
+                        raiseSupportException(rt, l, r, "-");
                     } else {
                         const ret = rt.booleanToNumber(l.v) - rt.booleanToNumber(r.v);
                         rett = rt.promoteNumeric(l.t, r.t);
@@ -250,7 +254,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(<<)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(r) || !rt.isIntegerType(l) || !rt.isIntegerType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support << on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "<<");
                 } else {
                     const ret = rt.booleanToNumber(l.v) << rt.booleanToNumber(r.v);
                     const rett = l.t;
@@ -261,7 +265,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(>>)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(r) || !rt.isIntegerType(l) || !rt.isIntegerType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support >> on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, ">>");
                 } else {
                     const ret = rt.booleanToNumber(l.v) >> rt.booleanToNumber(r.v);
                     const rett = l.t;
@@ -272,7 +276,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(<)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support < on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "<");
                 } else {
                     const ret = rt.booleanToNumber(l.v) < rt.booleanToNumber(r.v);
                     const rett = rt.boolTypeLiteral;
@@ -283,7 +287,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(<=)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support <= on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "<=");
                 } else {
                     const ret = rt.booleanToNumber(l.v) <= rt.booleanToNumber(r.v);
                     const rett = rt.boolTypeLiteral;
@@ -294,7 +298,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(>)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support > on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, ">");
                 } else {
                     const ret = rt.booleanToNumber(l.v) > rt.booleanToNumber(r.v);
                     const rett = rt.boolTypeLiteral;
@@ -305,7 +309,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(>=)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support >= on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, ">=");
                 } else {
                     const ret = rt.booleanToNumber(l.v) >= rt.booleanToNumber(r.v);
                     const rett = rt.boolTypeLiteral;
@@ -316,7 +320,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(==)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support == on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "==");
                 } else {
                     const ret = rt.booleanToNumber(l.v) === rt.booleanToNumber(r.v);
                     const rett = rt.boolTypeLiteral;
@@ -327,7 +331,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(!=)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support != on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "!=");
                 } else {
                     const ret = rt.booleanToNumber(l.v) !== rt.booleanToNumber(r.v);
                     const rett = rt.boolTypeLiteral;
@@ -347,7 +351,7 @@ export const defaultOpHandler: OpHandlerMap = {
                     }
                 } else {
                     if (!rt.isIntegerType(l) || !rt.isNumericType(r) || !rt.isIntegerType(r)) {
-                        rt.raiseException(rt.makeTypeString(l.t) + " does not support & on " + rt.makeTypeString(r.t));
+                        raiseSupportException(rt, l, r, "&");
                     } else {
                         const ret = rt.booleanToNumber(l.v) & rt.booleanToNumber(r.v);
                         const rett = rt.promoteNumeric(l.t, r.t);
@@ -359,7 +363,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(^)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(r) || !rt.isIntegerType(l) || !rt.isIntegerType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support ^ on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "^");
                 } else {
                     const ret = rt.booleanToNumber(l.v) ^ rt.booleanToNumber(r.v);
                     const rett = rt.promoteNumeric(l.t, r.t);
@@ -370,7 +374,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(|)": {
             default(rt, l, r) {
                 if (!rt.isNumericType(r) || !rt.isIntegerType(l) || !rt.isIntegerType(r)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support | on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "|");
                 } else {
                     const ret = rt.booleanToNumber(l.v) | rt.booleanToNumber(r.v);
                     const rett = rt.promoteNumeric(l.t, r.t);
@@ -458,7 +462,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(++)": {
             default(rt, l, dummy) {
                 if (!rt.isNumericType(l)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support increment");
+                    rt.raiseException(rt.makeTypeString(l?.t) + " does not support increment");
                 } else if (!l.left) {
                     rt.raiseException(rt.makeValString(l) + " is not a left value");
                 } else if (dummy) {
@@ -481,7 +485,7 @@ export const defaultOpHandler: OpHandlerMap = {
             default(rt, l, dummy) {
                 let b;
                 if (!rt.isNumericType(l)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support decrement");
+                    rt.raiseException(rt.makeTypeString(l?.t) + " does not support decrement");
                 } else if (!l.left) {
                     rt.raiseException(rt.makeValString(l) + " is not a left value");
                 } else if (dummy) {
@@ -504,7 +508,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(~)": {
             default(rt, l) {
                 if (!rt.isIntegerType(l.t)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support ~ on itself");
+                    rt.raiseException(rt.makeTypeString(l?.t) + " does not support ~ on itself");
                 }
                 const ret = ~l.v;
                 const rett = rt.promoteNumeric(l.t, rt.intTypeLiteral);
@@ -514,7 +518,7 @@ export const defaultOpHandler: OpHandlerMap = {
         "o(!)": {
             default(rt, l) {
                 if (!rt.isIntegerType(l.t)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support ! on itself");
+                    rt.raiseException(rt.makeTypeString(l?.t) + " does not support ! on itself");
                 }
                 const ret = l.v ? 0 : 1;
                 const rett = l.t;
@@ -580,7 +584,7 @@ types["pointer"] = {
                     const rett = rt.boolTypeLiteral;
                     return rt.val(rett, ret);
                 } else {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support == on " + rt.makeTypeString(r.t));
+                    raiseSupportException(rt, l, r, "==");
                 }
             }
         },
@@ -618,7 +622,7 @@ types["pointer"] = {
                             return rt.val(t, rt.makeNormalPointerValue(l));
                         }
                     } else {
-                        rt.raiseException(rt.makeTypeString(l.t) + " does not support & on " + rt.makeTypeString(r.t));
+                        raiseSupportException(rt, l, r, "&");
                     }
                 } else {
                     rt.raiseException("you cannot cast bitwise and on pointer");
@@ -641,7 +645,7 @@ types["function"] = {
         "o(())": {
             default(rt, l, bindThis: Variable, ...args) {
                 if (!rt.isFunctionType(l)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " does not support ()");
+                    rt.raiseException(rt.makeTypeString(l?.t) + " does not support ()");
                 } else {
                     if (rt.isFunctionPointerType(l)) {
                         l = l.v.target;
@@ -753,10 +757,10 @@ types["pointer_array"] = {
                             rt.raiseException("you cannot perform minus on pointers pointing to different arrays");
                         }
                     } else {
-                        rt.raiseException(rt.makeTypeString(r.t) + " is not an array pointer type");
+                        rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
                     }
                 } else {
-                    rt.raiseException(rt.makeTypeString(l.t) + " is not an array pointer type");
+                    rt.raiseException(rt.makeTypeString(l?.t) + " is not an array pointer type");
                 }
             }
         },
@@ -769,7 +773,7 @@ types["pointer_array"] = {
                         rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
                     }
                 } else {
-                    rt.raiseException(rt.makeTypeString(r.t) + " is not an array pointer type");
+                    rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
                 }
             }
         },
@@ -782,7 +786,7 @@ types["pointer_array"] = {
                         rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
                     }
                 } else {
-                    rt.raiseException(rt.makeTypeString(r.t) + " is not an array pointer type");
+                    rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
                 }
             }
         },
@@ -795,7 +799,7 @@ types["pointer_array"] = {
                         rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
                     }
                 } else {
-                    rt.raiseException(rt.makeTypeString(r.t) + " is not an array pointer type");
+                    rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
                 }
             }
         },
@@ -808,7 +812,7 @@ types["pointer_array"] = {
                         rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
                     }
                 } else {
-                    rt.raiseException(rt.makeTypeString(r.t) + " is not an array pointer type");
+                    rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
                 }
             }
         },
@@ -840,7 +844,7 @@ types["pointer_array"] = {
                     rt.raiseException(rt.makeValString(l) + " is not a left value");
                 }
                 if (!rt.isArrayType(l)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " is not an array pointer type");
+                    rt.raiseException(rt.makeTypeString(l?.t) + " is not an array pointer type");
                 } else {
                     if (dummy) {
                         return rt.val(l.t, rt.makeArrayPointerValue(l.v.target, l.v.position++));
@@ -857,7 +861,7 @@ types["pointer_array"] = {
                     rt.raiseException(rt.makeValString(l) + " is not a left value");
                 }
                 if (!rt.isArrayType(l)) {
-                    rt.raiseException(rt.makeTypeString(l.t) + " is not an array pointer type");
+                    rt.raiseException(rt.makeTypeString(l?.t) + " is not an array pointer type");
                 } else {
                     if (dummy) {
                         return rt.val(l.t, rt.makeArrayPointerValue(l.v.target, l.v.position--));
