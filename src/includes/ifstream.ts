@@ -42,7 +42,7 @@ export = {
                 default(_rt: CRuntime, _this: ifStreamObject) {
                     const state: any = _this.v.members["state"].v;
 
-                    return _rt.val(_rt.boolTypeLiteral, !getBit(state, ios_base.iostate.failbit) && !getBit(state, ios_base.iostate.badbit));
+                    return _rt.val(_rt.boolTypeLiteral, getBit(state, ios_base.iostate.failbit) || getBit(state, ios_base.iostate.badbit));
                 }
             },
             "o(())": {
@@ -195,6 +195,8 @@ export = {
                 if (buffer.length !== 0) {
                     _this.v.members["buffer"].v = _rt.makeCharArrayFromString(buffer).v;
                 }
+            } else {
+                setBitTrue(_this, ios_base.iostate.failbit);
             }
         };
 
