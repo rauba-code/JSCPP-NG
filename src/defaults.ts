@@ -341,6 +341,8 @@ export const defaultOpHandler: OpHandlerMap = {
         },
         "o(&)": {
             default(rt, l, r) {
+                console.log(l);
+                console.log(r);
                 let t;
                 if (r === undefined) {
                     if ("array" in l) {
@@ -395,6 +397,7 @@ export const defaultOpHandler: OpHandlerMap = {
                     rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
                 }
 
+                debugger;
                 l.v = rt.cast(l.t, r).v;
                 return l;
             }
@@ -466,16 +469,18 @@ export const defaultOpHandler: OpHandlerMap = {
                 } else if (!l.left) {
                     rt.raiseException(rt.makeValString(l) + " is not a left value");
                 } else if (dummy) {
-                    const b = l.v;
-                    l.v = rt.booleanToNumber(l.v) + 1;
-                    if (rt.inrange(l.t, l.v, `overflow during post-increment ${rt.makeValString(l)}`)) {
-                        l.v = rt.ensureUnsigned(l.t, l.v);
-                        return rt.val(l.t, b);
+                    const _l = rt.captureValue(l);
+                    const b = _l.v;
+                    _l.v = rt.booleanToNumber(_l.v) + 1;
+                    if (rt.inrange(_l.t, _l.v, `overflow during post-increment ${rt.makeValString(_l)}`)) {
+                        _l.v = rt.ensureUnsigned(l.t, _l.v);
+                        return rt.val(_l.t, b);
                     }
                 } else {
-                    l.v = rt.booleanToNumber(l.v) + 1;
-                    if (rt.inrange(l.t, l.v, `overflow during pre-increment ${rt.makeValString(l)}`)) {
-                        l.v = rt.ensureUnsigned(l.t, l.v);
+                    const _l = rt.captureValue(l);
+                    _l.v = rt.booleanToNumber(l.v) + 1;
+                    if (rt.inrange(_l.t, l.v, `overflow during pre-increment ${rt.makeValString(_l)}`)) {
+                        _l.v = rt.ensureUnsigned(l.t, l.v);
                         return l;
                     }
                 }
@@ -489,18 +494,20 @@ export const defaultOpHandler: OpHandlerMap = {
                 } else if (!l.left) {
                     rt.raiseException(rt.makeValString(l) + " is not a left value");
                 } else if (dummy) {
-                    b = l.v;
-                    l.v = rt.booleanToNumber(l.v) - 1;
-                    if (rt.inrange(l.t, l.v, "overflow during post-decrement")) {
-                        l.v = rt.ensureUnsigned(l.t, l.v);
-                        return rt.val(l.t, b);
+                    const _l = rt.captureValue(l);
+                    b = _l.v;
+                    _l.v = rt.booleanToNumber(_l.v) - 1;
+                    if (rt.inrange(_l.t, _l.v, "overflow during post-decrement")) {
+                        _l.v = rt.ensureUnsigned(_l.t, _l.v);
+                        return rt.val(_l.t, b);
                     }
                 } else {
-                    l.v = rt.booleanToNumber(l.v) - 1;
-                    b = l.v;
-                    if (rt.inrange(l.t, l.v, "overflow during pre-decrement")) {
-                        l.v = rt.ensureUnsigned(l.t, l.v);
-                        return l;
+                    const _l = rt.captureValue(l);
+                    _l.v = rt.booleanToNumber(_l.v) - 1;
+                    b = _l.v;
+                    if (rt.inrange(_l.t, _l.v, "overflow during pre-decrement")) {
+                        _l.v = rt.ensureUnsigned(_l.t, _l.v);
+                        return _l;
                     }
                 }
             }
@@ -605,6 +612,7 @@ types["pointer"] = {
                 } else if (l.readonly) {
                     rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
                 }
+                debugger;
                 const t = rt.cast(l.t, r);
                 l.t = t.t;
                 l.v = t.v;
@@ -613,6 +621,8 @@ types["pointer"] = {
         },
         "o(&)": {
             default(rt, l, r) {
+                console.log(l);
+                console.log(r);
                 if (r === undefined) {
                     if (rt.isArrayElementType(l)) {
                         if (l.array) {
@@ -717,14 +727,22 @@ types["pointer_array"] = {
                         rt.raiseException(`pointer (${rt.makeValueString(l)}) is not a normal pointer`);
                     } else {
                         const arr = l.v.target;
-                        if (l.v.position >= arr.length) {
-                            rt.raiseException("index out of bound " + l.v.position + " >= " + arr.length);
-                        } else if (l.v.position < 0) {
-                            rt.raiseException("negative index " + l.v.position);
+                        const ret = {
+                            type: "pointer",
+                            left: true,
+                            t: l.t.eleType,
+                            array: arr,
+                            arrayIndex: l.v.position,
                         }
-                        const ret = arr[l.v.position] as ArrayElementVariable;
-                        ret.array = arr;
-                        ret.arrayIndex = l.v.position;
+                        // if (l.v.position >= arr.length) {
+                        //    ret.error = ("index out of bound " + l.v.position + " >= " + arr.length);
+                        // } else if (l.v.position < 0) {
+                        //    ret.error = ("negative index " + l.v.position);
+                        // } else {
+                        // ret.v = arr[l.v.position].v;
+                        // }
+                        // const ret = arr[l.v.position] as ArrayElementVariable;
+                        debugger;
                         return ret;
                     }
                 } else {
@@ -735,6 +753,7 @@ types["pointer_array"] = {
         "o([])": {
             default(rt, l, r: Variable) {
                 r = rt.types["pointer_array"].handlers["o(+)"].default(rt, l, r);
+                console.log(r);
                 return rt.types["pointer_array"].handlers["o(*)"].default(rt, r);
             }
         },
