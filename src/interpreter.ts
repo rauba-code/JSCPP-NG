@@ -153,7 +153,7 @@ export class Interpreter extends BaseInterpreter {
                 let i = 0;
                 while (i < s.ParameterList.length) {
                     const _param = s.ParameterList[i];
-                    
+
                     let _type;
                     let _init = null;
                     let _name = null;
@@ -171,14 +171,14 @@ export class Interpreter extends BaseInterpreter {
                         const _basetype = rt.simpleType(_declarationSpecifiers);
                         const _reference = _param.Declarator.Declarator.Reference;
                         _readonly = _declarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
-                        
+
                         if (_reference) {
                             _type = rt.makeReferenceType(_basetype);
                         } else {
                             const _pointer = _param.Declarator.Declarator.Pointer;
                             _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
                         }
-                        
+
                         if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
                             const __basetype = param.basetype;
                             param.basetype = _basetype;
@@ -330,7 +330,7 @@ export class Interpreter extends BaseInterpreter {
                                 }
                             }
                             init = rt.makeConstructor(type, constructorArgs, true);
-                            
+
                             init.dataType = dec.Declarator.left.DataType;
                             init.readonly = readonly;
                             rt.defVar(name, type, init);
@@ -361,7 +361,7 @@ export class Interpreter extends BaseInterpreter {
                 if (s.Initializer != null) {
                     const initializer: any = yield* interp.arrayInit([s.Initializer.Initializers.length], s.Initializer, STLType, param);
                     vectorClass.v.members.element_container.elements = initializer.v.target;
-                }                
+                }
 
                 vectorClass.dataType = vectorClass.v.members.element_container.dataType = STLType;
                 vectorClass.readonly = false;
@@ -375,7 +375,7 @@ export class Interpreter extends BaseInterpreter {
                     for (const structMember of s.StructMemberList) {
                         for (const dec of structMember.Declarators) {
                             let init = dec.Initializers;
-                            
+
                             param.basetype = rt.simpleType(structMember.MemberType);
                             const { name, type } = yield* interp.visit(interp, dec.Declarator, param);
 
@@ -386,12 +386,12 @@ export class Interpreter extends BaseInterpreter {
                             }
 
                             structMemberList.push({
-                                name: name,
-                                type: type,
+                                name,
+                                type,
                                 initialize(rt: any, _this: any) {
                                     init.left = true;
-                                    return init; 
-                                }                                 
+                                    return init;
+                                }
                             });
                         }
                     }
@@ -625,7 +625,7 @@ export class Interpreter extends BaseInterpreter {
                 let iterator = null;
                 try {
                     iterator = rt.getFunc(iterable.t, "__iterator", [])(rt, iterable);
-                } catch(ex) {
+                } catch (ex) {
                     if (rt.isArrayType(iterable.t)) {
                         iterator = iterable.v.target[Symbol.iterator]();
                     }
@@ -635,9 +635,9 @@ export class Interpreter extends BaseInterpreter {
                     rt.raiseException(`Variable '${s.Expression.Identifier}' is not iterator type.`);
                 }
 
-                for(const element of iterator) {   
+                for (const element of iterator) {
                     variable.v = element.v;
-                                   
+
                     const r = yield* interp.visit(interp, s.Statement, param);
                     if (r instanceof Array) {
                         let end_loop;
@@ -728,7 +728,9 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 if (s.Expression) {
-                    const ret = yield* interp.visit(interp, s.Expression, param);
+                    let ret = yield* interp.visit(interp, s.Expression, param);
+                    ret = interp.rt.captureValue(ret);
+
                     return [
                         "return",
                         ret
@@ -779,7 +781,8 @@ export class Interpreter extends BaseInterpreter {
                 const args: Variable[] = yield* (function* () {
                     const result = [];
                     for (const e of s.args) {
-                        const thisArg = yield* interp.visit(interp, e, param);
+                        let thisArg = yield* interp.visit(interp, e, param);
+                        thisArg = interp.rt.captureValue(thisArg);
                         // console.log "-------------------"
                         // console.log "e: " + JSON.stringify(e)
                         // console.log "-------------------"
@@ -950,8 +953,10 @@ export class Interpreter extends BaseInterpreter {
                     s.type = "LogicalORExpression";
                     return yield* interp.visit(interp, s, param);
                 } else {
-                    const left = yield* interp.visit(interp, s.left, param);
-                    const right = yield* interp.visit(interp, s.right, param);
+                    let left = yield* interp.visit(interp, s.left, param);
+                    let right = yield* interp.visit(interp, s.right, param);
+                    left = rt.captureValue(left);
+                    right = rt.captureValue(right);
                     const r = rt.getFunc(left.t, rt.makeOperatorFuncName(op), [right.t])(rt, left, right);
                     if (isGenerator(r)) {
                         return yield* r;
@@ -1027,7 +1032,7 @@ export class Interpreter extends BaseInterpreter {
 
                 const convertToObjectArray = function*(expr: any) {
                     if (expr.type === 'StructExpression') {
-                        return expr.values.map((value: any) => convertToObjectArray(value.Expression).next().value );
+                        return expr.values.map((value: any) => convertToObjectArray(value.Expression).next().value);
                     } else {
                         return yield* interp.visit(interp, expr, param);
                     }
@@ -1035,9 +1040,9 @@ export class Interpreter extends BaseInterpreter {
 
                 const valuesToStruct = function(arrayValues: any) {
                     const fillerStruct: any = rt.defaultValue(param.structType);
-                    const orderedKeys = Object.keys(fillerStruct.v.members); 
-    
-                    for(let k = 0; k < arrayValues.length; k++) {
+                    const orderedKeys = Object.keys(fillerStruct.v.members);
+
+                    for (let k = 0; k < arrayValues.length; k++) {
                         const memberName = orderedKeys[k];
                         const memberValue = arrayValues[k];
                         fillerStruct.v.members[memberName].v = memberValue.v;
@@ -1045,16 +1050,16 @@ export class Interpreter extends BaseInterpreter {
 
                     return fillerStruct;
                 };
-            
+
                 const arrayValues = yield* convertToObjectArray(s);
 
                 if (Array.isArray(arrayValues[0])) {
                     const structArray = [];
-                    for(const valueArray of arrayValues) {
+                    for (const valueArray of arrayValues) {
                         structArray.push(valuesToStruct(valueArray));
                     }
                     return rt.val(rt.arrayPointerType(param.structType, structArray.length), rt.makeArrayPointerValue(structArray, 0));
-                } 
+                }
 
                 return valuesToStruct(arrayValues);
             },
@@ -1153,7 +1158,7 @@ export class Interpreter extends BaseInterpreter {
             },
             UsingDirective(interp, s, param) {
                 ({ rt } = interp);
-                
+
                 const id = s.Identifier;
                 const currentScope = rt.scope[rt.scope.length - 1];
 
@@ -1232,14 +1237,14 @@ export class Interpreter extends BaseInterpreter {
         const lastToLoad = ["iomanip"];
         const { includes, loadedLibraries } = this.rt.config;
 
-        for(const lib of loadedLibraries) {
+        for (const lib of loadedLibraries) {
             if (lastToLoad.includes(lib))
                 continue;
 
             includes[lib].load(this.rt);
         }
 
-        for(const lib of lastToLoad) {
+        for (const lib of lastToLoad) {
             if (!loadedLibraries.includes(lib))
                 continue;
 
