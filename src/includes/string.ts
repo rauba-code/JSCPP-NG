@@ -248,7 +248,6 @@ export = {
             // pass a [readStream::operator bool()] as a return value.
             const readStreamTypeSig = rt.getTypeSignature(readStream.t);
             const val = rt.types[readStreamTypeSig].handlers["o(bool)"].functions[''](rt, readStream);
-            debugger;
             return rt.val(rt.boolTypeLiteral, val !== false);
         }, "global", "getline", ["?"], rt.boolTypeLiteral, [
             {

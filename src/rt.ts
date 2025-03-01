@@ -375,7 +375,7 @@ export class CRuntime {
             } else if (t.arrayIndex < 0) {
                 this.raiseException("negative index " + t.arrayIndex);
             }
-            debugger;
+            // debugger;
             const u = t.array[t.arrayIndex];
             u.array = t.array;
             u.arrayIndex = t.arrayIndex;
