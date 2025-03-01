@@ -775,9 +775,6 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                if (ret.v?.name === "getline") {
-                    // debugger;
-                }
                 // console.log "==================="
                 // console.log "s: " + JSON.stringify(s)
                 // console.log "==================="

@@ -341,8 +341,6 @@ export const defaultOpHandler: OpHandlerMap = {
         },
         "o(&)": {
             default(rt, l, r) {
-                // console.log(l);
-                // console.log(r);
                 let t;
                 if (r === undefined) {
                     if ("array" in l) {
@@ -397,7 +395,6 @@ export const defaultOpHandler: OpHandlerMap = {
                     rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
                 }
 
-                // debugger;
                 l.v = rt.cast(l.t, r).v;
                 return l;
             }
@@ -612,7 +609,6 @@ types["pointer"] = {
                 } else if (l.readonly) {
                     rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
                 }
-                // debugger;
                 const t = rt.cast(l.t, r);
                 l.t = t.t;
                 l.v = t.v;
@@ -621,8 +617,6 @@ types["pointer"] = {
         },
         "o(&)": {
             default(rt, l, r) {
-                // console.log(l);
-                // console.log(r);
                 if (r === undefined) {
                     if (rt.isArrayElementType(l)) {
                         if (l.array) {
@@ -734,15 +728,6 @@ types["pointer_array"] = {
                             array: arr,
                             arrayIndex: l.v.position,
                         }
-                        // if (l.v.position >= arr.length) {
-                        //    ret.error = ("index out of bound " + l.v.position + " >= " + arr.length);
-                        // } else if (l.v.position < 0) {
-                        //    ret.error = ("negative index " + l.v.position);
-                        // } else {
-                        // ret.v = arr[l.v.position].v;
-                        // }
-                        // const ret = arr[l.v.position] as ArrayElementVariable;
-                        // debugger;
                         return ret;
                     }
                 } else {
@@ -752,10 +737,8 @@ types["pointer_array"] = {
         },
         "o([])": {
             default(rt, l, r: Variable) {
-                // debugger;
                 l = rt.captureValue(l);
                 r = rt.types["pointer_array"].handlers["o(+)"].default(rt, l, r);
-                // console.log(r);
                 return rt.types["pointer_array"].handlers["o(*)"].default(rt, r);
             }
         },
