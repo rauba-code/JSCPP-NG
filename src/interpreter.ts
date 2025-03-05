@@ -923,7 +923,8 @@ export class Interpreter extends BaseInterpreter {
                 ({
                     rt
                 } = interp);
-                const ret = yield* interp.visit(interp, s.Expression, param);
+                let ret = yield* interp.visit(interp, s.Expression, param);
+                ret = rt.clone(rt.captureValue(ret));
                 const type = yield* interp.visit(interp, s.TypeName, param);
                 return rt.cast(type, ret);
             },

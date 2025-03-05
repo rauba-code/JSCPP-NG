@@ -343,6 +343,9 @@ export const defaultOpHandler: OpHandlerMap = {
             default(rt, l, r) {
                 let t;
                 if (r === undefined) {
+                    if (!l.left) {
+                        rt.raiseException(rt.makeValString(l) + " is not a left value");
+                    }
                     if ("array" in l) {
                         return rt.val(rt.arrayPointerType(l.t, l.array.length), rt.makeArrayPointerValue(l.array, l.arrayIndex));
                     } else {

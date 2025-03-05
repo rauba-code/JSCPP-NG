@@ -404,13 +404,15 @@ export class CRuntime {
                         }
                     };
                 } else {
-                    const lv = l.v;
-                    if (lv.members.hasOwnProperty(r)) {
-                        return lv.members[r];
+                    if (l.v.members.hasOwnProperty(r)) {
+                        return l.v.members[r];
+                    } else {
+                        this.raiseException("type '" + this.makeTypeString(lt) + "' does not have a member named '" + r + "'")
                     }
+
                 }
             } else {
-                this.raiseException("type " + this.makeTypeString(lt) + " is unknown");
+                this.raiseException("type '" + this.makeTypeString(lt) + "' is unknown");
             }
         } else {
             this.raiseException("only a class can have members");
@@ -1505,6 +1507,24 @@ export class CRuntime {
 
                         l.v = rt.cast(l.t, r).v;
                         return l;
+                    },
+                },
+                "o(&)": {
+                    default(rt: CRuntime, l: any, r: any) {
+                        if (r === undefined) {
+                            if (!l.left) {
+                                rt.raiseException(rt.makeValString(l) + " is not a left value");
+                            }
+                            if ("array" in l) {
+                                return rt.val(rt.arrayPointerType(l.t, l.array.length), rt.makeArrayPointerValue(l.array, l.arrayIndex));
+                            } else {
+                                const t = rt.normalPointerType(l.t);
+                                return rt.val(t, rt.makeNormalPointerValue(l));
+                            }
+                            
+                        } else {
+                            rt.raiseException(`operator & between types '${rt.makeTypeString(l)}' and '${rt.makeTypeString(r)}' is undefined`)
+                        }
                     },
                 },
             },

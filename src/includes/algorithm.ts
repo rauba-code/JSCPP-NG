@@ -1,5 +1,5 @@
 import _ = require("lodash");
-import { CRuntime, FunctionVariable, NormalPointerVariable, ArrayVariable, Variable, VariableType } from "../rt";
+import { CRuntime, FunctionVariable, NormalPointerVariable, ArrayVariable, Variable, VariableType, VariableValue, DummyVariable } from "../rt";
 
 export = {
     load(rt: CRuntime) {
@@ -52,6 +52,20 @@ export = {
                 _panic(_rt, fnname, "erroneous types of the parameters 'first' and/or 'last'");
             }
         }
+        // this may be useful for using functions with parameters
+        function invoke_arbitrary_function(_rt: CRuntime, fun: FunctionVariable, ...args: (Variable | DummyVariable)[]): VariableValue {
+            let invocation = fun?.v?.target(_rt, fun, ...args);
+            if (invocation === undefined) {
+                _panic(_rt, "<internal>", "failed to invoke a given function (function is unknown)");
+            }
+            for (let i: number = 0; i < 100_000_000; i++) {
+                const retv = invocation.next();
+                if (retv.done === true) {
+                    return retv.value;
+                }
+            }
+            _panic(_rt, "<internal>", "failed to invoke a given function (runtime limit exceeded)");
+        }
 
         // template<typename RandomIt> void sort(RandomIt first, RandomIt last)
         // C++ Reference does not define RandomIt.
@@ -100,9 +114,11 @@ export = {
                     _panic(_rt, "sort", "operator < is not supported for the specified type")
                 }
             } else {
-                lt_fun = function(__rt: CRuntime, lhs: any, rhs: any): any { return _comp.v.target(__rt, _comp, lhs, rhs); };
+                lt_fun = function(__rt: CRuntime, lhs: any, rhs: any): any { 
+                    return invoke_arbitrary_function(__rt, _comp, lhs, rhs); 
+                };
                 // TODO: accept predicates
-                _panic(_rt, "sort", "accepting predicates is not yet implemented")
+                // _panic(_rt, "sort", "accepting predicates is not yet implemented")
             }
             const sort_comparator = function(lhs: any, rhs: any): number {
                 // JavaScript specifically wants a symmetrical comparator, so we compare both sides
