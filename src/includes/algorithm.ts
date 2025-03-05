@@ -151,11 +151,32 @@ export = {
         }, "global", "find", ["?"], "?" as unknown as VariableType);
 
         // template<typename BidirIt> void reverse(BidirIt first, BidirIt last);
-        rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable): void {
-            const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "reverse");
-            // TODO: implement
-            _panic(_rt, "reverse", "not yet implemented");
-        }, "global", "reverse", ["?"], rt.voidTypeLiteral)
+        // rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable): void {
+        //     const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "reverse");
+        //     // TODO: implement
+        //     _panic(_rt, "reverse", "not yet implemented");
+        // }, "global", "reverse", ["?"], rt.voidTypeLiteral)
 
+        rt.regFunc(function(rt: CRuntime, _this: Variable, first: AlgorithmIterable, last: AlgorithmIterable) {
+            const firstIterator: any = first;
+            const lastIterator: any = last;
+
+            if (!(firstIterator.scope && lastIterator.scope)) {
+                rt.raiseException("non iterator arguments are unnacceptable to use this method.");
+            }
+
+            const reversed = [];
+            while (!_.isEqual(firstIterator, lastIterator)) {
+                const result = firstIterator.next();
+                if (result.value.v === 0) {
+                    reversed.push(result.value);
+                    break; 
+                }
+                reversed.unshift(result.value);
+            }
+            
+            firstIterator.scope.v.target = reversed;            
+        }, "global", "reverse", ["?"], rt.voidTypeLiteral);
+        rt.addToNamespace("std", "reverse", rt.readVar("reverse"));  
     }
 };
