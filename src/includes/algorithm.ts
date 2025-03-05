@@ -66,21 +66,7 @@ export = {
             }
             _panic(_rt, "<internal>", "failed to invoke a given function (runtime limit exceeded)");
         }
-
-        // template<typename RandomIt> void sort(RandomIt first, RandomIt last)
-        // C++ Reference does not define RandomIt.
-        // It can be any value (here: 'val') that satisfies these conditions:
-        // 1) RandomIt is MoveConstructible (can be constructed from computed value)
-        // 2) RandomIt is CopyConstructible (exists a copy constructor)
-        // 3) RandomIt is CopyAssignable (copy-assignment through operator=())
-        // 4) RandomIt is Destructible.
-        // 5) RandomIt is Swappable (std::swap(a, b) is possible)
-        // 6) RandomIt is ValueSwappable ((*RandomIt) is Swappable).
-        // 7) (*RandomIt) is MoveConstructible
-        // 8) (*RandomIt) is MoveAssignable
-        // 9 unwritten) Exists (*val1 < *val2).
-        // 10 unwritten) Exists (val1 - val2).
-        rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable, _comp: any): void {
+        function sort_inner(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable, _comp: any): void {
             const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "sort");
             if (_comp !== undefined) {
                 if (_comp.t?.type !== "function") {
@@ -134,7 +120,24 @@ export = {
             for (let i = it.first_pos; i < it.last_pos; i++) {
                 it.array[i] = value_array[i - it.first_pos];
             }
-        }, "global", "sort", ["?"], rt.voidTypeLiteral);
+        }
+
+        // template<typename RandomIt> void sort(RandomIt first, RandomIt last)
+        // C++ Reference does not define RandomIt.
+        // It can be any value (here: 'val') that satisfies these conditions:
+        // 1) RandomIt is MoveConstructible (can be constructed from computed value)
+        // 2) RandomIt is CopyConstructible (exists a copy constructor)
+        // 3) RandomIt is CopyAssignable (copy-assignment through operator=())
+        // 4) RandomIt is Destructible.
+        // 5) RandomIt is Swappable (std::swap(a, b) is possible)
+        // 6) RandomIt is ValueSwappable ((*RandomIt) is Swappable).
+        // 7) (*RandomIt) is MoveConstructible
+        // 8) (*RandomIt) is MoveAssignable
+        // 9 unwritten) Exists (*val1 < *val2).
+        // 10 unwritten) Exists (val1 - val2).
+        rt.regFunc(sort_inner, "global", "sort", ["?"], rt.voidTypeLiteral);
+        // JavaScript Array.sort() is always stable
+        rt.regFunc(sort_inner, "global", "stable_sort", ["?"], rt.voidTypeLiteral);
 
         // InputIt is just like RandomIt but not necessarilly ValueSwappable
         // template<typename InputIt, typename T> InputIt find(InputIt first, InputIt last, const T &value);
