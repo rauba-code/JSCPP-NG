@@ -38,15 +38,15 @@ export = {
                     last_pos: last.v.position,
                     array: first.v.target,
                 }
-            } else if ((_first as any).vector !== undefined && (_last as any).vector !== undefined) {
+            } else if ((_first as any).scope !== undefined && (_last as any).scope !== undefined) {
                 const first = _first as any;
                 const last = _last as any;
-                checkForIterTargets(_rt, first.vector, last.vector, fnname);
+                checkForIterTargets(_rt, first.scope.elements, last.scope.elements, fnname);
                 return {
-                    pointee_type: first.vector.dataType,
+                    pointee_type: first.scope.dataType,
                     first_pos: first.index,
                     last_pos: last.index,
-                    array: first.vector.elements
+                    array: first.scope.elements
                 }
             } else {
                 _panic(_rt, fnname, "erroneous types of the parameters 'first' and/or 'last'");
@@ -150,32 +150,15 @@ export = {
             _panic(_rt, "find", "not yet implemented");
         }, "global", "find", ["?"], "?" as unknown as VariableType);
 
-        // template<typename BidirIt> void reverse(BidirIt first, BidirIt last);
-        // rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable): void {
-        //     const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "reverse");
-        //     // TODO: implement
-        //     _panic(_rt, "reverse", "not yet implemented");
-        // }, "global", "reverse", ["?"], rt.voidTypeLiteral)
-
         rt.regFunc(function(rt: CRuntime, _this: Variable, first: AlgorithmIterable, last: AlgorithmIterable) {
-            const firstIterator: any = first;
-            const lastIterator: any = last;
+            const it: AlgorithmIterator = createAlgorithmIterator(rt, first, last, "reverse");
 
-            if (!(firstIterator.scope && lastIterator.scope)) {
-                rt.raiseException("non iterator arguments are unnacceptable to use this method.");
+            for (let i: number = 0; i * 2 < it.array.length; i++) {
+                const t = it.array[(it.array.length - 1) - i];
+                const u = it.array[i];
+                it.array[(it.array.length - 1) - i] = u;
+                it.array[i] = t;
             }
-
-            const reversed = [];
-            while (!_.isEqual(firstIterator, lastIterator)) {
-                const result = firstIterator.next();
-                if (result.value.v === 0) {
-                    reversed.push(result.value);
-                    break; 
-                }
-                reversed.unshift(result.value);
-            }
-            
-            firstIterator.scope.v.target = reversed;            
         }, "global", "reverse", ["?"], rt.voidTypeLiteral);
         rt.addToNamespace("std", "reverse", rt.readVar("reverse"));  
     }
