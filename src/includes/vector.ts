@@ -22,7 +22,7 @@ export = {
             }
         
             [Symbol.iterator]() {
-                this.iterator = new Iterator(vectorType, this, this.elements);
+                this.iterator = new Iterator(this.dataType, this, this.elements);
                 return this.iterator;
             }
 

@@ -39,8 +39,23 @@ export = {
             },
             "o(+)": {
                 default(rt: CRuntime, left: Variable, right: ArrayVariable) {
+                    if (left.v.constructor.name === Iterator.name) {
+                        (left as any).index += right.v;
+                        return left;
+                    }
+
                     const r = rt.getStringFromCharArray(left as ArrayVariable) + rt.getStringFromCharArray(_convertSingleCharIntoStringArray(right));
                     left.v = rt.makeCharArrayFromString(r).v;
+                    return left;
+                }
+            },
+            "o(-)": {
+                default(rt: CRuntime, left: Variable, right: any) {
+                    if (left.v.constructor.name !== Iterator.name) {
+                       rt.raiseException("no match for operator o(-)"); 
+                    }
+
+                    (left as any).index -= right.v;
                     return left;
                 }
             },
@@ -135,16 +150,28 @@ export = {
 
         rt.regFunc((function() {
             const replaceOverloads = {
-                replaceWithChar: (str: string, pos: number, n: number, m: number, c: string): string => str.slice(0, pos) + c.repeat(m) + str.slice(pos + n),
+                // replaceWithChar: (str: string, pos: number, n: number, m: number, c: string): string => str.slice(0, pos) + c.repeat(m) + str.slice(pos + n),
                 replaceWithString: (str: string, pos: number, n: number, str2: string): string => str.slice(0, pos) + str2 + str.slice(pos + n),
-                replaceWithSubstring: (str: string, pos1: number, n: number, str2: string, pos2: number, m: number): string => str.slice(0, pos1) + str2.slice(pos2, pos2 + m) + str.slice(pos1 + n),
-                replaceCharRange: (str: string, first: number, last: number, n: number, c: string): string => str.slice(0, first) + c.repeat(last - first) + str.slice(last),
-                replaceStringRange: (str: string, first: number, last: number, str2: string): string => str.slice(0, first) + str2 + str.slice(last),
-                replaceSubstringRange: (str: string, first: number, last: number, str2: string, str2_first: number, str2_last: number): string => str.slice(0, first) + str2.slice(str2_first, str2_last) + str.slice(last)
+                // replaceWithSubstring: (str: string, pos1: number, n: number, str2: string, pos2: number, m: number): string => str.slice(0, pos1) + str2.slice(pos2, pos2 + m) + str.slice(pos1 + n),
+                // replaceCharRange: (str: string, first: number, last: number, n: number, c: string): string => str.slice(0, first) + c.repeat(last - first) + str.slice(last),
+                // replaceStringRange: (str: string, first: number, last: number, str2: string): string => str.slice(0, first) + str2 + str.slice(last),
+                // replaceSubstringRange: (str: string, first: number, last: number, str2: string, str2_first: number, str2_last: number): string => str.slice(0, first) + str2.slice(str2_first, str2_last) + str.slice(last)
             };
 
-            return function(rt: CRuntime, _this: ArrayVariable, first: Variable, last: Variable, str: Variable) {
-                rt.raiseSoftException("not yet implemented.");
+            return function(rt: CRuntime, _this: ArrayVariable, first: Variable, last: Variable, str: ArrayVariable) {
+                let result: string = rt.getStringFromCharArray(str);
+                if (rt.isIntegerType(first) && rt.isIntegerType(last) && rt.isStringType(str)) {
+                    result = replaceOverloads.replaceWithString(rt.getStringFromCharArray(_this), first.v as number, last.v as number, result);
+                } else if (first.v.constructor.name === Iterator.name && last.v.constructor.name === Iterator.name) {
+                    result = replaceOverloads.replaceWithString(rt.getStringFromCharArray(_this), (first as any).index as number, (last as any).index as number, result);
+                } else {
+                    rt.raiseException("no matching function call");
+                }
+
+                const finalString = rt.makeCharArrayFromString(result);
+                _this.v = finalString.v;
+
+                return finalString;
             };
         })(), newStringType, "replace", ["?"], newStringType);
 

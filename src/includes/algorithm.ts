@@ -41,12 +41,12 @@ export = {
             } else if ((_first as any).scope !== undefined && (_last as any).scope !== undefined) {
                 const first = _first as any;
                 const last = _last as any;
-                checkForIterTargets(_rt, first.scope.elements, last.scope.elements, fnname);
+                checkForIterTargets(_rt, first.iterables, last.iterables, fnname);
                 return {
-                    pointee_type: first.scope.dataType,
+                    pointee_type: first.t,
                     first_pos: first.index,
                     last_pos: last.index,
-                    array: first.scope.elements
+                    array: first.iterables
                 }
             } else {
                 _panic(_rt, fnname, "erroneous types of the parameters 'first' and/or 'last'");
