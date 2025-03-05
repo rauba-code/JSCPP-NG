@@ -117,8 +117,6 @@ export = {
                 lt_fun = function(__rt: CRuntime, lhs: any, rhs: any): any { 
                     return invoke_arbitrary_function(__rt, _comp, lhs, rhs); 
                 };
-                // TODO: accept predicates
-                // _panic(_rt, "sort", "accepting predicates is not yet implemented")
             }
             const sort_comparator = function(lhs: any, rhs: any): number {
                 // JavaScript specifically wants a symmetrical comparator, so we compare both sides
@@ -145,12 +143,14 @@ export = {
                 _panic(_rt, "find", "parameter 'value' is undefined");
             }
             const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "find");
+            // TODO: implement
             _panic(_rt, "find", "not yet implemented");
         }, "global", "find", ["?"], "?" as unknown as VariableType);
 
         // template<typename BidirIt> void reverse(BidirIt first, BidirIt last);
         rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable): void {
             const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "reverse");
+            // TODO: implement
             _panic(_rt, "reverse", "not yet implemented");
         }, "global", "reverse", ["?"], rt.voidTypeLiteral)
 
