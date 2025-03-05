@@ -1,6 +1,7 @@
 /* eslint-disable no-shadow */
-import { CRuntime, ClassType, ArrayVariable, Variable, ObjectVariable, VariableValue, IntVariable, ObjectValue } from "../rt";
+import { CRuntime, ClassType, ArrayVariable, Variable, ObjectVariable, VariableValue, IntVariable, ObjectValue, VariableType } from "../rt";
 import { ios_base, getBit } from "./shared/ios_base"
+import { Iterator } from "./shared/iterator";
 
 export = {
     load(rt: CRuntime) {
@@ -131,6 +132,31 @@ export = {
                 left: false
             };
         }, newStringType, "max_size", [], rt.intTypeLiteral);
+
+        rt.regFunc((function() {
+            const replaceOverloads = {
+                replaceWithChar: (str: string, pos: number, n: number, m: number, c: string): string => str.slice(0, pos) + c.repeat(m) + str.slice(pos + n),
+                replaceWithString: (str: string, pos: number, n: number, str2: string): string => str.slice(0, pos) + str2 + str.slice(pos + n),
+                replaceWithSubstring: (str: string, pos1: number, n: number, str2: string, pos2: number, m: number): string => str.slice(0, pos1) + str2.slice(pos2, pos2 + m) + str.slice(pos1 + n),
+                replaceCharRange: (str: string, first: number, last: number, n: number, c: string): string => str.slice(0, first) + c.repeat(last - first) + str.slice(last),
+                replaceStringRange: (str: string, first: number, last: number, str2: string): string => str.slice(0, first) + str2 + str.slice(last),
+                replaceSubstringRange: (str: string, first: number, last: number, str2: string, str2_first: number, str2_last: number): string => str.slice(0, first) + str2.slice(str2_first, str2_last) + str.slice(last)
+            };
+
+            return function(rt: CRuntime, _this: ArrayVariable, first: Variable, last: Variable, str: Variable) {
+                rt.raiseSoftException("not yet implemented.");
+            };
+        })(), newStringType, "replace", ["?"], newStringType);
+
+        rt.regFunc(function(rt: CRuntime, _this: ArrayVariable) {
+            const iterator: Iterator = new Iterator(newStringType, _this, _this.v.target);
+            return iterator.begin();
+        }, newStringType, "begin", [], "?" as unknown as VariableType);
+
+        rt.regFunc(function(rt: CRuntime, _this: ArrayVariable) {
+            const iterator: Iterator = new Iterator(newStringType, _this, _this.v.target);
+            return iterator.end();
+        }, newStringType, "end", [], "?" as unknown as VariableType);
 
         rt.regFunc(_getStringLength, newStringType, "length", [], rt.intTypeLiteral);
         rt.regFunc(_getStringLength, newStringType, "size", [], rt.intTypeLiteral);

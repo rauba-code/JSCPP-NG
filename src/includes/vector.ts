@@ -1,7 +1,16 @@
+import { Iterator } from "./shared/iterator";
 import { CRuntime, ClassType, Variable, VariableType } from "../rt";
 
 export = {
     load(rt: CRuntime) {
+        const vectorType: ClassType = rt.newClass("vector", [{
+            name: "element_container",
+            type: [] as any,
+            initialize(rt, _this) { 
+                return new Vector([]) as any; 
+            }
+        }]);
+        rt.addToNamespace("std", "vector", vectorType);
 
         class Vector {
             dataType: any;
@@ -13,7 +22,7 @@ export = {
             }
         
             [Symbol.iterator]() {
-                this.iterator = new Iterator(this);
+                this.iterator = new Iterator(vectorType, this, this.elements);
                 return this.iterator;
             }
 
@@ -71,51 +80,6 @@ export = {
             }
         }
 
-        const vectorType: ClassType = rt.newClass("vector", [{
-            name: "element_container",
-            type: [] as any,
-            initialize(rt, _this) { 
-                return new Vector([]) as any; 
-            }
-        }]);
-        rt.addToNamespace("std", "vector", vectorType);
-
-        class Iterator {
-            vector: Vector;
-            index: number;
-            v: Iterator;
-            t: ClassType;
-
-            constructor(vector: Vector) {
-                this.vector = vector;
-                this.index = 0;
-
-                this.t = vectorType;
-                this.v = this;
-            }
-        
-            begin() {
-                this.index = 0;
-                return this;
-            }
-        
-            end() {
-                this.index = this.vector.size();
-                return this;
-            }
-        
-            next() {
-                if (this.index >= this.vector.size()) {
-                    return { done: true };
-                }
-                return { value: this.vector.elements[this.index++], done: false };
-            }
-
-            [Symbol.iterator]() {
-                return this;
-            }
-        }
-        
         const _getElementContainer = function(_this: any) {
             return _this.v.members["element_container"];
         };
@@ -144,8 +108,9 @@ export = {
                 }
             },
             "o(*)": {
-                default(rt, _left: any, _right: Variable) {
-                    return _left.v.vector.get(_left.v.index);
+                default(rt, _left: Variable, _right: Variable) {
+                    const iterator: any = _left.v;
+                    return iterator.scope.get(iterator.index);
                 }
             },
             "o(=)": {

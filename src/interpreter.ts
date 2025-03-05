@@ -626,7 +626,7 @@ export class Interpreter extends BaseInterpreter {
                 try {
                     iterator = rt.getFunc(iterable.t, "__iterator", [])(rt, iterable);
                 } catch(ex) {
-                    if (rt.isArrayType(iterable.t)) {
+                    if (rt.isArrayType(iterable.t) || rt.isStringType(iterable.t)) {
                         iterator = iterable.v.target[Symbol.iterator]();
                     }
                 }
