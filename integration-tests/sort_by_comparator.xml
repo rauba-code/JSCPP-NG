@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<code><![CDATA[#include <iostream>
+#include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <vector>
+using namespace std;
+
+struct Point {
+    float x;
+    float y;
+};
+
+float norm(const Point &a) {
+    return sqrt((a.x * a.x) + (a.y * a.y));
+}
+
+// sort by distance from (0, 0) ascending
+bool point_cmp(const Point &a, const Point &b) {
+    return norm(a) < norm(b);
+}
+
+bool neg_cmp(const int &a, const int &b) {
+    return (-a) < (-b);
+}
+
+int main() {
+    const int CAP = 16;
+    int arr[CAP] = { -77, -43, 37, 122, 38, -84, 10, -13, -76, 29, 127, -30, 62, 51, -54, 29};
+    sort(arr, &arr[CAP], neg_cmp);
+    for (int i = 0; i < CAP; i++) {
+        cout << arr[i] << ' ';
+    }
+    cout << endl;
+    //vector<Point> pts;
+    Point pts[CAP / 2];
+    for (int i = 0; i * 2 < CAP; i++) {
+        Point a;
+        a.x = (float)arr[i * 2];
+        a.y = (float)arr[(i * 2) + 1];
+        pts[i] = a;
+        //pts.push_back(a);
+    }
+    sort(pts, &pts[CAP / 2], point_cmp);
+    //sort(pts.begin(), pts.end(), point_cmp);
+    for (int i = 0; i * 2 < CAP; i++) {
+        cout << fixed << setprecision(1) << pts[i].x << '\t';
+        cout << fixed << setprecision(1) << pts[i].y << '\t';
+        cout << fixed << setprecision(1) << norm(pts[i]) << endl;
+    }
+    return 0;
+}]]></code>
+<tests>
+ <test id="test_1">
+  <console>
+   <input visible="1"><![CDATA[]]></input>
+   <output visible="1"><![CDATA[127 122 62 51 38 37 29 29 10 -13 -30 -43 -54 -76 -77 -84 
+10.0	-13.0	16.4
+29.0	29.0	41.0
+-30.0	-43.0	52.4
+38.0	37.0	53.0
+62.0	51.0	80.3
+-54.0	-76.0	93.2
+-77.0	-84.0	114.0
+127.0	122.0	176.1]]></output>
+  </console>
+  <files/>
+ </test>
+</tests>
