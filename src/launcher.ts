@@ -26,6 +26,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     vector: require("./includes/vector"),
     algorithm: require("./includes/algorithm"),
     functional: require("./includes/functional"),
+    _bits__stdcpp: require("./includes/bits/stdcpp"),
     foo: require("./includes/dummy_class_foo")
 };
 
@@ -36,6 +37,7 @@ const headerAlias: { [filename: string]: string } = {
     "math.h": "cmath",
     "stdio.h": "cstdio",
     "stdlib.h": "cstdlib",
+    "bits/stdc++.h": "_bits__stdcpp",
     "time.h": "ctime"
 };
 

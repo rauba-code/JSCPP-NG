@@ -118,7 +118,7 @@ PrepIncludeLocal = SHARP INCLUDE QUO a:Filename QUO {
     return addPositionInfo({type:'PrepIncludeLocal', name:a});
 };
 
-Filename = a:(IdChar / [/\\.])+ {return a.join('');};
+Filename = a:(IdChar / [/\\.+])+ {return a.join('');};
 
 ConditionalInclusion = PrepIfdef / PrepIfndef / PrepEndif / PrepElse;
 
