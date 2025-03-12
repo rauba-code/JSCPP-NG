@@ -1,5 +1,6 @@
 import _ = require("lodash");
-import { CCharType, CFloatType, CIntType, JSCPPConfig, Variable, OpHandlerMap, ArrayElementVariable } from "./rt";
+import { Iterator } from "./includes/shared/iterator";
+import { CCharType, CFloatType, CIntType, JSCPPConfig, Variable, OpHandlerMap, ArrayElementVariable, ArrayVariable } from "./rt";
 
 const config: JSCPPConfig = {
     specifiers: ["const", "inline", "_stdcall", "extern", "static", "auto", "register"],
@@ -224,6 +225,8 @@ export const defaultOpHandler: OpHandlerMap = {
                         return rt.val(r.t, rt.makeArrayPointerValue(r.v.target, r.v.position + i));
                     } else if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
                         raiseSupportException(rt, l, r, "+");
+                    } else if (l.constructor.name === Iterator.name) {
+                        return rt.val(l.t, (l as any).index + r.v);
                     } else {
                         const ret = rt.booleanToNumber(l.v) + rt.booleanToNumber(r.v);
                         const rett = rt.promoteNumeric(l.t, r.t);
@@ -243,6 +246,8 @@ export const defaultOpHandler: OpHandlerMap = {
                     // binary
                     if (!rt.isNumericType(l) || !rt.isNumericType(r)) {
                         raiseSupportException(rt, l, r, "-");
+                    } else if (l.constructor.name === Iterator.name) {
+                        return rt.val(l.t, (l as any).index - (r as any).v);
                     } else {
                         const ret = rt.booleanToNumber(l.v) - rt.booleanToNumber(r.v);
                         rett = rt.promoteNumeric(l.t, r.t);
@@ -828,6 +833,8 @@ types["pointer_array"] = {
                 if (rt.isArrayType(l) && rt.isNumericType(r)) {
                     const i = rt.cast(rt.intTypeLiteral, r).v;
                     return rt.val(l.t, rt.makeArrayPointerValue(l.v.target, l.v.position + i));
+                } else if (rt.isStringType(l) && rt.isStringType(r as ArrayVariable)) {
+                    return rt.makeCharArrayFromString(rt.getStringFromCharArray(l) + rt.getStringFromCharArray(r as ArrayVariable));
                 } else {
                     rt.raiseException("cannot add non-numeric to an array pointer");
                 }

@@ -46,6 +46,13 @@ export = {
             }
 
             erase(start: Variable, end: Variable) {
+                if (rt.isNumericType(start)) {
+                    if ((start as any).v < 0) {
+                        rt.raiseException(`Runtime error: erase 'start' index can't be ${start.v}`);
+                    } else if ((start as any).v > this.size()) {
+                        rt.raiseException(`Runtime error: erase 'start' index ${start.v} can't exceed vector size ${this.size()}`);
+                    }
+                }
                 this.elements.splice(((start as any).v?.index ?? start.v) as number, ((end?.v as number) - (start.v as number)) || 1);
                 return this.iterator;
             }
