@@ -176,13 +176,15 @@ export = {
         })(), newStringType, "replace", ["?"], newStringType);
 
         rt.regFunc(function(rt: CRuntime, _this: ArrayVariable) {
-            const iterator: Iterator = new Iterator(newStringType, _this, _this.v.target);
+            const iterator: Iterator = new Iterator(rt.charTypeLiteral, _this, _this.v.target);
             return iterator.begin();
         }, newStringType, "begin", [], "?" as unknown as VariableType);
 
         rt.regFunc(function(rt: CRuntime, _this: ArrayVariable) {
-            const iterator: Iterator = new Iterator(newStringType, _this, _this.v.target);
-            return iterator.end();
+            const iterator: Iterator = new Iterator(rt.charTypeLiteral, _this, _this.v.target);
+            let end = iterator.end();
+            end.index--;
+            return end;
         }, newStringType, "end", [], "?" as unknown as VariableType);
 
         rt.regFunc(_getStringLength, newStringType, "length", [], rt.intTypeLiteral);

@@ -72,7 +72,6 @@ export = {
                 if (_comp.t?.type !== "function") {
                     _panic(_rt, "sort", "parameter 'comp' is not a function (passing structures with operator bool() overloads is not yet implemented)")
                 }
-                const comp = _comp as FunctionVariable;
                 if (_comp.t.retType?.type !== "primitive"
                 || _comp.t.retType.name !== "bool"
                 || _comp.t.signature?.length !== 2
@@ -153,11 +152,13 @@ export = {
         rt.regFunc(function(rt: CRuntime, _this: Variable, first: AlgorithmIterable, last: AlgorithmIterable) {
             const it: AlgorithmIterator = createAlgorithmIterator(rt, first, last, "reverse");
 
-            for (let i: number = 0; i * 2 < it.array.length; i++) {
-                const t = it.array[(it.array.length - 1) - i];
-                const u = it.array[i];
-                it.array[(it.array.length - 1) - i] = u;
-                it.array[i] = t;
+            for (let i: number = 0; i * 2 < it.last_pos - it.first_pos; i++) {
+                const p = it.first_pos + i;
+                const q = ((it.last_pos - 1) - i);
+                const t = it.array[q];
+                const u = it.array[p];
+                it.array[q] = u;
+                it.array[p] = t;
             }
         }, "global", "reverse", ["?"], rt.voidTypeLiteral);
         rt.addToNamespace("std", "reverse", rt.readVar("reverse"));  
