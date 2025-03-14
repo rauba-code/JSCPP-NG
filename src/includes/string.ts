@@ -325,6 +325,7 @@ export = {
             const str = rt.getStringFromCharArray(left as ArrayVariable);
             const r = str.slice(0, pos.v) + str.slice(pos.v + (length?.v ?? str.length));
             left.v = rt.makeCharArrayFromString(r).v;
+            return left;
         }, newStringType, "erase", [rt.intTypeLiteral], newStringType, [{
             name: "length",
             type: rt.intTypeLiteral,
