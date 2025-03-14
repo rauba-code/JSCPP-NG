@@ -19,7 +19,7 @@ export class TypeDB {
     parser: LLParser
     scope: NonTerm
     strict_order: boolean
-    functions: { [identifier: string]: { overloads: string[][], cache: { [params: string]: number } } }
+    functions: { [identifier: string]: { overloads: string[][], cache: { [signature: string]: number } } }
 
     constructor(parser: LLParser, scope: NonTerm = "Type", strict_order = true) {
         this.parser = parser;
@@ -27,12 +27,18 @@ export class TypeDB {
         this.strict_order = strict_order;
     }
 
-    matchSubset(subtype: string | string[], subset: string | string[]): boolean {
-        return typecheck.parseSubset(this.parser, makeStringArr(subtype), makeStringArr(subset), this.scope, this.strict_order);
+    matchSubset(subtype: string | string[], supertype: string | string[], allow_lvalue_substitution = false): boolean {
+        return typecheck.parseSubset(this.parser, makeStringArr(subtype), makeStringArr(supertype), this.scope, this.strict_order, allow_lvalue_substitution);
     }
 
     addFunctionOverload(identifier: string, function_type: string | string[]) {
-        throw new Error("Not yet implemented");
+        if (!(identifier in this.functions)) {
+            this.functions[identifier] = { overloads: [ makeStringArr(function_type) ], cache: {} };
+        } else {
+            this.functions[identifier].overloads.push(makeStringArr(function_type));
+            // clean the cache for this function
+            this.functions[identifier].cache = {};
+        }
     }
 
     matchFunction(identifier: string, params: (string | string[])[]): number {
@@ -42,23 +48,30 @@ export class TypeDB {
         }
         const targetParams: string[] = params.flatMap((x) => {
             const sa: string[] = makeStringArr(x);
-            if (sa.length > 0) {
-                if (sa[0].startsWith(typecheck.wildcardDeclarator)) {
-                    throw new TypeParseError("Calling a function with parameters of wildcard type is unsupported")
-                }
-                //if (sa[0] === "LREF") {
-                //    return sa.slice(1);
-                //}
+            if (sa.length > 0 && sa[0].startsWith(typecheck.wildcardDeclarator)) {
+                throw new TypeParseError("Calling a function with parameters of wildcard type is unsupported");
             }
             return sa;
         });
         const target: string[] = ["FUNCTION", "Return", "("].concat(...targetParams).concat(")");
-
-
-        throw new Error("Not yet implemented");
+        const targetInline = makeString(target);
+        if (targetInline in fnobj.cache) {
+            return fnobj.cache[targetInline];
+        }
+        let retv = -1;
+        for (let i = 0; i < fnobj.overloads.length; i++) {
+            if (this.matchSubset(target, fnobj.overloads[i], true)) {
+                if (retv >= 0) {
+                    throw new TypeParseError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[retv]} \n2) ${fnobj.overloads[i]}`);
+                }
+                retv = i;
+            }
+        }
+        fnobj.cache[targetInline] = retv;
+        return retv;
     }
 
     parse(type: string | string[]): boolean {
-        return typecheck.parse(this.parser, makeStringArr(type), this.strict_order);
+        return typecheck.parse(this.parser, makeStringArr(type), this.scope, this.strict_order);
     }
 }

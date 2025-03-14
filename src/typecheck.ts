@@ -240,12 +240,13 @@ function preparse(sentence: string[], strict_order: boolean = true): { sentence:
 /** Tests if the given string is a valid sentence.
  *  @param parser The LL(1) Parser, created using `constructTypeParser`.
  *  @param sentence Sequence of tokens, which describes the variable type.
+ *  @param scope The topmost nonterminal token of both statements (default = `'Type'`).
  *  @param strict_order Ensure that typed wildcard statements are going from ?0 in ascending order in the sequence (default = `true`).
  *  @throws TypeParseError on invalid preparsing (see: `strict_order`).
  **/
-export function parse(parser: LLParser, sentence: string[], strict_order: boolean = true): boolean {
+export function parse(parser: LLParser, sentence: string[], scope: NonTerm = 'Type', strict_order: boolean = true): boolean {
     const preparseResult = preparse(sentence, strict_order);
-    return parseInner(parser, "Type", preparseResult.sentence) !== null;
+    return parseInner(parser, scope, preparseResult.sentence) !== null;
 }
 
 function parseInner(parser: LLParser, scope: NonTerm, sentence: string[]): string[] | null {
@@ -306,10 +307,11 @@ export function arrayValuesEqual(a: string[], b: string[]): boolean {
  *  @param supertype Sequence of tokens, which describes the superset of types.
  *  @param scope The topmost nonterminal token of both statements (default = `'Type'`).
  *  @param strict_order Ensure that typed wildcard statements are going from ?0 in ascending order in the sequence (default = `true`).
+ *  @param allow_lvalue_substitution allow substituting `"LREF Object"` to `"Object"` when checking lvalues in `subtype`.
  *  @remarks It is assumed that `parse(parser, subtype)` and `parse(parser, supertype)` return `true` (i.e., `subtype` and `supertype` are always valid). This function does NOT check if given sentences are valid.
  *  @throws TypeParseError on preparsing errors (see: `strict_order`).
  **/
-export function parseSubset(parser: LLParser, subtype: string[], supertype: string[], scope: NonTerm = 'Type', strict_order = true): boolean {
+export function parseSubset(parser: LLParser, subtype: string[], supertype: string[], scope: NonTerm = 'Type', strict_order = true, allow_lvalue_substitution = false): boolean {
     let subData = preparse(subtype, strict_order);
     let superData = preparse(supertype, strict_order);
     const pair: SigPair = {
@@ -319,18 +321,21 @@ export function parseSubset(parser: LLParser, subtype: string[], supertype: stri
         superwc: superData.wildcardMap,
         wildcards: new Array<number | string[]>()
     }
-    const p1: boolean = parseSubsetInner(parser, scope, pair);
+    const p1: boolean = parseSubsetInner(parser, scope, pair, allow_lvalue_substitution);
     const p2: boolean = pair.subtype.length === 0 && pair.supertype.length === 0;
     return p1 && p2;
 }
 
-function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SigPair): boolean {
+function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SigPair, allow_lvalue_substitution: boolean = false): boolean {
     let retv: boolean | null = null;
     parser[scope].forEach((argument) => {
         if (retv !== null) {
             return;
         }
         if (pair.supertype.length > 0 && pair.supertype[0] in argument) {
+            if (allow_lvalue_substitution && pair.subtype.length > 0 && pair.subtype[0] === "LREF" && !(pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef")) {
+                pair.subtype = pair.subtype.slice(1);
+            }
             const innerScope: NonTerm | null = argument[pair.supertype[0]] as NonTerm | null;
             if (innerScope === null) {
                 if (pair.supertype[0] === scope) {
@@ -379,7 +384,7 @@ function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SigPair): bool
                     pair.subtype = pair.subtype.slice(1);
                 }
             } else {
-                if (!parseSubsetInner(parser, innerScope as NonTerm, pair)) {
+                if (!parseSubsetInner(parser, innerScope as NonTerm, pair, allow_lvalue_substitution)) {
                     retv = false;
                     return;
                 }
