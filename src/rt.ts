@@ -1,6 +1,7 @@
 import * as defaults from "./defaults";
 import * as Flatted from 'flatted';
 import * as typecheck from './typecheck';
+import * as typedb from './typedb';
 import { BaseInterpreter, Interpreter } from "./interpreter";
 import { resolveIdentifier } from "./includes/shared/string_utils";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
