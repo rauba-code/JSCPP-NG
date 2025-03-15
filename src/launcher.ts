@@ -26,6 +26,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     vector: require("./includes/vector"),
     algorithm: require("./includes/algorithm"),
     functional: require("./includes/functional"),
+    utility: require("./includes/utility"),
     _bits__stdcpp: require("./includes/bits/stdcpp"),
     foo: require("./includes/dummy_class_foo")
 };

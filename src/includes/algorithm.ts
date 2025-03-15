@@ -3,6 +3,8 @@ import { CRuntime, FunctionVariable, NormalPointerVariable, ArrayVariable, Varia
 
 export = {
     load(rt: CRuntime) {
+        rt.include("utility");
+
         interface AlgorithmIterator {
             pointee_type: VariableType,
             first_pos: number,

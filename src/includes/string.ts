@@ -5,6 +5,8 @@ import { Iterator } from "./shared/iterator";
 
 export = {
     load(rt: CRuntime) {
+        rt.include("utility");
+
         interface ifStreamObject extends ObjectVariable {
             v: ObjectValue
         };

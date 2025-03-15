@@ -1,10 +1,12 @@
 /* eslint-disable no-shadow */
-import { ArrayVariable, CRuntime, IntVariable, Variable, VariableType, ClassType } from "../rt";
+import { ArrayVariable, CRuntime, IntVariable, Variable, ClassType } from "../rt";
 import { Cin, Cout, IomanipOperator, IomanipConfig } from "./shared/iomanip_types";
 import { read, skipSpace } from "./shared/string_utils";
 
 export = {
     load(rt: CRuntime) {
+        rt.include("utility");
+
         const { stdio } = rt.config;
 
         const pchar = rt.normalPointerType(rt.charTypeLiteral);
