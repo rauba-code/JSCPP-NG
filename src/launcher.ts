@@ -2,14 +2,14 @@
 import { CRuntime, IncludeModule, JSCPPConfig, mergeConfig } from "./rt";
 
 import { Interpreter } from "./interpreter";
-const ast = require("./ast");
-const preprocessor = require("./preprocessor");
+import ast = require("./ast");
+import preprocessor = require("./preprocessor");
 import Debugger from "./debugger"
 // @ts-ignore;
 import * as PEGUtil from "pegjs-util";
 
 const includes: { [fileName: string]: IncludeModule } = {
-    ifstream: require("./includes/ifstream"),
+    /*ifstream: require("./includes/ifstream"),
     ofstream: require("./includes/ofstream"),
     fstream: require("./includes/fstream"),
     sstream: require("./includes/sstream"),
@@ -27,18 +27,18 @@ const includes: { [fileName: string]: IncludeModule } = {
     algorithm: require("./includes/algorithm"),
     functional: require("./includes/functional"),
     _bits__stdcpp: require("./includes/bits/stdcpp"),
-    foo: require("./includes/dummy_class_foo")
+    foo: require("./includes/dummy_class_foo")*/
 };
 
 const headerAlias: { [filename: string]: string } = {
-    "ctype.h": "cctype",
+    /*"ctype.h": "cctype",
     "limits.h": "climits",
     "string.h": "cstring",
     "math.h": "cmath",
     "stdio.h": "cstdio",
     "stdlib.h": "cstdlib",
     "bits/stdc++.h": "_bits__stdcpp",
-    "time.h": "ctime"
+    "time.h": "ctime"*/
 };
 
 for (const alias of Object.keys(headerAlias)) {

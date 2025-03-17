@@ -2,6 +2,7 @@ import * as defaults from "./defaults";
 import * as Flatted from 'flatted';
 import * as typecheck from './typecheck';
 import * as typedb from './typedb';
+import * as variables from './variables';
 import { BaseInterpreter, Interpreter } from "./interpreter";
 import { resolveIdentifier } from "./includes/shared/string_utils";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
@@ -128,19 +129,10 @@ export interface ReferenceType {
     targetType: VariableType;
 }
 
-export interface StructType {
-    type: "struct";
-    name: string;
-}
-
-export interface OperatorFunctionType {
-    type: "function";
-}
-
 export interface FunctionType {
     type: "function";
-    retType?: VariableType;
-    signature?: (VariableType | "?")[];
+    retType?: string[];
+    signature?: string[][];
 }
 
 export interface ClassType {
@@ -148,7 +140,7 @@ export interface ClassType {
     name: string;
 }
 
-export type VariableType = PrimitiveType | ReferenceType | StructType | PointerType | FunctionType | ClassType;
+export type VariableType = PrimitiveType | ReferenceType | PointerType | FunctionType | ClassType;
 
 export type BasicValue = number | boolean;
 
@@ -231,13 +223,13 @@ export interface FunctionValue {
 }
 
 export interface FunctionVariable {
-    t: FunctionType | OperatorFunctionType;
+    t: FunctionType;
     v: FunctionValue;
 }
 
 export interface ArrayElementVariable {
     t: VariableType;
-    v: VariableValue;
+    v?: VariableValue;
     array: Variable[];
     arrayIndex: number;
 }
@@ -423,7 +415,7 @@ export class CRuntime {
 
     defFunc(lt: VariableType, name: string, retType: VariableType, argTypes: VariableType[], argNames: string[], stmts: any, interp: Interpreter, optionalArgs: OptionalArg[], readonlyArgs: boolean[]) {
         if (stmts != null) {
-            const f = function* (rt: CRuntime, _this: Variable, ...args: Variable[]) {
+            const f = function*(rt: CRuntime, _this: Variable, ...args: Variable[]) {
                 // logger.warn("calling function: %j", name);
                 rt.enterScope("function " + name);
                 argNames.forEach(function(argName, i) {
@@ -1523,7 +1515,7 @@ export class CRuntime {
                                 const t = rt.normalPointerType(l.t);
                                 return rt.val(t, rt.makeNormalPointerValue(l));
                             }
-                            
+
                         } else {
                             rt.raiseException(`operator & between types '${rt.makeTypeString(l)}' and '${rt.makeTypeString(r)}' is undefined`)
                         }

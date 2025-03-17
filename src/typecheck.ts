@@ -10,114 +10,64 @@ export class TypeParseError extends Error {
 }
 
 const term = {
-    // @ts-ignore
-    "FUNCTION": null,
-    // @ts-ignore
-    "VOID": null,
-    // @ts-ignore
-    "NULLPTR": null,
-    // @ts-ignore
-    "LREF": null,
-    // @ts-ignore
-    "ARRAY": null,
-    // @ts-ignore
-    "CLASS": null,
-    // @ts-ignore
-    "MEMBER": null,
-    // @ts-ignore
-    "PTR": null,
-    // @ts-ignore
-    "I8": null,
-    // @ts-ignore
-    "U8": null,
-    // @ts-ignore
-    "I16": null,
-    // @ts-ignore
-    "U16": null,
-    // @ts-ignore
-    "I32": null,
-    // @ts-ignore
-    "U32": null,
-    // @ts-ignore
-    "I64": null,
-    // @ts-ignore
-    "U64": null,
-    // @ts-ignore
-    "F32": null,
-    // @ts-ignore
-    "F64": null,
-    // @ts-ignore
-    "BOOL": null,
-    // @ts-ignore
-    "STRINGLITERAL": null, // unused
-    // @ts-ignore
-    "CHARLITERAL": null, // unused
-    // @ts-ignore
-    "INTLITERAL": null, // unused
-    // @ts-ignore
-    "FLOATLITERAL": null, // unused
-    // @ts-ignore
-    "<": null,
-    // @ts-ignore
-    ">": null,
-    // @ts-ignore
-    "(": null,
-    // @ts-ignore
-    ")": null
+    "FUNCTION": Object,
+    "VOID": Object,
+    "NULLPTR": Object,
+    "LREF": Object,
+    "ARRAY": Object,
+    "CLASS": Object,
+    "MEMBER": Object,
+    "PTR": Object,
+    "I8": Object,
+    "U8": Object,
+    "I16": Object,
+    "U16": Object,
+    "I32": Object,
+    "U32": Object,
+    "I64": Object,
+    "U64": Object,
+    "F32": Object,
+    "F64": Object,
+    "BOOL": Object,
+    "STRINGLITERAL": Object, // unused
+    "CHARLITERAL": Object, // unused
+    "INTLITERAL": Object, // unused
+    "FLOATLITERAL": Object, // unused
+    "<": Object,
+    ">": Object,
+    "(": Object,
+    ")": Object
 } as const;
 export type Term = keyof (typeof term);
 
 const nonTerm = {
-    // @ts-ignore
-    "TemplateParamPlus": null,
-    // @ts-ignore
-    "TemplateParamOrEnd": null,
-    // @ts-ignore
-    "FunctionParamPlus": null,
-    // @ts-ignore
-    "FunctionParamOrEnd": null,
-    // @ts-ignore
-    "Member": null,
-    // @ts-ignore
-    "Function": null,
-    // @ts-ignore
-    "Type": null,
-    // @ts-ignore
-    "Object": null,
-    // @ts-ignore
-    "ParamObject": null,
-    // @ts-ignore
-    "Parametric": null,
-    // @ts-ignore
-    "LRef": null,
-    // @ts-ignore
-    "LValue": null,
-    // @ts-ignore
-    "Pointer": null,
-    // @ts-ignore
-    "Pointee": null,
-    // @ts-ignore
-    "Array": null,
-    // @ts-ignore
-    "ArraySize": null,
-    // @ts-ignore
-    "Class": null,
-    // @ts-ignore
-    "Arithmetic": null,
-    // @ts-ignore
-    "Literal": null, // unused
-    // @ts-ignore
-    "ObjectOrFunction": null,
-    // @ts-ignore
-    "Return": null
+    "TemplateParamPlus": Object,
+    "TemplateParamOrEnd": Object,
+    "FunctionParamPlus": Object,
+    "FunctionParamOrEnd": Object,
+    "Member": Object,
+    "Function": Object,
+    "Type": Object,
+    "Object": Object,
+    "ParamObject": Object,
+    "Parametric": Object,
+    "LRef": Object,
+    "LValue": Object,
+    "Pointer": Object,
+    "Pointee": Object,
+    "Array": Object,
+    "ArraySize": Object,
+    "Class": Object,
+    "Arithmetic": Object,
+    "Literal": Object, // unused
+    "ObjectOrFunction": Object,
+    "Return": Object
 } as const;
 export type NonTerm = keyof (typeof nonTerm);
 
 const specTerm = {
-    // @ts-ignore
-    "identifier": null,
-    // @ts-ignore
-    "positiveint": null,
+    "identifier": Object,
+    "positiveint": Object,
 };
 export type SpecTerm = keyof (typeof specTerm);
 
