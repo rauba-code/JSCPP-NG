@@ -909,7 +909,8 @@ export class Interpreter extends BaseInterpreter {
                 ({
                     rt
                 } = interp);
-                const ret = yield* interp.visit(interp, s.Expression, param);
+                let ret = yield* interp.visit(interp, s.Expression, param);
+                ret = rt.captureValue(ret);
                 return rt.val(rt.intTypeLiteral, rt.getSize(ret));
             },
             *UnaryExpression_Sizeof_Type(interp, s, param) {

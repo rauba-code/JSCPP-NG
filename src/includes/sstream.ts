@@ -1,5 +1,5 @@
 /* eslint-disable no-shadow */
-import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable } from "../rt";
+import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, IntVariable, VariableType } from "../rt";
 import { ios_base, getBit } from "./shared/ios_base";
 import { read, skipSpace } from "./shared/string_utils";
 
@@ -48,7 +48,7 @@ function _load(rt: CRuntime, class_name: string) {
     rt.types[stringStreamTypeSig].handlers = {
         "o(())": {
             default(rt: CRuntime, _this: stringStreamObject, ...args: Variable[]) {
-                const [ _string ] = args;
+                const [_string] = args;
 
                 _this.v.members["buffer"] = rt.clone(_string);
                 (_this.v.members["inserted_buffer"] as any) = [];
@@ -75,7 +75,97 @@ function _load(rt: CRuntime, class_name: string) {
         return rt.makeCharArrayFromString(inserted_buffer + buffer.substring(inserted_buffer.length));
     };
 
+    function setBitTrue(_this: ObjectVariable, bit: number) {
+        _this.v.members["state"].v = (_this.v.members["state"].v as number) | bit;
+    }
+
+
     rt.regFunc(getString, stringStreamType, "str", [], rt.charTypeLiteral);
+
+
+    function _panic(_rt: CRuntime, fnname: string, description: string): void {
+        _rt.raiseException(fnname + "(): " + description);
+    }
+
+    function _memcpy_chr(_rt: CRuntime, dst: ArrayVariable, src: ArrayVariable, cnt: number): void {
+        let chrType = _rt.charTypeLiteral;
+        if (!(_rt.isTypeEqualTo(src.t.eleType, dst.t.eleType) && _rt.isTypeEqualTo(src.t.eleType, chrType))) {
+            _panic(_rt, "<_memcpy_chr (inner)>", "arguments do not have a char[] type");
+        }
+        for (let i = 0; i < cnt; i++) {
+            dst.v.target[dst.v.position + i].v = src.v.target[src.v.position + i].v;
+        }
+    }
+
+    // 1) int std::sstream::get();
+    //    FUNCTION I32 ( LPTR CLASS std::sstream < > )
+    //
+    // 2) std::sstream& std::sstream::get(char &ch);
+    //    FUNCTION LPTR CLASS std::sstream < > ( LPTR CLASS std::sstream < > LPTR I8 )
+    //
+    // 3) std::sstream& std::sstream::get(char *s, int count);
+    //    FUNCTION LPTR CLASS std::sstream < > ( LPTR CLASS std::sstream < > PTR I8 )
+    //
+    // 4) std::sstream& std::sstream::get(char *s, int count, char delim);
+    //    FUNCTION LPTR CLASS std::sstream < > ( LPTR CLASS std::sstream < > PTR I8 I8 )
+    rt.regFunc(function(_rt: CRuntime, _this: ObjectVariable, _charPtr: Variable, streamSize: IntVariable, delim: IntVariable) {
+        if (_this?.t === undefined) {
+            _panic(_rt, "get", "parameter 'this' is undefined");
+        }
+        if (_charPtr?.t === undefined) {
+            if (!(streamSize?.t === undefined || delim?.t === undefined)) {
+                _panic(_rt, "get", "internal error: invalid trailing arguments");
+            }
+            _panic(_rt, "get", "not yet implemented");
+        } else if (streamSize?.t === undefined) {
+            if (!(delim?.t === undefined)) {
+                _panic(_rt, "get", "internal error: invalid trailing arguments");
+            }
+            if (!((_charPtr.left ?? false) && _rt.isTypeEqualTo(_charPtr.t, _rt.charTypeLiteral))) {
+                _panic(_rt, "get", "expected argument 1 to be of 'char&' type");
+            }
+            _panic(_rt, "get", "not yet implemented");
+        } else {
+            if (!_rt.isTypeEqualTo(_charPtr.t, _rt.normalPointerType(_rt.charTypeLiteral))) {
+                _panic(_rt, "get", "expected argument 1 to be of 'char*' type");
+            }
+            if (!_rt.isNumericType(streamSize.t)) {
+                _panic(_rt, "get", "expected argument 2 to be of 'int' type");
+            }
+            if (delim?.t === undefined) {
+                delim = _rt.val(rt.charTypeLiteral, "\n".codePointAt(0));
+            } else if (!_rt.isTypeEqualTo(delim.t, _rt.charTypeLiteral)) {
+                _panic(_rt, "get", "expected argument 3 to be of 'char' type");
+            }
+
+            if (getBit(_this.v.members['state'].v as number, ios_base.iostate.eofbit)) {
+                setBitTrue(_this, ios_base.iostate.failbit);
+                return _this;
+            }
+            const buffer = _this.v.members["buffer"] as ArrayVariable;
+            const charPtr = _charPtr as ArrayVariable;
+            let cnt = 0;
+            while (buffer.v.position + cnt < buffer.v.target.length &&
+                cnt < streamSize.v) {
+                if (buffer.v.target[buffer.v.position + cnt].v === delim.v) {
+                    break;
+                }
+                cnt++;
+            }
+            _memcpy_chr(_rt, charPtr, buffer, cnt);
+            charPtr.v.target[charPtr.v.position + cnt].v = 0;
+            buffer.v.target = buffer.v.target.slice(buffer.v.position + cnt);
+            buffer.v.position = 0;
+            if (buffer.v.target.length === 0) {
+                setBitTrue(_this, ios_base.iostate.eofbit);
+            }
+            if (cnt === 0) {
+                setBitTrue(_this, ios_base.iostate.failbit);
+            }
+            return _this;
+        }
+    }, stringStreamType, "get", ["?"], "?" as unknown as VariableType);
+
 
     return stringStreamType;
 }
