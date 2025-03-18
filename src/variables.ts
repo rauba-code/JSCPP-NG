@@ -1,9 +1,4 @@
 import { CRuntime } from "./rt"
-// Equals to 'Object' in typecheck notation
-export interface Variable {
-    type: ObjectType,
-    value: Object,
-}
 
 export const arithmeticSig = {
     "I8": "signed char",
@@ -54,7 +49,7 @@ export interface ArrayType {
 
 export interface ArrayElementType {
     sig: "ARRELEM",
-    arrayType: ArrayType;
+    array: ArrayType;
 }
 
 export interface VoidType {
@@ -62,6 +57,7 @@ export interface VoidType {
 }
 
 export type ObjectType = ArithmeticType | ClassType | PointerType | ArrayType | ArrayElementType;
+
 
 export interface ArithmeticValue {
     value: number
@@ -76,12 +72,12 @@ export interface ClassValue {
 }
 
 export interface PointerValue {
-    pointee: ObjectVariable | FunctionVariable | null;
+    pointee: Variable | Function | "VOID";
 }
 
 export interface ArrayElementValue {
     index: number,
-    array: Variable[],
+    array: ArrayValue,
 }
 
 export interface FunctionValue {
@@ -89,18 +85,84 @@ export interface FunctionValue {
     name: string;
     bindThis: Variable | null;
 }
-
-export interface ArithmeticVariable {
-    type: ArithmeticType;
-    value: ArithmeticValue;
-}
-
-export interface ArrayVariable {
-    type: ArrayType;
-    value: ArrayValue;
-}
-
 export type ObjectValue = ArithmeticValue | ArrayValue | ClassValue | PointerValue | ArrayElementValue | FunctionValue;
 
+export interface ArithmeticVariable {
+    left: boolean;
+    readonly: boolean;
+    t: ArithmeticType;
+    v: ArithmeticValue;
+}
+export interface ArrayVariable {
+    left: boolean;
+    readonly?: boolean;
+    t: ArrayType;
+    v: ArrayValue;
+}
+export interface Function {
+    left: boolean;
+    readonly?: boolean;
+    t: FunctionType;
+    v: FunctionValue;
+}
+export interface ClassVariable {
+    left: boolean;
+    readonly?: boolean;
+    t: ClassType;
+    v: ClassValue;
+}
+export interface PointerVariable {
+    left: boolean;
+    readonly?: boolean;
+    t: PointerType;
+    v: PointerValue;
+}
+// does not exist in typecheck notation
+export interface ArrayElementVariable {
+    left: false;
+    readonly?: boolean;
+    t: ArrayElementType;
+    v: ArrayElementValue;
+}
+
+// Equals to 'Object' in typecheck notation
+export type Variable = ArithmeticVariable | ArrayVariable | ClassVariable | PointerVariable | ArrayElementVariable;
 
 export type CFunction = (rt: CRuntime, _this: Variable, ...args: Variable[]) => Variable | null;
+
+export const variables = {
+    voidType(): VoidType {
+        return { sig: "VOID" };
+    },
+    arithmeticType(sig: ArithmeticSig): ArithmeticType {
+        return { sig };
+    },
+    pointerType(pointee: ObjectType | FunctionType | VoidType): PointerType {
+        return { sig: "PTR", pointee };
+    },
+    classType(identifier: string, templateSpec: ObjectType[], memberOf: ClassType | null): ClassType {
+        return { sig: "CLASS", identifier, templateSpec, memberOf };
+    },
+    arrayType(object: ObjectType, size: number | null): ArrayType {
+        return { sig: "ARRAY", object, size };
+    },
+    arrayElementType(array: ArrayType): ArrayElementType {
+        return { sig: "ARRELEM", array };
+    },
+    functionType(fulltype: string[]): FunctionType {
+        return { sig: "FUNCTION", fulltype };
+    },
+    arithmetic(sig: ArithmeticSig, value: number, left: boolean = false, readonly: boolean = false): ArithmeticVariable {
+        return { t: this.arithmeticType(sig), v: { value }, left, readonly };
+    },
+    pointer(pointee: Variable | Function | "VOID", left: boolean = false, readonly: boolean = false): PointerVariable {
+        const t = this.pointerType((pointee as Variable | Function).t ?? this.voidType);
+        return { t, v: { pointee }, left, readonly };
+    },
+    class(t: ClassType, members: { [name: string]: Variable }, left: boolean = false, readonly: boolean = false): ClassVariable {
+        return { t, v: { members }, left, readonly };
+    },
+    array(objectType: ObjectType, values: Variable[], left: boolean = false, readonly: boolean = false): ArrayVariable {
+        return { t: this.arrayType(objectType, values.length), v: { values }, left, readonly };
+    }
+} as const;
