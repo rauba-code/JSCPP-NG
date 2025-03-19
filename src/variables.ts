@@ -41,43 +41,52 @@ export interface FunctionType {
     fulltype: string[],
 }
 
-export interface ArrayType {
+export interface StaticArrayType {
     sig: "ARRAY",
     object: ObjectType,
-    size: number | null,
+    size: number,
 }
 
-export interface ArrayElementType {
-    sig: "ARRELEM",
-    array: ArrayType;
+export interface DynamicArrayType {
+    sig: "DYNARRAY",
+    object: ObjectType,
+}
+
+export interface IndexPointerType {
+    sig: "INDEXPTR",
+    array: StaticArrayType | DynamicArrayType;
 }
 
 export interface VoidType {
     sig: "VOID",
 }
 
-export type ObjectType = ArithmeticType | ClassType | PointerType | ArrayType | ArrayElementType;
+/** Any type that a variable can have */
+export type ObjectType = ArithmeticType | ClassType | PointerType | StaticArrayType | DynamicArrayType | IndexPointerType;
 
+/** Any type that a variable can have + direct function type + void type.
+  * Do not use this for checking variables, use `ObjectType` instead.*/
+export type AnyType = ObjectType | FunctionType | VoidType;
 
 export interface ArithmeticValue {
     value: number
 }
 
 export interface ArrayValue {
-    values: Variable[],
+    values: ObjectValue[],
 }
 
 export interface ClassValue {
-    members?: { [name: string]: Variable };
+    members: { [name: string]: Variable };
 }
 
 export interface PointerValue {
-    pointee: Variable | Function | "VOID";
+    pointee: ObjectValue | FunctionValue | "VOID";
 }
 
-export interface ArrayElementValue {
+export interface IndexPointerValue {
     index: number,
-    array: ArrayValue,
+    pointee: ArrayValue,
 }
 
 export interface FunctionValue {
@@ -85,7 +94,7 @@ export interface FunctionValue {
     name: string;
     bindThis: Variable | null;
 }
-export type ObjectValue = ArithmeticValue | ArrayValue | ClassValue | PointerValue | ArrayElementValue | FunctionValue;
+export type ObjectValue = ArithmeticValue | ArrayValue | ClassValue | PointerValue | IndexPointerValue;
 
 export interface ArithmeticVariable {
     left: boolean;
@@ -93,10 +102,16 @@ export interface ArithmeticVariable {
     t: ArithmeticType;
     v: ArithmeticValue;
 }
-export interface ArrayVariable {
+export interface StaticArrayVariable {
     left: boolean;
     readonly?: boolean;
-    t: ArrayType;
+    t: StaticArrayType;
+    v: ArrayValue;
+}
+export interface DynamicArrayVariable {
+    left: boolean;
+    readonly?: boolean;
+    t: DynamicArrayType;
     v: ArrayValue;
 }
 export interface Function {
@@ -117,16 +132,16 @@ export interface PointerVariable {
     t: PointerType;
     v: PointerValue;
 }
-// does not exist in typecheck notation
-export interface ArrayElementVariable {
-    left: false;
+// alias to 'PTR <t.array.object>' in typecheck notation
+export interface IndexPointerVariable {
+    left: boolean;
     readonly?: boolean;
-    t: ArrayElementType;
-    v: ArrayElementValue;
+    t: IndexPointerType;
+    v: IndexPointerValue;
 }
 
 // Equals to 'Object' in typecheck notation
-export type Variable = ArithmeticVariable | ArrayVariable | ClassVariable | PointerVariable | ArrayElementVariable;
+export type Variable = ArithmeticVariable | StaticArrayVariable | DynamicArrayVariable | ClassVariable | PointerVariable | IndexPointerVariable;
 
 export type CFunction = (rt: CRuntime, _this: Variable, ...args: Variable[]) => Variable | null;
 
@@ -143,26 +158,144 @@ export const variables = {
     classType(identifier: string, templateSpec: ObjectType[], memberOf: ClassType | null): ClassType {
         return { sig: "CLASS", identifier, templateSpec, memberOf };
     },
-    arrayType(object: ObjectType, size: number | null): ArrayType {
+    staticArrayType(object: ObjectType, size: number): StaticArrayType {
         return { sig: "ARRAY", object, size };
     },
-    arrayElementType(array: ArrayType): ArrayElementType {
-        return { sig: "ARRELEM", array };
+    dynamicArrayType(object: ObjectType): DynamicArrayType {
+        return { sig: "DYNARRAY", object };
+    },
+    arrayElementType(array: StaticArrayType | DynamicArrayType): IndexPointerType {
+        return { sig: "INDEXPTR", array };
     },
     functionType(fulltype: string[]): FunctionType {
         return { sig: "FUNCTION", fulltype };
     },
     arithmetic(sig: ArithmeticSig, value: number, left: boolean = false, readonly: boolean = false): ArithmeticVariable {
-        return { t: this.arithmeticType(sig), v: { value }, left, readonly };
+        return { t: variables.arithmeticType(sig), v: { value }, left, readonly };
     },
     pointer(pointee: Variable | Function | "VOID", left: boolean = false, readonly: boolean = false): PointerVariable {
-        const t = this.pointerType((pointee as Variable | Function).t ?? this.voidType);
-        return { t, v: { pointee }, left, readonly };
+        const t = variables.pointerType((pointee as Variable | Function).t ?? variables.voidType());
+        const val = (pointee as Variable | Function).v ?? "VOID";
+        return { t, v: { pointee: val }, left, readonly };
     },
     class(t: ClassType, members: { [name: string]: Variable }, left: boolean = false, readonly: boolean = false): ClassVariable {
         return { t, v: { members }, left, readonly };
     },
-    array(objectType: ObjectType, values: Variable[], left: boolean = false, readonly: boolean = false): ArrayVariable {
-        return { t: this.arrayType(objectType, values.length), v: { values }, left, readonly };
+    staticArray(objectType: ObjectType, values: ObjectValue[], left: boolean = false, readonly: boolean = false): StaticArrayVariable {
+        return { t: variables.staticArrayType(objectType, values.length), v: { values }, left, readonly };
+    },
+    dynamicArray(objectType: ObjectType, values: ObjectValue[], left: boolean = false, readonly: boolean = false): DynamicArrayVariable {
+        return { t: variables.dynamicArrayType(objectType), v: { values }, left, readonly };
+    },
+    function(fulltype: string[], name: string, target: CFunction | null, bindThis: Variable | null, left: boolean = false, readonly: boolean = false): Function {
+        return { t: variables.functionType(fulltype), v: { name, target, bindThis }, left, readonly };
+    },
+    asVoidType(type: AnyType): VoidType | null {
+        return (type.sig === "VOID") ? type as VoidType : null;
+    },
+    asArithmeticType(type: AnyType): ArithmeticType | null {
+        return (type.sig in arithmeticSig) ? type as ArithmeticType : null;
+    },
+    asPointerType(type: AnyType): PointerType | null {
+        return (type.sig === "PTR") ? type as PointerType : null;
+    },
+    asIndexPointerType(type: AnyType): IndexPointerType | null {
+        return (type.sig === "INDEXPTR") ? type as IndexPointerType : null;
+    },
+    asStaticArrayType(type: AnyType): StaticArrayType | null {
+        return (type.sig === "ARRAY") ? type as StaticArrayType : null;
+    },
+    asDynamicArrayType(type: AnyType): DynamicArrayType | null {
+        return (type.sig === "DYNARRAY") ? type as DynamicArrayType : null;
+    },
+    asClassType(type: AnyType): ClassType | null {
+        return (type.sig === "CLASS") ? type as ClassType : null;
+    },
+    asFunctionType(type: AnyType): FunctionType | null {
+        return (type.sig === "FUNCTION") ? type as FunctionType : null;
+    },
+    arithmeticTypesEqual(lhs: ArithmeticType, rhs: ArithmeticType): boolean {
+        return lhs.sig === rhs.sig;
+    },
+    pointerTypesEqual(lhs: PointerType, rhs: PointerType): boolean {
+        return variables.typesEqual(lhs.pointee, rhs.pointee);
+    },
+    classTypesEqual(lhs: ClassType, rhs: ClassType): boolean {
+        if (lhs.identifier !== rhs.identifier) {
+            return false;
+        }
+        if (lhs.memberOf !== null && rhs.memberOf !== null) {
+            if (variables.classTypesEqual(lhs.memberOf, rhs.memberOf)) {
+                return false;
+            }
+        } else if (!(lhs.memberOf === null && rhs.memberOf === null)) {
+            return false;
+        }
+        if (lhs.templateSpec.length !== rhs.templateSpec.length) {
+            return false;
+        }
+        for (let i = 0; i < lhs.templateSpec.length; i++) {
+            if (!variables.typesEqual(lhs.templateSpec[i], rhs.templateSpec[i])) {
+                return false;
+            }
+        }
+        return true;
+    },
+    indexPointerTypesEqual(lhs: IndexPointerType, rhs: IndexPointerType): boolean {
+        const ls : StaticArrayType | null = variables.asStaticArrayType(lhs.array);
+        const rs : StaticArrayType | null = variables.asStaticArrayType(rhs.array);
+        const ld : DynamicArrayType | null = variables.asDynamicArrayType(lhs.array);
+        const rd : DynamicArrayType | null = variables.asDynamicArrayType(rhs.array);
+        if (ls !== null && rs !== null) {
+            return variables.staticArrayTypesEqual(ls, rs);
+        } else if (ld !== null && rd !== null) {
+            return variables.dynamicArrayTypesEqual(ld, rd);
+        }
+    },
+    staticArrayTypesEqual(lhs: StaticArrayType, rhs: StaticArrayType): boolean {
+        return variables.typesEqual(lhs.object, rhs.object);
+    },
+    dynamicArrayTypesEqual(lhs: DynamicArrayType, rhs: DynamicArrayType): boolean {
+        return variables.typesEqual(lhs.object, rhs.object);
+    },
+    functionTypesEqual(lhs: FunctionType, rhs: FunctionType): boolean {
+        if (lhs.fulltype.length !== rhs.fulltype.length) {
+            return false;
+        }
+        for (let i = 0; i < lhs.fulltype.length; i++) {
+            if (lhs.fulltype[i] !== rhs.fulltype[i]) {
+                return false;
+            }
+        }
+        return true;
+    },
+    typesEqual(lhs: AnyType, rhs: AnyType): boolean {
+        if (lhs.sig !== rhs.sig) {
+            return false;
+        }
+        if (lhs.sig in arithmeticSig || lhs.sig === "VOID") {
+            return true;
+        }
+        const branch : {[sig: string]: () => boolean } = {
+            "PTR": () => {
+                return variables.pointerTypesEqual(lhs as PointerType, rhs as PointerType);
+            },
+            "INDEXPTR": () => {
+                return variables.indexPointerTypesEqual(lhs as IndexPointerType, rhs as IndexPointerType);
+            },
+            "ARRAY": () => {
+                return variables.staticArrayTypesEqual(lhs as StaticArrayType, rhs as StaticArrayType);
+            },
+            "DYNARRAY": () => {
+                return variables.dynamicArrayTypesEqual(lhs as DynamicArrayType, rhs as DynamicArrayType);
+            },
+            "CLASS": () => {
+                return variables.classTypesEqual(lhs as ClassType, rhs as ClassType);
+            },
+            "FUNCTION": () => {
+                return variables.functionTypesEqual(lhs as FunctionType, rhs as FunctionType);
+            },
+        }
+        return branch[lhs.sig]();
     }
 } as const;
