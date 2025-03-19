@@ -1,4 +1,5 @@
 import { CRuntime } from "./rt"
+import { LLParser, Term, NonTerm } from "./typecheck"
 
 export const arithmeticSig = {
     "I8": "signed char",
@@ -242,10 +243,10 @@ export const variables = {
         return true;
     },
     indexPointerTypesEqual(lhs: IndexPointerType, rhs: IndexPointerType): boolean {
-        const ls : StaticArrayType | null = variables.asStaticArrayType(lhs.array);
-        const rs : StaticArrayType | null = variables.asStaticArrayType(rhs.array);
-        const ld : DynamicArrayType | null = variables.asDynamicArrayType(lhs.array);
-        const rd : DynamicArrayType | null = variables.asDynamicArrayType(rhs.array);
+        const ls: StaticArrayType | null = variables.asStaticArrayType(lhs.array);
+        const rs: StaticArrayType | null = variables.asStaticArrayType(rhs.array);
+        const ld: DynamicArrayType | null = variables.asDynamicArrayType(lhs.array);
+        const rd: DynamicArrayType | null = variables.asDynamicArrayType(rhs.array);
         if (ls !== null && rs !== null) {
             return variables.staticArrayTypesEqual(ls, rs);
         } else if (ld !== null && rd !== null) {
@@ -276,7 +277,7 @@ export const variables = {
         if (lhs.sig in arithmeticSig || lhs.sig === "VOID") {
             return true;
         }
-        const branch : {[sig: string]: () => boolean } = {
+        const branch: { [sig: string]: () => boolean } = {
             "PTR": () => {
                 return variables.pointerTypesEqual(lhs as PointerType, rhs as PointerType);
             },
@@ -297,5 +298,56 @@ export const variables = {
             },
         }
         return branch[lhs.sig]();
+    },
+    toStringSequence(type: AnyType, left: boolean): string[] {
+        let result = new Array<string>();
+        if (left) {
+            result.push("LREF");
+        }
+        toStringSequenceInner(type, result);
+        return result;
     }
 } as const;
+
+function toStringSequenceInner(type: AnyType, result: string[]): void {
+    if (type.sig in arithmeticSig || type.sig === "VOID") {
+        result.push(type.sig);
+        return;
+    }
+    const branch: { [sig: string]: () => void } = {
+        "PTR": () => {
+            result.push("PTR");
+            toStringSequenceInner((type as PointerType).pointee, result);
+        },
+        "INDEXPTR": () => {
+            result.push("PTR"); // sic!
+            toStringSequenceInner((type as IndexPointerType).array.object, result);
+        },
+        "ARRAY": () => {
+            result.push("ARRAY");
+            toStringSequenceInner((type as StaticArrayType).object, result);
+            result.push(String((type as StaticArrayType).size));
+        },
+        "DYNARRAY": () => {
+            throw new Error("Dynamic array cannot be a direct variable type");
+        },
+        "CLASS": () => {
+            if ((type as ClassType).memberOf !== null) {
+                result.push("MEMBER");
+                toStringSequenceInner((type as ClassType).memberOf, result);
+            }
+            result.push("CLASS");
+            result.push((type as ClassType).identifier);
+            result.push("<");
+            (type as ClassType).templateSpec.forEach((x: ObjectType) => {
+                toStringSequenceInner(x, result);
+            });
+            result.push(">");
+        },
+        "FUNCTION": () => {
+            result.push("FUNCTION");
+            result = result.concat(...(type as FunctionType).fulltype);
+        },
+    }
+    branch[type.sig]();
+}
