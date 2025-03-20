@@ -1,5 +1,4 @@
 import { CRuntime } from "./rt"
-import { LLParser, Term, NonTerm } from "./typecheck"
 
 export const arithmeticSig = {
     "I8": "signed char",
@@ -19,6 +18,39 @@ export const arithmeticSig = {
 } as const;
 
 export type ArithmeticSig = keyof (typeof arithmeticSig);
+
+export const defaultArithmeticResolutionMap : { [x: string]: ArithmeticSig } = {
+    "char": "I8",
+    "signed char": "I8",
+    "unsigned char": "U8",
+    "wchar_t": "I32",
+    "unsigned wchar_t": "U32",
+    "short": "I16",
+    "short int": "I16",
+    "signed short": "I16",
+    "signed short int": "I16",
+    "unsigned short": "U16",
+    "unsigned short int": "U16",
+    "int": "I32",
+    "signed int": "I32",
+    "unsigned int": "U32",
+    "long": "I32",
+    "long int": "I32",
+    "signed long": "I32",
+    "signed long int": "I32",
+    "unsigned long": "U32",
+    "unsigned long int": "U32",
+    "long long": "I64",
+    "long long int": "I64",
+    "signed long long": "I64",
+    "signed long long int": "I64",
+    "unsigned long long": "U64",
+    "unsigned long long int": "U64",
+    "bool": "BOOL",
+    "float": "F32",
+    "double": "F64",
+    "long double": "F64",
+}
 
 export interface ArithmeticType {
     sig: ArithmeticSig,
@@ -214,6 +246,27 @@ export const variables = {
     },
     asFunctionType(type: AnyType): FunctionType | null {
         return (type.sig === "FUNCTION") ? type as FunctionType : null;
+    },
+    asArithmetic(x: Variable | Function): ArithmeticVariable | null {
+        return (x.t.sig in arithmeticSig) ? x as ArithmeticVariable : null;
+    },
+    asPointer(x: Variable | Function): PointerVariable | null {
+        return (x.t.sig === "PTR") ? x as PointerVariable : null;
+    },
+    asIndexPointer(x: Variable | Function): IndexPointerVariable | null {
+        return (x.t.sig === "INDEXPTR") ? x as IndexPointerVariable : null;
+    },
+    asStaticArray(x: Variable | Function): StaticArrayVariable | null {
+        return (x.t.sig === "ARRAY") ? x as StaticArrayVariable : null;
+    },
+    asDynamicArray(x: Variable | Function): DynamicArrayVariable | null {
+        return (x.t.sig === "DYNARRAY") ? x as DynamicArrayVariable : null;
+    },
+    asClass(x: Variable | Function): ClassVariable | null {
+        return (x.t.sig === "CLASS") ? x as ClassVariable : null;
+    },
+    asFunction(x: Variable | Function): Function | null {
+        return (x.t.sig === "FUNCTION") ? x as Function : null;
     },
     arithmeticTypesEqual(lhs: ArithmeticType, rhs: ArithmeticType): boolean {
         return lhs.sig === rhs.sig;

@@ -2,15 +2,10 @@ import * as defaults from "./defaults";
 import * as Flatted from 'flatted';
 import * as typecheck from './typecheck';
 import * as typedb from './typedb';
-import * as variables from './variables';
 import { BaseInterpreter, Interpreter } from "./interpreter";
 import { resolveIdentifier } from "./includes/shared/string_utils";
+import { AnyType, ArithmeticSig, ClassType, IndexPointerVariable, ObjectType, Variable, variables } from "./variables";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
-export type CCharType = "char" | "signed char" | "unsigned char" | "wchar_t" | "unsigned wchar_t" | "char16_t" | "unsigned char16_t" | "char32_t" | "unsigned char32_t";
-export type CIntType = "short" | "short int" | "signed short" | "signed short int" | "unsigned short" | "unsigned short int" | "int" | "signed int" | "unsigned" | "unsigned int" | "long" | "long int" | "long int" | "signed long" | "signed long int" | "unsigned long" | "unsigned long int" | "long long" | "long long int" | "long long int" | "signed long long" | "signed long long int" | "unsigned long long" | "unsigned long long int" | "bool";
-export type CFloatType = "float" | "double";
-export type CBasicType = CCharType | CIntType | CFloatType | "void";
-export type TypeSignature = "global" | "(char)" | "(signed char)" | "(unsigned char)" | "(short)" | "(short int)" | "(signed short)" | "(signed short int)" | "(unsigned short)" | "(unsigned short int)" | "(int)" | "(signed int)" | "(unsigned)" | "(unsigned int)" | "(long)" | "(long int)" | "(long int)" | "(signed long)" | "(signed long int)" | "(unsigned long)" | "(unsigned long int)" | "(long long)" | "(long long int)" | "(long long int)" | "(signed long long)" | "(signed long long int)" | "(unsigned long long)" | "(unsigned long long int)" | "(float)" | "(double)" | "(bool)";
 
 export interface IncludeModule {
     load(rt: CRuntime): void;
@@ -18,10 +13,9 @@ export interface IncludeModule {
 
 export interface JSCPPConfig {
     specifiers?: Specifier[];
-    charTypes?: CCharType[];
-    intTypes?: CIntType[];
+    arithmeticResolutionMap?: { [x: string]: ArithmeticSig };
     limits?: {
-        [typeName in CBasicType | "pointer"]?: {
+        [typeName in ArithmeticSig]?: {
             max: number;
             min: number;
             bytes: number;
@@ -54,191 +48,13 @@ export interface JSCPPConfig {
     stopExecutionCheck?: () => boolean;
 }
 
-export type OpHandler = {
-    functions?: { [paramSignature: string]: CFunction };
-    reg?: FunctionRegistry;
-    default?: CFunction;
-};
-export type OpSignature = "o(--)" | "o(-)" | "o(-=)" | "o(->)" | "o(,)" | "o(!)" | "o(!=)" | "o(())" | "o([])" | "o(*)" | "o(*=)" | "o(/)" | "o(/=)" | "o(&)" | "o(&=)" | "o(%)" | "o(%=)" | "o(^)" | "o(^=)" | "o(+)" | "o(++)" | "o(+=)" | "o(<)" | "o(<<)" | "o(<<=)" | "o(<=)" | "o(=)" | "o(==)" | "o(>)" | "o(>=)" | "o(>>)" | "o(>>=)" | "o(|)" | "o(|=)" | "o(~)";
-
-export interface FunctionRegistry {
-    [signature: string]: {
-        args: (VariableType | "?")[];  // question mark ignores further parameter type compatibility check, useful for functions like "printf" and "scanf"
-        optionalArgs: OptionalArg[];
-    }
-}
+export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_())" | "o(_[])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)";
 
 export interface Member {
-    type: VariableType;
+    type: ObjectType;
     name: string;
     initialize?: (rt: CRuntime, _this: Variable) => Variable;
 }
-
-export interface OpHandlerMap {
-    handlers: { [opSignature: string]: OpHandler; };
-    cConstructor?: (rt: CRuntime, _this: Variable, args?: Variable[]) => void;
-    members?: Member[];
-    father?: string;
-};
-
-export interface BoolType {
-    type: "primitive";
-    name: "bool";
-}
-
-export interface IntType {
-    type: "primitive";
-    name: CCharType | CIntType;
-}
-
-export interface FloatType {
-    type: "primitive";
-    name: CFloatType;
-}
-
-export interface VoidType {
-    type: "primitive";
-    name: "void";
-}
-
-type PrimitiveType = BoolType | IntType | FloatType | VoidType;
-
-export interface NormalPointerType {
-    type: "pointer";
-    ptrType: "normal";
-    targetType: VariableType;
-}
-
-export interface ArrayType {
-    type: "pointer";
-    ptrType: "array";
-    size: number;
-    eleType: VariableType;
-}
-
-export interface FunctionPointerType {
-    type: "pointer";
-    ptrType: "function";
-    targetType: FunctionType;
-}
-
-export type PointerType = NormalPointerType | ArrayType | FunctionPointerType;
-
-export interface ReferenceType {
-    type: "reference";
-    targetType: VariableType;
-}
-
-export interface FunctionType {
-    type: "function";
-    retType?: string[];
-    signature?: string[][];
-}
-
-export interface ClassType {
-    type: "class";
-    name: string;
-}
-
-export type VariableType = PrimitiveType | ReferenceType | PointerType | FunctionType | ClassType;
-
-export type BasicValue = number | boolean;
-
-export interface NormalPointerValue {
-    target: Variable | null;
-}
-
-export interface ArrayValue {
-    position: number;
-    target: Variable[];
-}
-
-export type PointerValue = NormalPointerValue | ArrayValue | FunctionPointerValue;
-
-export interface ObjectValue {
-    members?: { [name: string]: Variable };
-}
-
-export type VariableValue = PointerValue | ObjectValue | BasicValue | FunctionValue;
-
-export interface BoolVariable {
-    t: PrimitiveType;
-    v: boolean;
-}
-
-export interface IntVariable {
-    t: PrimitiveType;
-    v: number;
-}
-
-export interface FloatVariable {
-    t: FloatType;
-    v: number;
-}
-
-type PrimitiveVariable = BoolVariable | IntVariable | FloatVariable;
-
-export interface NormalPointerVariable {
-    t: NormalPointerType;
-    v: NormalPointerValue;
-}
-
-export interface ArrayVariable {
-    t: ArrayType;
-    v: ArrayValue;
-}
-
-export interface FunctionPointerValue {
-    target: FunctionVariable,
-    name: string,
-    defineType: VariableType | "global",
-    args: (VariableType | "?")[],
-    retType: VariableType,
-};
-
-export interface FunctionPointerVariable {
-    t: FunctionPointerType;
-    v: FunctionPointerValue;
-}
-
-// Dummy is used to differentiate "pre-" or "post-" ++/-- operator
-export interface DummyVariable {
-    t: "dummy";
-    v: null;
-}
-
-type PointerVariable = NormalPointerVariable | ArrayVariable | FunctionPointerVariable;
-
-export interface ObjectVariable {
-    t: ClassType;
-    v: ObjectValue;
-    left?: boolean;
-}
-
-export interface FunctionValue {
-    target?: CFunction;
-    defineType: VariableType | "global";
-    name: string;
-    bindThis: Variable;
-}
-
-export interface FunctionVariable {
-    t: FunctionType;
-    v: FunctionValue;
-}
-
-export interface ArrayElementVariable {
-    t: VariableType;
-    v?: VariableValue;
-    array: Variable[];
-    arrayIndex: number;
-}
-
-export type Variable = {
-    left?: boolean;
-    readonly?: boolean;
-    dataType?: PrimitiveType;
-} & (PrimitiveVariable | PointerVariable | ObjectVariable | FunctionVariable | ArrayElementVariable);
 
 export interface RuntimeScope {
     "$name": string;
@@ -253,14 +69,10 @@ export interface NamespaceScope {
     };
 }
 
-export interface OptionalArg { name: string, type: VariableType, expression: any }
-
-type CFunction = (rt: CRuntime, _this: Variable, ...args: (Variable | DummyVariable)[]) => any;
-
-export interface MakeValueStringOptions {
-    noArray?: boolean;
-    noPointer?: boolean;
-}
+//export interface MakeValueStringOptions {
+//    noArray?: boolean;
+//    noPointer?: boolean;
+//}
 
 export function mergeConfig(a: any, b: any) {
     for (const o in b) {
@@ -277,44 +89,17 @@ export function mergeConfig(a: any, b: any) {
 export class CRuntime {
     config: JSCPPConfig;
     numericTypeOrder: string[];
-    types: { [typeSignature: string]: OpHandlerMap }
-    intTypeLiteral: IntType;
-    unsignedintTypeLiteral: IntType;
-    longTypeLiteral: IntType;
-    floatTypeLiteral: FloatType;
-    doubleTypeLiteral: FloatType;
-    charTypeLiteral: IntType;
-    wcharTypeLiteral: IntType;
-    unsignedcharTypeLiteral: IntType;
-    boolTypeLiteral: IntType;
-    voidTypeLiteral: VoidType;
-    nullPointerValue: PointerValue;
-    voidPointerType: PointerType;
-    nullPointer: PointerVariable;
     scope: RuntimeScope[];
     namespace: NamespaceScope;
-    typedefs: { [name: string]: VariableType };
+    typedefs: { [name: string]: AnyType };
     interp: BaseInterpreter;
 
     constructor(config: JSCPPConfig) {
         this.config = defaults.getDefaultConfig();
         mergeConfig(this.config, config);
         this.numericTypeOrder = defaults.numericTypeOrder;
-        this.types = defaults.getDefaultTypes();
+        //this.types = defaults.getDefaultTypes();
 
-        this.intTypeLiteral = this.primitiveType("int") as IntType;
-        this.unsignedintTypeLiteral = this.primitiveType("unsigned int") as IntType;
-        this.longTypeLiteral = this.primitiveType("long") as IntType;
-        this.floatTypeLiteral = this.primitiveType("float") as FloatType;
-        this.doubleTypeLiteral = this.primitiveType("double") as FloatType;
-        this.charTypeLiteral = this.primitiveType("char") as IntType;
-        this.wcharTypeLiteral = this.primitiveType("wchar_t") as IntType;
-        this.unsignedcharTypeLiteral = this.primitiveType("unsigned char") as IntType;
-        this.boolTypeLiteral = this.primitiveType("bool") as IntType;
-        this.voidTypeLiteral = this.primitiveType("void") as VoidType;
-        this.nullPointerValue = this.makeNormalPointerValue(null);
-        this.voidPointerType = this.normalPointerType(this.voidTypeLiteral);
-        this.nullPointer = this.val(this.voidPointerType, this.nullPointerValue) as PointerVariable;
         this.scope = [{ "$name": "global", variables: {} }];
         this.namespace = {};
         this.typedefs = {};
@@ -325,7 +110,7 @@ export class CRuntime {
             includes
         } = this.config;
         if (name in includes) {
-            const lib = includes[name];
+            // const lib = includes[name];
             if (this.config.loadedLibraries.includes(name))
                 return;
             this.config.loadedLibraries.push(name);
@@ -335,8 +120,9 @@ export class CRuntime {
         }
     };
 
-    getSize(element: Variable) {
-        let ret = 0;
+    getSize(_element: Variable) {
+        throw new Error("Not yet implemented");
+        /*let ret = 0;
         if (this.isArrayType(element) && (element.v.position === 0)) {
             let i = 0;
             while (i < element.v.target.length) {
@@ -346,44 +132,48 @@ export class CRuntime {
         } else {
             ret += this.getSizeByType(element.t);
         }
-        return ret;
+        return ret;*/
     };
 
-    getSizeByType(t: VariableType) {
-        if (this.isPointerType(t)) {
+    getSizeByType(_t: ObjectType) {
+        throw new Error("Not yet implemented");
+        /*if (this.isPointerType(t)) {
             return this.config.limits["pointer"].bytes;
         } else if (this.isPrimitiveType(t)) {
             return this.config.limits[t.name].bytes;
         } else {
             this.raiseException("not implemented");
-        }
+        }*/
     };
 
-    captureValue(t: any): any {
-        if (t.v !== undefined) {
-            return t;
-        }
-        if (t.type === "pointer" && t.array !== undefined && t.arrayIndex !== undefined/* && this.isArrayType(t) */) {
-            if (t.arrayIndex >= t.array.length) {
-                this.raiseException("index out of bound " + t.arrayIndex + " >= " + t.array.length);
-            } else if (t.arrayIndex < 0) {
-                this.raiseException("negative index " + t.arrayIndex);
-            }
-            // debugger;
-            const u = t.array[t.arrayIndex];
-            u.array = t.array;
-            u.arrayIndex = t.arrayIndex;
-            return u;
+    asCapturedVariable(x: Variable): Variable {
+        const iptr: IndexPointerVariable | null = variables.asIndexPointer(x);
+        if (iptr === null) {
+            return x;
         } else {
-            this.raiseException("internal error: attempt to capture an undefined lvalue type other than pointer");
+            const idx : number = iptr.v.index;
+            const len : number = iptr.v.pointee.values.length;
+            if (idx >= len) {
+                this.raiseException(`index out of bounds access: ${idx} >= ${len}`);
+            } else if (iptr.v.index < 0) {
+                this.raiseException(`access of negative index: ${idx}`);
+            }
+            const t = iptr.t.array.object;
+            const v = iptr.v.pointee.values[idx];
+            return { t, v, left: true, readonly: iptr.readonly } as Variable;
         }
     }
 
-    getMember(l: Variable, r: string): Variable {
-        l = this.captureValue(l);
-        const lt = l.t;
-        if (this.isClassType(l) || this.isStructType(l)) {
-            const ltsig = this.getTypeSignature(lt);
+    getMember(l: Variable, _r: string): Variable {
+        l = this.asCapturedVariable(l);
+        let lc = variables.asClass(l);
+        if (lc !== null) {
+            if (!lc.left) {
+                this.raiseException("Access to a member of a non-lvalue variable is forbidden");
+            }
+            //const ltsig : string[] = variables.toStringSequence(lc.t, true)
+            throw new Error("Not yet implemented");
+            /*const ltsig = this.getTypeSignature(lc.t);
             if (this.types.hasOwnProperty(ltsig)) {
                 const t = this.types[ltsig].handlers;
                 if (t.hasOwnProperty(r)) {
@@ -407,13 +197,13 @@ export class CRuntime {
                 }
             } else {
                 this.raiseException("type '" + this.makeTypeString(lt) + "' is unknown");
-            }
+            }*/
         } else {
-            this.raiseException("only a class can have members");
+            this.raiseException("only a class or struct can have members");
         }
     };
 
-    defFunc(lt: VariableType, name: string, retType: VariableType, argTypes: VariableType[], argNames: string[], stmts: any, interp: Interpreter, optionalArgs: OptionalArg[], readonlyArgs: boolean[]) {
+    defFunc(lt: ClassType | null, name: string, retType: ObjectType, argTypes: ObjectType[], argNames: string[], stmts: any, interp: Interpreter, readonlyArgs: boolean[]) {
         if (stmts != null) {
             const f = function*(rt: CRuntime, _this: Variable, ...args: Variable[]) {
                 // logger.warn("calling function: %j", name);
@@ -422,15 +212,6 @@ export class CRuntime {
                     args[i].readonly = readonlyArgs[i];
                     rt.defVar(argName, argTypes[i], args[i]);
                 });
-                for (let i = 0, end = optionalArgs.length; i < end; i++) {
-                    const optionalArg = optionalArgs[i];
-                    if (args[argNames.length + i] != null) {
-                        rt.defVar(optionalArg.name, optionalArg.type, args[argNames.length + i]);
-                    } else {
-                        const argValue = yield* interp.visit(interp, optionalArg.expression);
-                        rt.defVar(optionalArg.name, optionalArg.type, rt.cast(optionalArg.type, argValue));
-                    }
-                }
                 let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
                 if (!rt.isTypeEqualTo(retType, rt.voidTypeLiteral)) {
                     if (ret instanceof Array && (ret[0] === "return")) {
@@ -871,65 +652,6 @@ export class CRuntime {
         return value;
     };
 
-    isNumericType(type: VariableType): type is PrimitiveType;
-    isNumericType(type: Variable | DummyVariable): type is PrimitiveVariable;
-    isNumericType(type: string): boolean;
-    isNumericType(type: VariableType | Variable | DummyVariable | string) {
-        if (typeof type === "string") {
-            return this.isFloatType(type) || this.isIntegerType(type);
-        }
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isNumericType(type.t);
-        }
-        return this.isFloatType(type) || this.isIntegerType(type);
-    };
-
-    isUnsignedType(type: VariableType): type is PrimitiveType;
-    isUnsignedType(type: string): boolean;
-    isUnsignedType(type: VariableType | string): boolean {
-        if (typeof type === "string") {
-            switch (type) {
-                case "unsigned char": case "unsigned short": case "unsigned short int": case "unsigned": case "unsigned int": case "unsigned long": case "unsigned long int": case "unsigned long long": case "unsigned long long int":
-                    return true;
-                default:
-                    return false;
-            }
-        } else {
-            return (type.type === "primitive") && this.isUnsignedType(type.name);
-        }
-    };
-
-    isIntegerType(type: Variable): type is (IntVariable | BoolVariable);
-    isIntegerType(type: VariableType): type is (IntType | BoolType);
-    isIntegerType(type: string): boolean;
-    isIntegerType(type: Variable | VariableType | string) {
-        if (typeof type === "string") {
-            return this.config.charTypes.includes(type as CCharType) || this.config.intTypes.includes(type as CIntType);
-        } else if ('t' in type) {
-            return this.isIntegerType(type.t);
-        } else {
-            return (type.type === "primitive") && this.isIntegerType(type.name);
-        }
-    };
-
-    isFloatType(type: Variable): type is FloatVariable;
-    isFloatType(type: VariableType): type is FloatType;
-    isFloatType(type: string): boolean;
-    isFloatType(type: Variable | VariableType | string): boolean {
-        if (typeof type === "string") {
-            switch (type) {
-                case "float": case "double":
-                    return true;
-                default:
-                    return false;
-            }
-        } else if ('t' in type) {
-            return this.isFloatType(type.t);
-        } else {
-            return (type.type === "primitive") && this.isFloatType(type.name);
-        }
-    };
-
     getSignedType(type: VariableType): PrimitiveType {
         if (type.type === "primitive") {
             return this.primitiveType(type.name.replace("unsigned", "").trim() as CBasicType);
@@ -1168,307 +890,6 @@ export class CRuntime {
         }
     };
 
-    val(t: IntType, v: BasicValue, left?: boolean, isInitializing?: boolean): IntVariable;
-    val(t: PointerType, v: PointerValue, left?: boolean, isInitializing?: boolean): PointerVariable;
-    val(t: VariableType, v: VariableValue, left?: boolean, isInitializing?: boolean): Variable;
-    val(t: VariableType, v: VariableValue, left = false, isInitializing = false): Variable {
-        if (this.isNumericType(t)) {
-            let checkRange: boolean;
-            if (isInitializing) {
-                if (typeof (v) !== "number" || isNaN(v)) {
-                    checkRange = false;
-                } else {
-                    checkRange = true;
-                }
-            } else {
-                checkRange = true;
-            }
-            if (checkRange) {
-                this.inrange(t, v as BasicValue, `overflow of ${this.makeValString({ t, v } as Variable)}`);
-                v = this.ensureUnsigned(t, v as BasicValue);
-            }
-        }
-        if (left === undefined) {
-            left = false;
-        }
-        return {
-            t,
-            v,
-            left
-        } as Variable;
-    };
-
-    isTypeEqualTo(type1: (VariableType | "?"), type2: (VariableType | "?")): boolean {
-        if (type1 === "?" || type2 === "?") {
-            return type1 === type2;
-        }
-        if (type1.type === type2.type) {
-            switch (type1.type) {
-                case "primitive":
-                    return type1.name === (type2 as any).name;
-                    break;
-                case "class":
-                    return type1.name === (type2 as any).name;
-                    break;
-                case "struct":
-                    return type1.name === (type2 as any).name;
-                    break;
-                case "pointer":
-                    type2 = type2 as PointerType;
-                    if ((type1.ptrType === type2.ptrType) || ((type1.ptrType !== "function") && (type2.ptrType !== "function"))) {
-                        switch (type1.ptrType) {
-                            case "array":
-                                return this.isTypeEqualTo(type1.eleType, (type2 as ArrayType).eleType || (type2 as NormalPointerType).targetType);
-                                break;
-                            case "function":
-                                return this.isTypeEqualTo((type1 as FunctionPointerType).targetType, (type2 as FunctionPointerType).targetType);
-                                break;
-                            case "normal":
-                                return this.isTypeEqualTo(type1.targetType, (type2 as ArrayType).eleType || (type2 as NormalPointerType).targetType);
-                                break;
-                        }
-                    }
-                    break;
-                case "function":
-                    if (this.isTypeEqualTo(type1.retType, (type2 as FunctionType).retType) && (type1.signature.length === (type2 as FunctionType).signature.length)) {
-                        return type1.signature.every((type, index, arr) => {
-                            const x = this.isTypeEqualTo(type, (type2 as FunctionType).signature[index]);
-                            return x;
-                        });
-                    }
-                    break;
-            }
-        }
-        return type1 === type2;
-    };
-
-    isBoolType(type: VariableType | string): boolean {
-        if (typeof type === "string") {
-            return type === "bool";
-        } else {
-            return (type.type === "primitive") && this.isBoolType(type.name);
-        }
-    };
-
-    isVoidType(type: VariableType | string): boolean {
-        if (typeof type === "string") {
-            return type === "void";
-        } else {
-            return (type.type === "primitive") && this.isVoidType(type.name);
-        }
-    };
-    isPrimitiveType(type: VariableType): type is PrimitiveType;
-    isPrimitiveType(type: string): type is CBasicType;
-    isPrimitiveType(type: Variable | DummyVariable): type is PrimitiveVariable;
-    isPrimitiveType(type: VariableType | Variable | DummyVariable | string) {
-        if (typeof type === "string") {
-            return this.isNumericType(type) || this.isBoolType(type) || this.isVoidType(type);
-        }
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isPrimitiveType(type.t);
-        }
-        return this.isNumericType(type) || this.isBoolType(type) || this.isVoidType(type);
-    };
-
-    isArrayType(type: VariableType): type is ArrayType;
-    isArrayType(type: Variable | DummyVariable): type is ArrayVariable;
-    isArrayType(type: VariableType | Variable | DummyVariable) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isArrayType(type.t);
-        }
-        return this.isPointerType(type) && (type.ptrType === "array");
-    };
-
-    isArrayElementType(type: Variable | DummyVariable): type is ArrayElementVariable;
-    isArrayElementType(type: Variable | DummyVariable) {
-        return type.t !== "dummy" && "array" in type.t;
-    };
-
-    isFunctionPointerType(type: VariableType): type is FunctionPointerType;
-    isFunctionPointerType(type: Variable | DummyVariable): type is FunctionPointerVariable;
-    isFunctionPointerType(type: VariableType | Variable | DummyVariable) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isFunctionPointerType(type.t);
-        }
-        return this.isPointerType(type) && type.ptrType === "function";
-    };
-
-    isFunctionType(type: VariableType): type is FunctionType;
-    isFunctionType(type: Variable | DummyVariable): type is FunctionVariable;
-    isFunctionType(type: VariableType | Variable | DummyVariable) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isFunctionType(type.t);
-        }
-        return type.type === "function";
-    };
-
-    isNormalPointerType(type: VariableType): type is NormalPointerType;
-    isNormalPointerType(type: Variable | DummyVariable): type is NormalPointerVariable;
-    isNormalPointerType(type: Variable | DummyVariable | VariableType): type is NormalPointerType {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isNormalPointerType(type.t);
-        }
-        return this.isPointerType(type) && (type.ptrType === "normal");
-    };
-
-    isPointerType(type: VariableType): type is PointerType;
-    isPointerType(type: Variable | DummyVariable): type is PointerVariable;
-    isPointerType(type: Variable | DummyVariable | VariableType) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isPointerType(type.t);
-        }
-        return type.type === "pointer";
-    };
-
-    isReferenceType(type: VariableType): type is ReferenceType;
-    isReferenceType(type: Variable | DummyVariable | VariableType) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isReferenceType(type.t);
-        }
-        return type.type === "reference";
-    };
-
-    isStructType(type: VariableType | string): type is StructType;
-    isStructType(type: Variable | DummyVariable): type is ObjectVariable;
-    isStructType(type: any): type is StructType {
-        if (typeof type === "string") {
-            return this.getTypeSignature({ type: "struct", name: type }) in this.types;
-        }
-
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isStructType(type.t);
-        }
-        return type.type === "struct";
-    };
-
-    isClassType(type: VariableType): type is ClassType;
-    isClassType(type: Variable | DummyVariable): type is ObjectVariable;
-    isClassType(type: VariableType | DummyVariable | Variable): type is ClassType {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isClassType(type.t);
-        } else if ('targetType' in type) {
-            return this.isClassType(type.targetType);
-        }
-        return type.type === "class";
-    };
-
-    arrayPointerType(eleType: VariableType, size: number): ArrayType {
-        return {
-            type: "pointer",
-            ptrType: "array",
-            eleType,
-            size
-        };
-    };
-
-    makeArrayPointerValue(arr: Variable[], position: number): ArrayValue {
-        return {
-            target: arr,
-            position
-        }
-    };
-
-    functionPointerType(retType: VariableType, signature: (VariableType | "?")[]): FunctionPointerType {
-        return {
-            type: "pointer",
-            ptrType: "function",
-            targetType: this.functionType(retType, signature)
-        };
-    };
-
-    functionType(retType: VariableType, signature: (VariableType | "?")[]): FunctionType {
-        return {
-            type: "function",
-            retType,
-            signature
-        };
-    };
-
-    makeFunctionPointerValue(f: FunctionVariable, name: string, lt: VariableType | "global", args: (VariableType | "?")[], retType: VariableType): FunctionPointerValue {
-        return {
-            target: f,
-            name,
-            defineType: lt,
-            args,
-            retType
-        };
-    };
-
-    normalPointerType(targetType: VariableType): PointerType {
-        if (targetType.type === "function") {
-            return {
-                type: "pointer",
-                ptrType: "function",
-                targetType,
-            }
-        }
-        return {
-            type: "pointer",
-            ptrType: "normal",
-            targetType
-        };
-    };
-
-    makeReferenceType(targetType: VariableType): ReferenceType {
-        return {
-            type: "reference",
-            targetType
-        };
-    };
-
-    makeNormalPointerValue(target: Variable): PointerValue {
-        return {
-            target
-        };
-    };
-
-    simpleType(type: string | string[]): VariableType {
-        if (Array.isArray(type)) {
-            if (type.length > 1) {
-                const typeStr = type.map((t) => (t as any).Identifier ?? t).filter(t => {
-                    return !this.config.specifiers.includes(t as Specifier);
-                }).join(" ");
-                return this.simpleType(typeStr);
-            } else {
-                return this.typedefs[type[0]] || this.simpleType(type[0]);
-            }
-        } else {
-            if (this.isPrimitiveType(type)) {
-                return this.primitiveType(type);
-            } else if (this.isStructType(type)) {
-                return this.simpleStructType(type);
-            } else if (this.isNamespaceType(type)) {
-                return this.simpleType(resolveIdentifier(type).split("::").pop());
-            } else {
-                return this.simpleClassType(type);
-            }
-        }
-    };
-
-    simpleStructType(type: string) {
-        const structType: StructType = {
-            type: "struct",
-            name: type
-        };
-        if (this.getTypeSignature(structType) in this.types) {
-            return structType;
-        } else {
-            this.raiseException("type " + type + " is not defined");
-        }
-    };
-
-    simpleClassType(type: string) {
-        const clsType: ClassType = {
-            type: "class",
-            name: type
-        };
-        if (this.getTypeSignature(clsType) in this.types) {
-            return clsType;
-        } else {
-            this.raiseException("type " + type + " is not defined");
-        }
-    };
-
     newStruct(structname: string, members: Member[]) {
         const clsType: StructType = {
             type: "struct",
@@ -1556,40 +977,6 @@ export class CRuntime {
         return clsType;
     };
 
-    primitiveType(type: CBasicType): PrimitiveType {
-        return {
-            type: "primitive",
-            name: type,
-        } as PrimitiveType;
-    };
-
-    isCharType(type: VariableType) {
-        return "name" in type && this.config.charTypes.indexOf(type.name as CCharType) !== -1;
-    };
-
-    isStringType(type: Variable): type is ArrayVariable;
-    isStringType(type: VariableType): type is ArrayType;
-    isStringType(type: Variable | VariableType) {
-        if ("t" in type) {
-            return this.isStringType(type.t);
-        } else if ('targetType' in type) {
-            return this.isStringType(type.targetType);
-        }
-        return (this.isArrayType(type) && this.isCharType(type.eleType)) || this.isStringClass(type);
-    };
-
-    isStringClass(type: VariableType) {
-        return (type.type === "class" && type.name === "string");
-    };
-
-    isVectorClass(type: VariableType) {
-        return (type.type === "class" && type.name === "vector");
-    };
-
-    isNamespaceType(type: string | Variable | VariableType) {
-        return resolveIdentifier(type).split('::').length > 1;
-    };
-
     getStringFromCharArray(element: ArrayVariable) {
         if (this.isStringType(element.t)) {
             const {
@@ -1632,120 +1019,6 @@ export class CRuntime {
         return wideCharacterRange.test(str);
     }
 
-    getTypeSignature(type: VariableType | "global" | "?" | "dummy") {
-        // (primitive), [class], <struct>, {pointer}
-        if (typeof (type) === "string") {
-            return type;
-        }
-        let ret: string;
-        if (type.type === "primitive") {
-            ret = "(" + type.name + ")";
-        } else if (type.type === "class") {
-            ret = "[" + type.name + "]";
-        } else if (type.type === "struct") {
-            ret = "<" + type.name + ">";
-        } else if (type.type === "reference") {
-            ret = this.getTypeSignature(type.targetType);
-        } else if (type.type === "pointer") {
-            // !targetType, @size!eleType, !#retType!param1,param2,...
-            ret = "{";
-            if (type.ptrType === "normal") {
-                ret += "!" + this.getTypeSignature(type.targetType);
-            } else if (type.ptrType === "array") {
-                ret += "!" + this.getTypeSignature(type.eleType);
-            } else if (type.ptrType === "function") {
-                ret += "@" + this.getTypeSignature(type.targetType);
-            }
-            ret += "}";
-        } else if (type.type === "function") {
-            // #retType!param1,param2,...
-            ret = "#" + this.getTypeSignature(type.retType) + "!" + type.signature.map(e => {
-                return this.getTypeSignature(e);
-            }).join(",");
-        }
-        return ret;
-    };
-
-    makeTypeString(type: VariableType | "global" | "dummy" | "?" | undefined) {
-        // (primitive), [class], <struct>, {pointer}
-        let ret;
-        if (type === undefined) {
-            ret = "<unknown>";
-        }
-        else if (typeof (type) === "string") {
-            ret = "$" + type;
-        } else if (type.type === "primitive") {
-            ret = type.name;
-        } else if (type.type === "class") {
-            ret = type.name;
-        } else if (type.type === "struct") {
-            ret = `<${type.name}>`;
-        } else if (type.type === "pointer") {
-            // !targetType, @size!eleType, #retType!param1,param2,...
-            ret = "";
-            if (type.ptrType === "normal") {
-                ret += this.makeTypeString(type?.targetType) + "*";
-            } else if (type.ptrType === "array") {
-                ret += this.makeTypeString(type?.eleType) + `[${type.size}]`;
-            } else if (type.ptrType === "function") {
-                ret += this.makeTypeString(type?.targetType.retType) + "(*f)" + "(" + type.targetType.signature.map(e => {
-                    return this.makeTypeString(e);
-                }).join(",") + ")";
-            }
-        }
-        return ret;
-    };
-
-    makeValueString(l: Variable | DummyVariable, options?: MakeValueStringOptions): string {
-        let display: string;
-        if (!options) { options = {}; }
-        if (this.isPrimitiveType(l)) {
-            if (this.isTypeEqualTo(l.t, this.charTypeLiteral)) {
-                display = "'" + String.fromCharCode(l.v as number) + "'";
-            } else if (this.isBoolType(l.t)) {
-                display = l.v !== 0 ? "true" : "false";
-            } else {
-                display = l.v.toString();
-            }
-        } else if (this.isPointerType(l)) {
-            if (this.isFunctionType(l.t)) {
-                display = "<function>";
-            } else if (this.isArrayType(l)) {
-                if (this.isTypeEqualTo(l.t.eleType, this.charTypeLiteral)) {
-                    // string
-                    display = "\"" + this.getStringFromCharArray(l) + "\"";
-                } else if (options.noArray) {
-                    display = "[...]";
-                } else {
-                    options.noArray = true;
-                    const displayList = [];
-                    for (let i = l.v.position, end = l.v.target.length, asc = l.v.position <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                        displayList.push(this.makeValueString(l.v.target[i], options));
-                    }
-                    display = "[" + displayList.join(",") + "]";
-                }
-            } else if (this.isNormalPointerType(l)) {
-                if (options.noPointer) {
-                    display = "->?";
-                } else {
-                    options.noPointer = true;
-                    display = "->" + this.makeValueString(l.v.target);
-                }
-            } else {
-                this.raiseException("unknown pointer type");
-            }
-        } else if (this.isClassType(l)) {
-            display = "<object>";
-        } else if (this.isStructType(l)) {
-            display = "<struct>";
-        }
-        return display;
-    };
-
-    makeValString(l: Variable | DummyVariable) {
-        return this.makeValueString(l) + "(" + this.makeTypeString(l?.t) + ")";
-    };
-
     makeConstructor(type: VariableType, args: Variable[], left = false): Variable {
         const ret = this.val(type, { members: {} }, left);
         this.types[this.getTypeSignature(type)].cConstructor(this, ret, args);
@@ -1774,7 +1047,7 @@ export class CRuntime {
         }
     };
 
-    raiseException(message: string, currentNode?: any) {
+    raiseException(message: string, currentNode?: any): never {
         if (this.interp) {
             if (currentNode == null) {
                 ({
