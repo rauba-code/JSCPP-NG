@@ -1,25 +1,134 @@
 import { CRuntime } from "./rt"
 
-export const arithmeticSig = {
-    "I8": "signed char",
-    "U8": "unsigned char",
-    "I16": "short int",
-    "U16": "unsigned short int",
-    "I32": "long int",
-    "U32": "unsigned long int",
-    "I64": "long long int",
-    "U64": "unsigned long long int",
-    "F32": "float",
-    "F64": "double",
-    "BOOL": "bool",
-    "INTEGRAL": "<integer literal>",
-    "FLOAT": "<floating-point literal>",
-    "ARITHMETIC": "<arithmetic literal>",
+const arithmeticSig = {
+    "I8": {},
+    "U8": {},
+    "I16": {},
+    "U16": {},
+    "I32": {},
+    "U32": {},
+    "I64": {},
+    "U64": {},
+    "F32": {},
+    "F64": {},
+    "BOOL": {},
 } as const;
+
+export interface ArithmeticProperties {
+    name: string,
+    isSigned: boolean,
+    isFloat: boolean,
+    bytes: number,
+    minv: number,
+    maxv: number,
+    asSigned: ArithmeticSig
+}
+
+const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
+    "I8": {
+        name: "signed char",
+        isSigned: true,
+        isFloat: false,
+        bytes: 1,
+        minv: -128,
+        maxv: 127,
+        asSigned: "I8",
+    },
+    "U8": {
+        name: "unsigned char",
+        isSigned: false,
+        isFloat: false,
+        bytes: 1,
+        minv: 0,
+        maxv: 255,
+        asSigned: "I8",
+    },
+    "I16": {
+        name: "short int",
+        isSigned: true,
+        isFloat: false,
+        bytes: 2,
+        minv: -32768,
+        maxv: 32767,
+        asSigned: "I16",
+    },
+    "U16": {
+        name: "unsigned short int",
+        isSigned: false,
+        isFloat: false,
+        bytes: 2,
+        minv: 0,
+        maxv: 65535,
+        asSigned: "I16",
+    },
+    "I32": {
+        name: "long int",
+        isSigned: true,
+        isFloat: false,
+        bytes: 4,
+        minv: -2147483648,
+        maxv: 2147483647,
+        asSigned: "I32",
+    },
+    "U32": {
+        name: "unsigned long int",
+        isSigned: false,
+        isFloat: false,
+        bytes: 4,
+        minv: 0,
+        maxv: 4294967295,
+        asSigned: "I32",
+    },
+    "I64": {
+        name: "long long int",
+        isSigned: true,
+        isFloat: false,
+        bytes: 8,
+        minv: -9223372036854775808,
+        maxv: 9223372036854775807,
+        asSigned: "I64",
+    },
+    "U64": {
+        name: "unsigned long long int",
+        isSigned: false,
+        isFloat: false,
+        bytes: 8,
+        minv: 0,
+        maxv: 18446744073709551615,
+        asSigned: "I64",
+    },
+    "F32": {
+        name: "float",
+        isSigned: true,
+        isFloat: true,
+        bytes: 4,
+        minv: -3.4028235E+38,
+        maxv: 3.4028235E+38,
+        asSigned: "F32",
+    },
+    "F64": {
+        name: "double",
+        isSigned: true,
+        isFloat: true,
+        bytes: 8,
+        minv: -10E+308,
+        maxv: 10E+308,
+        asSigned: "F64",
+    },
+    "BOOL": {
+        name: "bool",
+        isSigned: false,
+        isFloat: false,
+        bytes: 1,
+        minv: 0,
+        maxv: 1,
+        asSigned: "I8",
+    },
+};
 
 export type ArithmeticSig = keyof (typeof arithmeticSig);
 
-export const defaultArithmeticResolutionMap : { [x: string]: ArithmeticSig } = {
+const defaultArithmeticResolutionMap: { [x: string]: ArithmeticSig } = {
     "char": "I8",
     "signed char": "I8",
     "unsigned char": "U8",
@@ -125,7 +234,7 @@ export interface IndexPointerValue {
 export interface FunctionValue {
     target: CFunction | null;
     name: string;
-    bindThis: Variable | null;
+    bindThis: ClassVariable | null;
 }
 export type ObjectValue = ArithmeticValue | ArrayValue | ClassValue | PointerValue | IndexPointerValue;
 
@@ -165,7 +274,7 @@ export interface PointerVariable {
     t: PointerType;
     v: PointerValue;
 }
-// alias to 'PTR <t.array.object>' in typecheck notation
+// alias to 'PTR [t.array.object]' in typecheck notation
 export interface IndexPointerVariable {
     left: boolean;
     readonly?: boolean;
@@ -197,7 +306,7 @@ export const variables = {
     dynamicArrayType(object: ObjectType): DynamicArrayType {
         return { sig: "DYNARRAY", object };
     },
-    arrayElementType(array: StaticArrayType | DynamicArrayType): IndexPointerType {
+    indexPointerType(array: StaticArrayType | DynamicArrayType): IndexPointerType {
         return { sig: "INDEXPTR", array };
     },
     functionType(fulltype: string[]): FunctionType {
@@ -211,6 +320,10 @@ export const variables = {
         const val = (pointee as Variable | Function).v ?? "VOID";
         return { t, v: { pointee: val }, left, readonly };
     },
+    indexPointer(array: StaticArrayVariable | DynamicArrayVariable, index: number, left: boolean = false, readonly : boolean = false): IndexPointerVariable {
+        const t = variables.indexPointerType(array.t);
+        return { t, v: { pointee: array.v, index }, left, readonly };
+    },
     class(t: ClassType, members: { [name: string]: Variable }, left: boolean = false, readonly: boolean = false): ClassVariable {
         return { t, v: { members }, left, readonly };
     },
@@ -220,8 +333,52 @@ export const variables = {
     dynamicArray(objectType: ObjectType, values: ObjectValue[], left: boolean = false, readonly: boolean = false): DynamicArrayVariable {
         return { t: variables.dynamicArrayType(objectType), v: { values }, left, readonly };
     },
-    function(fulltype: string[], name: string, target: CFunction | null, bindThis: Variable | null, left: boolean = false, readonly: boolean = false): Function {
+    function(fulltype: string[], name: string, target: CFunction | null, bindThis: ClassVariable | null, left: boolean = false, readonly: boolean = false): Function {
         return { t: variables.functionType(fulltype), v: { name, target, bindThis }, left, readonly };
+    },
+    deref(object: PointerVariable): Variable | Function | "VOID" {
+        if (variables.asVoidType(object.t.pointee) !== null) {
+            return "VOID";
+        }
+        return {
+            t: (object.t.pointee as ObjectType | FunctionType),
+            v: (object.v.pointee as ObjectValue | FunctionValue),
+            left: false, readonly: false
+        } as Variable | Function;
+    },
+    clone(object: Variable, left: boolean = false, readonly: boolean = false): Variable {
+        const branch: { [sig in string]: () => Variable } = {
+            "ARITHMETIC": () => {
+                const x = object as ArithmeticVariable;
+                return variables.arithmetic(x.t.sig, x.v.value, left, readonly)
+            },
+            "PTR": () => {
+                const x = object as PointerVariable;
+                return variables.pointer(variables.deref(x), left, readonly);
+            },
+            "INDEXPTR": () => {
+                const x = object as IndexPointerVariable;
+                const array = { t: x.t.array, v: x.v.pointee, left: false, readonly: false } as StaticArrayVariable | DynamicArrayVariable;
+                return variables.indexPointer(array, x.v.index, left, readonly);
+            },
+            "ARRAY": () => {
+                throw new Error("not yet implemented");
+            },
+            "DYNARRAY": () => {
+                throw new Error("cannot clone dynamic arrays directly");
+            },
+            "CLASS": () => {
+                throw new Error("not yet implemented");
+            },
+            "FUNCTION": () => {
+                throw new Error("not yet implemented");
+            },
+        }
+        if (!object.readonly && readonly) {
+            throw new Error("Cannot convert from volatile variable to a constant");
+        }
+        const where = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig;
+        return branch[where]();
     },
     asVoidType(type: AnyType): VoidType | null {
         return (type.sig === "VOID") ? type as VoidType : null;
@@ -305,6 +462,7 @@ export const variables = {
         } else if (ld !== null && rd !== null) {
             return variables.dynamicArrayTypesEqual(ld, rd);
         }
+        return false;
     },
     staticArrayTypesEqual(lhs: StaticArrayType, rhs: StaticArrayType): boolean {
         return variables.typesEqual(lhs.object, rhs.object);
@@ -359,7 +517,10 @@ export const variables = {
         }
         toStringSequenceInner(type, result);
         return result;
-    }
+    },
+    arithmeticSig: arithmeticSig,
+    arithmeticProperties: arithmeticProperties,
+    defaultArithmeticResolutionMap: defaultArithmeticResolutionMap,
 } as const;
 
 function toStringSequenceInner(type: AnyType, result: string[]): void {

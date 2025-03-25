@@ -1,5 +1,6 @@
 import { resolveIdentifier } from "./includes/shared/string_utils";
-import { ArrayType, CRuntime, RuntimeScope, Variable, VariableType } from "./rt";
+import { CRuntime, RuntimeScope } from "./rt";
+import { variables } from "./variables";
 
 /*
  * decaffeinate suggestions:
@@ -44,7 +45,7 @@ export class Interpreter extends BaseInterpreter {
     constructor(rt: CRuntime) {
         super(rt);
         this.visitors = {
-            *TranslationUnit(interp, s, param) {
+            *TranslationUnit(interp, s, _param) {
                 ({ rt } = interp);
                 let i = 0;
                 while (i < s.ExternalDeclarations.length) {
@@ -99,7 +100,7 @@ export class Interpreter extends BaseInterpreter {
                             }
                             argTypes.push(_type);
                         }
-                        basetype = rt.functionType(basetype, argTypes);
+                        basetype = variables.functionType(basetype, argTypes);
                     }
                 }
                 if ((s.right.length > 0) && (s.right[0].type === "DirectDeclarator_modifier_array")) {
@@ -388,7 +389,7 @@ export class Interpreter extends BaseInterpreter {
                             structMemberList.push({
                                 name,
                                 type,
-                                initialize(rt: any, _this: any) {
+                                initialize(_rt: any, _this: any) {
                                     init.left = true;
                                     return init;
                                 }
@@ -398,7 +399,7 @@ export class Interpreter extends BaseInterpreter {
 
                     if (s.InitVariables) {
                         const structType = rt.newStruct(`initialized_struct_${identifier}`, structMemberList);
-                        rt.defVar(identifier, structType, rt.defaultValue(structType));
+                        rt.defVar(identifier, rt.defaultValue(structType));
                     } else {
                         rt.newStruct(identifier, structMemberList);
                     }

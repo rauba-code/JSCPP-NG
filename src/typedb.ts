@@ -15,6 +15,7 @@ function makeString(type: string | string[]): string {
     return type.join(' ');
 }
 
+
 export class TypeDB {
     parser: LLParser
     scope: NonTerm
@@ -41,9 +42,18 @@ export class TypeDB {
         }
     }
 
-    matchFunction(identifier: string, params: (string | string[])[]): number {
+    matchSingleFunction(identifier: string): number {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
+            return -1;
+        }
+        if (fnobj.overloads.length >= 1) {
+            throw new Error(`Overloaded function ${identifier} has multiple candidates`);
+        }
+    }
+
+    matchFunctionByParams(identifier: string, params: (string | string[])[]): number {
+        if (!(identifier in this.functions)) {
             return -1;
         }
         const targetParams: string[] = params.flatMap((x) => {
@@ -54,6 +64,14 @@ export class TypeDB {
             return sa;
         });
         const target: string[] = ["FUNCTION", "Return", "("].concat(...targetParams).concat(")");
+        return this.matchFunctionExact(identifier, target);
+    }
+
+    matchFunctionExact(identifier: string, target: string[]): number {
+        const fnobj = this.functions[identifier];
+        if (fnobj === undefined) {
+            return -1;
+        }
         const targetInline = makeString(target);
         if (targetInline in fnobj.cache) {
             return fnobj.cache[targetInline];
