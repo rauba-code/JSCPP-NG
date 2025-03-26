@@ -207,8 +207,24 @@ export interface VoidType {
 export type ObjectType = ArithmeticType | ClassType | PointerType | StaticArrayType | DynamicArrayType | IndexPointerType;
 
 /** Any type that a variable can have + direct function type + void type.
-  * Do not use this for checking variables, use `ObjectType` instead.*/
+  * Do not use this for checking variables, use `ObjectType` instead. */
 export type AnyType = ObjectType | FunctionType | VoidType;
+
+/** Variable type with specified value type (lvalue or non-lvalue).
+  * Intended to be cast from Variable | Function types. */
+export interface MaybeLeft<T> {
+    t: T,
+    left: boolean,
+}
+
+/** Variable type with specified value type (lvalue or non-lvalue)
+  * and a c-v qualifier (const or volatile).
+  * Intended to be cast from Variable | Function types. */
+export interface MaybeLeftCV<T> {
+    t: T,
+    left: boolean,
+    readonly: boolean,
+}
 
 export interface ArithmeticValue {
     value: number
@@ -244,40 +260,45 @@ export interface ArithmeticVariable {
     t: ArithmeticType;
     v: ArithmeticValue;
 }
+export interface ArithmeticVariable1 {
+    readonly: boolean;
+    v: ArithmeticValue;
+}
+
 export interface StaticArrayVariable {
     left: boolean;
-    readonly?: boolean;
+    readonly: boolean;
     t: StaticArrayType;
     v: ArrayValue;
 }
 export interface DynamicArrayVariable {
     left: boolean;
-    readonly?: boolean;
+    readonly: boolean;
     t: DynamicArrayType;
     v: ArrayValue;
 }
 export interface Function {
     left: boolean;
-    readonly?: boolean;
+    readonly: boolean;
     t: FunctionType;
     v: FunctionValue;
 }
 export interface ClassVariable {
     left: boolean;
-    readonly?: boolean;
+    readonly: boolean;
     t: ClassType;
     v: ClassValue;
 }
 export interface PointerVariable {
     left: boolean;
-    readonly?: boolean;
+    readonly: boolean;
     t: PointerType;
     v: PointerValue;
 }
 // alias to 'PTR [t.array.object]' in typecheck notation
 export interface IndexPointerVariable {
     left: boolean;
-    readonly?: boolean;
+    readonly: boolean;
     t: IndexPointerType;
     v: IndexPointerValue;
 }
@@ -285,7 +306,7 @@ export interface IndexPointerVariable {
 // Equals to 'Object' in typecheck notation
 export type Variable = ArithmeticVariable | StaticArrayVariable | DynamicArrayVariable | ClassVariable | PointerVariable | IndexPointerVariable;
 
-export type CFunction = (rt: CRuntime, _this: Variable, ...args: Variable[]) => Variable | null;
+export type CFunction = (rt: CRuntime, _this: Variable, ...args: Variable[]) => Variable | Generator<unknown,any,unknown>;
 
 export const variables = {
     voidType(): VoidType {
@@ -320,7 +341,7 @@ export const variables = {
         const val = (pointee as Variable | Function).v ?? "VOID";
         return { t, v: { pointee: val }, left, readonly };
     },
-    indexPointer(array: StaticArrayVariable | DynamicArrayVariable, index: number, left: boolean = false, readonly : boolean = false): IndexPointerVariable {
+    indexPointer(array: StaticArrayVariable | DynamicArrayVariable, index: number, left: boolean = false, readonly: boolean = false): IndexPointerVariable {
         const t = variables.indexPointerType(array.t);
         return { t, v: { pointee: array.v, index }, left, readonly };
     },

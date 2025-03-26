@@ -3,7 +3,7 @@ import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import { BaseInterpreter, Interpreter } from "./interpreter";
 import { resolveIdentifier } from "./includes/shared/string_utils";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, Function, IndexPointerVariable, ObjectType, StaticArrayType, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, IndexPointerVariable, MaybeLeft, MaybeLeftCV, ObjectType, PointerType, StaticArrayType, Variable, variables, VoidType } from "./variables";
 import { TypeDB } from "./typedb";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 
@@ -206,7 +206,7 @@ export class CRuntime {
         }
     };
 
-    typeSignature(...array: string[]): TypeSignature {
+    typeSignature(array: string[]): TypeSignature {
         const inline: string = array.join(" ");
         if (!parse(this.parser, array)) {
             this.raiseException(`Malformed type signature: '${inline}'`)
@@ -214,196 +214,70 @@ export class CRuntime {
         return { inline, array };
     };
 
-    typeSignatureUnchecked(...array: string[]): TypeSignature {
+    typeSignatureUnchecked(array: string[]): TypeSignature {
         return { inline: array.join(" "), array };
     };
 
-    defFunc(lt: ClassType | null, name: string, retType: ObjectType, argTypes: ObjectType[], argNames: string[], stmts: any, interp: Interpreter, readonlyArgs: boolean[]) {
+    /** This function is only used when defining a function with an exact type. For matching, use TypeDB-associated functions */
+    createFunctionTypeSignature(domain: ClassType | "global", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[]): TypeSignature {
+        const thisSig: string[] = (domain === "global") ? [] : variables.toStringSequence(domain, true);
+        const returnSig: string[] = retType === "VOID" ? [ retType ] : variables.toStringSequence(retType.t, retType.left);
+        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.left));
+        const result : string[] = [ [ [ "FUNCTION" ], returnSig, [ "(" ], thisSig ], argTypeSig, [ [ ")" ] ] ].flat().flat();
+        return this.typeSignature(result);
+    }
+
+    defFunc(domain: ClassType | "global", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: any, interp: Interpreter): void {
         if (stmts != null) {
             const f = function*(rt: CRuntime, _this: Variable, ...args: Variable[]) {
                 // logger.warn("calling function: %j", name);
                 rt.enterScope("function " + name);
                 argNames.forEach(function(argName, i) {
-                    args[i].readonly = readonlyArgs[i];
-                    rt.defVar(argName, argTypes[i], args[i]);
+                    args[i].readonly = argTypes[i].readonly;
+                    rt.defVar(argName, args[i]);
                 });
                 let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
-                if (variables.asVoidType(retType) !== null) {
+                if (retType === "VOID") {
                     if (ret instanceof Array && (ret[0] === "return")) {
                         ret = rt.cast(retType, ret[1]);
                     } else {
-                        rt.raiseException("you must return a value");
+                        rt.raiseException("non-void function must return a value");
                     }
                 } else {
                     if (Array.isArray(ret)) {
                         if ((ret[0] === "return") && ret[1]) {
-                            rt.raiseException("you cannot return a value from a void function");
+                            rt.raiseException("void function cannot return a value");
                         }
                     }
                     ret = undefined;
                 }
                 rt.exitScope("function " + name);
-                // logger.warn("function: returing %j", ret);
+                // logger.warn("function: returning %j", ret);
                 return ret;
             };
+            const fnsig = this.createFunctionTypeSignature(domain, retType, argTypes);
 
-            this.regFunc(f, lt, name, argTypes, retType);
+            this.regFunc(f, domain, name, fnsig);
         } else {
-            this.regFuncPrototype(lt, name, argTypes, retType);
+            this.raiseException("Not yet implemented");
+            //this.regFuncPrototype(lt, name, argTypes, retType);
         }
     };
 
-    /*makeParametersSignature(args: (ObjectType | "?")[]) {
-        const ret = new Array(args.length);
-        let i = 0;
-        while (i < args.length) {
-            const arg = args[i];
-            ret[i] = this.getTypeSignature(arg);
-            i++;
+    getFuncByParams(domain: ClassType | "global", identifier: string, params: Variable[]): FunctionSymbol {
+        const domainInlineSig: string = (domain === "global") ? domain : variables.toStringSequence(domain, false).join(" ");
+        if (!(domainInlineSig in this.typeMap)) {
+            this.raiseException(`domain '${domainInlineSig}' is unknown`);
         }
-        return ret.join(",");
-    };*/
+        const domainMap: TypeHandlerMap = this.typeMap[domainInlineSig];
+        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.left)));
+        if (fnID < 1) {
+            this.raiseException(`No matching function '(${domainInlineSig})::${identifier}'`);
+        }
+        console.log(`getfunc: '(${domainInlineSig})::${identifier}'`);
+        return domainMap.functionsByID[fnID];
+    };
 
-    /*getCompatibleFunc(lt: VariableType | "global", name: string, args: (Variable | DummyVariable)[]) {
-        let ret;
-        const ltsig = this.getTypeSignature(lt);
-        if (ltsig in this.types) {
-            const t = this.types[ltsig].handlers;
-            if (name in t) {
-                // logger.info("method found");
-                const ts = args.map(v => v.t);
-                const sig = this.makeParametersSignature(ts);
-                if (sig in t[name].functions) {
-                    ret = t[name].functions[sig];
-                } else {
-                    const compatibles: CFunction[] = [];
-                    const reg = t[name].reg;
-                    Object.keys(reg).forEach(signature => {
-                        let newTs: (VariableType | "dummy")[];
-                        const regArgInfo = reg[signature];
-                        const dts = regArgInfo.args;
-                        let newDts: (VariableType | "dummy")[];
-                        const {
-                            optionalArgs
-                        } = regArgInfo;
-                        if ((dts[dts.length - 1] === "?") && ((dts.length - 1) <= ts.length)) {
-                            newTs = ts.slice(0, dts.length - 1);
-                            newDts = dts.slice(0, -1) as VariableType[];
-                        } else {
-                            newTs = ts;
-                            newDts = dts as VariableType[];
-                        }
-                        if (newDts.length <= newTs.length) {
-                            let ok = true;
-                            let i = 0;
-                            while (ok && (i < newDts.length)) {
-                                ok = this.castable(newTs[i], newDts[i]);
-                                i++;
-                            }
-                            while (ok && (i < newTs.length)) {
-                                ok = this.castable(newTs[i], optionalArgs[i - newDts.length].type);
-                                i++;
-                            }
-                            if (ok) {
-                                compatibles.push(t[name].functions[this.makeParametersSignature(regArgInfo.args)]);
-                            }
-                        }
-                    });
-                    if (compatibles.length === 0) {
-                        if ("#default" in t[name]) {
-                            ret = t[name].functions["#default"];
-                        } else {
-                            const argsStr = ts.map(v => {
-                                return this.makeTypeString(v);
-                            }).join(", ");
-                            this.raiseException("no method " + name + " in " + this.makeTypeString(lt) + " accepts " + argsStr);
-                        }
-                    } else if (compatibles.length > 1) {
-                        this.raiseException("ambiguous method invoking, " + compatibles.length + " compatible methods");
-                    } else {
-                        ret = compatibles[0];
-                    }
-                }
-            } else {
-                this.raiseException("method " + name + " is not defined in " + this.makeTypeString(lt));
-            }
-        } else {
-            this.raiseException("type " + this.makeTypeString(lt) + " is unknown");
-        }
-        if ((ret == null)) {
-            this.raiseException("method " + name + " does not seem to be implemented");
-        }
-        return ret;
-    };*/
-
-    /*matchVarArg(methods: OpHandler, sig: string) {
-        for (let _sig in methods) {
-            if (_sig[_sig.length - 1] === "?") {
-                _sig = _sig.slice(0, -1);
-                if (sig.startsWith(_sig)) {
-                    return methods.functions[_sig];
-                }
-            }
-        }
-        return null;
-    };*/
-
-    /*getFunc(lt: (VariableType | "global"), name: string, args: (VariableType | "dummy")[]) {
-        if (lt !== "global" && (this.isPointerType(lt) || this.isFunctionType(lt))) {
-            let f;
-            if (this.isArrayType(lt)) {
-                f = "pointer_array";
-            } else if (this.isFunctionType(lt)) {
-                f = "function";
-            } else {
-                f = "pointer_normal";
-            }
-            let t = null;
-            if (name in this.types[f].handlers) {
-                t = this.types[f].handlers;
-            } else if (name in this.types["pointer"].handlers) {
-                t = this.types["pointer"].handlers;
-            }
-            if (t) {
-                const sig = this.makeParametersSignature(args);
-                let method;
-                if (t[name].functions != null && sig in t[name].functions) {
-                    return t[name].functions[sig];
-                } else if ((method = this.matchVarArg(t[name], sig)) !== null) {
-                    return method;
-                } else if (t[name].default) {
-                    return t[name].default;
-                } else {
-                    this.raiseException("no method " + name + " in " + this.makeTypeString(lt) + " accepts (" + sig + ")");
-                }
-            }
-        }
-        const ltsig = this.getTypeSignature(lt);
-        if (ltsig in this.types) {
-            const t = this.types[ltsig].handlers;
-            if (name in t) {
-                const sig = this.makeParametersSignature(args);
-                let method;
-                if (t[name].functions != null && sig in t[name].functions) {
-                    return t[name].functions[sig];
-                } else if ((method = this.matchVarArg(t[name], sig)) !== null) {
-                    return method;
-                } else if (t[name].default) {
-                    return t[name].default;
-                } else {
-                    this.raiseException("no method " + name + " in " + this.makeTypeString(lt) + " accepts (" + sig + ")");
-                }
-            } else {
-                this.raiseException("method " + name + " is not defined in " + this.makeTypeString(lt));
-            }
-        } else {
-            if (lt !== "global" && this.isPointerType(lt)) {
-                this.raiseException("this pointer has no proper method overload");
-            } else {
-                this.raiseException("type " + this.makeTypeString(lt) + " is not defined");
-            }
-        }
-    };*/
 
     makeOperatorFuncName = (name: string) => `o(${name})`;
 
@@ -644,31 +518,28 @@ export class CRuntime {
         return value;
     };*/
 
-    castable(type1: VariableType | "dummy", type2: VariableType | "dummy") {
-        if (type1 === "dummy" || type2 === "dummy") {
-            this.raiseException("Unexpected dummy");
-            return;
-        }
-        if (this.isTypeEqualTo(type1, type2)) {
+    castable(type1: ObjectType, type2: ObjectType) {
+        // TODO: unweird this function
+        if (variables.typesEqual(type1, type2)) {
             return true;
         }
-        if (this.isPrimitiveType(type1) && this.isPrimitiveType(type2)) {
-            return this.isNumericType(type2) && this.isNumericType(type1);
-        } else if (this.isPointerType(type1) && this.isPointerType(type2)) {
-            if (this.isFunctionType(type1)) {
-                return this.isPointerType(type2);
+        let ptr1 : PointerType | null;
+        let ptr2 : PointerType | null;
+        let class1 : ClassType | null;
+        let class2 : ClassType | null;
+        if (variables.asArithmeticType(type1) !== null && variables.asArithmeticType(type2) !== null) {
+            return true;
+        } else if ((ptr1 = variables.asPointerType(type1)) !== null && (ptr2 = variables.asPointerType(type2)) !== null) {
+            if (variables.asFunctionType(ptr1.pointee) !== null) {
+                return variables.asFunctionType(ptr2.pointee) !== null;
             }
-            return !this.isFunctionType(type2);
-        } else if (this.isStringType(type1) && this.isStringType(type2)) {
-            return true;
-        } else if (this.isClassType(type1) && this.isClassType(type2)) {
-            return true;
-        } else if (this.isPrimitiveType(type1) && this.isReferenceType(type2)) {
-            return true;
-        } else if (this.isClassType(type1) || this.isClassType(type2)) {
+            return !variables.asFunctionType(ptr2.pointee); // ???
+        } else if ((class1 = variables.asClassType(type1)) !== null && (class2 = variables.asClassType(type2)) !== null) {
+            return false;
+        } else if (variables.asClassType(type1) || variables.asClassType(type2)) {
             this.raiseException("not implemented");
         }
-        return false;
+        this.raiseException("not implemented");
     };
 
     cast(type: IntType, value: Variable): IntVariable;
@@ -1014,7 +885,7 @@ export class CRuntime {
         if (type.sig in variables.arithmeticSig) {
             return variables.arithmetic(type.sig as ArithmeticSig, 0, left, true);
         } else if (classType !== null) {
-            const value = variables.class(classType, { }, left);
+            const value = variables.class(classType, {}, left);
             this.typeMap[variables.toStringSequence(classType, left).join(" ")].cConstructor(this, value);
             return value;
         } else if (type.type === "pointer") {

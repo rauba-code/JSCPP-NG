@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./includes/shared/string_utils";
 import { CRuntime, RuntimeScope } from "./rt";
-import { variables } from "./variables";
+import { Variable, variables } from "./variables";
 
 /*
  * decaffeinate suggestions:
@@ -9,7 +9,7 @@ import { variables } from "./variables";
  * DS207: Consider shorter variations of null checks
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-const sampleGeneratorFunction = function* (): Generator<null, void, void> {
+const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
 };
 
@@ -193,7 +193,7 @@ export class Interpreter extends BaseInterpreter {
                             if (_param.Declarator.Declarator.right[0].type === "DirectDeclarator_modifier_ParameterTypeList") {
                                 const dim = _param.Declarator.Declarator.right[0];
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
-                                const {argTypes: _argTypes , argNames: _argNames, optionalArgs: _optionalArgs} = yield* interp.visit(interp, dim.ParameterTypeList, param);
+                                const { argTypes: _argTypes, argNames: _argNames, optionalArgs: _optionalArgs } = yield* interp.visit(interp, dim.ParameterTypeList, param);
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
                                 _type = rt.functionPointerType(_type, _argTypes);
                             } else {
@@ -260,9 +260,10 @@ export class Interpreter extends BaseInterpreter {
                 } else {
                     rt.raiseException("unacceptable argument list", s.Declarator.right);
                 }
-                const { argTypes , argNames, optionalArgs, readonlyArgs } = yield* interp.visit(interp, ptl, param);
+                const { argTypes, argNames, optionalArgs, readonlyArgs } = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
-                rt.defFunc(scope, name, basetype, argTypes, argNames, stat, interp, optionalArgs, readonlyArgs);
+                rt.raiseException("Not yet implemented");
+                // rt.defFunc(scope, name, basetype, argTypes, argNames, stat, interp, readonlyArgs);
             },
             *Declaration(interp, s, param) {
                 const { rt } = interp;
@@ -287,13 +288,16 @@ export class Interpreter extends BaseInterpreter {
                             for (let j = 0; j < dec.Declarator.right.length; j++) {
                                 let dim = dec.Declarator.right[j];
                                 if (dim.Expression !== null) {
-                                    dim = rt.cast(rt.intTypeLiteral, (yield* interp.visit(interp, dim.Expression, param))).v;
+                                    rt.raiseException("Not yet implemented");
+                                    // dim = rt.cast(rt.intTypeLiteral, (yield* interp.visit(interp, dim.Expression, param))).v;
                                 } else if (j > 0) {
                                     rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                 } else {
                                     if (init.type === "Initializer_expr") {
                                         const initializer: Variable = yield* interp.visit(interp, init, param);
-                                        if (rt.isCharType(basetype) && rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
+                                        rt.raiseException("Not yet implemented");
+                                        // if basetype is char and initializer.t is char*
+                                        /*if (variables.asArithmeticType(basetype)?.sig === "I8" && variables.typesEqual(initializer.t, variables.staticArrayType(variables.initializer.t)) rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
                                             // string init
                                             dim = initializer.v.target.length;
                                             init = {
@@ -305,7 +309,7 @@ export class Interpreter extends BaseInterpreter {
                                             };
                                         } else {
                                             rt.raiseException("cannot initialize an array to " + rt.makeValString(initializer), init);
-                                        }
+                                        }*/
                                     } else {
                                         dim = init.Initializers.length;
                                     }
@@ -319,7 +323,7 @@ export class Interpreter extends BaseInterpreter {
 
                             init.dataType = dec.Declarator.left.DataType;
                             init.readonly = readonly;
-                            rt.defVar(name, init.t, init);
+                            rt.defVar(name, init);
                         } else if (dec.Declarator.right[0].type === "DirectDeclarator_modifier_Constructor") {
                             const constructorArgs = [];
                             for (const dim of dec.Declarator.right) {
@@ -330,11 +334,11 @@ export class Interpreter extends BaseInterpreter {
                                     }
                                 }
                             }
-                            init = rt.makeConstructor(type, constructorArgs, true);
+                            init = rt.callConstructor(type, constructorArgs, true);
 
                             init.dataType = dec.Declarator.left.DataType;
                             init.readonly = readonly;
-                            rt.defVar(name, type, init);
+                            rt.defVar(name, init);
                         }
                     } else {
                         if (init == null) {
@@ -345,7 +349,7 @@ export class Interpreter extends BaseInterpreter {
 
                         init.dataType = dec.Declarator.left.DataType;
                         init.readonly = readonly;
-                        rt.defVar(name, type, init);
+                        rt.defVar(name, init);
                     }
                 }
             },
@@ -353,7 +357,8 @@ export class Interpreter extends BaseInterpreter {
                 ({ rt } = interp);
 
                 const basetype = rt.simpleType(s.DeclarationSpecifiers);
-                if (!rt.isVectorClass(basetype))
+                rt.raiseException("Not yet implemented");
+                /*if (!rt.isVectorClass(basetype))
                     rt.raiseException("Only vectors are currently supported for STL Declaration!");
 
                 const vectorClass: any = rt.defaultValue(basetype, true);
@@ -366,7 +371,7 @@ export class Interpreter extends BaseInterpreter {
 
                 vectorClass.dataType = vectorClass.v.members.element_container.dataType = STLType;
                 vectorClass.readonly = false;
-                rt.defVar(s.Identifier, basetype, vectorClass);
+                rt.defVar(s.Identifier, basetype, vectorClass);*/
             },
             *StructDeclaration(interp, s, param) {
                 ({ rt } = interp);
@@ -505,7 +510,8 @@ export class Interpreter extends BaseInterpreter {
                 param.scope = "SelectionStatement_if";
                 rt.enterScope(param.scope);
                 const e = yield* interp.visit(interp, s.Expression, param);
-                let ret;
+                rt.raiseException("Not yet implemented");
+                /*let ret;
                 if (rt.cast(rt.boolTypeLiteral, e).v) {
                     ret = yield* interp.visit(interp, s.Statement, param);
                 } else if (s.ElseStatement) {
@@ -513,7 +519,7 @@ export class Interpreter extends BaseInterpreter {
                 }
                 rt.exitScope(param.scope);
                 param.scope = scope_bak;
-                return ret;
+                return ret;*/
             },
             *SelectionStatement_switch(interp, s, param) {
                 ({
@@ -548,8 +554,9 @@ export class Interpreter extends BaseInterpreter {
                 while (true) {
                     if (s.Expression != null) {
                         let cond = yield* interp.visit(interp, s.Expression, param);
-                        cond = rt.cast(rt.boolTypeLiteral, cond).v;
-                        if (!cond) { break; }
+                        rt.raiseException("Not yet implemented");
+                        /*cond = rt.cast(rt.boolTypeLiteral, cond).v;
+                        if (!cond) { break; }*/
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
                     if (r instanceof Array) {
@@ -599,8 +606,9 @@ export class Interpreter extends BaseInterpreter {
                     }
                     if (s.Expression != null) {
                         let cond = yield* interp.visit(interp, s.Expression, param);
-                        cond = rt.cast(rt.boolTypeLiteral, cond).v;
-                        if (!cond) { break; }
+                        rt.raiseException("Not yet implemented");
+                        /*cond = rt.cast(rt.boolTypeLiteral, cond).v;
+                        if (!cond) { break; }*/
                     }
                 }
                 rt.exitScope(param.scope);
@@ -626,7 +634,7 @@ export class Interpreter extends BaseInterpreter {
                 let iterator = null;
                 try {
                     iterator = rt.getFunc(iterable.t, "__iterator", [])(rt, iterable);
-                } catch(ex) {
+                } catch (ex) {
                     if (rt.isArrayType(iterable.t) || rt.isStringType(iterable.t)) {
                         iterator = iterable.v.target[Symbol.iterator]();
                     }
@@ -706,19 +714,19 @@ export class Interpreter extends BaseInterpreter {
                 param.scope = scope_bak;
                 return return_val;
             },
-            JumpStatement_goto(interp, s, param) {
+            JumpStatement_goto(interp, _s, _param) {
                 ({
                     rt
                 } = interp);
                 rt.raiseException("not implemented");
             },
-            JumpStatement_continue(interp, s, param) {
+            JumpStatement_continue(interp, _s, _param) {
                 ({
                     rt
                 } = interp);
                 return ["continue"];
             },
-            JumpStatement_break(interp, s, param) {
+            JumpStatement_break(interp, _s, _param) {
                 ({
                     rt
                 } = interp);
@@ -730,7 +738,7 @@ export class Interpreter extends BaseInterpreter {
                 } = interp);
                 if (s.Expression) {
                     let ret = yield* interp.visit(interp, s.Expression, param);
-                    ret = interp.rt.captureValue(ret);
+                    ret = interp.rt.asCapturedVariable(ret);
 
                     return [
                         "return",
@@ -779,7 +787,7 @@ export class Interpreter extends BaseInterpreter {
                 // console.log "==================="
                 // console.log "s: " + JSON.stringify(s)
                 // console.log "==================="
-                const args: Variable[] = yield* (function* () {
+                const args: Variable[] = yield* (function*() {
                     const result = [];
                     for (const e of s.args) {
                         let thisArg = yield* interp.visit(interp, e, param);
@@ -1097,7 +1105,7 @@ export class Interpreter extends BaseInterpreter {
                 ({
                     rt
                 } = interp);
-                return rt.val(rt.boolTypeLiteral, s.value === "true" ? 1 : 0);
+                return variables.arithmetic("BOOL", s.value === "true" ? 1 : 0);
             },
             CharacterConstant(interp, s, param) {
                 ({
@@ -1107,44 +1115,44 @@ export class Interpreter extends BaseInterpreter {
                 if (a.length !== 1) {
                     rt.raiseException("a character constant must have and only have one character.");
                 }
-                return rt.val(rt.charTypeLiteral, a[0].charCodeAt(0));
+                return variables.arithmetic("I8", a[0].charCodeAt(0));
             },
             *FloatConstant(interp, s, param) {
                 ({
                     rt
                 } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
-                return rt.val(rt.floatTypeLiteral, val.v);
+                return variables.arithmetic("F32", val.v);
             },
             DecimalConstant(interp, s, param) {
                 ({
                     rt
                 } = interp);
-                return rt.val(rt.unsignedintTypeLiteral, parseInt(s.value, 10));
+                return variables.arithmetic("U32", parseInt(s.value, 10));
             },
             HexConstant(interp, s, param) {
                 ({
                     rt
                 } = interp);
-                return rt.val(rt.unsignedintTypeLiteral, parseInt(s.value, 16));
+                return variables.arithmetic("U32", parseInt(s.value, 16));
             },
             BinaryConstant(interp, s, param) {
                 ({
                     rt
                 } = interp);
-                return rt.val(rt.unsignedintTypeLiteral, parseInt(s.value, 2));
+                return variables.arithmetic("U32", parseInt(s.value));
             },
             DecimalFloatConstant(interp, s, param) {
                 ({
                     rt
                 } = interp);
-                return rt.val(rt.doubleTypeLiteral, parseFloat(s.value));
+                return variables.arithmetic("F64", parseFloat(s.value));
             },
             HexFloatConstant(interp, s, param) {
                 ({
                     rt
                 } = interp);
-                return rt.val(rt.doubleTypeLiteral, parseInt(s.value, 16));
+                return variables.arithmetic("F64", parseInt(s.value, 16));
             },
             OctalConstant(interp, s, param) {
                 ({
