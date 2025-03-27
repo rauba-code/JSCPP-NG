@@ -227,7 +227,8 @@ export interface MaybeLeftCV<T> {
 }
 
 export interface ArithmeticValue {
-    value: number
+    /** 'null' implies an uninitialised value. */
+    value: number | null
 }
 
 export interface ArrayValue {
@@ -333,7 +334,7 @@ export const variables = {
     functionType(fulltype: string[]): FunctionType {
         return { sig: "FUNCTION", fulltype };
     },
-    arithmetic(sig: ArithmeticSig, value: number, left: boolean = false, readonly: boolean = false): ArithmeticVariable {
+    arithmetic(sig: ArithmeticSig, value: number | null, left: boolean = false, readonly: boolean = false): ArithmeticVariable {
         return { t: variables.arithmeticType(sig), v: { value }, left, readonly };
     },
     pointer(pointee: Variable | Function | "VOID", left: boolean = false, readonly: boolean = false): PointerVariable {
