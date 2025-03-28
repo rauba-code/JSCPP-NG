@@ -3,8 +3,9 @@ import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import { BaseInterpreter, Interpreter } from "./interpreter";
 import { resolveIdentifier } from "./includes/shared/string_utils";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, DynamicArrayType, Function, FunctionType, IndexPointerType, IndexPointerVariable, MaybeLeft, MaybeLeftCV, ObjectType, PointerType, StaticArrayType, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, DynamicArrayType, Function, FunctionType, IndexPointerType, IndexPointerVariable, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, StaticArrayType, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
+import { fromUtf8CharArray } from "./utf8";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 
 export interface IncludeModule {
@@ -69,10 +70,10 @@ export interface NamespaceScope {
     };
 }
 
-//export interface MakeValueStringOptions {
-//    noArray?: boolean;
-//    noPointer?: boolean;
-//}
+export interface MakeValueStringOptions {
+    noArray?: boolean;
+    noPointer?: boolean;
+}
 
 export function mergeConfig(a: any, b: any) {
     for (const o in b) {
@@ -228,7 +229,7 @@ export class CRuntime {
     }
 
     defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: any, interp: Interpreter): void {
-        let f : CFunction | null = null;
+        let f: CFunction | null = null;
         if (stmts != null) {
             f = function*(rt: CRuntime, _this: Variable, ...args: Variable[]) {
                 // logger.warn("calling function: %j", name);
@@ -270,7 +271,7 @@ export class CRuntime {
     tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionSymbol | null {
         return this.tryGetFuncByParams(domain, identifier, params);
     }
-   
+
     getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionSymbol {
         const domainSig: string = this.domainString(domain);
         if (!(domainSig in this.typeMap)) {
@@ -305,8 +306,8 @@ export class CRuntime {
         if (domain === "{global}") {
             return domain;
         }
-        let seq : string[] = [domain.identifier];
-        let sub : ClassType = domain;
+        let seq: string[] = [domain.identifier];
+        let sub: ClassType = domain;
         while (sub.memberOf !== null) {
             seq.push(sub.memberOf.identifier);
             sub = sub.memberOf;
@@ -576,7 +577,7 @@ export class CRuntime {
             }
             return;
         }
-        let q : number = (x.v.value - info.minv) % (info.maxv + 1 - info.minv);
+        let q: number = (x.v.value - info.minv) % (info.maxv + 1 - info.minv);
         if (q < 0) {
             q += info.maxv + 1 - info.minv;
         }
@@ -585,6 +586,75 @@ export class CRuntime {
             this.raiseException("Not an integer")
         }
         x.v.value = q;
+    }
+
+    makeValueString(v: Variable | Function, options: MakeValueStringOptions = {}): string {
+        const arithmeticVar = variables.asArithmetic(v);
+        if (arithmeticVar !== null) {
+            const val = arithmeticVar.v.value;
+            const sig = arithmeticVar.t.sig;
+            const properties = variables.arithmeticProperties[sig];
+            if (sig === "I8") {
+                // 31 /* hex = 0x21, ascii = '!' */
+                const signedVal = val >= 0 ? val : properties.maxv + 1 + val;
+                return `${val} /* hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')}, ascii = '${String.fromCharCode(val)}' */`;
+            } else if (sig === "BOOL") {
+                return val !== 0 ? "true" : "false";
+            } else if (!properties.isFloat) {
+                // 160 /* hex = 0xA0 */
+                const signedVal = val >= 0 ? val : properties.maxv + 1 + val;
+                return `${val} /* hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')} */`;
+            } else {
+                return val.toString();
+            }
+        }
+        const pointerVar = variables.asPointer(v);
+        if (pointerVar !== null) {
+            if (variables.asFunctionType(pointerVar.t.pointee) !== null) {
+                return "<function>";
+            }
+            if (options.noPointer) {
+                return "->/*...*/";
+            } else {
+                options.noPointer = true;
+                if (pointerVar.v.pointee === "VOID") {
+                    return "-><VOID>";
+                }
+                return "->" + this.makeValueString({t: pointerVar.t.pointee, v: pointerVar.v.pointee, left: false, readonly: false} as Variable | Function);
+            }
+        }
+        const indexPointerVar = variables.asIndexPointer(v);
+        if (indexPointerVar === null) {
+            const arrayObjectType = indexPointerVar.t.array.object;
+            if (variables.asArithmeticType(arrayObjectType)?.sig === "I8") {
+                // string
+                return `"${this.getStringFromCharArray(indexPointerVar)}"`;
+            } else if (options.noArray) {
+                return "{ /*...*/ }";
+            } else {
+                options.noArray = true;
+                const displayList = [];
+                const slice = indexPointerVar.v.pointee.values.slice(indexPointerVar.v.index);
+                for (let i = 0; i < slice.length; i++) {
+                    displayList.push(this.makeValueString({t: arrayObjectType, v: slice[i], left: false, readonly: false} as Variable | Function, options));
+                }
+                return "{ " + displayList.join(", ") + " }";
+            }
+            
+        }
+        if (variables.asClassType(v.t) !== null) {
+            return "<class>";
+        }
+        return "<unknown>";
+    };
+
+    /** Parses an character array representing the UTF-8 sequence into a string. */
+    getStringFromCharArray(src: IndexPointerVariable): string {
+        if (!(src.t.array.object.sig === "I8" || src.t.array.object.sig === "U8")) {
+            this.raiseException("Not a char array")
+        }
+        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index).map((x: ObjectValue) => (x as ArithmeticValue).value));
+        return fromUtf8CharArray(byteArray);
     }
 
     cast(target: ObjectType, v: Variable): Variable | Generator<unknown, Variable, unknown> {
@@ -601,7 +671,7 @@ export class CRuntime {
             if (target.sig === "BOOL") {
                 return variables.arithmetic(target.sig, arithmeticVar.v ? 1 : 0, false);
             } else if (targetInfo.isFloat) {
-                const onErr = () => `overflow when casting '${this.makeTypeString(v)}' to '${this.makeTypeString({ t: target, left: false, readonly: false })}'`;
+                const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeString(v)}' to '${this.makeTypeString({ t: target, left: false, readonly: false })}'`;
                 if (this.inrange(arithmeticValue, arithmeticTarget, onErr)) {
                     return variables.arithmetic(arithmeticTarget.sig, arithmeticValue);
                 }
@@ -610,7 +680,7 @@ export class CRuntime {
                     if (arithmeticValue < 0) {
                         // unsafe! bitwise truncation is platform-dependent
                         const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue & ((1 << (8 * targetInfo.bytes)) - 1)); // bitwise truncation
-                        if (this.inrange(newVar.v.value, newVar.t, () => `cannot cast negative value ${newVar.v.value} to ` + this.makeTypeString(newVar))) {
+                        if (this.inrange(newVar.v.value, newVar.t, () => `cannot cast negative value ${this.makeValueString(newVar)} of type ${this.makeTypeString(newVar)} to type ${this.makeTypeString(newVar)}`)) {
                             this.adjustArithmeticValue(newVar);
                             return newVar;
                         }
@@ -618,13 +688,13 @@ export class CRuntime {
                 }
                 if (fromInfo.isFloat) {
                     const intVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue));
-                    if (this.inrange(intVar.v.value, intVar.t, () => `overflow when casting value '${intVar.v.value}' to type '${this.makeTypeString(intVar)}'`)) {
+                    if (this.inrange(intVar.v.value, intVar.t, () => `overflow when casting value ${this.makeValueString(intVar)} of type '${this.makeTypeString(intVar)}' to type '${this.makeTypeString(intVar)}'`)) {
                         this.adjustArithmeticValue(intVar);
                         return intVar;
                     }
                 } else {
                     const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue);
-                    if (this.inrange(newVar.v.value, newVar.t, () => `overflow when casting ${newVar.v.value} to ${this.makeTypeString(newVar)}`)) {
+                    if (this.inrange(newVar.v.value, newVar.t, () => `overflow when casting value ${this.makeValueString(newVar)} of type ${this.makeTypeString(newVar)} to ${this.makeTypeString(newVar)}`)) {
                         this.adjustArithmeticValue(newVar);
                         return newVar;
                     }
@@ -927,8 +997,8 @@ export class CRuntime {
     }
 
     defaultValue(type: ObjectType, left = false): Variable {
-        let classType : ClassType | null;
-        let pointerType : PointerType | null;
+        let classType: ClassType | null;
+        let pointerType: PointerType | null;
         if (type.sig in variables.arithmeticSig) {
             return variables.arithmetic(type.sig as ArithmeticSig, null, left, true);
         } else if ((classType = variables.asClassType(type)) !== null) {

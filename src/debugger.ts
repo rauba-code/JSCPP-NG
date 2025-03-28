@@ -5,7 +5,8 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 
-import { CRuntime, IntVariable } from "./rt";
+import { CRuntime } from "./rt";
+import { ArithmeticVariable } from "./variables";
 
 interface AstNode {
     type: string;
@@ -33,7 +34,7 @@ export default class Debugger {
         [condition: string]: boolean;
     };
     rt: CRuntime;
-    gen: Generator<any, IntVariable | false, any>;
+    gen: Generator<any, ArithmeticVariable | false, any>;
     constructor(src?: string, oldSrc?: string) {
         this.src = src || "";
         this.srcByLines = (oldSrc || src || "").split("\n");
@@ -53,7 +54,7 @@ export default class Debugger {
 
         this.stopConditions = {
             isStatement: false,
-            positionChanged: false,
+            positionChangIntVariableed: false,
             lineChanged: true
         };
     }
@@ -79,7 +80,7 @@ export default class Debugger {
         return this.src;
     }
 
-    start(rt: CRuntime, gen: Generator<any, IntVariable | false, any>) {
+    start(rt: CRuntime, gen: Generator<any, ArithmeticVariable | false, any>) {
         this.rt = rt;
         return this.gen = gen;
     }
@@ -147,7 +148,7 @@ export default class Debugger {
         if (name) {
             const v = this.rt.readVar(name);
             return {
-                type: this.rt.makeTypeString(v?.t),
+                type: this.rt.makeTypeString(v),
                 value: v.v
             };
         } else {
@@ -161,7 +162,7 @@ export default class Debugger {
                             usedName.add(name);
                             ret.push({
                                 name,
-                                type: this.rt.makeTypeString(val?.t),
+                                type: this.rt.makeTypeString(val),
                                 value: this.rt.makeValueString(val)
                             });
                         }
