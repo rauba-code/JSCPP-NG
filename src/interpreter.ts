@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./includes/shared/string_utils";
-import { CRuntime, RuntimeScope } from "./rt";
-import { Variable, variables } from "./variables";
+import { CRuntime, OpSignature, RuntimeScope } from "./rt";
+import { ArithmeticVariable, DynamicArrayVariable, ObjectType, ObjectValue, StaticArrayVariable, Variable, variables } from "./variables";
 
 /*
  * decaffeinate suggestions:
@@ -15,11 +15,20 @@ const sampleGeneratorFunction = function*(): Generator<null, void, void> {
 
 const sampleGenerator = sampleGeneratorFunction();
 
-const isGenerator = (g: any) => {
+const isGenerator = (g: any): boolean => {
     return (g != null ? g.constructor : undefined) === sampleGenerator.constructor;
 };
 
-const isGeneratorFunction = (f: any) => {
+type Gen<T> = Generator<unknown, T, unknown>;
+type ResultOrGen<T> = T | Gen<T>;
+function asResult<T>(g: ResultOrGen<T>): T | null {
+    if ((g != null ? g.constructor : undefined) === sampleGenerator.constructor) {
+        return null;
+    }
+    return g as T;
+};
+
+const isGeneratorFunction = (f: any): boolean => {
     return (f != null ? f.constructor : undefined) === sampleGeneratorFunction.constructor;
 };
 
@@ -76,7 +85,8 @@ export class Interpreter extends BaseInterpreter {
                             let _type;
                             if (_param.Declarator != null) {
                                 const _pointer = _param.Declarator.Pointer;
-                                _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                                this.rt.raiseException("Not yet implemented");
+                                /*_type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
                                 if ((_param.Declarator.right != null) && (_param.Declarator.right.length > 0)) {
                                     const dimensions = [];
                                     for (let j = 0; j < _param.Declarator.right.length; j++) {
@@ -85,7 +95,7 @@ export class Interpreter extends BaseInterpreter {
                                             rt.raiseException("unacceptable array initialization", dim);
                                         }
                                         if (dim.Expression !== null) {
-                                            dim = rt.cast(rt.intTypeLiteral, (yield* interp.visit(interp, dim.Expression, param))).v;
+                                            dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
                                         } else if (j > 0) {
                                             rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                         } else {
@@ -94,13 +104,14 @@ export class Interpreter extends BaseInterpreter {
                                         dimensions.push(dim);
                                     }
                                     _type = interp.arrayType(dimensions, _type);
-                                }
+                                }*/
                             } else {
                                 _type = _basetype;
                             }
                             argTypes.push(_type);
                         }
-                        basetype = variables.functionType(basetype, argTypes);
+                        rt.raiseException("not yet implemented");
+                        //basetype = variables.functionType(basetype, argTypes);
                     }
                 }
                 if ((s.right.length > 0) && (s.right[0].type === "DirectDeclarator_modifier_array")) {
@@ -111,7 +122,7 @@ export class Interpreter extends BaseInterpreter {
                             rt.raiseException("unacceptable array initialization", dim);
                         }
                         if (dim.Expression !== null) {
-                            dim = rt.cast(rt.intTypeLiteral, (yield* interp.visit(interp, dim.Expression, param))).v;
+                            dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
                         } else if (j > 0) {
                             rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                         } else {
@@ -119,7 +130,6 @@ export class Interpreter extends BaseInterpreter {
                         }
                         dimensions.push(dim);
                     }
-                    basetype = interp.arrayType(dimensions, basetype);
                 }
 
                 if (s.left.type === "Identifier") {
@@ -174,13 +184,15 @@ export class Interpreter extends BaseInterpreter {
                         _readonly = _declarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
 
                         if (_reference) {
-                            _type = rt.makeReferenceType(_basetype);
+                            rt.raiseException("not yet implemented");
+                            //_type = rt.makeReferenceType(_basetype);
                         } else {
                             const _pointer = _param.Declarator.Declarator.Pointer;
-                            _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                            rt.raiseException("not yet implemented");
+                            //_type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
                         }
 
-                        if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
+                        /*if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
                             const __basetype = param.basetype;
                             param.basetype = _basetype;
                             const { name, type } = yield* interp.visit(interp, _param.Declarator.Declarator.left, param);
@@ -195,7 +207,8 @@ export class Interpreter extends BaseInterpreter {
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
                                 const { argTypes: _argTypes, argNames: _argNames, optionalArgs: _optionalArgs } = yield* interp.visit(interp, dim.ParameterTypeList, param);
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
-                                _type = rt.functionPointerType(_type, _argTypes);
+                                rt.raiseException("not yet implemented");
+                                //_type = variables.pointerType(variables.functionType(_type, _argTypes));
                             } else {
                                 const dimensions = [];
                                 let j = 0;
@@ -205,7 +218,7 @@ export class Interpreter extends BaseInterpreter {
                                         rt.raiseException("unacceptable array initialization", dim);
                                     }
                                     if (dim.Expression !== null) {
-                                        dim = rt.cast(rt.intTypeLiteral, (yield* interp.visit(interp, dim.Expression, param))).v;
+                                        dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
                                     } else if (j > 0) {
                                         rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                     } else {
@@ -216,15 +229,15 @@ export class Interpreter extends BaseInterpreter {
                                 }
                                 _type = interp.arrayType(dimensions, _type);
                             }
-                        }
+                        }*/
                     }
-                    if (_init != null) {
+                    /*if (_init !== null) {
                         optionalArgs.push({
                             type: _type,
                             name: _name,
                             expression: _init.Expression
                         });
-                    } else {
+                    } else */ {
                         if (optionalArgs.length > 0) {
                             rt.raiseException("all default arguments must be at the end of arguments list", _param);
                         }
@@ -234,7 +247,7 @@ export class Interpreter extends BaseInterpreter {
                     }
                     i++;
                 }
-                return { argTypes, argNames, optionalArgs, readonlyArgs };
+                return { argTypes, argNames, readonlyArgs };
             },
             *FunctionDefinition(interp, s, param) {
                 ({
@@ -246,7 +259,8 @@ export class Interpreter extends BaseInterpreter {
                 const name = s.Declarator.left.Identifier;
                 let basetype = rt.simpleType(s.DeclarationSpecifiers);
                 const pointer = s.Declarator.Pointer;
-                basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
+                rt.raiseException("not yet implemented");
+                /*basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
                 let ptl;
                 let varargs;
                 if (s.Declarator.right.type === "DirectDeclarator_modifier_ParameterTypeList") {
@@ -260,10 +274,10 @@ export class Interpreter extends BaseInterpreter {
                 } else {
                     rt.raiseException("unacceptable argument list", s.Declarator.right);
                 }
-                const { argTypes, argNames, optionalArgs, readonlyArgs } = yield* interp.visit(interp, ptl, param);
+                const { argTypes, argNames } = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
-                rt.raiseException("Not yet implemented");
-                // rt.defFunc(scope, name, basetype, argTypes, argNames, stat, interp, readonlyArgs);
+                //rt.raiseException("Not yet implemented");
+                rt.defFunc(scope, name, basetype.sig === "VOID" ? "VOID" : { t: basetype as ObjectType, left: false }, argTypes, argNames, stat, interp);*/
             },
             *Declaration(interp, s, param) {
                 const { rt } = interp;
@@ -288,8 +302,8 @@ export class Interpreter extends BaseInterpreter {
                             for (let j = 0; j < dec.Declarator.right.length; j++) {
                                 let dim = dec.Declarator.right[j];
                                 if (dim.Expression !== null) {
-                                    rt.raiseException("Not yet implemented");
-                                    // dim = rt.cast(rt.intTypeLiteral, (yield* interp.visit(interp, dim.Expression, param))).v;
+                                    //rt.raiseException("Not yet implemented");
+                                    dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
                                 } else if (j > 0) {
                                     rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                 } else {
@@ -318,7 +332,8 @@ export class Interpreter extends BaseInterpreter {
                             }
 
                             param.node = init;
-                            init = yield* interp.arrayInit(dimensions, init, basetype, param);
+                            const arrayYield = interp.arrayInit(dimensions, init, basetype, param);
+                            init = asResult(arrayYield) ?? (yield *arrayYield as Gen<StaticArrayVariable>);
                             delete param.node;
 
                             init.dataType = dec.Declarator.left.DataType;
@@ -334,7 +349,8 @@ export class Interpreter extends BaseInterpreter {
                                     }
                                 }
                             }
-                            init = rt.callConstructor(type, constructorArgs, true);
+                            const initClass = variables.class(type, {}, true);
+                            init = rt.getFuncByParams(type, "o(())", constructorArgs).target(this, initClass, ...constructorArgs);
 
                             init.dataType = dec.Declarator.left.DataType;
                             init.readonly = readonly;
@@ -403,10 +419,12 @@ export class Interpreter extends BaseInterpreter {
                     }
 
                     if (s.InitVariables) {
-                        const structType = rt.newStruct(`initialized_struct_${identifier}`, structMemberList);
-                        rt.defVar(identifier, rt.defaultValue(structType));
+                        rt.raiseException("not yet implemented");
+                        //const structType = rt.newStruct(`initialized_struct_${identifier}`, structMemberList);
+                        //rt.defVar(identifier, rt.defaultValue(structType));
                     } else {
-                        rt.newStruct(identifier, structMemberList);
+                        rt.raiseException("not yet implemented");
+                        //rt.newStruct(identifier, structMemberList);
                     }
                 }
             },
@@ -427,13 +445,13 @@ export class Interpreter extends BaseInterpreter {
                 if (param.scope === "SelectionStatement_switch_cs") {
                     return [
                         "switch",
-                        rt.cast(ce.t, param["switch"]).v === ce.v
+                        (rt.cast(ce.t, param["switch"]) as Variable).v === ce.v
                     ];
                 } else {
                     rt.raiseException("you can only use case directly in a switch block");
                 }
             },
-            Label_default(interp, s, param) {
+            Label_default(interp, _s, param) {
                 ({
                     rt
                 } = interp);
@@ -510,16 +528,16 @@ export class Interpreter extends BaseInterpreter {
                 param.scope = "SelectionStatement_if";
                 rt.enterScope(param.scope);
                 const e = yield* interp.visit(interp, s.Expression, param);
-                rt.raiseException("Not yet implemented");
-                /*let ret;
-                if (rt.cast(rt.boolTypeLiteral, e).v) {
+                let ret;
+                let castYield = rt.cast(variables.arithmeticType("BOOL"), e) as ResultOrGen<ArithmeticVariable>;
+                if (rt.value(asResult(castYield) ?? (yield *castYield as Gen<ArithmeticVariable>))) {
                     ret = yield* interp.visit(interp, s.Statement, param);
                 } else if (s.ElseStatement) {
                     ret = yield* interp.visit(interp, s.ElseStatement, param);
                 }
                 rt.exitScope(param.scope);
                 param.scope = scope_bak;
-                return ret;*/
+                return ret;
             },
             *SelectionStatement_switch(interp, s, param) {
                 ({
@@ -553,10 +571,10 @@ export class Interpreter extends BaseInterpreter {
                 rt.enterScope(param.scope);
                 while (true) {
                     if (s.Expression != null) {
-                        let cond = yield* interp.visit(interp, s.Expression, param);
-                        rt.raiseException("Not yet implemented");
-                        /*cond = rt.cast(rt.boolTypeLiteral, cond).v;
-                        if (!cond) { break; }*/
+                        const cond = yield* interp.visit(interp, s.Expression, param);
+                        const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
+                        const castBool = rt.value(asResult(castYield) ?? (yield *castYield as Gen<ArithmeticVariable>));
+                        if (!castBool) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
                     if (r instanceof Array) {
@@ -605,10 +623,10 @@ export class Interpreter extends BaseInterpreter {
                         if (end_loop) { break; }
                     }
                     if (s.Expression != null) {
-                        let cond = yield* interp.visit(interp, s.Expression, param);
-                        rt.raiseException("Not yet implemented");
-                        /*cond = rt.cast(rt.boolTypeLiteral, cond).v;
-                        if (!cond) { break; }*/
+                        const cond = yield* interp.visit(interp, s.Expression, param);
+                        const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
+                        const castBool = rt.value(asResult(castYield) ?? (yield *castYield as Gen<ArithmeticVariable>));
+                        if (!castBool) { break; }
                     }
                 }
                 rt.exitScope(param.scope);
@@ -633,9 +651,9 @@ export class Interpreter extends BaseInterpreter {
                 const variable = rt.readVar(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
                 let iterator = null;
                 try {
-                    iterator = rt.getFunc(iterable.t, "__iterator", [])(rt, iterable);
+                    iterator = rt.getFuncByParams(iterable.t, "__iterator", []).target(rt, iterable);
                 } catch (ex) {
-                    if (rt.isArrayType(iterable.t) || rt.isStringType(iterable.t)) {
+                    if (variables.asStaticArrayType(iterable.t) ?? variables.asDynamicArrayType(iterable.t) !== null) {
                         iterator = iterable.v.target[Symbol.iterator]();
                     }
                 }
@@ -686,9 +704,10 @@ export class Interpreter extends BaseInterpreter {
                 }
                 while (true) {
                     if (s.Expression != null) {
-                        let cond = yield* interp.visit(interp, s.Expression, param);
-                        cond = rt.cast(rt.boolTypeLiteral, cond).v;
-                        if (!cond) { break; }
+                        const cond = yield* interp.visit(interp, s.Expression, param);
+                        const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
+                        const castBool = rt.value(asResult(castYield) ?? (yield *castYield as Gen<ArithmeticVariable>));
+                        if (!castBool) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
                     if (r instanceof Array) {
@@ -747,7 +766,7 @@ export class Interpreter extends BaseInterpreter {
                 }
                 return ["return"];
             },
-            IdentifierExpression(interp, s, param) {
+            IdentifierExpression(interp, s, _param) {
                 ({ rt } = interp);
 
                 const globalScope = rt.scope.find((scope) => scope.$name === "global");
@@ -771,9 +790,9 @@ export class Interpreter extends BaseInterpreter {
                 const index = yield* interp.visit(interp, s.index, param);
 
                 param.structType = ret.t.eleType;
-                const r = rt.getFunc(ret.t, rt.makeOperatorFuncName("[]"), [index.t])(rt, ret, index);
+                const r = rt.getFuncByParams(ret.t, rt.makeOperatorFuncName("[]"), [index.t]).target(rt, ret, index);
                 if (isGenerator(r)) {
-                    return yield* r;
+                    return yield* r as Generator;
                 } else {
                     return r;
                 }
@@ -791,7 +810,7 @@ export class Interpreter extends BaseInterpreter {
                     const result = [];
                     for (const e of s.args) {
                         let thisArg = yield* interp.visit(interp, e, param);
-                        thisArg = interp.rt.captureValue(thisArg);
+                        thisArg = interp.rt.asCapturedVariable(thisArg);
                         // console.log "-------------------"
                         // console.log "e: " + JSON.stringify(e)
                         // console.log "-------------------"
@@ -811,12 +830,8 @@ export class Interpreter extends BaseInterpreter {
                 } else {
                     bindThis = ret;
                 }
-                const r = rt.getFunc(ret.t, rt.makeOperatorFuncName("()"), args.map(e => e.t))(rt, ret, bindThis, ...args);
-                if (isGenerator(r)) {
-                    return yield* r;
-                } else {
-                    return r;
-                }
+                const r = rt.getFuncByParams(ret.t, rt.makeOperatorFuncName("()"), args).target(rt, ret, bindThis, ...args);
+                return asResult<Variable>(r) ?? (yield* r as Gen<Variable>);
             },
             *PostfixExpression_MemberAccess(interp, s, param) {
                 ({
@@ -826,24 +841,34 @@ export class Interpreter extends BaseInterpreter {
                 return rt.getMember(ret, s.member);
             },
             *PostfixExpression_MemberPointerAccess(interp, s, param) {
-                let r;
                 ({
                     rt
                 } = interp);
                 let ret = yield* interp.visit(interp, s.Expression, param);
-                if (rt.isPointerType(ret.t) && !rt.isFunctionType(ret.t)) {
-                    const {
-                        member
-                    } = s;
-                    ret = yield* rt.getFunc(ret.t, rt.makeOperatorFuncName("->"), [])(rt, ret);
-                    return rt.getMember(ret, member);
+                const retc = variables.asClass(ret);
+                if (retc === null) {
+                    rt.raiseException("Expected a class or struct");
+                }
+                const maybePtrType = variables.asPointerType(ret.t);
+                if (maybePtrType !== null && variables.asFunctionType(maybePtrType.pointee) === null) {
+                    const { member } = s;
+                    const target = rt.getOpByParams("{global}", "o(_->_)", [retc]).target(rt, retc) as Generator;
+                    if (isGenerator(ret)) {
+                        return rt.getMember(yield* target as Generator, member);
+                    } else {
+                        rt.raiseException("Expected a generator");
+                    }
                 } else {
                     const member = yield* interp.visit(interp, {
                         type: "IdentifierExpression",
                         Identifier: s.member
                     }, param);
-                    ret = yield* rt.getFunc(ret.t, rt.makeOperatorFuncName("->"), [member.t])(rt, ret);
-                    return rt.getMember(ret, member);
+                    const target = rt.getOpByParams("{global}", "o(_->_)", [retc]).target(rt, retc) as Generator;
+                    if (isGenerator(ret)) {
+                        return rt.getMember(yield* target as Generator, member);
+                    } else {
+                        rt.raiseException("Expected a generator");
+                    }
                 }
             },
             *PostfixExpression_PostIncrement(interp, s, param) {
@@ -851,13 +876,9 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunc(ret.t, rt.makeOperatorFuncName("++"), ["dummy"])(rt, ret, {
-                    t: "dummy",
-                    v: null
-                }
-                );
+                const r = rt.getOpByParams(ret.t, "o(_++)", [ret]).target(rt, ret);
                 if (isGenerator(r)) {
-                    return yield* r;
+                    return yield* r as Generator;
                 } else {
                     return r;
                 }
@@ -867,13 +888,9 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunc(ret.t, rt.makeOperatorFuncName("--"), ["dummy"])(rt, ret, {
-                    t: "dummy",
-                    v: null
-                }
-                );
+                const r = rt.getOpByParams(ret.t, "o(_--)", [ret]).target(rt, ret);
                 if (isGenerator(r)) {
-                    return yield* r;
+                    return yield* r as Generator;
                 } else {
                     return r;
                 }
@@ -883,9 +900,9 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunc(ret.t, rt.makeOperatorFuncName("++"), [])(rt, ret);
+                const r = rt.getOpByParams(ret.t, "o(++_)", [ret]).target(rt, ret);
                 if (isGenerator(r)) {
-                    return yield* r;
+                    return yield* r as Generator;
                 } else {
                     return r;
                 }
@@ -895,9 +912,9 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunc(ret.t, rt.makeOperatorFuncName("--"), [])(rt, ret);
+                const r = rt.getOpByParams(ret.t, "o(--_)", [ret]).target(rt, ret);
                 if (isGenerator(r)) {
-                    return yield* r;
+                    return yield* r as Generator;
                 } else {
                     return r;
                 }
@@ -907,9 +924,10 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunc(ret.t, rt.makeOperatorFuncName(s.op), [])(rt, ret);
+                debugger;
+                const r = rt.getOpByParams(ret.t, `o(${s.op})` as OpSignature, [ret]).target(rt, ret);
                 if (isGenerator(r)) {
-                    return yield* r;
+                    return yield* r as Generator;
                 } else {
                     return r;
                 }
@@ -919,25 +937,25 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                return rt.val(rt.intTypeLiteral, rt.getSize(ret));
+                return variables.arithmetic("I32", rt.getSizeByType(ret.t));
             },
             *UnaryExpression_Sizeof_Type(interp, s, param) {
                 ({
                     rt
                 } = interp);
                 const type = yield* interp.visit(interp, s.TypeName, param);
-                return rt.val(rt.intTypeLiteral, rt.getSizeByType(type));
+                return variables.arithmetic("I32", rt.getSizeByType(type));
             },
             *CastExpression(interp, s, param) {
                 ({
                     rt
                 } = interp);
                 let ret = yield* interp.visit(interp, s.Expression, param);
-                ret = rt.clone(rt.captureValue(ret));
+                ret = variables.clone(rt.asCapturedVariable(ret));
                 const type = yield* interp.visit(interp, s.TypeName, param);
                 return rt.cast(type, ret);
             },
-            TypeName(interp, s, param) {
+            TypeName(interp, s, _param) {
                 ({
                     rt
                 } = interp);
@@ -965,68 +983,72 @@ export class Interpreter extends BaseInterpreter {
                 } else {
                     let left = yield* interp.visit(interp, s.left, param);
                     let right = yield* interp.visit(interp, s.right, param);
-                    left = rt.captureValue(left);
-                    right = rt.captureValue(right);
-                    const r = rt.getFunc(left.t, rt.makeOperatorFuncName(op), [right.t])(rt, left, right);
+                    left = rt.asCapturedVariable(left);
+                    right = rt.asCapturedVariable(right);
+                    const r = rt.getFuncByParams("{global}", rt.makeOperatorFuncName(op), [left, right]).target(rt, left, right);
                     if (isGenerator(r)) {
-                        return yield* r;
+                        return yield* r as Generator;
                     } else {
                         return r;
                     }
                 }
             },
             *LogicalANDExpression(interp, s, param) {
-                let right;
                 ({
                     rt
                 } = interp);
+                const op = "o(_&&_)";
                 const left = yield* interp.visit(interp, s.left, param);
-                const lt = rt.types[rt.getTypeSignature(left.t)];
-                if ("&&" in lt) {
-                    right = yield* interp.visit(interp, s.right, param);
-                    const r = rt.getFunc(left.t, rt.makeOperatorFuncName("&&"), [right.t])(rt, left, right);
-                    if (isGenerator(r)) {
-                        return yield* r;
-                    } else {
-                        return r;
+                const right = yield* interp.visit(interp, s.right, param);
+                const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
+                if (directOp !== null) {
+                    if (directOp.target === null) {
+                        rt.raiseException("Function is defined but not implemented");
                     }
+                    const target = directOp.target(rt, left, right);
+                    return (isGenerator(target)) ? (yield* target as Generator) : target;
                 } else {
-                    if (rt.cast(rt.boolTypeLiteral, left).v) {
-                        return yield* interp.visit(interp, s.right, param);
-                    } else {
-                        return left;
-                    }
+                    const boolType = variables.arithmeticType("BOOL");
+                    const lhsBoolYield = rt.cast(boolType, left);
+                    const rhsBoolYield = rt.cast(boolType, right);
+                    const lhsBool = asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>);
+                    const rhsBool = asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>);
+                    const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
+                    const target = boolOp.target(rt, lhsBool, rhsBool);
+                    return asResult(target) ?? (yield* target as Gen<ArithmeticVariable>);
                 }
             },
             *LogicalORExpression(interp, s, param) {
-                let right;
-                ({
-                    rt
-                } = interp);
+                const op = "o(_&&_)";
                 const left = yield* interp.visit(interp, s.left, param);
-                const lt = rt.types[rt.getTypeSignature(left.t)];
-                if ("||" in lt) {
-                    right = yield* interp.visit(interp, s.right, param);
-                    const r = rt.getFunc(left.t, rt.makeOperatorFuncName("||"), [right.t])(rt, left, right);
-                    if (isGenerator(r)) {
-                        return yield* r;
-                    } else {
-                        return r;
+                const right = yield* interp.visit(interp, s.right, param);
+                const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
+                if (directOp !== null) {
+                    if (directOp.target === null) {
+                        rt.raiseException("Function is defined but not implemented");
                     }
+                    const target = directOp.target(rt, left, right);
+                    return (isGenerator(target)) ? (yield* target as Generator) : target;
                 } else {
-                    if (rt.cast(rt.boolTypeLiteral, left).v) {
-                        return left;
-                    } else {
-                        return yield* interp.visit(interp, s.right, param);
-                    }
+                    const boolType = variables.arithmeticType("BOOL");
+                    const lhsBoolYield = rt.cast(boolType, left);
+                    const rhsBoolYield = rt.cast(boolType, right);
+                    const lhsBool = asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>);
+                    const rhsBool = asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>);
+                    const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
+                    const target = boolOp.target(rt, lhsBool, rhsBool);
+                    return asResult(target) ?? (yield* target as Gen<ArithmeticVariable>);
                 }
             },
             *ConditionalExpression(interp, s, param) {
                 ({
                     rt
                 } = interp);
-                const cond = rt.cast(rt.boolTypeLiteral, (yield* interp.visit(interp, s.cond, param))).v;
-                if (cond) { return yield* interp.visit(interp, s.t, param); } else { return yield* interp.visit(interp, s.f, param); }
+                const obj = yield* interp.visit(interp, s.cond, param);
+                const boolType = variables.arithmeticType("BOOL");
+                const boolYield = rt.cast(boolType, obj) as ResultOrGen<ArithmeticVariable>;
+                const cond = (asResult(boolYield) ?? (yield* boolYield as Gen<ArithmeticVariable>)).v.value;
+                return yield* interp.visit(interp, cond ? s.t : s.f, param);
             },
             *ConstantExpression(interp, s, param) {
                 ({
@@ -1068,7 +1090,8 @@ export class Interpreter extends BaseInterpreter {
                     for (const valueArray of arrayValues) {
                         structArray.push(valuesToStruct(valueArray));
                     }
-                    return rt.val(rt.arrayPointerType(param.structType, structArray.length), rt.makeArrayPointerValue(structArray, 0));
+                    rt.raiseException("Not yet implemented");
+                    //return variables.indexPointer(param.structType, structArray.length), rt.makeArrayPointerValue(structArray, 0));
                 }
 
                 return valuesToStruct(arrayValues);
@@ -1077,7 +1100,8 @@ export class Interpreter extends BaseInterpreter {
                 ({
                     rt
                 } = interp);
-                switch (s.prefix) {
+                rt.raiseException("Not yet implemented");
+                /*switch (s.prefix) {
                     case null:
                         let maxCode = -1;
                         let minCode = 1;
@@ -1099,15 +1123,15 @@ export class Interpreter extends BaseInterpreter {
                         return rt.makeCharArrayFromString(s.value, "char16_t");
                     case "U":
                         return rt.makeCharArrayFromString(s.value, "char32_t");
-                }
+                }*/
             },
-            BooleanConstant(interp, s, param) {
+            BooleanConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
                 return variables.arithmetic("BOOL", s.value === "true" ? 1 : 0);
             },
-            CharacterConstant(interp, s, param) {
+            CharacterConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
@@ -1122,51 +1146,51 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
-                return variables.arithmetic("F32", val.v);
+                return variables.arithmetic("F32", Math.fround(val.v.value));
             },
-            DecimalConstant(interp, s, param) {
+            DecimalConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
                 return variables.arithmetic("U32", parseInt(s.value, 10));
             },
-            HexConstant(interp, s, param) {
+            HexConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
                 return variables.arithmetic("U32", parseInt(s.value, 16));
             },
-            BinaryConstant(interp, s, param) {
+            BinaryConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("U32", parseInt(s.value));
+                return variables.arithmetic("U32", parseInt(s.value, 2));
             },
-            DecimalFloatConstant(interp, s, param) {
+            DecimalFloatConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
                 return variables.arithmetic("F64", parseFloat(s.value));
             },
-            HexFloatConstant(interp, s, param) {
+            HexFloatConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
                 return variables.arithmetic("F64", parseInt(s.value, 16));
             },
-            OctalConstant(interp, s, param) {
+            OctalConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
-                return rt.val(rt.unsignedintTypeLiteral, parseInt(s.value, 8));
+                return variables.arithmetic("U32", parseInt(s.value, 8));
             },
-            NamespaceDefinition(interp, s, param) {
+            NamespaceDefinition(interp, _s, _param) {
                 ({
                     rt
                 } = interp);
                 rt.raiseException("not implemented");
             },
-            UsingDirective(interp, s, param) {
+            UsingDirective(interp, s, _param) {
                 ({ rt } = interp);
 
                 const id = s.Identifier;
@@ -1174,19 +1198,19 @@ export class Interpreter extends BaseInterpreter {
 
                 Object.assign(currentScope.variables, { ...rt.namespace[id], [id]: rt.namespace[id] });
             },
-            UsingDeclaration(interp, s, param) {
+            UsingDeclaration(interp, _s, _param) {
                 ({
                     rt
                 } = interp);
                 rt.raiseException("not implemented");
             },
-            NamespaceAliasDefinition(interp, s, param) {
+            NamespaceAliasDefinition(interp, _s, _param) {
                 ({
                     rt
                 } = interp);
                 rt.raiseException("not implemented");
             },
-            unknown(interp, s, param) {
+            unknown(interp, s, _param) {
                 ({
                     rt
                 } = interp);
@@ -1197,10 +1221,8 @@ export class Interpreter extends BaseInterpreter {
 
     *visit(interp: Interpreter, s: any, param?: any) {
         let ret;
-        const {
-            rt
-        } = interp;
-        // console.log(`${s.sLine}: visiting ${s.type}`);
+        //const { rt } = interp;
+        console.log(`${s.sLine}: visiting ${s.type}`);
         if ("type" in s) {
             if (param === undefined) {
                 param = { scope: "global" };
@@ -1262,10 +1284,11 @@ export class Interpreter extends BaseInterpreter {
         }
     };
 
-    *arrayInit(dimensions: number[], init: any, type: VariableType, param: any): Generator<void, Variable, any> {
+    *arrayInit(dimensions: number[], init: any, type: ObjectType, param: any): ResultOrGen<StaticArrayVariable> {
         if (dimensions.length > 0) {
             let val;
             const curDim = dimensions[0];
+            const arithmeticType = variables.asArithmeticType(type);
             if (init) {
                 if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
                     // last level, short hand init
@@ -1280,22 +1303,22 @@ export class Interpreter extends BaseInterpreter {
                             i++;
                         }
                         init.Initializers = arr;
-                    } else if ((init.Initializers.length === 1) && this.rt.isIntegerType(type)) {
-                        val = this.rt.cast(type, (yield* this.visit(this, init.Initializers[0].Expression, param)));
-                        if ((val.v === -1) || (val.v === 0)) {
+                    } else if ((init.Initializers.length === 1) && arithmeticType !== null && !variables.arithmeticProperties[arithmeticType.sig].isFloat) {
+                        val = this.rt.cast(arithmeticType, (yield* this.visit(this, init.Initializers[0].Expression, param))) as ArithmeticVariable;
+                        if ((val.v.value === -1) || (val.v.value === 0)) {
                             const arr = new Array(curDim);
                             let i = 0;
                             while (i < curDim) {
                                 arr[i] = {
                                     type: "Initializer_expr",
-                                    shorthand: this.rt.val(type, val.v)
+                                    shorthand: variables.arithmetic(arithmeticType.sig, val.v.value)
                                 };
                                 i++;
                             }
                             init.Initializers = arr;
                         } else {
                             const arr = new Array(curDim);
-                            arr[0] = this.rt.val(type, -1);
+                            arr[0] = variables.arithmetic(arithmeticType.sig, -1);
                             let i = 1;
                             while (i < curDim) {
                                 arr[i] = {
@@ -1336,7 +1359,7 @@ export class Interpreter extends BaseInterpreter {
                         while (i < curDim) {
                             arr[i] = {
                                 type: "Initializer_expr",
-                                shorthand: this.rt.defaultValue(this.arrayType(dimensions.slice(1), type))
+                                shorthand: this.rt.defaultValue(type)
                             };
                             i++;
                         }
@@ -1350,34 +1373,39 @@ export class Interpreter extends BaseInterpreter {
                         param.structType = type;
                         initializer = yield* this.visit(this, init, param);
                     }
-                    if (this.rt.isArrayType(initializer) && this.rt.isTypeEqualTo(type, initializer.t.eleType)) {
+                    const arrayInitializer : StaticArrayVariable | DynamicArrayVariable | null = variables.asStaticArray(initializer) ?? variables.asDynamicArray(initializer);
+                    if (arrayInitializer !== null && variables.typesEqual(type, arrayInitializer.t.object)) {
                         init = {
                             type: "Initializer_array",
-                            Initializers: initializer.v.target.map(e => ({
+                            Initializers: arrayInitializer.v.values.map(e => ({
                                 type: "Initializer_expr",
                                 shorthand: e
                             }))
                         };
                     } else {
-                        this.rt.raiseException("cannot initialize an array to " + this.rt.makeValString(initializer), param.node);
+                        this.rt.raiseException("cannot initialize an array to (TBD)"/* + this.rt.makeValString(initializer)*/, param.node);
                     }
                 } else {
                     this.rt.raiseException("dimensions do not agree, " + curDim + " != " + init.Initializers.length, param.node);
                 }
-            }
+            } 
             {
-                const arr: Variable[] = [];
-                const ret = this.rt.val(this.arrayType(dimensions, type), this.rt.makeArrayPointerValue(arr, 0), true);
+                let arr: ObjectValue[] = [];
                 let i = 0;
                 while (i < curDim) {
-                    if (init && (i < init.Initializers.length)) {
-                        arr[i] = yield* this.arrayInit(dimensions.slice(1), init.Initializers[i], type, param);
+                    let top : Variable;
+                    if (init && i < init.Initializers.length) {
+                        top = yield* this.arrayInit(dimensions.slice(1), init.Initializers[i], type, param);
                     } else {
-                        arr[i] = yield* this.arrayInit(dimensions.slice(1), null, type, param);
+                        top = yield* this.arrayInit(dimensions.slice(1), null, type, param);
                     }
+                    if (!variables.typesEqual(type, top.t)) {
+                        this.rt.raiseException("Invalid array element type");
+                    }
+                    arr.push(top.v);
                     i++;
                 }
-                return ret;
+                return variables.staticArray(type, arr);
             }
         } else {
             if (init && (init.type !== "Initializer_expr")) {
@@ -1393,23 +1421,14 @@ export class Interpreter extends BaseInterpreter {
             } else {
                 initval = this.rt.defaultValue(type);
             }
-            const ret = this.rt.cast(this.arrayType(dimensions, type), initval);
-            ret.left = true;
-            return ret;
+            this.rt.raiseException("Not yet implemented");
+            //return initval;
         }
     };
 
-    arrayType(dimensions: number[], type: any): ArrayType {
-        if (dimensions.length > 0) {
-            return this.rt.arrayPointerType(this.arrayType(dimensions.slice(1), type), dimensions[0]);
-        } else {
-            return type;
-        }
-    };
-
-    buildRecursivePointerType(pointer: any, basetype: VariableType, level: number): VariableType {
+    buildRecursivePointerType(pointer: any, basetype: ObjectType, level: number): ObjectType {
         if (pointer && (pointer.length > level)) {
-            const type = this.rt.normalPointerType(basetype);
+            const type = variables.pointerType(basetype);
             return this.buildRecursivePointerType(pointer, type, level + 1);
         } else {
             return basetype;

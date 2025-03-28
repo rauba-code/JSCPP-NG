@@ -48,7 +48,7 @@ export interface JSCPPConfig {
     stopExecutionCheck?: () => boolean;
 }
 
-export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_())" | "o(_[])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)";
+export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)";
 
 export interface Member {
     type: ObjectType;
@@ -218,7 +218,7 @@ export class CRuntime {
         return { inline: array.join(" "), array };
     };
 
-    /** This function is only used when defining a function with an exact type. For matching, use TypeDB-associated functions */
+    /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeDB-associated functions */
     createFunctionTypeSignature(domain: ClassType | "{global}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[]): TypeSignature {
         const thisSig: string[] = (domain === "{global}") ? [] : variables.toStringSequence(domain, true);
         const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.left);
@@ -262,20 +262,42 @@ export class CRuntime {
         this.regFunc(f, domain, name, fnsig);
     };
 
-    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: Variable[]): FunctionSymbol {
+    /** Convenience function for static type checking of operators */
+    getOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionSymbol {
+        return this.getFuncByParams(domain, identifier, params);
+    }
+
+    tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionSymbol | null {
+        return this.tryGetFuncByParams(domain, identifier, params);
+    }
+   
+    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionSymbol {
         const domainSig: string = this.domainString(domain);
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
         }
+        console.log(`getfunc: '(${domainSig})::${identifier}'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.left)));
         if (fnID < 1) {
             this.raiseException(`No matching function '(${domainSig})::${identifier}'`);
         }
-        console.log(`getfunc: '(${domainSig})::${identifier}'`);
         return domainMap.functionsByID[fnID];
     };
 
+    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionSymbol | null {
+        const domainSig: string = this.domainString(domain);
+        if (!(domainSig in this.typeMap)) {
+            this.raiseException(`domain '${domainSig}' is unknown`);
+        }
+        console.log(`getfunc: '(${domainSig})::${identifier}'`);
+        const domainMap: TypeHandlerMap = this.typeMap[domainSig];
+        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.left)));
+        if (fnID < 1) {
+            return null;
+        }
+        return domainMap.functionsByID[fnID];
+    };
 
     makeOperatorFuncName = (name: string) => `o(${name})`;
 
@@ -565,14 +587,14 @@ export class CRuntime {
         x.v.value = q;
     }
 
-    cast(target: ObjectType, v: Variable): Variable {
+    cast(target: ObjectType, v: Variable): Variable | Generator<unknown, Variable, unknown> {
         // TODO: looking for global overload
         if (variables.typesEqual(v.t, target)) {
             return v;
         }
         const arithmeticTarget = variables.asArithmeticType(target);
         const arithmeticVar = variables.asArithmetic(v);
-        if (arithmeticTarget !== null && arithmeticTarget !== null) {
+        if (arithmeticTarget !== null && arithmeticVar !== null) {
             const targetInfo = variables.arithmeticProperties[arithmeticTarget.sig];
             const fromInfo = variables.arithmeticProperties[arithmeticVar.t.sig];
             const arithmeticValue = arithmeticVar.v.value;
@@ -608,6 +630,13 @@ export class CRuntime {
                     }
                 }
             }
+        }
+        else if (arithmeticTarget?.sig === "BOOL") {
+            const boolSym = this.getOpByParams("{global}", "o(_bool)", [v]);
+            if (boolSym.target === null) {
+                this.raiseException("Function is defined but not implemented");
+            }
+            return boolSym.target(this, v);
         }
         //const pointerTarget = variables.asPointerType(v);
         //const iptrVar = variables.asIndexPointer(v);
@@ -904,7 +933,7 @@ export class CRuntime {
             return variables.arithmetic(type.sig as ArithmeticSig, null, left, true);
         } else if ((classType = variables.asClassType(type)) !== null) {
             const value = variables.class(classType, {}, left);
-            this.getFuncByParams(classType, "o(())", [value]).target(this, value);
+            this.getOpByParams("{global}", "o(_ctor)", [value]).target(this, value);
             return value;
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
             this.raiseException("Not yet implemented");
