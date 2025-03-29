@@ -15,13 +15,6 @@ export interface IncludeModule {
 export interface JSCPPConfig {
     specifiers?: Specifier[];
     arithmeticResolutionMap?: { [x: string]: ArithmeticSig };
-    limits?: {
-        [typeName in ArithmeticSig]?: {
-            max: number;
-            min: number;
-            bytes: number;
-        }
-    };
     includes?: { [fileName: string]: IncludeModule };
     loadedLibraries?: string[];
     fstream?: {
@@ -49,7 +42,7 @@ export interface JSCPPConfig {
     stopExecutionCheck?: () => boolean;
 }
 
-export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)";
+export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)" | "o(_call)";
 
 export interface Member {
     type: ObjectType;
@@ -114,13 +107,12 @@ export class CRuntime {
 
     constructor(config: JSCPPConfig) {
         this.parser = constructTypeParser();
-        this.config = defaults.getDefaultConfig();
-        mergeConfig(this.config, config);
-        //this.types = defaults.getDefaultTypes();
-        this.typeMap = {};
-        this.typeMap["{global}"] = {
-            functionDB: new TypeDB(this.parser),
-            functionsByID: []
+        this.config = config;
+        this.typeMap = {
+            "{global}": {
+                functionDB: new TypeDB(this.parser),
+                functionsByID: []
+            }
         };
 
         this.scope = [{ "$name": "{global}", variables: {} }];
@@ -620,7 +612,7 @@ export class CRuntime {
                 if (pointerVar.v.pointee === "VOID") {
                     return "-><VOID>";
                 }
-                return "->" + this.makeValueString({t: pointerVar.t.pointee, v: pointerVar.v.pointee, left: false, readonly: false} as Variable | Function);
+                return "->" + this.makeValueString({ t: pointerVar.t.pointee, v: pointerVar.v.pointee, left: false, readonly: false } as Variable | Function);
             }
         }
         const indexPointerVar = variables.asIndexPointer(v);
@@ -636,11 +628,11 @@ export class CRuntime {
                 const displayList = [];
                 const slice = indexPointerVar.v.pointee.values.slice(indexPointerVar.v.index);
                 for (let i = 0; i < slice.length; i++) {
-                    displayList.push(this.makeValueString({t: arrayObjectType, v: slice[i], left: false, readonly: false} as Variable | Function, options));
+                    displayList.push(this.makeValueString({ t: arrayObjectType, v: slice[i], left: false, readonly: false } as Variable | Function, options));
                 }
                 return "{ " + displayList.join(", ") + " }";
             }
-            
+
         }
         if (variables.asClassType(v.t) !== null) {
             return "<class>";
