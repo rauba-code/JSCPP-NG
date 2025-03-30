@@ -3,7 +3,7 @@ import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import { BaseInterpreter, Interpreter } from "./interpreter";
 import { resolveIdentifier } from "./includes/shared/string_utils";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, DynamicArrayType, Function, FunctionType, IndexPointerType, IndexPointerVariable, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, StaticArrayType, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, DynamicArrayType, Function, FunctionType, IndexPointerType, IndexPointerVariable, LValueHolder, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, StaticArrayType, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray } from "./utf8";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
@@ -170,10 +170,10 @@ export class CRuntime {
         l = this.asCapturedVariable(l);
         let lc = variables.asClass(l);
         if (lc !== null) {
-            if (!lc.left) {
+            if (!lc.v.lvHolder === null) {
                 this.raiseException("Access to a member of a non-lvalue variable is forbidden");
             }
-            const lsig: string[] = variables.toStringSequence(lc.t, true)
+            const lsig: string[] = variables.toStringSequence(lc.t, true, this.raiseException)
             const linlinesig: string = lsig.join(" ");
             if (linlinesig in this.typeMap) {
                 const memberFn: TypeHandlerMap = this.typeMap[linlinesig];
@@ -185,7 +185,7 @@ export class CRuntime {
                 }
                 if (fnid >= 0) {
                     const fnsym: FunctionSymbol = memberFn.functionsByID[fnid];
-                    return variables.function(fnsym.type, identifier, fnsym.target, lc);
+                    return variables.function(fnsym.type, identifier, fnsym.target, lc, "SELF");
                 } else if (identifier in lc.v.members) {
                     return lc.v.members[identifier];
                 } else {
@@ -213,9 +213,9 @@ export class CRuntime {
 
     /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeDB-associated functions */
     createFunctionTypeSignature(domain: ClassType | "{global}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[]): TypeSignature {
-        const thisSig: string[] = (domain === "{global}") ? [] : variables.toStringSequence(domain, true);
-        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.left);
-        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.left));
+        const thisSig: string[] = (domain === "{global}") ? [] : variables.toStringSequence(domain, true, this.raiseException);
+        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.v.lvHolder !== null, this.raiseException);
+        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
         const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat().flat();
         return this.typeSignature(result);
     }
@@ -227,7 +227,11 @@ export class CRuntime {
                 // logger.warn("calling function: %j", name);
                 rt.enterScope("function " + name);
                 argNames.forEach(function(argName, i) {
-                    args[i].readonly = argTypes[i].readonly;
+                    if (args[i].readonly && !argTypes[i].readonly) {
+                        rt.raiseException("Cannot pass a const-value where a volatile value is required")
+                    } else if (!args[i].readonly && argTypes[i].readonly) {
+                        args[i] = variables.clone(args[i], args[i].v.lvHolder, true, this.raiseException);
+                    }
                     rt.defVar(argName, args[i]);
                 });
                 let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
@@ -271,7 +275,7 @@ export class CRuntime {
         }
         console.log(`getfunc: '(${domainSig})::${identifier}'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.left)));
+        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
         if (fnID < 1) {
             this.raiseException(`No matching function '(${domainSig})::${identifier}'`);
         }
@@ -285,7 +289,7 @@ export class CRuntime {
         }
         console.log(`getfunc: '(${domainSig})::${identifier}'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.left)));
+        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
         if (fnID < 1) {
             return null;
         }
@@ -308,7 +312,7 @@ export class CRuntime {
     }
 
     regFunc(f: CFunction | null, domain: ClassType | "{global}", name: string, fnsig: TypeSignature): void {
-        const domainInlineSig: string = (domain === "{global}") ? domain : variables.toStringSequence(domain, false).join(" ");
+        const domainInlineSig: string = (domain === "{global}") ? domain : variables.toStringSequence(domain, false, this.raiseException).join(" ");
         if (!(domainInlineSig in this.typeMap)) {
             this.raiseException(`type '${fnsig.inline}' is unknown`);
         }
@@ -316,12 +320,12 @@ export class CRuntime {
         console.log(`regfunc: '${fnsig.inline}'`);
 
         try {
-            const existingOverloadID: number = domainMap.functionDB.matchFunctionExact(name, fnsig.array);
+            const existingOverloadID: number = domainMap.functionDB.matchFunctionExact(name, fnsig.array, this.raiseException);
             if (existingOverloadID !== -1) {
                 const overload = domainMap.functionsByID[existingOverloadID];
                 if (overload.target === null) {
                     if (f === null) {
-                        const prettyDomain = domain === "{global}" ? domain : this.makeTypeString({ t: domain, left: false, readonly: false });
+                        const prettyDomain = domain === "{global}" ? domain : this.makeTypeString({ t: domain, v: { lvHolder: null }, readonly: false });
                         this.raiseException(`Redefinition of a function prototype '${prettyDomain}::${name}'`);
                     }
                 } else {
@@ -454,7 +458,7 @@ export class CRuntime {
         const dataType = object.t;
         const readonly = object.readonly;
         const vc = this.scope[this.scope.length - 1];
-        console.log(`defining variable: '${varname}' of type '${variables.toStringSequence(object.t, true)}'`);
+        console.log(`defining variable: '${varname}' of type '${variables.toStringSequence(object.t, true, this.raiseException)}'`);
         this.raiseException("not yet implemented");
         /*if (this.isReferenceType(type)) {
             initval = this.cast(type, initval);
@@ -518,7 +522,7 @@ export class CRuntime {
         if (object === "VOID") {
             return "void"
         }
-        const inner = (t: AnyType) => this.makeTypeString({ t, left: false, readonly: false });
+        const inner = (t: AnyType) => this.makeTypeString({ t, v: { lvHolder: null }, readonly: false });
         const branch: { [sig in string]: () => string } = {
             "ARITHMETIC": () => {
                 const x = object.t as ArithmeticType;
@@ -554,7 +558,7 @@ export class CRuntime {
             },
         }
         const where = (object.t.sig in variables.arithmeticSig) ? "ARITHMETIC" : object.t.sig;
-        return [object.readonly ? "const " : "", branch[where](), object.left ? "&" : ""].join("");
+        return [object.readonly ? "const " : "", branch[where](), object.v.lvHolder === null ? "&" : ""].join("");
     }
 
     /** For integers, performs a two's-complement integer overflow on demand.
@@ -661,17 +665,17 @@ export class CRuntime {
             const fromInfo = variables.arithmeticProperties[arithmeticVar.t.sig];
             const arithmeticValue = arithmeticVar.v.value;
             if (target.sig === "BOOL") {
-                return variables.arithmetic(target.sig, arithmeticVar.v ? 1 : 0, false);
+                return variables.arithmetic(target.sig, arithmeticVar.v ? 1 : 0, null);
             } else if (targetInfo.isFloat) {
-                const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeString(v)}' to '${this.makeTypeString({ t: target, left: false, readonly: false })}'`;
+                const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeString(v)}' to '${this.makeTypeString({ t: target, v: { lvHolder: null }, readonly: false })}'`;
                 if (this.inrange(arithmeticValue, arithmeticTarget, onErr)) {
-                    return variables.arithmetic(arithmeticTarget.sig, arithmeticValue);
+                    return variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
                 }
             } else {
                 if (!targetInfo.isSigned) {
                     if (arithmeticValue < 0) {
                         // unsafe! bitwise truncation is platform-dependent
-                        const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue & ((1 << (8 * targetInfo.bytes)) - 1)); // bitwise truncation
+                        const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue & ((1 << (8 * targetInfo.bytes)) - 1), null); // bitwise truncation
                         if (this.inrange(newVar.v.value, newVar.t, () => `cannot cast negative value ${this.makeValueString(newVar)} of type ${this.makeTypeString(newVar)} to type ${this.makeTypeString(newVar)}`)) {
                             this.adjustArithmeticValue(newVar);
                             return newVar;
@@ -679,13 +683,13 @@ export class CRuntime {
                     }
                 }
                 if (fromInfo.isFloat) {
-                    const intVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue));
+                    const intVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue), null);
                     if (this.inrange(intVar.v.value, intVar.t, () => `overflow when casting value ${this.makeValueString(intVar)} of type '${this.makeTypeString(intVar)}' to type '${this.makeTypeString(intVar)}'`)) {
                         this.adjustArithmeticValue(intVar);
                         return intVar;
                     }
                 } else {
-                    const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue);
+                    const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
                     if (this.inrange(newVar.v.value, newVar.t, () => `overflow when casting value ${this.makeValueString(newVar)} of type ${this.makeTypeString(newVar)} to ${this.makeTypeString(newVar)}`)) {
                         this.adjustArithmeticValue(newVar);
                         return newVar;
@@ -988,13 +992,13 @@ export class CRuntime {
         return variable.v.value;
     }
 
-    defaultValue(type: ObjectType, left = false): Variable {
+    defaultValue(type: ObjectType, lvHolder: LValueHolder): Variable {
         let classType: ClassType | null;
         let pointerType: PointerType | null;
         if (type.sig in variables.arithmeticSig) {
-            return variables.arithmetic(type.sig as ArithmeticSig, null, left, true);
+            return variables.arithmetic(type.sig as ArithmeticSig, null, lvHolder, false);
         } else if ((classType = variables.asClassType(type)) !== null) {
-            const value = variables.class(classType, {}, left);
+            const value = variables.class(classType, {}, lvHolder);
             this.getOpByParams("{global}", "o(_ctor)", [value]).target(this, value);
             return value;
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
@@ -1024,9 +1028,9 @@ export class CRuntime {
                     if (currentNode != null) {
                         const ln = currentNode.sLine;
                         const col = currentNode.sColumn;
-                        return ln + ":" + col;
+                        return `[line ${ln}, column ${col}]`;
                     } else {
-                        return "<position unavailable>";
+                        return "[position unavailable]";
                     }
                 })();
             throw new Error(posInfo + " " + message);
@@ -1047,9 +1051,9 @@ export class CRuntime {
                     if (currentNode != null) {
                         const ln = currentNode.sLine;
                         const col = currentNode.sColumn;
-                        return ln + ":" + col;
+                        return `[line ${ln}, column ${col}]`;
                     } else {
-                        return "<position unavailable>";
+                        return "[position unavailable]";
                     }
                 })();
             console.error(posInfo + " " + message);

@@ -31,14 +31,14 @@ const includes: { [fileName: string]: IncludeModule } = {
 };
 
 const headerAlias: { [filename: string]: string } = {
-    /*"ctype.h": "cctype",
+    "ctype.h": "cctype",
     "limits.h": "climits",
     "string.h": "cstring",
     "math.h": "cmath",
     "stdio.h": "cstdio",
     "stdlib.h": "cstdlib",
     "bits/stdc++.h": "_bits__stdcpp",
-    "time.h": "ctime"*/
+    "time.h": "ctime"
 };
 
 for (const alias of Object.keys(headerAlias)) {
@@ -194,7 +194,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         step = defGen.next();
         if (step.done) { break; }
     }
-    const mainGen = rt.getFunc("global", "main", [])(rt, null);
+    const mainGen = rt.getFuncByParams("{global}", "main", []).target(rt, null) as Generator;
     if (_config.debug) {
         mydebugger.start(rt, mainGen);
         return mydebugger;

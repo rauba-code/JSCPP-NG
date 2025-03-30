@@ -349,7 +349,7 @@ export class Interpreter extends BaseInterpreter {
                                     }
                                 }
                             }
-                            const initClass = variables.class(type, {}, true);
+                            const initClass = variables.class(type, {}, "SELF");
                             init = rt.getFuncByParams(type, "o(())", constructorArgs).target(this, initClass, ...constructorArgs);
 
                             init.dataType = dec.Declarator.left.DataType;
@@ -358,7 +358,7 @@ export class Interpreter extends BaseInterpreter {
                         }
                     } else {
                         if (init == null) {
-                            init = rt.defaultValue(type, true);
+                            init = rt.defaultValue(type, "SELF");
                         } else {
                             init = yield* interp.visit(interp, init.Expression);
                         }
@@ -402,7 +402,7 @@ export class Interpreter extends BaseInterpreter {
                             const { name, type } = yield* interp.visit(interp, dec.Declarator, param);
 
                             if (init == null) {
-                                init = rt.defaultValue(type, true);
+                                init = rt.defaultValue(type, "SELF");
                             } else {
                                 init = yield* interp.visit(interp, init.Expression);
                             }

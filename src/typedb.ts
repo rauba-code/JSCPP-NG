@@ -52,22 +52,22 @@ export class TypeDB {
         }
     }
 
-    matchFunctionByParams(identifier: string, params: (string | string[])[]): number {
+    matchFunctionByParams(identifier: string, params: (string | string[])[], onError: (x: string) => void): number {
         if (!(identifier in this.functions)) {
             return -1;
         }
         const targetParams: string[] = params.flatMap((x) => {
             const sa: string[] = makeStringArr(x);
             if (sa.length > 0 && sa[0].startsWith(typecheck.wildcardDeclarator)) {
-                throw new TypeParseError("Calling a function with parameters of wildcard type is unsupported");
+                onError("Calling a function with parameters of wildcard type is unsupported");
             }
             return sa;
         });
         const target: string[] = ["FUNCTION", "Return", "("].concat(...targetParams).concat(")");
-        return this.matchFunctionExact(identifier, target);
+        return this.matchFunctionExact(identifier, target, onError);
     }
 
-    matchFunctionExact(identifier: string, target: string[]): number {
+    matchFunctionExact(identifier: string, target: string[], onError: (x: string) => void): number {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
             return -1;
@@ -80,7 +80,8 @@ export class TypeDB {
         for (let i = 0; i < fnobj.overloads.length; i++) {
             if (this.matchSubset(target, fnobj.overloads[i], true)) {
                 if (retv >= 0) {
-                    throw new TypeParseError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[retv]} \n2) ${fnobj.overloads[i]}`);
+                    onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[retv]} \n2) ${fnobj.overloads[i]}`);
+                    return -1;
                 }
                 retv = i;
             }
