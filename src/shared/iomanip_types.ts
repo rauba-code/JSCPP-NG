@@ -1,6 +1,5 @@
-import { ObjectValue, ObjectVariable, Variable } from "../../rt";
-
-export interface IomanipConfig {
+// TODO: rewrite everything to struct-overloads of << and >>
+/*export interface IomanipConfig {
     setprecision?: number;
     fixed?: boolean;
     left?: boolean;
@@ -41,4 +40,4 @@ export interface Cout extends ObjectVariable {
         active: { [iomanipName: string]: (config: IomanipConfig) => void };
         use(o: Variable): Variable;
     }
-}
+}*/

@@ -148,7 +148,7 @@ export default class Debugger {
         if (name) {
             const v = this.rt.readVar(name);
             return {
-                type: this.rt.makeTypeString(v),
+                type: this.rt.makeTypeStringOfVar(v),
                 value: v.v
             };
         } else {
@@ -162,7 +162,7 @@ export default class Debugger {
                             usedName.add(name);
                             ret.push({
                                 name,
-                                type: this.rt.makeTypeString(val),
+                                type: this.rt.makeTypeStringOfVar(val),
                                 value: this.rt.makeValueString(val)
                             });
                         }

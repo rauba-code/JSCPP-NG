@@ -1,8 +1,8 @@
 import { CRuntime, OpSignature } from "./rt";
-import { ArithmeticVariable, IndexPointerVariable, PointerVariable, Variable, variables } from "./variables";
+import { ArithmeticVariable, IndexPointerVariable, ObjectType, PointerVariable, Variable, variables } from "./variables";
 
 function raiseSupportException(rt: CRuntime, l: Variable, r: Variable, op: string): never {
-    rt.raiseException(`${rt.makeTypeString(l)} does not support ${op} on ${rt.makeTypeString(r)}`);
+    rt.raiseException(`${rt.makeTypeStringOfVar(l)} does not support ${op} on ${rt.makeTypeStringOfVar(r)}`);
 }
 
 type OpHandler = {
@@ -24,7 +24,7 @@ function binaryArithmeticAssign(rt: CRuntime, l: ArithmeticVariable, r: Arithmet
     if (l.v.lvHolder === null) {
         rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
-    if (l.readonly) {
+    if (l.v.isConst) {
         rt.raiseException("Attempted assignment to a constant");
     }
     const ret = variables.arithmetic(l.t.sig, op(rt.value(l), rt.value(r)), null);
@@ -52,7 +52,7 @@ function binaryIntegerAssign(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticV
     if (l.v.lvHolder === null) {
         rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
-    if (l.readonly) {
+    if (l.v.isConst) {
         rt.raiseException("Attempted assignment to a constant");
     }
     const ret = variables.arithmetic(l.t.sig, op(rt.value(l), rt.value(r)), null);
@@ -263,11 +263,11 @@ const defaultOpHandler: OpHandler[] = [
             if (l.v.lvHolder === null) {
                 rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
             }
-            if (!l.readonly) {
+            if (!l.v.isConst) {
                 rt.raiseException("Attempted assignment to a constant value")
             }
             const ret = variables.arithmetic(l.t.sig, rt.value(l), null);
-            if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeString(l)}'`)) {
+            if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(ret);
                 l.v.value = ret.v.value + 1;
                 return ret;
@@ -282,11 +282,11 @@ const defaultOpHandler: OpHandler[] = [
             if (l.v.lvHolder === null) {
                 rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
             }
-            if (!l.readonly) {
+            if (!l.v.isConst) {
                 rt.raiseException("Attempted assignment to a constant value")
             }
             const ret = variables.arithmetic(l.t.sig, rt.value(l), null);
-            if (rt.inrange(l.v.value, l.t, () => `overflow during post-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeString(l)}'`)) {
+            if (rt.inrange(l.v.value, l.t, () => `overflow during post-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(ret);
                 l.v.value = ret.v.value - 1;
                 return ret;
@@ -301,11 +301,11 @@ const defaultOpHandler: OpHandler[] = [
             if (l.v.lvHolder === null) {
                 rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
             }
-            if (!l.readonly) {
+            if (!l.v.isConst) {
                 rt.raiseException("Attempted assignment to a constant value")
             }
             const ret = variables.arithmetic(l.t.sig, rt.value(l) + 1, null);
-            if (rt.inrange(l.v.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeString(l)}'`)) {
+            if (rt.inrange(l.v.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(ret);
                 l.v.value = ret.v.value;
                 return ret;
@@ -320,11 +320,11 @@ const defaultOpHandler: OpHandler[] = [
             if (l.v.lvHolder === null) {
                 rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
             }
-            if (!l.readonly) {
+            if (!l.v.isConst) {
                 rt.raiseException("Attempted assignment to a constant value")
             }
             const ret = variables.arithmetic(l.t.sig, rt.value(l) - 1, null);
-            if (rt.inrange(l.v.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeString(l)}'`)) {
+            if (rt.inrange(l.v.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(ret);
                 l.v.value = ret.v.value;
                 return ret;
@@ -366,14 +366,16 @@ const defaultOpHandler: OpHandler[] = [
     {
         op: "o(_==_)",
         type: "!Pointee FUNCTION BOOL ( ?0 ?0 )",
-        default(_rt: CRuntime, l: PointerVariable | IndexPointerVariable, r: PointerVariable | IndexPointerVariable): ArithmeticVariable {
+        default(_rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, r: PointerVariable | IndexPointerVariable<Variable>): ArithmeticVariable {
+            // this works because pointers are always created from the same Variable["v"] object
             return variables.arithmetic("BOOL", l.v.pointee === r.v.pointee ? 1 : 0, null);
         }
     },
     {
         op: "o(_!=_)",
         type: "!Pointee FUNCTION BOOL ( ?0 ?0 )",
-        default(_rt: CRuntime, l: PointerVariable | IndexPointerVariable, r: PointerVariable | IndexPointerVariable): ArithmeticVariable {
+        default(_rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, r: PointerVariable | IndexPointerVariable<Variable>): ArithmeticVariable {
+            // this works because pointers are always created from the same Variable["v"] object
             return variables.arithmetic("BOOL", !(l.v.pointee === r.v.pointee) ? 1 : 0, null);
         }
     },

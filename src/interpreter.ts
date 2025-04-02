@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, DynamicArrayVariable, ObjectType, ObjectValue, StaticArrayVariable, Variable, variables } from "./variables";
+import { ArithmeticVariable, ArrayVariable, ObjectType, ObjectValue, StaticArrayVariable, Variable, variables } from "./variables";
 
 /*
  * decaffeinate suggestions:
@@ -335,7 +335,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                             param.node = init;
                             const arrayYield = interp.arrayInit(dimensions, init, basetype, param);
-                            init = asResult(arrayYield) ?? (yield* arrayYield as Gen<StaticArrayVariable>);
+                            init = asResult(arrayYield) ?? (yield* arrayYield as Gen<StaticArrayVariable<Variable>>);
                             delete param.node;
 
                             init.dataType = dec.Declarator.left.DataType;
@@ -655,7 +655,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 try {
                     iterator = rt.getFuncByParams(iterable.t, "__iterator", []).target(rt, iterable);
                 } catch (ex) {
-                    if (variables.asStaticArrayType(iterable.t) ?? variables.asDynamicArrayType(iterable.t) !== null) {
+                    if (variables.asArrayType !== null) {
                         iterator = iterable.v.target[Symbol.iterator]();
                     }
                 }
@@ -1287,7 +1287,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         }
     };
 
-    *arrayInit(dimensions: number[], init: any, type: ObjectType, param: any): ResultOrGen<StaticArrayVariable> {
+    *arrayInit(dimensions: number[], init: any, type: ObjectType, param: any): ResultOrGen<StaticArrayVariable<Variable>> {
         if (dimensions.length > 0) {
             let val;
             const curDim = dimensions[0];
@@ -1376,7 +1376,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         param.structType = type;
                         initializer = yield* this.visit(this, init, param);
                     }
-                    const arrayInitializer: StaticArrayVariable | DynamicArrayVariable | null = variables.asStaticArray(initializer) ?? variables.asDynamicArray(initializer);
+                    const arrayInitializer: ArrayVariable<Variable> | null = variables.asArray(initializer);
                     if (arrayInitializer !== null && variables.typesEqual(type, arrayInitializer.t.object)) {
                         init = {
                             type: "Initializer_array",
@@ -1386,7 +1386,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }))
                         };
                     } else {
-                        this.rt.raiseException("cannot initialize an array to (TBD)"/* + this.rt.makeValString(initializer)*/, param.node);
+                        this.rt.raiseException(`cannot initialize an array to (${this.rt.makeValueString(initializer)}) of type '${this.rt.makeTypeStringOfVar(initializer)}'`, param.node);
                     }
                 } else {
                     this.rt.raiseException("dimensions do not agree, " + curDim + " != " + init.Initializers.length, param.node);

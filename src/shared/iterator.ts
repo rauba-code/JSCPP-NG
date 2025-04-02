@@ -1,4 +1,4 @@
-import { ClassType } from "../../rt";
+import { ClassType } from "../variables";
 
 export class Iterator {
     scope: any;

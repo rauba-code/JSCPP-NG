@@ -311,8 +311,11 @@ export interface IndexPointerVariable<VElem extends Variable> {
     v: IndexPointerValue<VElem>;
 }
 
+
 // Equals to 'Object' in typecheck notation
 export type Variable = ArithmeticVariable | ArrayVariable<any> | ClassVariable | PointerVariable | IndexPointerVariable<any>;
+
+export type VariableValue = Variable["v"];
 
 export type CFunction = (rt: CRuntime, _this: Variable, ...args: Variable[]) => Variable | Generator<unknown, any, unknown>;
 
@@ -419,11 +422,14 @@ export const variables = {
     asIndexPointerType(type: AnyType): IndexPointerType<ObjectType> | null {
         return (type.sig === "INDEXPTR") ? type as IndexPointerType<ObjectType> : null;
     },
+    asIndexPointerOfElemType<TElem extends ObjectType>(type: AnyType, elem: TElem): IndexPointerType<TElem> | null {
+        return (type.sig === "INDEXPTR" && variables.typesEqual((type as IndexPointerType<ObjectType>).array.object, elem)) ? type as IndexPointerType<TElem> : null;
+    },
     asArrayType(type: AnyType): ArrayType<ObjectType> | null {
         return (type.sig === "ARRAY") ? type as ArrayType<ObjectType> : null;
     },
     asArrayOfElemType<TElem extends ObjectType>(type: AnyType, elem: TElem): ArrayType<TElem> | null {
-        return (type.sig === "ARRAY" && variables.typesEqual(type.object, elem)) ? type as ArrayType<TElem> : null;
+        return (type.sig === "ARRAY" && variables.typesEqual(type.object as AnyType, elem)) ? type as ArrayType<TElem> : null;
     },
     asClassType(type: AnyType): ClassType | null {
         return (type.sig === "CLASS") ? type as ClassType : null;
@@ -440,11 +446,14 @@ export const variables = {
     asIndexPointer(x: Variable | Function): IndexPointerVariable<Variable> | null {
         return (x.t.sig === "INDEXPTR") ? x as IndexPointerVariable<Variable> : null;
     },
+    asIndexPointerOfElem<VElem extends Variable>(x: Variable | Function, elem: VElem): IndexPointerVariable<VElem> | null {
+        return (x.t.sig === "INDEXPTR" && variables.typesEqual((x as IndexPointerVariable<Variable>).t.array.object, elem.t)) ? x as IndexPointerVariable<VElem> : null;
+    },
     asArray(x: Variable | Function): ArrayVariable<Variable> | null {
         return (x.t.sig === "ARRAY") ? x as ArrayVariable<Variable> : null;
     },
     asArrayOfElem<VElem extends Variable>(x: Variable | Function, elem: VElem): ArrayVariable<VElem> | null {
-        return (x.t.sig === "ARRAY" && variables.typesEqual(x.t.object, elem.t)) ? x as ArrayVariable<VElem> : null;
+        return (x.t.sig === "ARRAY" && variables.typesEqual((x as ArrayVariable<Variable>).t.object, elem.t)) ? x as ArrayVariable<VElem> : null;
     },
     asClass(x: Variable | Function): ClassVariable | null {
         return (x.t.sig === "CLASS") ? x as ClassVariable : null;
@@ -523,11 +532,15 @@ export const variables = {
         return branch[lhs.sig]();
     },
     arithmeticAssign(lhs: ArithmeticVariable, value: number, onError: (x: string) => never): void {
-        checkAssignable(lhs, onError);
+        checkAssignable(lhs.v, onError);
         lhs.v.value = value;
     },
+    arithmeticValueAssign(lv: ArithmeticValue, value: number, onError: (x: string) => never): void {
+        checkAssignable(lv, onError);
+        lv.value = value;
+    },
     pointerAssign(lhs: PointerVariable, pointee: Variable | Function | "VOID", onError: (x: string) => never): void {
-        checkAssignable(lhs, onError);
+        checkAssignable(lhs.v, onError);
         const pointeeType = pointee === "VOID" ? variables.voidType() : pointee.t;
         if (!variables.typesEqual(lhs.t.pointee, pointeeType)) {
             const expected = variables.toStringSequence(lhs.t.pointee, false, onError).join(" ");
@@ -537,7 +550,7 @@ export const variables = {
         lhs.v.pointee = pointee === "VOID" ? "VOID" : pointee.v;
     },
     indexPointerAssign<VElem extends Variable>(lhs: IndexPointerVariable<VElem>, array: ArrayVariable<VElem>, index: number, onError: (x: string) => never): void {
-        checkAssignable(lhs, onError);
+        checkAssignable(lhs.v, onError);
         if (!variables.typesEqual(lhs.t.array.object, array.t.object)) {
             const expected = variables.toStringSequence(lhs.t.array.object, false, onError).join(" ");
             const received = variables.toStringSequence(array.t.object, false, onError).join(" ");
@@ -547,7 +560,7 @@ export const variables = {
         lhs.v.index = index;
     },
     indexPointerAssignIndex(lhs: IndexPointerVariable<Variable>, index: number, onError: (x: string) => never): void {
-        checkAssignable(lhs, onError);
+        checkAssignable(lhs.v, onError);
         lhs.v.index = index;
     },
     // by idea you should assign a new array
@@ -571,11 +584,11 @@ export const variables = {
     defaultArithmeticResolutionMap: defaultArithmeticResolutionMap,
 } as const;
 
-function checkAssignable(x: MaybeLeftCV<ObjectType>, onError: (x: string) => never): void {
-    if (x.v.lvHolder === null) {
+function checkAssignable(v: VariableValue, onError: (x: string) => never): void {
+    if (v.lvHolder === null) {
         onError("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
-    if (x.v.isConst) {
+    if (v.isConst) {
         onError("Attempted assignment to a constant value");
     }
 }

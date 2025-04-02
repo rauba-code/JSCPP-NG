@@ -13,7 +13,7 @@ export const skipSpace = function(s: string) {
 export function read(rt: CRuntime, reg: RegExp, buf: string, type: ObjectType) {
     const r = reg.exec(buf);
     if ((r == null) || (r.length === 0)) {
-        rt.raiseException("input format mismatch " + rt.makeTypeString({ t: type, readonly: false, v: { lvHolder: null } }) + " with buffer=" + JSON.stringify(buf));
+        rt.raiseException("input format mismatch " + rt.makeTypeString(type) + " with buffer=" + JSON.stringify(buf));
     } else {
         return r;
     }

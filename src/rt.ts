@@ -1,7 +1,7 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import { BaseInterpreter, Interpreter } from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, DynamicArrayType, Function, FunctionType, IndexPointerType, IndexPointerVariable, LValueHolder, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, StaticArrayType, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, ArrayType, CFunction, ClassType, ClassVariable, Function, FunctionType, IndexPointerType, IndexPointerVariable, LValueHolder, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray } from "./utf8";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
@@ -135,21 +135,25 @@ export class CRuntime {
 
     getSizeByType(t: ObjectType): number {
         let at: ArithmeticType | null;
-        let sat: StaticArrayType | null;
+        let sat: ArrayType<ObjectType> | null;
         if (variables.asPointerType(t) ?? variables.asIndexPointerType(t) !== null) {
             throw new Error("Not yet implemented");
         } else if ((at = variables.asArithmeticType(t)) !== null) {
             return variables.arithmeticProperties[at.sig].bytes;
-        } else if ((sat = variables.asStaticArrayType(t)) !== null) {
-            return this.getSizeByType(sat.object) * sat.size;
+        } else if ((sat = variables.asArrayType(t)) !== null) {
+            if (typeof (sat.size) === "number") {
+                return this.getSizeByType(sat.object) * sat.size;
+            } else {
+                this.raiseException("Cannot get size of a dynamic array");
+            }
         }
-        throw new Error("Not yet implemented");
+        this.raiseException("Not yet implemented");
     };
 
-    asCapturedVariable(x: Variable): Variable {
-        const iptr: IndexPointerVariable | null = variables.asIndexPointer(x);
+    asCapturedVariable<TVar extends Variable>(x: TVar | IndexPointerVariable<TVar>): TVar {
+        const iptr: IndexPointerVariable<TVar> | null = variables.asIndexPointer(x) as IndexPointerVariable<TVar>;
         if (iptr === null) {
-            return x;
+            return x as TVar;
         } else {
             const idx: number = iptr.v.index;
             const len: number = iptr.v.pointee.values.length;
@@ -160,7 +164,7 @@ export class CRuntime {
             }
             const t = iptr.t.array.object;
             const v = iptr.v.pointee.values[idx];
-            return { t, v, left: true, readonly: iptr.readonly } as Variable;
+            return { t, v } as TVar;
         }
     };
 
@@ -225,9 +229,9 @@ export class CRuntime {
                 // logger.warn("calling function: %j", name);
                 rt.enterScope("function " + name);
                 argNames.forEach(function(argName, i) {
-                    if (args[i].readonly && !argTypes[i].readonly) {
+                    if (args[i].v.isConst && !argTypes[i].v.isConst) {
                         rt.raiseException("Cannot pass a const-value where a volatile value is required")
-                    } else if (!args[i].readonly && argTypes[i].readonly) {
+                    } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
                         args[i] = variables.clone(args[i], args[i].v.lvHolder, true, this.raiseException);
                     }
                     rt.defVar(argName, args[i]);
@@ -310,7 +314,7 @@ export class CRuntime {
     }
 
     regFunc(f: CFunction | null, domain: ClassType | "{global}", name: string, fnsig: TypeSignature): void {
-        const domainInlineSig: string = (domain === "{global}") ? domain : variables.toStringSequence(domain, false, this.raiseException).join(" ");
+        const domainInlineSig: string = (domain === "{global}") ? domain : domain.identifier;
         if (!(domainInlineSig in this.typeMap)) {
             this.raiseException(`type '${fnsig.inline}' is unknown`);
         }
@@ -323,7 +327,7 @@ export class CRuntime {
                 const overload = domainMap.functionsByID[existingOverloadID];
                 if (overload.target === null) {
                     if (f === null) {
-                        const prettyDomain = domain === "{global}" ? domain : this.makeTypeString({ t: domain, v: { lvHolder: null }, readonly: false });
+                        const prettyDomain = domain === "{global}" ? domain : this.makeTypeString(domain);
                         this.raiseException(`Redefinition of a function prototype '${prettyDomain}::${name}'`);
                     }
                 } else {
@@ -419,7 +423,7 @@ export class CRuntime {
         return false;
     };
 
-    simpleType(type: string | (string | { Identifier: string })[]): AnyType {
+    simpleType(_type: string | (string | { Identifier: string })[]): AnyType {
         this.raiseException("Not yet implemented");
         /*if (Array.isArray(type)) {
             if (type.length > 1) {
@@ -454,9 +458,9 @@ export class CRuntime {
         }
 
         const dataType = object.t;
-        const readonly = object.readonly;
+        const isConst = object.v.isConst;
         const vc = this.scope[this.scope.length - 1];
-        console.log(`defining variable: '${varname}' of type '${variables.toStringSequence(object.t, true, this.raiseException)}'`);
+        console.log(`defining variable: '${varname}' of type '${this.makeTypeStringOfVar(object)}'`);
         this.raiseException("not yet implemented");
         /*if (this.isReferenceType(type)) {
             initval = this.cast(type, initval);
@@ -516,47 +520,48 @@ export class CRuntime {
         this.raiseException("not implemented");
     };
 
-    makeTypeString(object: MaybeLeftCV<AnyType> | "VOID"): string {
-        if (object === "VOID") {
-            return "void"
-        }
-        const inner = (t: AnyType) => this.makeTypeString({ t, v: { lvHolder: null }, readonly: false });
+    makeTypeStringOfVar(object: MaybeLeftCV<ObjectType>): string {
+        return this.makeTypeString(object.t, !(object.v.lvHolder !== null), object.v.isConst);
+    }
+
+    makeTypeString(type: AnyType, isLValue: boolean = false, isConst: boolean = false): string {
+        const inner = (t: AnyType) => this.makeTypeString(t, false, false);
         const branch: { [sig in string]: () => string } = {
             "ARITHMETIC": () => {
-                const x = object.t as ArithmeticType;
+                const x = type as ArithmeticType;
                 return variables.arithmeticProperties[x.sig].name;
             },
             "VOID": () => {
                 return "void";
             },
             "PTR": () => {
-                const x = object.t as PointerType;
+                const x = type as PointerType;
                 return inner(x.pointee) + "*";
             },
             "INDEXPTR": () => {
-                const x = object.t as IndexPointerType;
+                const x = type as IndexPointerType<ObjectType>;
                 return inner(x.array.object) + "*";
             },
             "ARRAY": () => {
-                const x = object.t as StaticArrayType;
-                return inner(x.object) + `[${x.size}]`;
-            },
-            "DYNARRAY": () => {
-                const x = object.t as DynamicArrayType;
-                this.raiseSoftException("WARN: direct access of internal dynamic array type");
-                return `__dynamic_array<${inner(x.object)}>`;
+                const x = type as ArrayType<ObjectType>;
+                if (typeof(x.object) === "number") {
+                    return inner(x.object) + `[${x.size}]`;
+                } else {
+                    this.raiseSoftException("WARN: direct access of internal dynamic array type");
+                    return `__dynamic_array<${inner(x.object)}>`;
+                }
             },
             "CLASS": () => {
-                const x = object.t as ClassType;
+                const x = type as ClassType;
                 return (x.memberOf ? inner(x.memberOf) + "::" : "") + x.identifier + ((x.templateSpec.length === 0) ? "" : "<" + x.templateSpec.map(inner).join(", ") + ">");
             },
             "FUNCTION": () => {
-                const x = object.t as FunctionType;
+                const x = type as FunctionType;
                 return "{" + x.fulltype.join(" ") + "}";
             },
         }
-        const where = (object.t.sig in variables.arithmeticSig) ? "ARITHMETIC" : object.t.sig;
-        return [object.readonly ? "const " : "", branch[where](), object.v.lvHolder === null ? "&" : ""].join("");
+        const where = (type.sig in variables.arithmeticSig) ? "ARITHMETIC" : type.sig;
+        return [isConst ? "const " : "", branch[where](), isLValue === null ? "&" : ""].join("");
     }
 
     /** For integers, performs a two's-complement integer overflow on demand.
@@ -620,9 +625,10 @@ export class CRuntime {
         const indexPointerVar = variables.asIndexPointer(v);
         if (indexPointerVar === null) {
             const arrayObjectType = indexPointerVar.t.array.object;
-            if (variables.asArithmeticType(arrayObjectType)?.sig === "I8") {
+            const asArithmeticElemType : ArithmeticType | null = variables.asArithmeticType(arrayObjectType); 
+            if (asArithmeticElemType?.sig === "I8" || asArithmeticElemType?.sig === "U8") {
                 // string
-                return `"${this.getStringFromCharArray(indexPointerVar)}"`;
+                return `"${this.getStringFromCharArray(indexPointerVar as IndexPointerVariable<ArithmeticVariable>)}"`;
             } else if (options.noArray) {
                 return "{ /*...*/ }";
             } else {
@@ -643,7 +649,7 @@ export class CRuntime {
     };
 
     /** Parses an character array representing the UTF-8 sequence into a string. */
-    getStringFromCharArray(src: IndexPointerVariable): string {
+    getStringFromCharArray(src: IndexPointerVariable<ArithmeticVariable>): string {
         if (!(src.t.array.object.sig === "I8" || src.t.array.object.sig === "U8")) {
             this.raiseException("Not a char array")
         }
@@ -665,7 +671,7 @@ export class CRuntime {
             if (target.sig === "BOOL") {
                 return variables.arithmetic(target.sig, arithmeticVar.v ? 1 : 0, null);
             } else if (targetInfo.isFloat) {
-                const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeString(v)}' to '${this.makeTypeString({ t: target, v: { lvHolder: null }, readonly: false })}'`;
+                const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeString(v.t, !(v.v.lvHolder === null), v.v.isConst)}' to '${this.makeTypeString(target, false, false)}'`;
                 if (this.inrange(arithmeticValue, arithmeticTarget, onErr)) {
                     return variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
                 }
@@ -674,7 +680,7 @@ export class CRuntime {
                     if (arithmeticValue < 0) {
                         // unsafe! bitwise truncation is platform-dependent
                         const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue & ((1 << (8 * targetInfo.bytes)) - 1), null); // bitwise truncation
-                        if (this.inrange(newVar.v.value, newVar.t, () => `cannot cast negative value ${this.makeValueString(newVar)} of type ${this.makeTypeString(newVar)} to type ${this.makeTypeString(newVar)}`)) {
+                        if (this.inrange(newVar.v.value, newVar.t, () => `cannot cast negative value ${this.makeValueString(newVar)} of type ${this.makeTypeStringOfVar(newVar)} to type ${this.makeTypeStringOfVar(newVar)}`)) {
                             this.adjustArithmeticValue(newVar);
                             return newVar;
                         }
@@ -682,13 +688,13 @@ export class CRuntime {
                 }
                 if (fromInfo.isFloat) {
                     const intVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue), null);
-                    if (this.inrange(intVar.v.value, intVar.t, () => `overflow when casting value ${this.makeValueString(intVar)} of type '${this.makeTypeString(intVar)}' to type '${this.makeTypeString(intVar)}'`)) {
+                    if (this.inrange(intVar.v.value, intVar.t, () => `overflow when casting value ${this.makeValueString(intVar)} of type '${this.makeTypeStringOfVar(intVar)}' to type '${this.makeTypeStringOfVar(intVar)}'`)) {
                         this.adjustArithmeticValue(intVar);
                         return intVar;
                     }
                 } else {
                     const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
-                    if (this.inrange(newVar.v.value, newVar.t, () => `overflow when casting value ${this.makeValueString(newVar)} of type ${this.makeTypeString(newVar)} to ${this.makeTypeString(newVar)}`)) {
+                    if (this.inrange(newVar.v.value, newVar.t, () => `overflow when casting value ${this.makeValueString(newVar)} of type ${this.makeTypeStringOfVar(newVar)} to ${this.makeTypeStringOfVar(newVar)}`)) {
                         this.adjustArithmeticValue(newVar);
                         return newVar;
                     }
@@ -990,13 +996,13 @@ export class CRuntime {
         return variable.v.value;
     }
 
-    defaultValue(type: ObjectType, lvHolder: LValueHolder): Variable {
+    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): Variable {
         let classType: ClassType | null;
         let pointerType: PointerType | null;
         if (type.sig in variables.arithmeticSig) {
-            return variables.arithmetic(type.sig as ArithmeticSig, null, lvHolder, false);
+            return variables.arithmetic(type.sig as ArithmeticSig, null, lvHolder as LValueHolder<ArithmeticVariable>, false);
         } else if ((classType = variables.asClassType(type)) !== null) {
-            const value = variables.class(classType, {}, lvHolder);
+            const value = variables.class(classType, {}, lvHolder as LValueHolder<ClassVariable>);
             this.getOpByParams("{global}", "o(_ctor)", [value]).target(this, value);
             return value;
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
