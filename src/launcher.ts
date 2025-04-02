@@ -135,6 +135,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             }
         },
         includes: this.includes,
+        loadedLibraries: [],
         unsigned_overflow: "error",
     };
 

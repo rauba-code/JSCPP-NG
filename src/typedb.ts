@@ -20,35 +20,41 @@ export class TypeDB {
     parser: LLParser
     scope: NonTerm
     strict_order: boolean
-    functions: { [identifier: string]: { overloads: string[][], cache: { [signature: string]: number } } }
+    functions: { [identifier: string]: { overloads: { type: string[], fnid: number }[], cache: { [signature: string]: number } } }
 
     constructor(parser: LLParser, scope: NonTerm = "Type", strict_order = true) {
         this.parser = parser;
         this.scope = scope;
         this.strict_order = strict_order;
+        this.functions = {}
     }
 
     matchSubset(subtype: string | string[], supertype: string | string[], allow_lvalue_substitution = false): boolean {
         return typecheck.parseSubset(this.parser, makeStringArr(subtype), makeStringArr(supertype), this.scope, this.strict_order, allow_lvalue_substitution);
     }
 
-    addFunctionOverload(identifier: string, function_type: string | string[]) {
+    addFunctionOverload(identifier: string, function_type: string | string[], function_id: number, onError: (x: string) => void) {
+        const sa = makeStringArr(function_type);
+        if (sa.length < 2) {
+            onError(`Malformed function type signature: '${sa.join(" ")}'`)
+        }
+        sa[1] = "Return";
         if (!(identifier in this.functions)) {
-            this.functions[identifier] = { overloads: [ makeStringArr(function_type) ], cache: {} };
+            this.functions[identifier] = { overloads: [ { type: sa, fnid: function_id }  ], cache: {} };
         } else {
-            this.functions[identifier].overloads.push(makeStringArr(function_type));
+            this.functions[identifier].overloads.push({ type: sa, fnid: function_id });
             // clean the cache for this function
             this.functions[identifier].cache = {};
         }
     }
 
-    matchSingleFunction(identifier: string): number {
+    matchSingleFunction(identifier: string, onError: (x: string) => void): number {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
             return -1;
         }
         if (fnobj.overloads.length >= 1) {
-            throw new Error(`Overloaded function ${identifier} has multiple candidates`);
+            onError(`Overloaded function ${identifier} has multiple candidates`);
         }
     }
 
@@ -78,12 +84,12 @@ export class TypeDB {
         }
         let retv = -1;
         for (let i = 0; i < fnobj.overloads.length; i++) {
-            if (this.matchSubset(target, fnobj.overloads[i], true)) {
+            if (this.matchSubset(target, fnobj.overloads[i].type, true)) {
                 if (retv >= 0) {
                     onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[retv]} \n2) ${fnobj.overloads[i]}`);
                     return -1;
                 }
-                retv = i;
+                retv = fnobj.overloads[i].fnid;
             }
         }
         fnobj.cache[targetInline] = retv;

@@ -9,7 +9,9 @@ import { ArithmeticVariable } from "./variables";
 function startDebug() {
     const argv = require("minimist")(process.argv.slice(2));
 
-    const config: JSCPPConfig = {};
+    const config: JSCPPConfig = {
+        loadedLibraries: [],
+    };
 
     if (process.argv.length > 2) {
         let testName = argv._[0];

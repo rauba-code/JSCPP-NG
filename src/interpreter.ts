@@ -49,6 +49,29 @@ function isIterable(obj: any) {
     return typeof obj[Symbol.iterator] === 'function';
 }
 
+export interface StatementMeta {
+    sLine: number,
+    sColumn: number,
+    sOffset: number,
+    eLine: number,
+    eColumn: number,
+    eOffset: number
+};
+export interface IdentifierSpec extends StatementMeta {
+    type: "Identifier",
+    Identifier: string
+};
+export interface CompoundStatementSpec extends StatementMeta {
+    type: "CompoundStatement",
+    Statements: object[]
+}
+export interface FunctionDefinitionSpec extends StatementMeta {
+    type: "FunctionDefinition",
+    Declarator: { left: IdentifierSpec, right: { type: string, ParameterTypeList?: any, IdentifierList?: any }, Pointer: any },
+    DeclarationSpecifiers: string[],
+    CompoundStatement: CompoundStatementSpec,
+};
+
 type InterpStatement = any;
 
 export class Interpreter extends BaseInterpreter<InterpStatement> {
@@ -251,19 +274,21 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return { argTypes, argNames, readonlyArgs };
             },
-            *FunctionDefinition(interp, s, param) {
+            *FunctionDefinition(interp, s: FunctionDefinitionSpec, param) {
                 ({
                     rt
                 } = interp);
                 const {
                     scope
                 } = param;
+                const typedScope = scope === "global" ? "{global}" : rt.raiseException("Not yet implemented");
                 const name = s.Declarator.left.Identifier;
                 let basetype = rt.simpleType(s.DeclarationSpecifiers);
                 const pointer = s.Declarator.Pointer;
-                rt.raiseException("not yet implemented");
-                /*basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
-                let ptl;
+                if (basetype.sig !== "VOID" && basetype.sig !== "FUNCTION") {
+                    basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
+                }
+                let ptl: any;
                 let varargs;
                 if (s.Declarator.right.type === "DirectDeclarator_modifier_ParameterTypeList") {
                     ptl = s.Declarator.right.ParameterTypeList;
@@ -278,8 +303,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 const { argTypes, argNames } = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
-                //rt.raiseException("Not yet implemented");
-                rt.defFunc(scope, name, basetype.sig === "VOID" ? "VOID" : { t: basetype as ObjectType, left: false }, argTypes, argNames, stat, interp);*/
+                rt.defFunc(typedScope, name, basetype.sig === "VOID" ? "VOID" : { t: basetype as ObjectType, v: { lvHolder: null } }, argTypes, argNames, stat, interp);
             },
             *Declaration(interp, s, param) {
                 const { rt } = interp;

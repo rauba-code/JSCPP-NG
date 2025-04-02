@@ -335,7 +335,7 @@ const defaultOpHandler: OpHandler[] = [
     {
         // I don't know what is this but let's keep it
         op: "o(_,_)",
-        type: "FUNCTION Object ( Object Object )",
+        type: "FUNCTION ParamObject ( ParamObject ParamObject )",
         default(_rt, _l, r) {
             return r;
         }
@@ -365,7 +365,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(_==_)",
-        type: "!Pointee FUNCTION BOOL ( ?0 ?0 )",
+        type: "!Pointer FUNCTION BOOL ( ?0 ?0 )",
         default(_rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, r: PointerVariable | IndexPointerVariable<Variable>): ArithmeticVariable {
             // this works because pointers are always created from the same Variable["v"] object
             return variables.arithmetic("BOOL", l.v.pointee === r.v.pointee ? 1 : 0, null);
@@ -373,7 +373,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(_!=_)",
-        type: "!Pointee FUNCTION BOOL ( ?0 ?0 )",
+        type: "!Pointer FUNCTION BOOL ( ?0 ?0 )",
         default(_rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, r: PointerVariable | IndexPointerVariable<Variable>): ArithmeticVariable {
             // this works because pointers are always created from the same Variable["v"] object
             return variables.arithmetic("BOOL", !(l.v.pointee === r.v.pointee) ? 1 : 0, null);

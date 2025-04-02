@@ -1,6 +1,6 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
-import { BaseInterpreter, Interpreter } from "./interpreter";
+import * as interp from "./interpreter";
 import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, ArrayType, CFunction, ClassType, ClassVariable, Function, FunctionType, IndexPointerType, IndexPointerVariable, LValueHolder, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray } from "./utf8";
@@ -14,7 +14,7 @@ export interface JSCPPConfig {
     specifiers?: Specifier[];
     arithmeticResolutionMap?: { [x: string]: ArithmeticSig };
     includes?: { [fileName: string]: IncludeModule };
-    loadedLibraries?: string[];
+    loadedLibraries: string[];
     fstream?: {
         open: (context: object, fileName: string) => object
     };
@@ -101,7 +101,7 @@ export class CRuntime {
     namespace: NamespaceScope;
     typeMap: { [domainIdentifier: string]: TypeHandlerMap };
     typedefs: { [name: string]: AnyType };
-    interp: BaseInterpreter<any>;
+    interp: interp.BaseInterpreter<any>;
 
     constructor(config: JSCPPConfig) {
         this.parser = constructTypeParser();
@@ -181,7 +181,7 @@ export class CRuntime {
                 const memberFn: TypeHandlerMap = this.typeMap[linlinesig];
                 let fnid: number;
                 try {
-                    fnid = memberFn.functionDB.matchSingleFunction(identifier);
+                    fnid = memberFn.functionDB.matchSingleFunction(identifier, this.raiseException);
                 } catch (e) {
                     this.raiseException(e);
                 }
@@ -222,7 +222,7 @@ export class CRuntime {
         return this.typeSignature(result);
     }
 
-    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: any, interp: Interpreter): void {
+    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: interp.CompoundStatementSpec | null, interp: interp.Interpreter): void {
         let f: CFunction | null = null;
         if (stmts != null) {
             f = function*(rt: CRuntime, _this: Variable, ...args: Variable[]) {
@@ -238,19 +238,19 @@ export class CRuntime {
                 });
                 let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
                 if (retType === "VOID") {
-                    if (ret instanceof Array && (ret[0] === "return")) {
-                        rt.raiseException("not yet implemented");
-                        // ret = rt.cast(retType, ret[1]);
-                    } else {
-                        rt.raiseException("non-void function must return a value");
-                    }
-                } else {
                     if (Array.isArray(ret)) {
                         if ((ret[0] === "return") && ret[1]) {
                             rt.raiseException("void function cannot return a value");
                         }
                     }
                     ret = undefined;
+                } else {
+                    if (ret instanceof Array && (ret[0] === "return")) {
+                        rt.raiseException("not yet implemented");
+                        // ret = rt.cast(retType, ret[1]);
+                    } else {
+                        rt.raiseException("non-void function must return a value");
+                    }
                 }
                 rt.exitScope("function " + name);
                 // logger.warn("function: returning %j", ret);
@@ -278,7 +278,7 @@ export class CRuntime {
         console.log(`getfunc: '(${domainSig})::${identifier}'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
-        if (fnID < 1) {
+        if (fnID < 0) {
             this.raiseException(`No matching function '(${domainSig})::${identifier}'`);
         }
         return domainMap.functionsByID[fnID];
@@ -292,7 +292,7 @@ export class CRuntime {
         console.log(`getfunc: '(${domainSig})::${identifier}'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
-        if (fnID < 1) {
+        if (fnID < 0) {
             return null;
         }
         return domainMap.functionsByID[fnID];
@@ -335,7 +335,7 @@ export class CRuntime {
                     this.raiseException(`Overloaded function '(${domainInlineSig})::${name}' of type '${fnsig.inline}' is re-declared or already covered by the type '${existingOverloadType}'`)
                 }
             }
-            domainMap.functionDB.addFunctionOverload(name, fnsig.array);
+            domainMap.functionDB.addFunctionOverload(name, fnsig.array, domainMap.functionsByID.length, this.raiseException);
             domainMap.functionsByID.push({ type: fnsig.array, target: f });
         } catch (e) {
             this.raiseException(e);
@@ -424,6 +424,9 @@ export class CRuntime {
     };
 
     simpleType(_type: string | (string | { Identifier: string })[]): AnyType {
+        if (_type instanceof Array && typeof(_type[0]) === "string" && _type[0] in variables.defaultArithmeticResolutionMap) {
+            return variables.arithmeticType(variables.defaultArithmeticResolutionMap[_type[0]]);
+        } 
         this.raiseException("Not yet implemented");
         /*if (Array.isArray(type)) {
             if (type.length > 1) {
