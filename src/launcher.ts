@@ -7,6 +7,7 @@ import preprocessor = require("./preprocessor");
 import Debugger from "./debugger"
 // @ts-ignore;
 import * as PEGUtil from "pegjs-util";
+import * as defaults from "./defaults";
 
 const includes: { [fileName: string]: IncludeModule } = {
     /*ifstream: require("./includes/ifstream"),
@@ -64,7 +65,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         const openFiles: any = {};
 
         return {
-            open(context: object, fileName: string) {
+            open(_context: object, fileName: string) {
                 const openFileNode: any = testFiles[fileName] || ({ [fileName]: { value: "" } });
                 openFiles[fileName] = {
                     name: fileName,
@@ -126,7 +127,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             getInput() {
                 return Promise.resolve(input?.() ?? "'InputFunction' is missing.");
             },
-            finishCallback(ExitCode: number) {
+            finishCallback(_ExitCode: number) {
 
             },
             write(s) {
@@ -178,6 +179,8 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
 
     mergeConfig(_config, config);
     const rt = new CRuntime(_config);
+    defaults.addDefaultOperations(rt);
+
     code = code.toString();
     const oldCode = code;
     code = preprocessor.parse(rt, code);

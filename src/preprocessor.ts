@@ -1,4 +1,4 @@
-const prepast = require("./prepast");
+import * as prepast from "./prepast";
 // @ts-ignore
 import * as PEGUtil from "pegjs-util";
 import { BaseInterpreter } from "./interpreter";
@@ -10,12 +10,25 @@ interface Macro {
     replacement: any;
 };
 
-class Preprocessor extends BaseInterpreter {
+interface Statement {
+    type?: string,
+    name?: string,
+    Identifier?: any,
+    Args?: any,
+    Replacement?: any,
+    prefix?: string,
+    space?: string,
+    lines?: Statement[],
+    val?: (Statement | string)[],
+    value?: any,
+}
+
+class Preprocessor extends BaseInterpreter<Statement> {
     ret: string;
     macros: { [name: string]: Macro };
     doinclude: boolean[];
-    macroStack: any[];
-    visitors: { [name: string]: (interp: Preprocessor, s: any, param?: any) => any };
+    macroStack: Statement[];
+    visitors: { [name: string]: (interp: Preprocessor, s: Statement, param?: any) => any };
 
     constructor(rt: CRuntime) {
         super(rt);
@@ -39,7 +52,7 @@ class Preprocessor extends BaseInterpreter {
                 }
                 return interp.ret;
             },
-            Code(interp, s, code) {
+            Code(interp, s, _code) {
                 if (interp.doinclude[interp.doinclude.length - 1]) {
                     let i = 0;
                     while (i < s.val.length) {
@@ -49,16 +62,16 @@ class Preprocessor extends BaseInterpreter {
                     }
                 }
             },
-            PrepSimpleMacro(interp, s, code) {
+            PrepSimpleMacro(interp, s, _code) {
                 interp.newMacro(s.Identifier, s.Replacement);
             },
-            PrepFunctionMacro(interp, s, code) {
+            PrepFunctionMacro(interp, s, _code) {
                 interp.newMacroFunction(s.Identifier, s.Args, s.Replacement);
             },
-            PrepIncludeLib(interp, s, code) {
+            PrepIncludeLib(interp, s, _code) {
                 interp.rt.include(s.name);
             },
-            PrepIncludeLocal(interp, s, code) {
+            PrepIncludeLocal(interp, s, _code) {
                 const {
                     includes
                 } = interp.rt.config;
@@ -68,18 +81,18 @@ class Preprocessor extends BaseInterpreter {
                     interp.rt.raiseException("cannot find file: " + s.name);
                 }
             },
-            PrepUndef(interp, s, code) {
+            PrepUndef(interp, s, _code) {
                 if (interp.isMacroDefined(s.Identifier)) {
                     delete interp.macros[s.Identifier.val];
                 }
             },
-            PrepIfdef(interp, s, code) {
+            PrepIfdef(interp, s, _code) {
                 pushInc(interp.isMacroDefined(s.Identifier));
             },
-            PrepIfndef(interp, s, code) {
+            PrepIfndef(interp, s, _code) {
                 pushInc(!interp.isMacroDefined(s.Identifier));
             },
-            PrepElse(interp, s, code) {
+            PrepElse(interp, _s, _code) {
                 if (interp.doinclude.length > 1) {
                     const x = interp.doinclude.pop();
                     pushInc(!x);
@@ -87,28 +100,28 @@ class Preprocessor extends BaseInterpreter {
                     interp.rt.raiseException("#else must be used after a #if");
                 }
             },
-            PrepEndif(interp, s, code) {
+            PrepEndif(interp, _s, _code) {
                 if (interp.doinclude.length > 1) {
                     interp.doinclude.pop();
                 } else {
                     interp.rt.raiseException("#endif must be used after a #if");
                 }
             },
-            unknown(interp, s, code) {
+            unknown(interp, s, _code) {
                 interp.rt.raiseException("unhandled syntax " + s.type);
             }
         };
     }
-    visit(s: any, code: string) {
+    visit(s: Statement, code: string) {
         if ("type" in s) {
-            const _node = this.currentNode;
+            // const _node = this.currentNode;
             this.currentNode = s;
             if (s.type in this.visitors) {
                 return this.visitors[s.type](this, s, code);
             } else {
                 return this.visitors["unknown"](this, s, code);
             }
-            this.currentNode = _node;
+            // this.currentNode = _node;
         } else {
             this.currentNode = s;
             this.rt.raiseException("untyped syntax structure: " + JSON.stringify(s));
@@ -187,7 +200,7 @@ class Preprocessor extends BaseInterpreter {
         }
     };
 
-    replaceMacroFunction(node: any) {
+    replaceMacroFunction(node: Statement) {
         if (this.isMacroFunction(node)) {
             const name = node.Identifier.val;
             const argsText = node.Args;

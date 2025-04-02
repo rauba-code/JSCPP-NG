@@ -183,20 +183,23 @@ export interface FunctionType {
     readonly fulltype: string[],
 }
 
-export interface StaticArrayType {
+export interface StaticArrayType<TElem extends ObjectType> {
     readonly sig: "ARRAY",
-    readonly object: ObjectType,
+    readonly object: TElem,
     readonly size: number,
 }
 
-export interface DynamicArrayType {
-    readonly sig: "DYNARRAY",
-    readonly object: ObjectType,
+export interface DynamicArrayType<TElem extends ObjectType> {
+    readonly sig: "ARRAY",
+    readonly object: TElem,
+    readonly size: "DYNAMIC",
 }
 
-export interface IndexPointerType {
+export type ArrayType<TVElem extends ObjectType> = StaticArrayType<TVElem> | DynamicArrayType<TVElem>
+
+export interface IndexPointerType<TElem extends ObjectType> {
     readonly sig: "INDEXPTR",
-    readonly array: StaticArrayType | DynamicArrayType;
+    readonly array: ArrayType<TElem>;
 }
 
 export interface VoidType {
@@ -204,7 +207,7 @@ export interface VoidType {
 }
 
 /** Any type that a variable can have */
-export type ObjectType = ArithmeticType | ClassType | PointerType | StaticArrayType | DynamicArrayType | IndexPointerType;
+export type ObjectType = ArithmeticType | ClassType | PointerType | ArrayType<any> | IndexPointerType<any>;
 
 /** Any type that a variable can have + direct function type + void type.
   * Do not use this for checking variables, use `ObjectType` instead. */
@@ -212,54 +215,59 @@ export type AnyType = ObjectType | FunctionType | VoidType;
 
 /** Variable type with specified value type (lvalue or non-lvalue).
   * Intended to be implicitly cast from Variable | Function types. */
-export interface MaybeLeft<T> {
+export interface MaybeLeft<T extends ObjectType> {
     readonly t: T,
-    readonly v: { readonly lvHolder: LValueHolder }
+    readonly v: { readonly lvHolder: LValueHolder<any> }
 }
 
 /** Variable type with specified value type (lvalue or non-lvalue)
   * and a c-v qualifier (const or volatile).
   * Intended to be implicitly cast from Variable | Function types. */
-export interface MaybeLeftCV<T> {
+export interface MaybeLeftCV<T extends ObjectType> {
     readonly t: T,
-    readonly readonly: boolean;
-    readonly v: { readonly lvHolder: LValueHolder }
+    readonly v: { readonly lvHolder: LValueHolder<any>, readonly isConst: boolean }
 }
 
 export interface ArithmeticValue {
-    readonly lvHolder: LValueHolder;
+    readonly lvHolder: LValueHolder<ArithmeticVariable>;
+    readonly isConst: boolean;
     /** 'null' implies an uninitialised value. */
     value: number | null
 }
 
-export interface ArrayValue {
-    readonly lvHolder: LValueHolder;
-    values: ObjectValue[],
+export interface ArrayValue<VElem extends Variable> {
+    readonly lvHolder: LValueHolder<ArrayVariable<VElem>>;
+    readonly isConst: boolean;
+    readonly values: VElem["v"][],
 }
 
 export interface ClassValue {
-    readonly lvHolder: LValueHolder;
+    readonly lvHolder: LValueHolder<ClassVariable>;
+    readonly isConst: boolean;
     members: { [name: string]: Variable };
 }
 
 export interface PointerValue {
-    readonly lvHolder: LValueHolder;
+    readonly lvHolder: LValueHolder<PointerVariable>;
+    readonly isConst: boolean;
     pointee: ObjectValue | FunctionValue | "VOID";
 }
 
-export interface IndexPointerValue {
-    readonly lvHolder: LValueHolder;
+export interface IndexPointerValue<VElem extends Variable> {
+    readonly lvHolder: LValueHolder<IndexPointerVariable<VElem>>;
+    readonly isConst: boolean;
     index: number,
-    pointee: ArrayValue,
+    pointee: ArrayValue<VElem>,
 }
 
 export interface FunctionValue {
-    readonly lvHolder: LValueHolder;
+    readonly lvHolder: "SELF" | null;
+    readonly isConst: boolean;
     target: CFunction | null;
     name: string;
     bindThis: ClassVariable | null;
 }
-export type ObjectValue = ArithmeticValue | ArrayValue | ClassValue | PointerValue | IndexPointerValue;
+export type ObjectValue = ArithmeticValue | ArrayValue<any> | ClassValue | PointerValue | IndexPointerValue<any>;
 
 /** Determiner of referee. 
   * > `null` for non-lvalues, e.g., `6`, `"hello"`, `{ 2, -3 }` `(int)x`, `sin(x)`, etc.;
@@ -270,48 +278,41 @@ export type ObjectValue = ArithmeticValue | ArrayValue | ClassValue | PointerVal
   * > > Likewise, the type of `&x` would then be `int*` (but it's `IndexPointerVariable` in the runtime);
   * > > `int *w = &a[1]; w++;` would be okay and it would point to a[2];
 */
-export type LValueHolder = IndexPointerValue | "SELF" | null;
+export type LValueHolder<VSelf extends Variable> = IndexPointerValue<VSelf> | "SELF" | null;
 
 export interface ArithmeticVariable {
-    readonly readonly: boolean;
     readonly t: ArithmeticType;
     v: ArithmeticValue;
 }
-
-export interface StaticArrayVariable {
-    readonly readonly: boolean;
-    readonly t: StaticArrayType;
-    v: ArrayValue;
+export interface StaticArrayVariable<VElem extends Variable> {
+    readonly t: StaticArrayType<VElem["t"]>;
+    v: ArrayValue<VElem>;
 }
-export interface DynamicArrayVariable {
-    readonly readonly: boolean;
-    t: DynamicArrayType;
-    v: ArrayValue;
+export interface DynamicArrayVariable<VElem extends Variable> {
+    readonly t: DynamicArrayType<VElem["t"]>;
+    v: ArrayValue<VElem>;
 }
+export type ArrayVariable<VElem extends Variable> = StaticArrayVariable<VElem> | DynamicArrayVariable<VElem>;
 export interface Function {
-    readonly readonly: boolean;
     readonly t: FunctionType;
     v: FunctionValue;
 }
 export interface ClassVariable {
-    readonly readonly: boolean;
     readonly t: ClassType;
     v: ClassValue;
 }
 export interface PointerVariable {
-    readonly readonly: boolean;
     readonly t: PointerType;
     v: PointerValue;
 }
 // alias to 'PTR [t.array.object]' in typecheck notation
-export interface IndexPointerVariable {
-    readonly readonly: boolean;
-    readonly t: IndexPointerType;
-    v: IndexPointerValue;
+export interface IndexPointerVariable<VElem extends Variable> {
+    readonly t: IndexPointerType<VElem["t"]>;
+    v: IndexPointerValue<VElem>;
 }
 
 // Equals to 'Object' in typecheck notation
-export type Variable = ArithmeticVariable | StaticArrayVariable | DynamicArrayVariable | ClassVariable | PointerVariable | IndexPointerVariable;
+export type Variable = ArithmeticVariable | ArrayVariable<any> | ClassVariable | PointerVariable | IndexPointerVariable<any>;
 
 export type CFunction = (rt: CRuntime, _this: Variable, ...args: Variable[]) => Variable | Generator<unknown, any, unknown>;
 
@@ -328,41 +329,41 @@ export const variables = {
     classType(identifier: string, templateSpec: ObjectType[], memberOf: ClassType | null): ClassType {
         return { sig: "CLASS", identifier, templateSpec, memberOf };
     },
-    staticArrayType(object: ObjectType, size: number): StaticArrayType {
+    staticArrayType<TElem extends ObjectType>(object: TElem, size: number): StaticArrayType<TElem> {
         return { sig: "ARRAY", object, size };
     },
-    dynamicArrayType(object: ObjectType): DynamicArrayType {
-        return { sig: "DYNARRAY", object };
+    dynamicArrayType<TElem extends ObjectType>(object: TElem): DynamicArrayType<TElem> {
+        return { sig: "ARRAY", object, size: "DYNAMIC" };
     },
-    indexPointerType(array: StaticArrayType | DynamicArrayType): IndexPointerType {
+    indexPointerType<TElem extends ObjectType>(array: ArrayType<TElem>): IndexPointerType<TElem> {
         return { sig: "INDEXPTR", array };
     },
     functionType(fulltype: string[]): FunctionType {
         return { sig: "FUNCTION", fulltype };
     },
-    arithmetic(sig: ArithmeticSig, value: number | null, lvHolder: LValueHolder, readonly: boolean = false): ArithmeticVariable {
-        return { t: variables.arithmeticType(sig), v: { lvHolder, value }, readonly };
+    arithmetic(sig: ArithmeticSig, value: number | null, lvHolder: LValueHolder<ArithmeticVariable>, isConst: boolean = false): ArithmeticVariable {
+        return { t: variables.arithmeticType(sig), v: { lvHolder, value, isConst } };
     },
-    pointer(pointee: Variable | Function | "VOID", lvHolder: LValueHolder, readonly: boolean = false): PointerVariable {
+    pointer(pointee: Variable | Function | "VOID", lvHolder: LValueHolder<PointerVariable>, isConst: boolean = false): PointerVariable {
         const t = variables.pointerType((pointee as Variable | Function).t ?? variables.voidType());
         const val = (pointee as Variable | Function).v ?? "VOID";
-        return { t, v: { lvHolder, pointee: val }, readonly };
+        return { t, v: { lvHolder, pointee: val, isConst } };
     },
-    indexPointer(array: StaticArrayVariable | DynamicArrayVariable, index: number, lvHolder: LValueHolder, readonly: boolean = false): IndexPointerVariable {
+    indexPointer<VElem extends Variable>(array: ArrayVariable<VElem>, index: number, lvHolder: LValueHolder<IndexPointerVariable<VElem>>, isConst: boolean = false): IndexPointerVariable<VElem> {
         const t = variables.indexPointerType(array.t);
-        return { t, v: { lvHolder, pointee: array.v, index }, readonly };
+        return { t, v: { lvHolder, pointee: array.v, index, isConst } };
     },
-    class(t: ClassType, members: { [name: string]: Variable }, lvHolder: LValueHolder, readonly: boolean = false): ClassVariable {
-        return { t, v: { lvHolder, members }, readonly };
+    class(t: ClassType, members: { [name: string]: Variable }, lvHolder: LValueHolder<ClassVariable>, isConst: boolean = false): ClassVariable {
+        return { t, v: { lvHolder, members, isConst } };
     },
-    staticArray(objectType: ObjectType, values: ObjectValue[], lvHolder: LValueHolder, readonly: boolean = false): StaticArrayVariable {
-        return { t: variables.staticArrayType(objectType, values.length), v: { lvHolder, values }, readonly };
+    staticArray<VElem extends Variable>(objectType: VElem["t"], values: VElem["v"][], lvHolder: LValueHolder<StaticArrayVariable<VElem>>, isConst: boolean = false): StaticArrayVariable<VElem> {
+        return { t: variables.staticArrayType(objectType, values.length), v: { lvHolder, values, isConst } };
     },
-    dynamicArray(objectType: ObjectType, values: ObjectValue[], lvHolder: LValueHolder, readonly: boolean = false): DynamicArrayVariable {
-        return { t: variables.dynamicArrayType(objectType), v: { lvHolder, values }, readonly };
+    dynamicArray<VElem extends Variable>(objectType: VElem["t"], values: VElem["v"][], lvHolder: LValueHolder<DynamicArrayVariable<VElem>>, isConst: boolean = false): DynamicArrayVariable<VElem> {
+        return { t: variables.dynamicArrayType(objectType), v: { lvHolder, values, isConst } };
     },
-    function(fulltype: string[], name: string, target: CFunction | null, bindThis: ClassVariable | null, lvHolder: LValueHolder, readonly: boolean = false): Function {
-        return { t: variables.functionType(fulltype), v: { lvHolder, name, target, bindThis }, readonly };
+    function(fulltype: string[], name: string, target: CFunction | null, bindThis: ClassVariable | null, lvHolder: "SELF" | null): Function {
+        return { t: variables.functionType(fulltype), v: { lvHolder, name, target, bindThis, isConst: true } };
     },
     deref(object: PointerVariable): Variable | Function | "VOID" {
         if (variables.asVoidType(object.t.pointee) !== null) {
@@ -375,26 +376,23 @@ export const variables = {
         } as Variable | Function;
     },
     /** Create a new variable with the same type and value as the original one */
-    clone(object: Variable, lvHolder: LValueHolder, readonly: boolean = false, onError: (x: string) => never): Variable {
+    clone<TVar extends Variable>(object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, onError: (x: string) => never): TVar {
         const branch: { [sig in (ObjectType | FunctionType)["sig"] | "ARITHMETIC"]?: () => Variable } = {
             "ARITHMETIC": () => {
                 const x = object as ArithmeticVariable;
-                return variables.arithmetic(x.t.sig, x.v.value, lvHolder, readonly)
+                return variables.arithmetic(x.t.sig, x.v.value, lvHolder as LValueHolder<ArithmeticVariable>, isConst)
             },
             "PTR": () => {
                 const x = object as PointerVariable;
-                return variables.pointer(variables.deref(x), lvHolder, readonly);
+                return variables.pointer(variables.deref(x), lvHolder as LValueHolder<PointerVariable>, isConst);
             },
             "INDEXPTR": () => {
-                const x = object as IndexPointerVariable;
-                const array = { t: x.t.array, v: x.v.pointee, left: false, readonly: false } as StaticArrayVariable | DynamicArrayVariable;
-                return variables.indexPointer(array, x.v.index, lvHolder, readonly);
+                const x = object as IndexPointerVariable<Variable>;
+                const array = { t: x.t.array, v: x.v.pointee, left: false, readonly: false } as ArrayVariable<Variable>;
+                return variables.indexPointer(array, x.v.index, lvHolder as LValueHolder<IndexPointerVariable<Variable>>, isConst);
             },
             "ARRAY": () => {
                 onError("not yet implemented (you might be doing something wrong here)");
-            },
-            "DYNARRAY": () => {
-                onError("cannot clone dynamic arrays directly");
             },
             "CLASS": () => {
                 onError("not yet implemented");
@@ -403,11 +401,11 @@ export const variables = {
                 onError("not yet implemented");
             },
         }
-        if (!object.readonly && readonly) {
-            onError("Cannot convert from volatile variable to a constant");
+        if (!object.v.isConst && isConst) {
+            onError("Cannot clone from a volatile variable to a constant");
         }
         const where = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig;
-        return branch[where]();
+        return branch[where]() as TVar;
     },
     asVoidType(type: AnyType): VoidType | null {
         return (type.sig === "VOID") ? type as VoidType : null;
@@ -418,14 +416,14 @@ export const variables = {
     asPointerType(type: AnyType): PointerType | null {
         return (type.sig === "PTR") ? type as PointerType : null;
     },
-    asIndexPointerType(type: AnyType): IndexPointerType | null {
-        return (type.sig === "INDEXPTR") ? type as IndexPointerType : null;
+    asIndexPointerType(type: AnyType): IndexPointerType<ObjectType> | null {
+        return (type.sig === "INDEXPTR") ? type as IndexPointerType<ObjectType> : null;
     },
-    asStaticArrayType(type: AnyType): StaticArrayType | null {
-        return (type.sig === "ARRAY") ? type as StaticArrayType : null;
+    asArrayType(type: AnyType): ArrayType<ObjectType> | null {
+        return (type.sig === "ARRAY") ? type as ArrayType<ObjectType> : null;
     },
-    asDynamicArrayType(type: AnyType): DynamicArrayType | null {
-        return (type.sig === "DYNARRAY") ? type as DynamicArrayType : null;
+    asArrayOfElemType<TElem extends ObjectType>(type: AnyType, elem: TElem): ArrayType<TElem> | null {
+        return (type.sig === "ARRAY" && variables.typesEqual(type.object, elem)) ? type as ArrayType<TElem> : null;
     },
     asClassType(type: AnyType): ClassType | null {
         return (type.sig === "CLASS") ? type as ClassType : null;
@@ -439,14 +437,14 @@ export const variables = {
     asPointer(x: Variable | Function): PointerVariable | null {
         return (x.t.sig === "PTR") ? x as PointerVariable : null;
     },
-    asIndexPointer(x: Variable | Function): IndexPointerVariable | null {
-        return (x.t.sig === "INDEXPTR") ? x as IndexPointerVariable : null;
+    asIndexPointer(x: Variable | Function): IndexPointerVariable<Variable> | null {
+        return (x.t.sig === "INDEXPTR") ? x as IndexPointerVariable<Variable> : null;
     },
-    asStaticArray(x: Variable | Function): StaticArrayVariable | null {
-        return (x.t.sig === "ARRAY") ? x as StaticArrayVariable : null;
+    asArray(x: Variable | Function): ArrayVariable<Variable> | null {
+        return (x.t.sig === "ARRAY") ? x as ArrayVariable<Variable> : null;
     },
-    asDynamicArray(x: Variable | Function): DynamicArrayVariable | null {
-        return (x.t.sig === "DYNARRAY") ? x as DynamicArrayVariable : null;
+    asArrayOfElem<VElem extends Variable>(x: Variable | Function, elem: VElem): ArrayVariable<VElem> | null {
+        return (x.t.sig === "ARRAY" && variables.typesEqual(x.t.object, elem.t)) ? x as ArrayVariable<VElem> : null;
     },
     asClass(x: Variable | Function): ClassVariable | null {
         return (x.t.sig === "CLASS") ? x as ClassVariable : null;
@@ -481,23 +479,11 @@ export const variables = {
         }
         return true;
     },
-    indexPointerTypesEqual(lhs: IndexPointerType, rhs: IndexPointerType): boolean {
-        const ls: StaticArrayType | null = variables.asStaticArrayType(lhs.array);
-        const rs: StaticArrayType | null = variables.asStaticArrayType(rhs.array);
-        const ld: DynamicArrayType | null = variables.asDynamicArrayType(lhs.array);
-        const rd: DynamicArrayType | null = variables.asDynamicArrayType(rhs.array);
-        if (ls !== null && rs !== null) {
-            return variables.staticArrayTypesEqual(ls, rs);
-        } else if (ld !== null && rd !== null) {
-            return variables.dynamicArrayTypesEqual(ld, rd);
-        }
-        return false;
+    indexPointerTypesEqual(lhs: IndexPointerType<ObjectType>, rhs: IndexPointerType<ObjectType>): boolean {
+        return lhs.array.size === rhs.array.size && variables.typesEqual(lhs.array.object, rhs.array.object);
     },
-    staticArrayTypesEqual(lhs: StaticArrayType, rhs: StaticArrayType): boolean {
-        return variables.typesEqual(lhs.object, rhs.object);
-    },
-    dynamicArrayTypesEqual(lhs: DynamicArrayType, rhs: DynamicArrayType): boolean {
-        return variables.typesEqual(lhs.object, rhs.object);
+    arrayTypesEqual(lhs: ArrayType<ObjectType>, rhs: ArrayType<ObjectType>): boolean {
+        return lhs.size === rhs.size && variables.typesEqual(lhs.object, rhs.object);
     },
     functionTypesEqual(lhs: FunctionType, rhs: FunctionType): boolean {
         if (lhs.fulltype.length !== rhs.fulltype.length) {
@@ -522,13 +508,10 @@ export const variables = {
                 return variables.pointerTypesEqual(lhs as PointerType, rhs as PointerType);
             },
             "INDEXPTR": () => {
-                return variables.indexPointerTypesEqual(lhs as IndexPointerType, rhs as IndexPointerType);
+                return variables.indexPointerTypesEqual(lhs as IndexPointerType<ObjectType>, rhs as IndexPointerType<ObjectType>);
             },
             "ARRAY": () => {
-                return variables.staticArrayTypesEqual(lhs as StaticArrayType, rhs as StaticArrayType);
-            },
-            "DYNARRAY": () => {
-                return variables.dynamicArrayTypesEqual(lhs as DynamicArrayType, rhs as DynamicArrayType);
+                return variables.arrayTypesEqual(lhs as ArrayType<ObjectType>, rhs as ArrayType<ObjectType>);
             },
             "CLASS": () => {
                 return variables.classTypesEqual(lhs as ClassType, rhs as ClassType);
@@ -553,7 +536,7 @@ export const variables = {
         }
         lhs.v.pointee = pointee === "VOID" ? "VOID" : pointee.v;
     },
-    indexPointerAssign(lhs: IndexPointerVariable, array: StaticArrayVariable | DynamicArrayVariable, index: number, onError: (x: string) => never): void {
+    indexPointerAssign<VElem extends Variable>(lhs: IndexPointerVariable<VElem>, array: ArrayVariable<VElem>, index: number, onError: (x: string) => never): void {
         checkAssignable(lhs, onError);
         if (!variables.typesEqual(lhs.t.array.object, array.t.object)) {
             const expected = variables.toStringSequence(lhs.t.array.object, false, onError).join(" ");
@@ -563,17 +546,18 @@ export const variables = {
         lhs.v.pointee = array.v;
         lhs.v.index = index;
     },
-    indexPointerAssignIndex(lhs: IndexPointerVariable, index: number, onError: (x: string) => never): void {
+    indexPointerAssignIndex(lhs: IndexPointerVariable<Variable>, index: number, onError: (x: string) => never): void {
         checkAssignable(lhs, onError);
         lhs.v.index = index;
     },
-    arrayAssignIndex(lhs: StaticArrayVariable | DynamicArrayVariable, array: ObjectValue[], onError: (x: string) => never): void {
+    // by idea you should assign a new array
+    /*arrayAssign<VElem extends Variable>(lhs: ArrayVariable<VElem>, array: VElem["v"][], onError: (x: string) => never): void {
         checkAssignable(lhs, onError);
         if (lhs.t.sig === "ARRAY" && lhs.t.size !== array.length) {
             onError(`Expected static array assignment of size ${array.length}`)
         }
         lhs.v.values = array;
-    },
+    },*/
     toStringSequence(type: AnyType, left: boolean, onError: (x: string) => never): string[] {
         let result = new Array<string>();
         if (left) {
@@ -591,7 +575,7 @@ function checkAssignable(x: MaybeLeftCV<ObjectType>, onError: (x: string) => nev
     if (x.v.lvHolder === null) {
         onError("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
-    if (x.readonly) {
+    if (x.v.isConst) {
         onError("Attempted assignment to a constant value");
     }
 }
@@ -608,15 +592,12 @@ function toStringSequenceInner(type: AnyType, result: string[], onError: (x: str
         },
         "INDEXPTR": () => {
             result.push("PTR"); // sic!
-            toStringSequenceInner((type as IndexPointerType).array.object, result, onError);
+            toStringSequenceInner((type as IndexPointerType<ObjectType>).array.object, result, onError);
         },
         "ARRAY": () => {
             result.push("ARRAY");
-            toStringSequenceInner((type as StaticArrayType).object, result, onError);
-            result.push(String((type as StaticArrayType).size));
-        },
-        "DYNARRAY": () => {
-            onError("Dynamic array cannot be a direct variable type");
+            toStringSequenceInner((type as ArrayType<ObjectType>).object, result, onError);
+            result.push(String((type as ArrayType<ObjectType>).size));
         },
         "CLASS": () => {
             if ((type as ClassType).memberOf !== null) {

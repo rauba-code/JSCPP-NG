@@ -1,4 +1,3 @@
-import { Iterator } from "./includes/shared/iterator";
 import { CRuntime, OpSignature } from "./rt";
 import { ArithmeticVariable, IndexPointerVariable, PointerVariable, Variable, variables } from "./variables";
 
@@ -66,7 +65,7 @@ function binaryArithmeticCmp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticV
     return variables.arithmetic("BOOL", op(rt.value(l), rt.value(r)) ? 1 : 0, null);
 }
 
-export const defaultOpHandler: OpHandler[] = [
+const defaultOpHandler: OpHandler[] = [
    {
         type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
         op: "o(_*_)",
@@ -381,9 +380,12 @@ export const defaultOpHandler: OpHandler[] = [
 ];
 
 export function addDefaultOperations(rt: CRuntime): void {
+    defaultOpHandler.forEach((x: OpHandler) => {
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type.split(" ")));
+    })
 }
 
-const types_pointer : OpHandler[] = [
+/*const types_pointer : OpHandler[] = [
     {
         op: "o(_=_)",
         default(rt, l, r) {
@@ -600,7 +602,7 @@ const types_pointer_array: OpHandler[] = [
         op: "o(_>=_)",
         default(rt, l, r) {
             if (rt.isArrayType(l) && rt.isArrayType(r)) {
-                if (l.v.target === r.v.target) {
+                itypef (l.v.target === r.v.target) {
                     return l.v.position >= r.v.position;
                 } else {
                     rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
@@ -673,4 +675,4 @@ const types_pointer_array: OpHandler[] = [
             }
         }
     }
-];
+];*/

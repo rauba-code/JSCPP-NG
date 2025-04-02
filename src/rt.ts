@@ -1,8 +1,6 @@
-import * as defaults from "./defaults";
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import { BaseInterpreter, Interpreter } from "./interpreter";
-import { resolveIdentifier } from "./includes/shared/string_utils";
 import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, DynamicArrayType, Function, FunctionType, IndexPointerType, IndexPointerVariable, LValueHolder, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, StaticArrayType, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray } from "./utf8";
@@ -103,7 +101,7 @@ export class CRuntime {
     namespace: NamespaceScope;
     typeMap: { [domainIdentifier: string]: TypeHandlerMap };
     typedefs: { [name: string]: AnyType };
-    interp: BaseInterpreter;
+    interp: BaseInterpreter<any>;
 
     constructor(config: JSCPPConfig) {
         this.parser = constructTypeParser();

@@ -1,6 +1,7 @@
-import { CRuntime, VariableType } from "../../rt";
+import { CRuntime } from "../rt";
+import { ObjectType } from "../variables";
 
-export const skipSpace = function (s: string) {
+export const skipSpace = function(s: string) {
     const r = /^\s*/.exec(s);
     if (r && (r.length > 0)) {
         return s.substring(r[0].length);
@@ -9,10 +10,10 @@ export const skipSpace = function (s: string) {
     }
 };
 
-export const read = function (rt: CRuntime, reg: RegExp, buf: string, type: VariableType) {
+export function read(rt: CRuntime, reg: RegExp, buf: string, type: ObjectType) {
     const r = reg.exec(buf);
     if ((r == null) || (r.length === 0)) {
-        rt.raiseException("input format mismatch " + rt.makeTypeString(type) + " with buffer=" + JSON.stringify(buf));
+        rt.raiseException("input format mismatch " + rt.makeTypeString({ t: type, readonly: false, v: { lvHolder: null } }) + " with buffer=" + JSON.stringify(buf));
     } else {
         return r;
     }
@@ -30,7 +31,7 @@ export const resolveIdentifier = function(obj: any) {
             currentObj = currentObj.scope;
         } else if (currentObj.type === 'IdentifierExpression') {
             currentObj = identifier;
-        } else { 
+        } else {
             break;
         }
     }

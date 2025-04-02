@@ -1,4 +1,4 @@
-import { resolveIdentifier } from "./includes/shared/string_utils";
+import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, DynamicArrayVariable, ObjectType, ObjectValue, StaticArrayVariable, Variable, variables } from "./variables";
 
@@ -32,9 +32,9 @@ const isGeneratorFunction = (f: any): boolean => {
     return (f != null ? f.constructor : undefined) === sampleGeneratorFunction.constructor;
 };
 
-export class BaseInterpreter {
+export class BaseInterpreter<TNode> {
     rt: CRuntime;
-    currentNode: any;
+    currentNode: TNode;
     source: string;
     constructor(rt: CRuntime) {
         this.rt = rt;
@@ -49,8 +49,10 @@ function isIterable(obj: any) {
     return typeof obj[Symbol.iterator] === 'function';
 }
 
-export class Interpreter extends BaseInterpreter {
-    visitors: { [name: string]: (interp: Interpreter, s: any, param?: any) => any };
+type InterpStatement = any;
+
+export class Interpreter extends BaseInterpreter<InterpStatement> {
+    visitors: { [name: string]: (interp: Interpreter, s: InterpStatement, param?: any) => any };
     constructor(rt: CRuntime) {
         super(rt);
         this.visitors = {
@@ -333,7 +335,7 @@ export class Interpreter extends BaseInterpreter {
 
                             param.node = init;
                             const arrayYield = interp.arrayInit(dimensions, init, basetype, param);
-                            init = asResult(arrayYield) ?? (yield *arrayYield as Gen<StaticArrayVariable>);
+                            init = asResult(arrayYield) ?? (yield* arrayYield as Gen<StaticArrayVariable>);
                             delete param.node;
 
                             init.dataType = dec.Declarator.left.DataType;
@@ -530,7 +532,7 @@ export class Interpreter extends BaseInterpreter {
                 const e = yield* interp.visit(interp, s.Expression, param);
                 let ret;
                 let castYield = rt.cast(variables.arithmeticType("BOOL"), e) as ResultOrGen<ArithmeticVariable>;
-                if (rt.value(asResult(castYield) ?? (yield *castYield as Gen<ArithmeticVariable>))) {
+                if (rt.value(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>))) {
                     ret = yield* interp.visit(interp, s.Statement, param);
                 } else if (s.ElseStatement) {
                     ret = yield* interp.visit(interp, s.ElseStatement, param);
@@ -573,7 +575,7 @@ export class Interpreter extends BaseInterpreter {
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
                         const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
-                        const castBool = rt.value(asResult(castYield) ?? (yield *castYield as Gen<ArithmeticVariable>));
+                        const castBool = rt.value(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
                         if (!castBool) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
@@ -625,7 +627,7 @@ export class Interpreter extends BaseInterpreter {
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
                         const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
-                        const castBool = rt.value(asResult(castYield) ?? (yield *castYield as Gen<ArithmeticVariable>));
+                        const castBool = rt.value(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
                         if (!castBool) { break; }
                     }
                 }
@@ -706,7 +708,7 @@ export class Interpreter extends BaseInterpreter {
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
                         const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
-                        const castBool = rt.value(asResult(castYield) ?? (yield *castYield as Gen<ArithmeticVariable>));
+                        const castBool = rt.value(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
                         if (!castBool) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
@@ -937,21 +939,21 @@ export class Interpreter extends BaseInterpreter {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                return variables.arithmetic("I32", rt.getSizeByType(ret.t));
+                return variables.arithmetic("I32", rt.getSizeByType(ret.t), null);
             },
             *UnaryExpression_Sizeof_Type(interp, s, param) {
                 ({
                     rt
                 } = interp);
                 const type = yield* interp.visit(interp, s.TypeName, param);
-                return variables.arithmetic("I32", rt.getSizeByType(type));
+                return variables.arithmetic("I32", rt.getSizeByType(type), null);
             },
             *CastExpression(interp, s, param) {
                 ({
                     rt
                 } = interp);
                 let ret = yield* interp.visit(interp, s.Expression, param);
-                ret = variables.clone(rt.asCapturedVariable(ret));
+                ret = variables.clone(rt.asCapturedVariable(ret), null, false, rt.raiseException);
                 const type = yield* interp.visit(interp, s.TypeName, param);
                 return rt.cast(type, ret);
             },
@@ -1071,7 +1073,7 @@ export class Interpreter extends BaseInterpreter {
                 };
 
                 const valuesToStruct = function(arrayValues: any) {
-                    const fillerStruct: any = rt.defaultValue(param.structType);
+                    const fillerStruct: any = rt.defaultValue(param.structType, null);
                     const orderedKeys = Object.keys(fillerStruct.v.members);
 
                     for (let k = 0; k < arrayValues.length; k++) {
@@ -1096,7 +1098,7 @@ export class Interpreter extends BaseInterpreter {
 
                 return valuesToStruct(arrayValues);
             },
-            StringLiteral(interp, s, param) {
+            StringLiteral(interp, _s, _param) {
                 ({
                     rt
                 } = interp);
@@ -1129,7 +1131,7 @@ export class Interpreter extends BaseInterpreter {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("BOOL", s.value === "true" ? 1 : 0);
+                return variables.arithmetic("BOOL", s.value === "true" ? 1 : 0, null);
             },
             CharacterConstant(interp, s, _param) {
                 ({
@@ -1139,50 +1141,51 @@ export class Interpreter extends BaseInterpreter {
                 if (a.length !== 1) {
                     rt.raiseException("a character constant must have and only have one character.");
                 }
-                return variables.arithmetic("I8", a[0].charCodeAt(0));
+                return variables.arithmetic("I8", a[0].charCodeAt(0), null);
             },
             *FloatConstant(interp, s, param) {
                 ({
                     rt
                 } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
-                return variables.arithmetic("F32", Math.fround(val.v.value));
+                return variables.arithmetic("F32", Math.fround(val.v.value), null);
             },
             DecimalConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("U32", parseInt(s.value, 10));
+                return variables.arithmetic("U32", parseInt(s.value, 10), null);
             },
             HexConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("U32", parseInt(s.value, 16));
+                return variables.arithmetic("U32", parseInt(s.value, 16), null);
             },
             BinaryConstant(interp, s, _param) {
+
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("U32", parseInt(s.value, 2));
+                return variables.arithmetic("U32", parseInt(s.value, 2), null);
             },
             DecimalFloatConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("F64", parseFloat(s.value));
+                return variables.arithmetic("F64", parseFloat(s.value), null);
             },
             HexFloatConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("F64", parseInt(s.value, 16));
+                return variables.arithmetic("F64", parseInt(s.value, 16), null);
             },
             OctalConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("U32", parseInt(s.value, 8));
+                return variables.arithmetic("U32", parseInt(s.value, 8), null);
             },
             NamespaceDefinition(interp, _s, _param) {
                 ({
@@ -1298,7 +1301,7 @@ export class Interpreter extends BaseInterpreter {
                         while (i < curDim) {
                             arr[i] = {
                                 type: "Initializer_expr",
-                                shorthand: this.rt.defaultValue(type)
+                                shorthand: this.rt.defaultValue(type, null)
                             };
                             i++;
                         }
@@ -1311,19 +1314,19 @@ export class Interpreter extends BaseInterpreter {
                             while (i < curDim) {
                                 arr[i] = {
                                     type: "Initializer_expr",
-                                    shorthand: variables.arithmetic(arithmeticType.sig, val.v.value)
+                                    shorthand: variables.arithmetic(arithmeticType.sig, val.v.value, null)
                                 };
                                 i++;
                             }
                             init.Initializers = arr;
                         } else {
                             const arr = new Array(curDim);
-                            arr[0] = variables.arithmetic(arithmeticType.sig, -1);
+                            arr[0] = variables.arithmetic(arithmeticType.sig, -1, null);
                             let i = 1;
                             while (i < curDim) {
                                 arr[i] = {
                                     type: "Initializer_expr",
-                                    shorthand: this.rt.defaultValue(type)
+                                    shorthand: this.rt.defaultValue(type, null)
                                 };
                                 i++;
                             }
@@ -1359,7 +1362,7 @@ export class Interpreter extends BaseInterpreter {
                         while (i < curDim) {
                             arr[i] = {
                                 type: "Initializer_expr",
-                                shorthand: this.rt.defaultValue(type)
+                                shorthand: this.rt.defaultValue(type, null)
                             };
                             i++;
                         }
@@ -1373,7 +1376,7 @@ export class Interpreter extends BaseInterpreter {
                         param.structType = type;
                         initializer = yield* this.visit(this, init, param);
                     }
-                    const arrayInitializer : StaticArrayVariable | DynamicArrayVariable | null = variables.asStaticArray(initializer) ?? variables.asDynamicArray(initializer);
+                    const arrayInitializer: StaticArrayVariable | DynamicArrayVariable | null = variables.asStaticArray(initializer) ?? variables.asDynamicArray(initializer);
                     if (arrayInitializer !== null && variables.typesEqual(type, arrayInitializer.t.object)) {
                         init = {
                             type: "Initializer_array",
@@ -1388,12 +1391,12 @@ export class Interpreter extends BaseInterpreter {
                 } else {
                     this.rt.raiseException("dimensions do not agree, " + curDim + " != " + init.Initializers.length, param.node);
                 }
-            } 
+            }
             {
                 let arr: ObjectValue[] = [];
                 let i = 0;
                 while (i < curDim) {
-                    let top : Variable;
+                    let top: Variable;
                     if (init && i < init.Initializers.length) {
                         top = yield* this.arrayInit(dimensions.slice(1), init.Initializers[i], type, param);
                     } else {
@@ -1405,7 +1408,7 @@ export class Interpreter extends BaseInterpreter {
                     arr.push(top.v);
                     i++;
                 }
-                return variables.staticArray(type, arr);
+                return variables.staticArray(type, arr, null);
             }
         } else {
             if (init && (init.type !== "Initializer_expr")) {
@@ -1419,7 +1422,7 @@ export class Interpreter extends BaseInterpreter {
                     initval = yield* this.visit(this, init.Expression, param);
                 }
             } else {
-                initval = this.rt.defaultValue(type);
+                initval = this.rt.defaultValue(type, null);
             }
             this.rt.raiseException("Not yet implemented");
             //return initval;

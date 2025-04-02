@@ -1,4 +1,4 @@
-import { LLParser, NonTerm, TypeParseError } from './typecheck';
+import { LLParser, NonTerm } from './typecheck';
 import * as typecheck from './typecheck'
 
 function makeStringArr(type: string | string[]): string[] {

@@ -41,7 +41,7 @@ export default class Debugger {
         this.prevNode = null;
         this.done = false;
         this.conditions = {
-            isStatement(prevNode: AstNode, newStmt: AstNode) {
+            isStatement(_prevNode: AstNode, newStmt: AstNode) {
                 return (newStmt != null ? newStmt.type.indexOf("Statement") >= 0 : undefined);
             },
             positionChanged(prevNode: AstNode, newStmt: AstNode) {
