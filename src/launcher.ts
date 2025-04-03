@@ -159,7 +159,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                 performedSteps++;
 
                 if (step.done) {
-                    const exitCode = step.value.v as number
+                    const exitCode = step.value.v.value as number;
                     _config.stdio.finishCallback(exitCode);
                     return exitCode;
                 }

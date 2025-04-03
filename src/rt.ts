@@ -246,8 +246,9 @@ export class CRuntime {
                     ret = undefined;
                 } else {
                     if (ret instanceof Array && (ret[0] === "return")) {
-                        rt.raiseException("not yet implemented");
-                        // ret = rt.cast(retType, ret[1]);
+                        ret = rt.cast(retType.t, ret[1]);
+                    } else if (name === "main") {
+                        ret = variables.arithmetic("I32", 0, null);
                     } else {
                         rt.raiseException("non-void function must return a value");
                     }
@@ -298,7 +299,9 @@ export class CRuntime {
         return domainMap.functionsByID[fnID];
     };
 
-    makeOperatorFuncName = (name: string) => `o(${name})`;
+    makeBinaryOperatorFuncName = (name: string) => `o(_${name}_)`;
+    makePrefixOperatorFuncName = (name: string) => `o(${name}_)`;
+    makePostfixOperatorFuncName = (name: string) => `o(_${name})`;
 
     domainString(domain: ClassType | "{global}"): string {
         if (domain === "{global}") {
@@ -572,6 +575,9 @@ export class CRuntime {
       * For floating-point values, rounds to the nearest precision available.*/
     adjustArithmeticValue(x: ArithmeticVariable): void {
         const info = variables.arithmeticProperties[x.t.sig];
+        if (!info.isFloat && !Number.isInteger(x.v.value)) {
+            x.v.value = Math.sign(x.v.value) * Math.floor(Math.abs(x.v.value));
+        }
         if (info.isFloat || (x.v.value >= info.minv && x.v.value <= info.maxv)) {
             if (x.t.sig === "F32") {
                 // javascript numbers are typically double-precision FP values.
@@ -582,10 +588,6 @@ export class CRuntime {
         let q: number = (x.v.value - info.minv) % (info.maxv + 1 - info.minv);
         if (q < 0) {
             q += info.maxv + 1 - info.minv;
-        }
-        if (!Number.isInteger(q)) {
-            // q = Math.floor(q); if you're desperate
-            this.raiseException("Not an integer")
         }
         x.v.value = q;
     }
@@ -674,16 +676,17 @@ export class CRuntime {
             if (target.sig === "BOOL") {
                 return variables.arithmetic(target.sig, arithmeticVar.v ? 1 : 0, null);
             } else if (targetInfo.isFloat) {
-                const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeString(v.t, !(v.v.lvHolder === null), v.v.isConst)}' to '${this.makeTypeString(target, false, false)}'`;
+                const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeStringOfVar(v)}' to '${this.makeTypeString(target)}'`;
                 if (this.inrange(arithmeticValue, arithmeticTarget, onErr)) {
                     return variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
                 }
             } else {
+                const conversionErrorMsg: () => string = () => `${this.makeValueString(v)} of type ${this.makeTypeStringOfVar(v)} to type ${this.makeTypeString(target)}`;
                 if (!targetInfo.isSigned) {
                     if (arithmeticValue < 0) {
                         // unsafe! bitwise truncation is platform-dependent
                         const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue & ((1 << (8 * targetInfo.bytes)) - 1), null); // bitwise truncation
-                        if (this.inrange(newVar.v.value, newVar.t, () => `cannot cast negative value ${this.makeValueString(newVar)} of type ${this.makeTypeStringOfVar(newVar)} to type ${this.makeTypeStringOfVar(newVar)}`)) {
+                        if (this.inrange(newVar.v.value, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
                             this.adjustArithmeticValue(newVar);
                             return newVar;
                         }
@@ -691,13 +694,13 @@ export class CRuntime {
                 }
                 if (fromInfo.isFloat) {
                     const intVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue), null);
-                    if (this.inrange(intVar.v.value, intVar.t, () => `overflow when casting value ${this.makeValueString(intVar)} of type '${this.makeTypeStringOfVar(intVar)}' to type '${this.makeTypeStringOfVar(intVar)}'`)) {
+                    if (this.inrange(intVar.v.value, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
                         this.adjustArithmeticValue(intVar);
                         return intVar;
                     }
                 } else {
                     const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
-                    if (this.inrange(newVar.v.value, newVar.t, () => `overflow when casting value ${this.makeValueString(newVar)} of type ${this.makeTypeStringOfVar(newVar)} to ${this.makeTypeStringOfVar(newVar)}`)) {
+                    if (this.inrange(newVar.v.value, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
                         this.adjustArithmeticValue(newVar);
                         return newVar;
                     }

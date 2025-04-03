@@ -1,5 +1,5 @@
 import { CRuntime, OpSignature } from "./rt";
-import { ArithmeticVariable, IndexPointerVariable, ObjectType, PointerVariable, Variable, variables } from "./variables";
+import { ArithmeticVariable, IndexPointerVariable, PointerVariable, Variable, variables } from "./variables";
 
 function raiseSupportException(rt: CRuntime, l: Variable, r: Variable, op: string): never {
     rt.raiseException(`${rt.makeTypeStringOfVar(l)} does not support ${op} on ${rt.makeTypeStringOfVar(r)}`);
@@ -19,6 +19,11 @@ function binaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVa
     return ret;
 }
 
+function unaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, op: (a: number) => number): ArithmeticVariable {
+    const ret = variables.arithmetic(l.t.sig, op(l.v.value), null);
+    rt.adjustArithmeticValue(ret);
+    return ret;
+}
 
 function binaryArithmeticAssign(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable, op: (a: number, b: number) => number): ArithmeticVariable {
     if (l.v.lvHolder === null) {
@@ -91,15 +96,22 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_+_)",
         type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): ArithmeticVariable {
+            debugger;
             return binaryArithmeticOp(rt, l, r, (x, y) => x + y);
         }
     },
     {
         op: "o(_-_)",
         type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
-        // FUNCTION Arithmetic ( Arithmetic Arithmetic )
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): ArithmeticVariable {
             return binaryArithmeticOp(rt, l, r, (x, y) => x - y);
+        }
+    },
+    {
+        op: "o(-_)",
+        type: "FUNCTION Arithmetic ( Arithmetic )",
+        default(rt, l: ArithmeticVariable): ArithmeticVariable {
+            return unaryArithmeticOp(rt, l, (x) => -x);
         }
     },
     {

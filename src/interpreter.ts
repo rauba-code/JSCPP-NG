@@ -281,7 +281,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const {
                     scope
                 } = param;
-                const typedScope = scope === "global" ? "{global}" : rt.raiseException("Not yet implemented");
+                const typedScope = scope === "{global}" ? "{global}" : rt.raiseException("Not yet implemented");
                 const name = s.Declarator.left.Identifier;
                 let basetype = rt.simpleType(s.DeclarationSpecifiers);
                 const pointer = s.Declarator.Pointer;
@@ -795,7 +795,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             IdentifierExpression(interp, s, _param) {
                 ({ rt } = interp);
 
-                const globalScope = rt.scope.find((scope) => scope.$name === "global");
+                const globalScope = rt.scope.find((scope) => scope.$name === "{global}");
                 const currentScope = rt.scope[rt.scope.length - 1];
                 const declarationScope = rt.scope.slice().reverse().find((scope, idx) => scope.$name.includes("function") && rt.scope[idx + 1].$name === "CompoundStatement") || ({ variables: {} }) as RuntimeScope;
 
@@ -816,7 +816,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const index = yield* interp.visit(interp, s.index, param);
 
                 param.structType = ret.t.eleType;
-                const r = rt.getFuncByParams(ret.t, rt.makeOperatorFuncName("[]"), [index.t]).target(rt, ret, index);
+                const r = rt.getOpByParams("{global}", "o(_[])", [index.t]).target(rt, ret, index);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -856,7 +856,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     bindThis = ret;
                 }
-                const r = rt.getFuncByParams(ret.t, rt.makeOperatorFuncName("()"), args).target(rt, ret, bindThis, ...args);
+                const r = rt.getOpByParams("{global}", "o(_call)", args).target(rt, ret, bindThis, ...args);
                 return asResult<Variable>(r) ?? (yield* r as Gen<Variable>);
             },
             *PostfixExpression_MemberAccess(interp, s, param) {
@@ -902,7 +902,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams(ret.t, "o(_++)", [ret]).target(rt, ret);
+                const r = rt.getOpByParams("{global}", "o(_++)", [ret]).target(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -914,7 +914,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams(ret.t, "o(_--)", [ret]).target(rt, ret);
+                const r = rt.getOpByParams("{global}", "o(_--)", [ret]).target(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -926,7 +926,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams(ret.t, "o(++_)", [ret]).target(rt, ret);
+                const r = rt.getOpByParams("{global}", "o(++_)", [ret]).target(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -938,7 +938,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams(ret.t, "o(--_)", [ret]).target(rt, ret);
+                const r = rt.getOpByParams("{global}", "o(--_)", [ret]).target(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -950,8 +950,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                debugger;
-                const r = rt.getOpByParams(ret.t, `o(${s.op})` as OpSignature, [ret]).target(rt, ret);
+                const r = rt.getOpByParams("{global}", `o(${s.op}_)` as OpSignature, [ret]).target(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1011,7 +1010,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     let right = yield* interp.visit(interp, s.right, param);
                     left = rt.asCapturedVariable(left);
                     right = rt.asCapturedVariable(right);
-                    const r = rt.getFuncByParams("{global}", rt.makeOperatorFuncName(op), [left, right]).target(rt, left, right);
+                    const r = rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right]).target(rt, left, right);
                     if (isGenerator(r)) {
                         return yield* r as Generator;
                     } else {
@@ -1045,7 +1044,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
             },
             *LogicalORExpression(interp, s, param) {
-                const op = "o(_&&_)";
+                const op = "o(_||_)";
                 const left = yield* interp.visit(interp, s.left, param);
                 const right = yield* interp.visit(interp, s.right, param);
                 const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
@@ -1172,26 +1171,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
-                return variables.arithmetic("F32", Math.fround(val.v.value), null);
-            },
-            DecimalConstant(interp, s, _param) {
-                ({
-                    rt
-                } = interp);
-                return variables.arithmetic("U32", parseInt(s.value, 10), null);
-            },
-            HexConstant(interp, s, _param) {
-                ({
-                    rt
-                } = interp);
-                return variables.arithmetic("U32", parseInt(s.value, 16), null);
-            },
-            BinaryConstant(interp, s, _param) {
-
-                ({
-                    rt
-                } = interp);
-                return variables.arithmetic("U32", parseInt(s.value, 2), null);
+                return variables.arithmetic("F32", val.v.value, null);
             },
             DecimalFloatConstant(interp, s, _param) {
                 ({
@@ -1205,11 +1185,65 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 return variables.arithmetic("F64", parseInt(s.value, 16), null);
             },
+            DecimalConstant(interp, s, _param) {
+                ({
+                    rt
+                } = interp);
+                const num = parseInt(s.value, 10);
+                const intProps = variables.arithmeticProperties["I32"];
+                const uintProps = variables.arithmeticProperties["U32"];
+                if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
+                    interp.rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                }
+                if (num > intProps.maxv) {
+                    return variables.arithmetic("U32", (uintProps.maxv + 1) - num, null);
+                }
+                return variables.arithmetic("I32", num, null);
+            },
+            HexConstant(interp, s, _param) {
+                ({
+                    rt
+                } = interp);
+                const num = parseInt(s.value, 16);
+                const intProps = variables.arithmeticProperties["I32"];
+                const uintProps = variables.arithmeticProperties["U32"];
+                if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
+                    interp.rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                }
+                if (num > intProps.maxv) {
+                    return variables.arithmetic("U32", num, null);
+                }
+                return variables.arithmetic("I32", num, null);
+            },
+            BinaryConstant(interp, s, _param) {
+                ({
+                    rt
+                } = interp);
+                const num = parseInt(s.value, 2);
+                const intProps = variables.arithmeticProperties["I32"];
+                const uintProps = variables.arithmeticProperties["U32"];
+                if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
+                    interp.rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                }
+                if (num > intProps.maxv) {
+                    return variables.arithmetic("U32", num, null);
+                }
+                return variables.arithmetic("I32", num, null);
+            },
             OctalConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("U32", parseInt(s.value, 8), null);
+                const num = parseInt(s.value, 8);
+                const intProps = variables.arithmeticProperties["I32"];
+                const uintProps = variables.arithmeticProperties["U32"];
+                if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
+                    interp.rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                }
+                if (num > intProps.maxv) {
+                    return variables.arithmetic("U32", num, null);
+                }
+                return variables.arithmetic("I32", num, null);
             },
             NamespaceDefinition(interp, _s, _param) {
                 ({
@@ -1252,7 +1286,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         console.log(`${s.sLine}: visiting ${s.type}`);
         if ("type" in s) {
             if (param === undefined) {
-                param = { scope: "global" };
+                param = { scope: "{global}" };
             }
             const _node = this.currentNode;
             this.currentNode = s;
