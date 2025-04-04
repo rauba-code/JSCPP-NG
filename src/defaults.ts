@@ -14,7 +14,7 @@ type OpHandler = {
 
 function binaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable, op: (a: number, b: number) => number): ArithmeticVariable {
     const retType = rt.promoteNumeric(l.t, r.t);
-    const ret = variables.arithmetic(retType.sig, op(l.v.value, r.v.value), null);
+    const ret = variables.arithmetic(retType.sig, op(rt.value(l), rt.value(r)), null);
     rt.adjustArithmeticValue(ret);
     return ret;
 }
@@ -25,13 +25,25 @@ function unaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, op: (a: number) 
     return ret;
 }
 
-function binaryArithmeticAssign(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable, op: (a: number, b: number) => number): ArithmeticVariable {
+function checkLeftAssign(rt: CRuntime, l: Variable): void {
     if (l.v.lvHolder === null) {
         rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
     if (l.v.isConst) {
         rt.raiseException("Attempted assignment to a constant");
     }
+}
+
+function binaryArithmeticDirectAssign(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable): ArithmeticVariable {
+    checkLeftAssign(rt, l);
+    const ret = variables.arithmetic(l.t.sig, rt.value(r), null);
+    rt.adjustArithmeticValue(ret);
+    l.v.value = ret.v.value;
+    return ret;
+}
+
+function binaryArithmeticAssign(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable, op: (a: number, b: number) => number): ArithmeticVariable {
+    checkLeftAssign(rt, l);
     const ret = variables.arithmetic(l.t.sig, op(rt.value(l), rt.value(r)), null);
     rt.adjustArithmeticValue(ret);
     l.v.value = ret.v.value;
@@ -54,12 +66,7 @@ function binaryIntegerAssign(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticV
     if (properties[l.t.sig].isFloat || properties[r.t.sig].isFloat) {
         raiseSupportException(rt, l, r, opstr);
     }
-    if (l.v.lvHolder === null) {
-        rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
-    }
-    if (l.v.isConst) {
-        rt.raiseException("Attempted assignment to a constant");
-    }
+    checkLeftAssign(rt, l);
     const ret = variables.arithmetic(l.t.sig, op(rt.value(l), rt.value(r)), null);
     rt.adjustArithmeticValue(ret);
     l.v.value = ret.v.value;
@@ -195,7 +202,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): ArithmeticVariable {
-            return binaryArithmeticAssign(rt, l, r, (_x, y) => y);
+            return binaryArithmeticDirectAssign(rt, l, r);
         }
     },
     {

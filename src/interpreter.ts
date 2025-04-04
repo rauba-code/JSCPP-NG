@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ArrayVariable, ObjectType, ObjectValue, StaticArrayVariable, Variable, variables } from "./variables";
+import { ArithmeticVariable, ArrayVariable, MaybeLeft, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables } from "./variables";
 
 /*
  * decaffeinate suggestions:
@@ -61,16 +61,58 @@ export interface IdentifierSpec extends StatementMeta {
     type: "Identifier",
     Identifier: string
 };
+export interface IdentifierExpressionSpec extends StatementMeta {
+    type: "IdentifierExpression",
+    Identifier: string
+};
 export interface CompoundStatementSpec extends StatementMeta {
     type: "CompoundStatement",
     Statements: object[]
 }
 export interface FunctionDefinitionSpec extends StatementMeta {
     type: "FunctionDefinition",
-    Declarator: { left: IdentifierSpec, right: { type: string, ParameterTypeList?: any, IdentifierList?: any }, Pointer: any },
+    Declarator: DirectDeclaratorSpec,
     DeclarationSpecifiers: string[],
     CompoundStatement: CompoundStatementSpec,
 };
+export interface PostfixExpressionMethodInvocationSpec extends StatementMeta {
+    type: "PostfixExpression_MethodInvocation",
+    Expression: object,
+    args: object[],
+};
+export interface InitDeclaratorSpec extends StatementMeta {
+    type: "InitDeclarator",
+    Declarator: DirectDeclaratorSpec,
+    Initializers: any | null,
+}
+export interface ParameterDeclarationSpec extends StatementMeta {
+    type: "ParameterDeclaration"
+    DeclarationSpecifiers: string[],
+    Declarator: InitDeclaratorSpec,
+}
+export interface ParameterTypeListSpec extends StatementMeta {
+    type: "ParameterTypeList",
+    ParameterList: ParameterDeclarationSpec[],
+    varargs: boolean,
+}
+export interface DirectDeclaratorSpec extends StatementMeta {
+    type: "DirectDeclarator",
+    left: IdentifierSpec | DirectDeclaratorSpec,
+    right: DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | (DirectDeclaratorModifierParameterTypeListSpec | UnknownSpec)[],
+    Reference?: any,
+    Pointer: any | null,
+}
+export interface DirectDeclaratorModifierParameterTypeListSpec extends StatementMeta {
+    type: "DirectDeclarator_modifier_ParameterTypeList",
+    ParameterTypeList: ParameterTypeListSpec,
+}
+export interface DirectDeclaratorModifierIdentifierListSpec extends StatementMeta {
+    type: "DirectDeclarator_modifier_IdentifierList",
+    IdentifierList: any,
+}
+export interface UnknownSpec {
+    type: "<stub>"
+}
 
 type InterpStatement = any;
 
@@ -180,7 +222,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 param.basetype = _basetype;
             },
-            *ParameterTypeList(interp, s, param) {
+            *ParameterTypeList(interp, s: ParameterTypeListSpec, param) {
                 const argTypes = [];
                 const argNames = [];
                 const readonlyArgs: boolean[] = [];
@@ -213,18 +255,23 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             //_type = rt.makeReferenceType(_basetype);
                         } else {
                             const _pointer = _param.Declarator.Declarator.Pointer;
-                            rt.raiseException("not yet implemented");
-                            //_type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                            _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
                         }
 
-                        /*if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
+                        if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
                             const __basetype = param.basetype;
                             param.basetype = _basetype;
                             const { name, type } = yield* interp.visit(interp, _param.Declarator.Declarator.left, param);
                             param.basetype = __basetype;
                             _name = name;
                         } else {
+                            if (_param.Declarator.Declarator.left.type !== "Identifier") {
+                                rt.raiseException("Not yet implemented");
+                            }
                             _name = _param.Declarator.Declarator.left.Identifier;
+                        }
+                        if (!(_param.Declarator.Declarator.right instanceof Array)) {
+                            rt.raiseException("not yet implemented");
                         }
                         if (_param.Declarator.Declarator.right.length > 0) {
                             if (_param.Declarator.Declarator.right[0].type === "DirectDeclarator_modifier_ParameterTypeList") {
@@ -235,7 +282,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 rt.raiseException("not yet implemented");
                                 //_type = variables.pointerType(variables.functionType(_type, _argTypes));
                             } else {
-                                const dimensions = [];
+                                rt.raiseException("not yet implemented");
+                                /*const dimensions = [];
                                 let j = 0;
                                 while (j < _param.Declarator.Declarator.right.length) {
                                     let dim = _param.Declarator.Declarator.right[j];
@@ -252,9 +300,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     dimensions.push(dim);
                                     j++;
                                 }
-                                _type = interp.arrayType(dimensions, _type);
+                                _type = interp.arrayType(dimensions, _type);*/
                             }
-                        }*/
+                        }
                     }
                     /*if (_init !== null) {
                         optionalArgs.push({
@@ -282,14 +330,18 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     scope
                 } = param;
                 const typedScope = scope === "{global}" ? "{global}" : rt.raiseException("Not yet implemented");
+                if (s.Declarator.left.type !== "Identifier") {
+                    rt.raiseException("Not yet implemented");
+                }
                 const name = s.Declarator.left.Identifier;
                 let basetype = rt.simpleType(s.DeclarationSpecifiers);
                 const pointer = s.Declarator.Pointer;
-                if (basetype.sig !== "VOID" && basetype.sig !== "FUNCTION") {
-                    basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
-                }
+                basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
                 let ptl: any;
                 let varargs;
+                if (s.Declarator.right instanceof Array) {
+                    rt.raiseException("unacceptable argument list", s.Declarator.right);
+                }
                 if (s.Declarator.right.type === "DirectDeclarator_modifier_ParameterTypeList") {
                     ptl = s.Declarator.right.ParameterTypeList;
                     ({
@@ -303,7 +355,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 const { argTypes, argNames } = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
-                rt.defFunc(typedScope, name, basetype.sig === "VOID" ? "VOID" : { t: basetype as ObjectType, v: { lvHolder: null } }, argTypes, argNames, stat, interp);
+                rt.defFunc(typedScope, name, basetype, argTypes, argNames, stat, interp);
             },
             *Declaration(interp, s, param) {
                 const { rt } = interp;
@@ -792,7 +844,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return ["return"];
             },
-            IdentifierExpression(interp, s, _param) {
+            IdentifierExpression(interp, s, param: { functionArgs?: MaybeLeft<ObjectType>[] }) {
                 ({ rt } = interp);
 
                 const globalScope = rt.scope.find((scope) => scope.$name === "{global}");
@@ -800,7 +852,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const declarationScope = rt.scope.slice().reverse().find((scope, idx) => scope.$name.includes("function") && rt.scope[idx + 1].$name === "CompoundStatement") || ({ variables: {} }) as RuntimeScope;
 
                 const varname = resolveIdentifier(s.Identifier);
-                return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || rt.readScopedVar(globalScope, varname) || rt.getFromNamespace(varname) || rt.readVar(varname);
+                if (!("functionArgs" in param)) {
+                    return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || rt.readScopedVar(globalScope, varname) || rt.getFromNamespace(varname) || rt.readVar(varname);
+                } else {
+                    const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs);
+                    return variables.function(funsym.type, varname, funsym.target, null, null);
+                }
             },
             *ParenthesesExpression(interp, s, param) {
                 ({
@@ -823,12 +880,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return r;
                 }
             },
-            *PostfixExpression_MethodInvocation(interp, s, param) {
-                let bindThis;
+            *PostfixExpression_MethodInvocation(interp, s: PostfixExpressionMethodInvocationSpec, param) {
                 ({
                     rt
                 } = interp);
-                const ret = yield* interp.visit(interp, s.Expression, param);
                 // console.log "==================="
                 // console.log "s: " + JSON.stringify(s)
                 // console.log "==================="
@@ -844,20 +899,32 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     return result;
                 }).call(this);
+                debugger;
+                const ret = yield* interp.visit(interp, s.Expression, { functionArgs: args });
 
                 // console.log "==================="
                 // console.log "ret: " + JSON.stringify(ret)
                 // console.log "args: " + JSON.stringify(args)
                 // console.log "==================="
-                if (ret.v.bindThis != null) {
-                    ({
-                        bindThis
-                    } = ret.v);
+                const retfun = variables.asFunction(ret);
+                if (retfun !== null) {
+                    const resultOrGen = retfun.v.target(rt, ret, ...args);
+                    return asResult(resultOrGen) ?? (yield * resultOrGen as Gen<Variable>);
                 } else {
-                    bindThis = ret;
+                    let bindThis;
+                    if (ret.v.bindThis != null) {
+                        ({
+                            bindThis
+                        } = ret.v);
+                    } else {
+                        bindThis = ret;
+                    }
+                    if (bindThis !== null) {
+                        rt.raiseException("not yet implemented");
+                    }
+                    const r = rt.getOpByParams("{global}", "o(_call)", args).target(rt, ret, ...args);
+                    return asResult<Variable>(r) ?? (yield* r as Gen<Variable>);
                 }
-                const r = rt.getOpByParams("{global}", "o(_call)", args).target(rt, ret, bindThis, ...args);
-                return asResult<Variable>(r) ?? (yield* r as Gen<Variable>);
             },
             *PostfixExpression_MemberAccess(interp, s, param) {
                 ({
@@ -1487,9 +1554,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         }
     };
 
-    buildRecursivePointerType(pointer: any, basetype: ObjectType, level: number): ObjectType {
+    buildRecursivePointerType(pointer: any, basetype: MaybeLeft<ObjectType> | "VOID", level: number): MaybeLeft<ObjectType> | "VOID" {
         if (pointer && (pointer.length > level)) {
-            const type = variables.pointerType(basetype);
+            const type = { t: variables.pointerType(basetype === "VOID" ? variables.voidType() : basetype.t), v: { lvHolder: null } } as MaybeLeft<PointerType>;
             return this.buildRecursivePointerType(pointer, type, level + 1);
         } else {
             return basetype;

@@ -324,25 +324,29 @@ export class CRuntime {
         const domainMap: TypeHandlerMap = this.typeMap[domainInlineSig];
         console.log(`regfunc: '${fnsig.inline}'`);
 
-        try {
-            const existingOverloadID: number = domainMap.functionDB.matchFunctionExact(name, fnsig.array, this.raiseException);
-            if (existingOverloadID !== -1) {
-                const overload = domainMap.functionsByID[existingOverloadID];
-                if (overload.target === null) {
-                    if (f === null) {
-                        const prettyDomain = domain === "{global}" ? domain : this.makeTypeString(domain);
-                        this.raiseException(`Redefinition of a function prototype '${prettyDomain}::${name}'`);
-                    }
+        const existingOverloadID: number = domainMap.functionDB.matchFunctionExact(name, fnsig.array, this.raiseException);
+        if (existingOverloadID !== -1) {
+            const overload = domainMap.functionsByID[existingOverloadID];
+            if (overload.target === null) {
+                if (f === null) {
+                    this.raiseException(`Redefinition of a function prototype '${domainInlineSig}::${name}'`);
+                }
+            } else {
+                const existingOverloadType: string = overload.type.join(" ");
+                this.raiseException(`Overloaded function '${domainInlineSig}::${name}' of type '${fnsig.inline}' is already covered by the overload of type '${existingOverloadType}'`)
+            }
+        }
+        if (this.varAlreadyDefined(name)) {
+            if (!(domain === "{global}" && name in this.scope[0].variables && variables.asFunction(this.scope[0].variables[name]) !== null)) {
+                if (domain === "{global}" && name in this.scope[0].variables) {
+                    this.raiseException(`Global function '${name}' is already declared as a non-function variable of type ${this.makeTypeStringOfVar(this.scope[0].variables[name])}.`)
                 } else {
-                    const existingOverloadType: string = overload.type.join(" ");
-                    this.raiseException(`Overloaded function '(${domainInlineSig})::${name}' of type '${fnsig.inline}' is re-declared or already covered by the type '${existingOverloadType}'`)
+                    this.raiseException(`Redeclaration of '${domainInlineSig}::${name}' (overloading member functions is not yet implemented)`)
                 }
             }
-            domainMap.functionDB.addFunctionOverload(name, fnsig.array, domainMap.functionsByID.length, this.raiseException);
-            domainMap.functionsByID.push({ type: fnsig.array, target: f });
-        } catch (e) {
-            this.raiseException(e);
         }
+        domainMap.functionDB.addFunctionOverload(name, fnsig.array, domainMap.functionsByID.length, this.raiseException);
+        domainMap.functionsByID.push({ type: fnsig.array, target: f });
     };
 
     registerTypedef(basttype: AnyType, name: string) {
@@ -388,20 +392,19 @@ export class CRuntime {
         return this.resolveNamespacePath(scope.variables, varname);
     };
 
-    readVar(varname: string) {
+    readVar(varname: string): Variable {
         let i = this.scope.length - 1;
         while (i >= 0) {
             const vc = this.scope[i];
-            if (vc.variables[varname] != null) {
-                const ret = vc.variables[varname];
-                return ret;
+            if (varname in vc.variables) {
+                return vc.variables[varname];
             }
             i--;
         }
         this.raiseException("variable " + varname + " does not exist");
     };
 
-    deleteVar(varname: string) {
+    deleteVar(varname: string): void {
         let i = this.scope.length - 1;
         while (i >= 0) {
             const vc = this.scope[i];
@@ -418,7 +421,7 @@ export class CRuntime {
         let i = this.scope.length - 1;
         while (i >= 0) {
             const vc = this.scope[i];
-            if (varname in vc) {
+            if (varname in vc.variables) {
                 return true;
             }
             i--;
@@ -426,10 +429,15 @@ export class CRuntime {
         return false;
     };
 
-    simpleType(_type: string | (string | { Identifier: string })[]): AnyType {
-        if (_type instanceof Array && typeof(_type[0]) === "string" && _type[0] in variables.defaultArithmeticResolutionMap) {
-            return variables.arithmeticType(variables.defaultArithmeticResolutionMap[_type[0]]);
-        } 
+    simpleType(_type: string | (string | { Identifier: string })[]): MaybeLeft<ObjectType> | "VOID" {
+        if (_type instanceof Array && _type.length === 1 && typeof (_type[0]) === "string") {
+            if (_type[0] in variables.defaultArithmeticResolutionMap) {
+                return variables.arithmetic(variables.defaultArithmeticResolutionMap[_type[0]], null, null);
+            }
+            if (_type[0] === "void") {
+                return "VOID";
+            }
+        }
         this.raiseException("Not yet implemented");
         /*if (Array.isArray(type)) {
             if (type.length > 1) {
@@ -463,23 +471,11 @@ export class CRuntime {
             this.raiseException("variable " + varname + " already defined");
         }
 
-        const dataType = object.t;
-        const isConst = object.v.isConst;
         const vc = this.scope[this.scope.length - 1];
-        console.log(`defining variable: '${varname}' of type '${this.makeTypeStringOfVar(object)}'`);
-        this.raiseException("not yet implemented");
-        /*if (this.isReferenceType(type)) {
-            initval = this.cast(type, initval);
-        } else {
-            initval = this.clone(this.cast(type, initval), true);
-        }
 
-        vc.variables[varname] = initval === undefined ? this.defaultValue(type) : initval;
-        vc.variables[varname].readonly = readonly;
-        vc.variables[varname].left = true;
-        if (dataType) {
-            vc.variables[varname].dataType = dataType;
-        }*/
+        console.log(`defining variable: '${varname}' of type '${this.makeTypeStringOfVar(object)}'`);
+
+        vc.variables[varname] = variables.clone(object, object.v.lvHolder ?? "SELF", false, this.raiseException);
     };
 
     inrange(x: number, t: ArithmeticType, onError?: () => string) {
@@ -550,7 +546,7 @@ export class CRuntime {
             },
             "ARRAY": () => {
                 const x = type as ArrayType<ObjectType>;
-                if (typeof(x.object) === "number") {
+                if (typeof (x.object) === "number") {
                     return inner(x.object) + `[${x.size}]`;
                 } else {
                     this.raiseSoftException("WARN: direct access of internal dynamic array type");
@@ -630,7 +626,7 @@ export class CRuntime {
         const indexPointerVar = variables.asIndexPointer(v);
         if (indexPointerVar === null) {
             const arrayObjectType = indexPointerVar.t.array.object;
-            const asArithmeticElemType : ArithmeticType | null = variables.asArithmeticType(arrayObjectType); 
+            const asArithmeticElemType: ArithmeticType | null = variables.asArithmeticType(arrayObjectType);
             if (asArithmeticElemType?.sig === "I8" || asArithmeticElemType?.sig === "U8") {
                 // string
                 return `"${this.getStringFromCharArray(indexPointerVar as IndexPointerVariable<ArithmeticVariable>)}"`;
