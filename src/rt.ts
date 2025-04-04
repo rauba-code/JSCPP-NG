@@ -331,22 +331,25 @@ export class CRuntime {
                 if (f === null) {
                     this.raiseException(`Redefinition of a function prototype '${domainInlineSig}::${name}'`);
                 }
+                overload.target = f;
             } else {
                 const existingOverloadType: string = overload.type.join(" ");
                 this.raiseException(`Overloaded function '${domainInlineSig}::${name}' of type '${fnsig.inline}' is already covered by the overload of type '${existingOverloadType}'`)
             }
         }
-        if (this.varAlreadyDefined(name)) {
-            if (!(domain === "{global}" && name in this.scope[0].variables && variables.asFunction(this.scope[0].variables[name]) !== null)) {
-                if (domain === "{global}" && name in this.scope[0].variables) {
-                    this.raiseException(`Global function '${name}' is already declared as a non-function variable of type ${this.makeTypeStringOfVar(this.scope[0].variables[name])}.`)
-                } else {
-                    this.raiseException(`Redeclaration of '${domainInlineSig}::${name}' (overloading member functions is not yet implemented)`)
+        else {
+            if (this.varAlreadyDefined(name)) {
+                if (!(domain === "{global}" && name in this.scope[0].variables && variables.asFunction(this.scope[0].variables[name]) !== null)) {
+                    if (domain === "{global}" && name in this.scope[0].variables) {
+                        this.raiseException(`Global function '${name}' is already declared as a non-function variable of type ${this.makeTypeStringOfVar(this.scope[0].variables[name])}.`)
+                    } else {
+                        this.raiseException(`Redeclaration of '${domainInlineSig}::${name}' (overloading member functions is not yet implemented)`)
+                    }
                 }
             }
+            domainMap.functionDB.addFunctionOverload(name, fnsig.array, domainMap.functionsByID.length, this.raiseException);
+            domainMap.functionsByID.push({ type: fnsig.array, target: f });
         }
-        domainMap.functionDB.addFunctionOverload(name, fnsig.array, domainMap.functionsByID.length, this.raiseException);
-        domainMap.functionsByID.push({ type: fnsig.array, target: f });
     };
 
     registerTypedef(basttype: AnyType, name: string) {
@@ -1023,7 +1026,7 @@ export class CRuntime {
     };
 
     raiseException(message: string, currentNode?: any): never {
-        if (this.interp) {
+        if (this?.interp) {
             if (currentNode == null) {
                 ({
                     currentNode
@@ -1046,7 +1049,7 @@ export class CRuntime {
     };
 
     raiseSoftException(message: string, currentNode?: any) {
-        if (this.interp) {
+        if (this?.interp) {
             if (currentNode == null) {
                 ({
                     currentNode

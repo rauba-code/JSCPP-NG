@@ -86,14 +86,15 @@ export class TypeDB {
         for (let i = 0; i < fnobj.overloads.length; i++) {
             if (this.matchSubset(target, fnobj.overloads[i].type, true)) {
                 if (retv >= 0) {
-                    onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[retv]} \n2) ${fnobj.overloads[i]}`);
+                    onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[retv].type.join(" ")} \n2) ${fnobj.overloads[i].type.join(" ")}`);
                     return -1;
                 }
-                retv = fnobj.overloads[i].fnid;
+                retv = i;
             }
         }
-        fnobj.cache[targetInline] = retv;
-        return retv;
+        const result = retv >= 0 ? fnobj.overloads[retv].fnid : retv;
+        fnobj.cache[targetInline] = result;
+        return result;
     }
 
     parse(type: string | string[]): boolean {
