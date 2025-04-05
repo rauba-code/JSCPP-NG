@@ -1,31 +1,19 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
-
+import { StatementMeta } from "./interpreter";
 import { CRuntime } from "./rt";
 import { ArithmeticVariable } from "./variables";
 
-interface AstNode {
+interface AstNode extends StatementMeta {
     type: string;
-    eLine: number;
-    eColumn: number;
-    eOffset: number;
-    sLine: number;
-    sColumn: number;
-    sOffset: number;
 }
 
 type PromiseOrNot<T> = PromiseLike<T> | T;
 
-type BreakpointConditionPredicate = (prevNode: AstNode, newStmt: AstNode) => PromiseOrNot<boolean>;
+type BreakpointConditionPredicate = (prevNode: AstNode | null, newStmt: AstNode | null) => PromiseOrNot<boolean | null>;
 
 export default class Debugger {
     src: string;
     srcByLines: string[];
-    prevNode: AstNode;
+    prevNode: AstNode | null;
     done: boolean;
     conditions: {
         [condition: string]: BreakpointConditionPredicate;
@@ -41,8 +29,8 @@ export default class Debugger {
         this.prevNode = null;
         this.done = false;
         this.conditions = {
-            isStatement(_prevNode: AstNode, newStmt: AstNode) {
-                return (newStmt != null ? newStmt.type.indexOf("Statement") >= 0 : undefined);
+            isStatement(_prevNode: AstNode, newStmt: AstNode | null) {
+                return (newStmt != null ? newStmt.type.indexOf("Statement") >= 0 : null);
             },
             positionChanged(prevNode: AstNode, newStmt: AstNode) {
                 return ((prevNode != null ? prevNode.eOffset : undefined) !== newStmt.eOffset) || ((prevNode != null ? prevNode.sOffset : undefined) !== newStmt.sOffset);
@@ -86,8 +74,8 @@ export default class Debugger {
     }
 
     async wait() {
-        while(!this.rt.config.stdio.cinState()) {
-           await new Promise((resolve) => setImmediate(resolve));
+        while (!this.rt.config.stdio?.cinState()) {
+            await new Promise((resolve) => setImmediate(resolve));
         }
     }
 
@@ -128,17 +116,9 @@ export default class Debugger {
         return s ? this.src.slice(s.sOffset, s.eOffset).trim() : "";
     }
 
-    nextNode(): AstNode {
+    nextNode(): AstNode | null {
         if (this.done) {
-            return {
-                type: null,
-                sOffset: -1,
-                sLine: -1,
-                sColumn: -1,
-                eOffset: -1,
-                eLine: -1,
-                eColumn: -1
-            };
+            return null;
         } else {
             return this.rt.interp.currentNode;
         }

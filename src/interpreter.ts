@@ -2,13 +2,6 @@ import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, ArrayVariable, MaybeLeft, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables } from "./variables";
 
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * DS205: Consider reworking code to avoid use of IIFEs
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
 };
@@ -21,11 +14,11 @@ const isGenerator = (g: any): boolean => {
 
 type Gen<T> = Generator<unknown, T, unknown>;
 type ResultOrGen<T> = T | Gen<T>;
-function asResult<T>(g: ResultOrGen<T>): T | null {
-    if ((g != null ? g.constructor : undefined) === sampleGenerator.constructor) {
+function asResult<T>(g: ResultOrGen<T> | null): T | null {
+    if (g !== null && (g as Gen<T>).constructor === sampleGenerator.constructor) {
         return null;
     }
-    return g as T;
+    return g as T | null;
 };
 
 const isGeneratorFunction = (f: any): boolean => {
@@ -216,9 +209,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         let dim: number;
                         if (dimSpec.Expression !== null) {
-                            dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimSpec.Expression, param))) as ArithmeticVariable).v.value;
+                            dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimSpec.Expression, param))) as ArithmeticVariable).v.value ?? -1;
                         } else if (j > 0) {
-                            rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
+                            rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dimSpec);
                         } else {
                             dim = -1;
                         }
@@ -392,7 +385,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const basetype = (_basetype === "VOID") ? rt.raiseException("Type error or not yet implemented") : _basetype;
 
                 for (const dec of s.InitDeclaratorList) {
-                    let visitResult : { name: string, type: Variable };
+                    let visitResult: { name: string, type: Variable };
                     {
                         const _basetype = param.basetype;
                         param.basetype = basetype;
@@ -419,9 +412,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                 } else {
                                     if (init.type === "Initializer_expr") {
-                                        const initializer: Variable = yield* interp.visit(interp, init, param);*/
-                                        // if basetype is char and initializer.t is char*
-                                        /*if (variables.asArithmeticType(basetype)?.sig === "I8" && variables.typesEqual(initializer.t, variables.staticArrayType(variables.initializer.t)) rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
+                                        const initializer: Variable = yield* interp.visit(interp, init, param);
+                                        if basetype is char and initializer.t is char*
+                                        if (variables.asArithmeticType(basetype)?.sig === "I8" && variables.typesEqual(initializer.t, variables.staticArrayType(variables.initializer.t)) rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
                                             // string init
                                             dim = initializer.v.target.length;
                                             init = {
@@ -460,12 +453,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     }
                                 }
                             }
-                            const classType = variables.asClassType(type.t);
-                            if (classType === null) {
-                                rt.raiseException("Not yet implemented / Type Error");
-                            }
+                            const _classType = variables.asClassType(type.t);
+                            const classType = (_classType === null) ? rt.raiseException("Not yet implemented / Type Error") : _classType;
+
                             const initClass = variables.class(classType, {}, "SELF");
-                            const xinit = rt.getFuncByParams(classType, "o(())", constructorArgs).target(this, initClass, ...constructorArgs);
+                            const xinit = rt.getFunctionTarget(rt.getFuncByParams(classType, "o(())", constructorArgs))(this, initClass, ...constructorArgs);
                             rt.raiseException("Not yet implemented");
 
                             /*xinit.t = (dec.Declarator.left as any).DataType;
@@ -474,10 +466,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                     } else {
                         let initVar = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : (yield* interp.visit(interp, initSpec.Expression)) as Variable;
-                        
+
                         if (!variables.typesEqual(initVar.t, basetype.t)) {
                             const castVar = rt.cast(basetype.t, initVar);
-                            initVar = asResult(castVar) ?? (yield *castVar as Gen<Variable>);
+                            initVar = asResult(castVar) ?? (yield* castVar as Gen<Variable>);
                         }
                         if (isConst) {
                             rt.raiseException("Not yet implemented");
@@ -768,7 +760,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const variable = rt.readVar(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
                 let iterator = null;
                 try {
-                    iterator = rt.getFuncByParams(iterable.t, "__iterator", []).target(rt, iterable);
+                    const sym = rt.getFuncByParams(iterable.t, "__iterator", []);
+                    iterator = rt.getFunctionTarget(sym)(rt, iterable);
                 } catch (ex) {
                     if (variables.asArrayType !== null) {
                         iterator = iterable.v.target[Symbol.iterator]();
@@ -891,8 +884,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const declarationScope = rt.scope.slice().reverse().find((scope, idx) => scope.$name.includes("function") && rt.scope[idx + 1].$name === "CompoundStatement") || ({ variables: {} }) as RuntimeScope;
 
                 const varname = resolveIdentifier(s.Identifier);
-                if (!("functionArgs" in param)) {
-                    return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || rt.readScopedVar(globalScope, varname) || rt.getFromNamespace(varname) || rt.readVar(varname);
+                if (param.functionArgs === undefined) {
+                    return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || (globalScope !== undefined && rt.readScopedVar(globalScope, varname)) || rt.getFromNamespace(varname) || rt.readVar(varname);
                 } else {
                     const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs);
                     return variables.function(funsym.type, varname, funsym.target, null, null);
@@ -912,7 +905,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const index = yield* interp.visit(interp, s.index, param);
 
                 param.structType = ret.t.eleType;
-                const r = rt.getOpByParams("{global}", "o(_[])", [index.t]).target(rt, ret, index);
+                const funsym = rt.getOpByParams("{global}", "o(_[])", [index.t]);
+                const r = rt.getFunctionTarget(funsym)(rt, ret, index);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -947,8 +941,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 // console.log "==================="
                 const retfun = variables.asFunction(ret);
                 if (retfun !== null) {
-                    const resultOrGen = retfun.v.target(rt, ret, ...args);
-                    return asResult(resultOrGen) ?? (yield * resultOrGen as Gen<Variable>);
+                    const resultOrGen = rt.getFunctionTarget(retfun.v)(rt, ret, ...args);
+                    return asResult(resultOrGen) ?? (yield* resultOrGen as Gen<Variable>);
                 } else {
                     let bindThis;
                     if (ret.v.bindThis != null) {
@@ -961,7 +955,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (bindThis !== null) {
                         rt.raiseException("not yet implemented");
                     }
-                    const r = rt.getOpByParams("{global}", "o(_call)", args).target(rt, ret, ...args);
+                    const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_call)", args))(rt, ret, ...args);
                     return asResult<Variable>(r) ?? (yield* r as Gen<Variable>);
                 }
             },
@@ -984,7 +978,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const maybePtrType = variables.asPointerType(ret.t);
                 if (maybePtrType !== null && variables.asFunctionType(maybePtrType.pointee) === null) {
                     const { member } = s;
-                    const target = rt.getOpByParams("{global}", "o(_->_)", [retc]).target(rt, retc) as Generator;
+                    const target = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_->_)", [retc]))(rt, retc) as Generator;
                     if (isGenerator(ret)) {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
@@ -995,7 +989,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         type: "IdentifierExpression",
                         Identifier: s.member
                     }, param);
-                    const target = rt.getOpByParams("{global}", "o(_->_)", [retc]).target(rt, retc) as Generator;
+                    const target = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_->_)", [retc]))(rt, retc) as Generator;
                     if (isGenerator(ret)) {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
@@ -1008,7 +1002,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams("{global}", "o(_++)", [ret]).target(rt, ret);
+                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_++)", [ret]))(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1020,7 +1014,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams("{global}", "o(_--)", [ret]).target(rt, ret);
+                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_--)", [ret]))(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1032,7 +1026,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams("{global}", "o(++_)", [ret]).target(rt, ret);
+                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(++_)", [ret]))(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1044,7 +1038,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams("{global}", "o(--_)", [ret]).target(rt, ret);
+                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(--_)", [ret]))(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1056,7 +1050,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getOpByParams("{global}", `o(${s.op}_)` as OpSignature, [ret]).target(rt, ret);
+                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", `o(${s.op}_)` as OpSignature, [ret]))(rt, ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1116,7 +1110,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     let right = yield* interp.visit(interp, s.right, param);
                     left = rt.asCapturedVariable(left);
                     right = rt.asCapturedVariable(right);
-                    const r = rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right]).target(rt, left, right);
+                    const r = rt.getFunctionTarget(rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right]))(rt, left, right);
                     if (isGenerator(r)) {
                         return yield* r as Generator;
                     } else {
@@ -1133,10 +1127,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const right = yield* interp.visit(interp, s.right, param);
                 const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
                 if (directOp !== null) {
-                    if (directOp.target === null) {
-                        rt.raiseException("Function is defined but not implemented");
-                    }
-                    const target = directOp.target(rt, left, right);
+                    const target = rt.getFunctionTarget(directOp)(rt, left, right);
                     return (isGenerator(target)) ? (yield* target as Generator) : target;
                 } else {
                     const boolType = variables.arithmeticType("BOOL");
@@ -1145,7 +1136,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const lhsBool = asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>);
                     const rhsBool = asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>);
                     const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
-                    const target = boolOp.target(rt, lhsBool, rhsBool);
+                    const target = rt.getFunctionTarget(boolOp)(rt, lhsBool, rhsBool);
                     return asResult(target) ?? (yield* target as Gen<ArithmeticVariable>);
                 }
             },
@@ -1155,10 +1146,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const right = yield* interp.visit(interp, s.right, param);
                 const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
                 if (directOp !== null) {
-                    if (directOp.target === null) {
-                        rt.raiseException("Function is defined but not implemented");
-                    }
-                    const target = directOp.target(rt, left, right);
+                    const target = rt.getFunctionTarget(directOp)(rt, left, right);
                     return (isGenerator(target)) ? (yield* target as Generator) : target;
                 } else {
                     const boolType = variables.arithmeticType("BOOL");
@@ -1167,7 +1155,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const lhsBool = asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>);
                     const rhsBool = asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>);
                     const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
-                    const target = boolOp.target(rt, lhsBool, rhsBool);
+                    const target = rt.getFunctionTarget(boolOp)(rt, lhsBool, rhsBool);
                     return asResult(target) ?? (yield* target as Gen<ArithmeticVariable>);
                 }
             },
@@ -1435,6 +1423,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
     processIncludes() {
         const lastToLoad = ["iomanip"];
+        if (this.rt.config.includes === undefined) {
+            this.rt.raiseException("[Interpreter].rt.config.includes is undefined");
+        }
         const { includes, loadedLibraries } = this.rt.config;
 
         for (const lib of loadedLibraries) {

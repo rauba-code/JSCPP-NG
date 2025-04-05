@@ -1,7 +1,7 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, ArrayType, CFunction, ClassType, ClassVariable, Function, FunctionType, IndexPointerType, IndexPointerVariable, LValueHolder, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, ArrayType, CFunction, ClassType, ClassVariable, Function, FunctionType, FunctionValue, IndexPointerType, IndexPointerVariable, LValueHolder, MaybeLeft, MaybeLeftCV, ObjectType, ObjectValue, PointerType, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray } from "./utf8";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
@@ -119,6 +119,9 @@ export class CRuntime {
     }
 
     include(name: string) {
+        if (this.config.includes === undefined) {
+            this.raiseException("[CRuntime].config.includes is undefined");
+        }
         const {
             includes
         } = this.config;
@@ -132,6 +135,13 @@ export class CRuntime {
             this.raiseException("cannot find library: " + name);
         }
     };
+
+    getFunctionTarget(x: FunctionSymbol | FunctionValue): CFunction {
+        if (x.target === null) {
+            this.raiseException("Function is defined but no implementation is found");
+        }
+        return x.target;
+    }
 
     getSizeByType(t: ObjectType): number {
         let at: ArithmeticType | null;
@@ -575,6 +585,9 @@ export class CRuntime {
       * > Does not really depend on signedness, just on limits set by basic arithmetic types. 
       * For floating-point values, rounds to the nearest precision available.*/
     adjustArithmeticValue(x: ArithmeticVariable): void {
+        if (x.v.value === null) {
+            return; // actually it's unreachable
+        }
         const info = variables.arithmeticProperties[x.t.sig];
         if (!info.isFloat && !Number.isInteger(x.v.value)) {
             x.v.value = Math.sign(x.v.value) * Math.floor(Math.abs(x.v.value));
@@ -597,6 +610,9 @@ export class CRuntime {
         const arithmeticVar = variables.asArithmetic(v);
         if (arithmeticVar !== null) {
             const val = arithmeticVar.v.value;
+            if (val === null) {
+                return "<uninitialised>";
+            }
             const sig = arithmeticVar.t.sig;
             const properties = variables.arithmeticProperties[sig];
             if (sig === "I8") {
@@ -629,7 +645,7 @@ export class CRuntime {
             }
         }
         const indexPointerVar = variables.asIndexPointer(v);
-        if (indexPointerVar === null) {
+        if (indexPointerVar !== null) {
             const arrayObjectType = indexPointerVar.t.array.object;
             const asArithmeticElemType: ArithmeticType | null = variables.asArithmeticType(arrayObjectType);
             if (asArithmeticElemType?.sig === "I8" || asArithmeticElemType?.sig === "U8") {
@@ -659,7 +675,7 @@ export class CRuntime {
         if (!(src.t.array.object.sig === "I8" || src.t.array.object.sig === "U8")) {
             this.raiseException("Not a char array")
         }
-        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index).map((x: ObjectValue) => (x as ArithmeticValue).value));
+        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index).map((x: ObjectValue) => (x as ArithmeticValue).value ?? 0));
         return fromUtf8CharArray(byteArray);
     }
 
@@ -673,7 +689,7 @@ export class CRuntime {
         if (arithmeticTarget !== null && arithmeticVar !== null) {
             const targetInfo = variables.arithmeticProperties[arithmeticTarget.sig];
             const fromInfo = variables.arithmeticProperties[arithmeticVar.t.sig];
-            const arithmeticValue = arithmeticVar.v.value;
+            const arithmeticValue = this.value(arithmeticVar);
             if (target.sig === "BOOL") {
                 return variables.arithmetic(target.sig, arithmeticVar.v ? 1 : 0, null);
             } else if (targetInfo.isFloat) {
@@ -687,7 +703,7 @@ export class CRuntime {
                     if (arithmeticValue < 0) {
                         // unsafe! bitwise truncation is platform-dependent
                         const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue & ((1 << (8 * targetInfo.bytes)) - 1), null); // bitwise truncation
-                        if (this.inrange(newVar.v.value, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
+                        if (this.inrange(newVar.v.value as number, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
                             this.adjustArithmeticValue(newVar);
                             return newVar;
                         }
@@ -695,13 +711,13 @@ export class CRuntime {
                 }
                 if (fromInfo.isFloat) {
                     const intVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue), null);
-                    if (this.inrange(intVar.v.value, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                    if (this.inrange(intVar.v.value as number, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
                         this.adjustArithmeticValue(intVar);
                         return intVar;
                     }
                 } else {
                     const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
-                    if (this.inrange(newVar.v.value, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                    if (this.inrange(newVar.v.value as number, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
                         this.adjustArithmeticValue(newVar);
                         return newVar;
                     }
@@ -857,7 +873,7 @@ export class CRuntime {
         // logger.info("%j", this.scope);
         while (true) {
             const s = this.scope.pop();
-            if (!scopename || !(this.scope.length > 1) || (s["$name"] === scopename)) {
+            if (!scopename || !(this.scope.length > 1) || ((s as RuntimeScope)["$name"] === scopename)) {
                 break;
             }
         }
@@ -1010,7 +1026,7 @@ export class CRuntime {
             return variables.arithmetic(type.sig as ArithmeticSig, null, lvHolder as LValueHolder<ArithmeticVariable>, false);
         } else if ((classType = variables.asClassType(type)) !== null) {
             const value = variables.class(classType, {}, lvHolder as LValueHolder<ClassVariable>);
-            this.getOpByParams("{global}", "o(_ctor)", [value]).target(this, value);
+            this.getFunctionTarget(this.getOpByParams("{global}", "o(_ctor)", [value]))(this, value);
             return value;
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
             this.raiseException("Not yet implemented");

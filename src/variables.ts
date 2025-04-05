@@ -317,7 +317,7 @@ export type Variable = ArithmeticVariable | ArrayVariable<any> | ClassVariable |
 
 export type VariableValue = Variable["v"];
 
-export type CFunction = (rt: CRuntime, _this: Variable, ...args: Variable[]) => Variable | Generator<unknown, any, unknown>;
+export type CFunction = (rt: CRuntime, ...args: Variable[]) => Variable | Generator<unknown, any, unknown>;
 
 export const variables = {
     voidType(): VoidType {
@@ -380,7 +380,8 @@ export const variables = {
     },
     /** Create a new variable with the same type and value as the original one */
     clone<TVar extends Variable>(object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, onError: (x: string) => never): TVar {
-        const branch: { [sig in (ObjectType | FunctionType)["sig"] | "ARITHMETIC"]?: () => Variable } = {
+        type BranchKey = "ARITHMETIC" | "PTR" | "INDEXPTR" | "ARRAY" | "CLASS" | "FUNCTION";
+        const branch: { [sig in BranchKey]: () => Variable } = {
             "ARITHMETIC": () => {
                 const x = object as ArithmeticVariable;
                 return variables.arithmetic(x.t.sig, x.v.value, lvHolder as LValueHolder<ArithmeticVariable>, isConst)
@@ -407,7 +408,7 @@ export const variables = {
         if (!object.v.isConst && isConst) {
             onError("Cannot clone from a volatile variable to a constant");
         }
-        const where = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig;
+        const where : BranchKey = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig as BranchKey;
         return branch[where]() as TVar;
     },
     asVoidType(type: AnyType): VoidType | null {
@@ -512,7 +513,8 @@ export const variables = {
         if (lhs.sig in arithmeticSig || lhs.sig === "VOID") {
             return true;
         }
-        const branch: { [sig in (ObjectType | FunctionType)["sig"]]?: () => boolean } = {
+        type BranchKey = "PTR" | "INDEXPTR" | "ARRAY" | "CLASS" | "FUNCTION";
+        const branch: { [sig in BranchKey]: () => boolean } = {
             "PTR": () => {
                 return variables.pointerTypesEqual(lhs as PointerType, rhs as PointerType);
             },
@@ -529,7 +531,7 @@ export const variables = {
                 return variables.functionTypesEqual(lhs as FunctionType, rhs as FunctionType);
             },
         }
-        return branch[lhs.sig]();
+        return branch[lhs.sig as BranchKey]();
     },
     arithmeticAssign(lhs: ArithmeticVariable, value: number, onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
@@ -598,7 +600,8 @@ function toStringSequenceInner(type: AnyType, result: string[], onError: (x: str
         result.push(type.sig);
         return;
     }
-    const branch: { [sig in (ObjectType | FunctionType)["sig"]]?: () => void } = {
+    type BranchKey = "PTR" | "INDEXPTR" | "ARRAY" | "CLASS" | "FUNCTION";
+    const branch: { [sig in BranchKey]: () => void } = {
         "PTR": () => {
             result.push("PTR");
             toStringSequenceInner((type as PointerType).pointee, result, onError);
@@ -613,14 +616,15 @@ function toStringSequenceInner(type: AnyType, result: string[], onError: (x: str
             result.push(String((type as ArrayType<ObjectType>).size));
         },
         "CLASS": () => {
-            if ((type as ClassType).memberOf !== null) {
+            const classType = type as ClassType;
+            if (classType.memberOf !== null) {
                 result.push("MEMBER");
-                toStringSequenceInner((type as ClassType).memberOf, result, onError);
+                toStringSequenceInner(classType.memberOf, result, onError);
             }
             result.push("CLASS");
             result.push((type as ClassType).identifier);
             result.push("<");
-            (type as ClassType).templateSpec.forEach((x: ObjectType) => {
+            classType.templateSpec.forEach((x: ObjectType) => {
                 toStringSequenceInner(x, result, onError);
             });
             result.push(">");
@@ -630,5 +634,5 @@ function toStringSequenceInner(type: AnyType, result: string[], onError: (x: str
             result = result.concat(...(type as FunctionType).fulltype);
         },
     }
-    branch[type.sig]();
+    branch[type.sig as BranchKey]();
 }

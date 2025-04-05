@@ -49,7 +49,7 @@ for (const alias of Object.keys(headerAlias)) {
 
 export type InputFunction = () => Promise<string>;
 
-function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number {
+function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number | void {
     let step;
     let inputbuffer = ""; // input.toString();
     let proceed = true;
@@ -121,7 +121,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             },
             drain() {
                 const x = inputbuffer;
-                inputbuffer = null;
+                inputbuffer = "";
                 return x;
             },
             getInput() {
@@ -160,21 +160,21 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
 
                 if (step.done) {
                     const exitCode = step.value.v.value as number;
-                    _config.stdio.finishCallback(exitCode);
+                    (_config.stdio as any).finishCallback(exitCode);
                     return exitCode;
                 }
 
-                if (performedSteps > _config.maxExecutionSteps)
+                if (performedSteps > (_config.maxExecutionSteps as number))
                     throw new Error("The execution step limit has been reached.");
                 else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
                     throw new Error("Time limit exceeded.");
 
-                if ((performedSteps % _config.eventLoopSteps) === 0) {
+                if ((performedSteps % (_config.eventLoopSteps as number)) === 0) {
                     await new Promise((resolve) => setImmediate(resolve));
                 }
             }
         } catch (error) {
-            _config.stdio.promiseError(error.message);
+            (_config.stdio as any).promiseError(error.message);
         }
     }
 
@@ -198,7 +198,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         step = defGen.next();
         if (step.done) { break; }
     }
-    const mainGen = rt.getFuncByParams("{global}", "main", []).target(rt, null) as Generator;
+    const mainGen = rt.getFunctionTarget(rt.getFuncByParams("{global}", "main", []))(rt) as Generator;
     if (_config.debug) {
         mydebugger.start(rt, mainGen);
         return mydebugger;

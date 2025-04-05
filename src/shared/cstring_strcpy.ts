@@ -16,7 +16,11 @@ export = function (rt: CRuntime, _this: Variable, _dest: Variable, _src: Variabl
         const destarr = dest.v.pointee.values;
         let j = dest.v.index;
         while (i < srcarr.length && j < destarr.length && srcarr[i].value !== 0) {
-            variables.arithmeticValueAssign(destarr[j], srcarr[j].value, rt.raiseException);
+            const srcval = srcarr[j];
+            if (srcval.value === null) {
+                rt.raiseException("source array contains uninitialised values");
+            }
+            variables.arithmeticValueAssign(destarr[j], srcval.value, rt.raiseException);
             i++;
             j++;
         }

@@ -20,7 +20,7 @@ function binaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVa
 }
 
 function unaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, op: (a: number) => number): ArithmeticVariable {
-    const ret = variables.arithmetic(l.t.sig, op(l.v.value), null);
+    const ret = variables.arithmetic(l.t.sig, op(rt.value(l)), null);
     rt.adjustArithmeticValue(ret);
     return ret;
 }
@@ -281,7 +281,7 @@ const defaultOpHandler: OpHandler[] = [
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
             checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, rt.value(l), null);
-            l.v.value = ret.v.value + 1;
+            l.v.value = ret.v.value as number + 1;
             if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(l);
                 return ret;
@@ -295,7 +295,7 @@ const defaultOpHandler: OpHandler[] = [
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
             checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, rt.value(l), null);
-            l.v.value = ret.v.value - 1;
+            l.v.value = ret.v.value as number - 1;
             if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(l);
                 return ret;
@@ -309,7 +309,7 @@ const defaultOpHandler: OpHandler[] = [
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
             checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, rt.value(l) + 1, null);
-            if (rt.inrange(l.v.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+            if (rt.inrange(l.v.value as number, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(ret);
                 l.v.value = ret.v.value;
                 return ret;
@@ -323,7 +323,7 @@ const defaultOpHandler: OpHandler[] = [
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
             checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, rt.value(l) - 1, null);
-            if (rt.inrange(l.v.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+            if (rt.inrange(l.v.value as number, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(ret);
                 l.v.value = ret.v.value;
                 return ret;
@@ -444,7 +444,7 @@ const types_function = [
                 }
                 if (l.v.target === null) {
                     rt.raiseException(`function ${l.v.name} does not seem to be implemented`);
-                } else {
+                } else {l.v.value
                     return rt.getCompatibleFunc(l.v.defineType, l.v.name, args)(rt, bindThis, ...args);
                 }
             }

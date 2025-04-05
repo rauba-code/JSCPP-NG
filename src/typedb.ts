@@ -48,14 +48,15 @@ export class TypeDB {
         }
     }
 
-    matchSingleFunction(identifier: string, onError: (x: string) => void): number {
+    matchSingleFunction(identifier: string, onError: (x: string) => never): number {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
             return -1;
         }
-        if (fnobj.overloads.length >= 1) {
+        if (fnobj.overloads.length > 1) {
             onError(`Overloaded function ${identifier} has multiple candidates`);
         }
+        return fnobj.overloads[0].fnid;
     }
 
     matchFunctionByParams(identifier: string, params: (string | string[])[], onError: (x: string) => void): number {
