@@ -103,7 +103,6 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_+_)",
         type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): ArithmeticVariable {
-            debugger;
             return binaryArithmeticOp(rt, l, r, (x, y) => x + y);
         }
     },
@@ -202,6 +201,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): ArithmeticVariable {
+            debugger;
             return binaryArithmeticDirectAssign(rt, l, r);
         }
     },
@@ -279,16 +279,11 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_++)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic )",
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
-            if (l.v.lvHolder === null) {
-                rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
-            }
-            if (!l.v.isConst) {
-                rt.raiseException("Attempted assignment to a constant value")
-            }
+            checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, rt.value(l), null);
+            l.v.value = ret.v.value + 1;
             if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
-                rt.adjustArithmeticValue(ret);
-                l.v.value = ret.v.value + 1;
+                rt.adjustArithmeticValue(l);
                 return ret;
             }
             rt.raiseException("Unreachable");
@@ -298,16 +293,11 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_--)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic )",
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
-            if (l.v.lvHolder === null) {
-                rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
-            }
-            if (!l.v.isConst) {
-                rt.raiseException("Attempted assignment to a constant value")
-            }
+            checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, rt.value(l), null);
-            if (rt.inrange(l.v.value, l.t, () => `overflow during post-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
-                rt.adjustArithmeticValue(ret);
-                l.v.value = ret.v.value - 1;
+            l.v.value = ret.v.value - 1;
+            if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                rt.adjustArithmeticValue(l);
                 return ret;
             }
             rt.raiseException("Unreachable");
@@ -317,12 +307,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(++_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic )",
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
-            if (l.v.lvHolder === null) {
-                rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
-            }
-            if (!l.v.isConst) {
-                rt.raiseException("Attempted assignment to a constant value")
-            }
+            checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, rt.value(l) + 1, null);
             if (rt.inrange(l.v.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(ret);
@@ -336,12 +321,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(--_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic )",
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
-            if (l.v.lvHolder === null) {
-                rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
-            }
-            if (!l.v.isConst) {
-                rt.raiseException("Attempted assignment to a constant value")
-            }
+            checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, rt.value(l) - 1, null);
             if (rt.inrange(l.v.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                 rt.adjustArithmeticValue(ret);
@@ -363,6 +343,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(~_)",
         type: "FUNCTION Arithmetic ( Arithmetic )",
         default(rt: CRuntime, l: ArithmeticVariable): ArithmeticVariable {
+            checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, ~rt.value(l), null);
             rt.adjustArithmeticValue(ret);
             return ret;

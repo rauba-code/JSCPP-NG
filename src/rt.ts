@@ -433,11 +433,13 @@ export class CRuntime {
     };
 
     simpleType(_type: string | (string | { Identifier: string })[]): MaybeLeft<ObjectType> | "VOID" {
-        if (_type instanceof Array && _type.length === 1 && typeof (_type[0]) === "string") {
-            if (_type[0] in variables.defaultArithmeticResolutionMap) {
-                return variables.arithmetic(variables.defaultArithmeticResolutionMap[_type[0]], null, null);
+        if (_type instanceof Array) {
+            _type.forEach((x) => { if (typeof(x) !== "string") { this.raiseException("Not yet implemented"); } });
+            const typeStr = (_type as string[]).join(" ");
+            if (typeStr in variables.defaultArithmeticResolutionMap) {
+                return variables.arithmetic(variables.defaultArithmeticResolutionMap[typeStr], null, null);
             }
-            if (_type[0] === "void") {
+            if (typeStr === "void") {
                 return "VOID";
             }
         }

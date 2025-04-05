@@ -83,7 +83,7 @@ export interface PostfixExpressionMethodInvocationSpec extends StatementMeta {
 export interface InitDeclaratorSpec extends StatementMeta {
     type: "InitDeclarator",
     Declarator: DirectDeclaratorSpec,
-    Initializers: any | null,
+    Initializers: InitializerExprSpec | null,
 }
 export interface ParameterDeclarationSpec extends StatementMeta {
     type: "ParameterDeclaration"
@@ -98,9 +98,14 @@ export interface ParameterTypeListSpec extends StatementMeta {
 export interface DirectDeclaratorSpec extends StatementMeta {
     type: "DirectDeclarator",
     left: IdentifierSpec | DirectDeclaratorSpec,
-    right: DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | (DirectDeclaratorModifierParameterTypeListSpec | UnknownSpec)[],
+    right: DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | DirectDeclaratorModifier[],
     Reference?: any,
     Pointer: any | null,
+}
+type DirectDeclaratorModifier = DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | DirectDeclaratorModifierArraySpec;
+export interface DirectDeclaratorModifierArraySpec extends StatementMeta {
+    type: "DirectDeclarator_modifier_array",
+    Expression: UnknownSpec | null,
 }
 export interface DirectDeclaratorModifierParameterTypeListSpec extends StatementMeta {
     type: "DirectDeclarator_modifier_ParameterTypeList",
@@ -109,6 +114,23 @@ export interface DirectDeclaratorModifierParameterTypeListSpec extends Statement
 export interface DirectDeclaratorModifierIdentifierListSpec extends StatementMeta {
     type: "DirectDeclarator_modifier_IdentifierList",
     IdentifierList: any,
+}
+export interface DeclarationSpec extends StatementMeta {
+    type: "Declaration",
+    DeclarationSpecifiers: string[],
+    InitDeclaratorList: InitDeclaratorSpec[],
+}
+export interface DecimalConstantSpec extends StatementMeta {
+    type: "DecimalConstant",
+    value: string
+}
+export interface ConstantExpressionSpec extends StatementMeta {
+    type: "ConstantExpression",
+    Expression: DecimalConstantSpec,
+}
+export interface InitializerExprSpec extends StatementMeta {
+    type: "Initializer_expr",
+    Expression: ConstantExpressionSpec
 }
 export interface UnknownSpec {
     type: "<stub>"
@@ -130,10 +152,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     i++;
                 }
             },
-            *DirectDeclarator(interp, s, param) {
+            *DirectDeclarator(interp, s: DirectDeclaratorSpec, param: { basetype: MaybeLeft<ObjectType> }) {
                 ({ rt } = interp);
                 let { basetype } = param;
-                basetype = interp.buildRecursivePointerType(s.Pointer, basetype, 0);
+                basetype = interp.buildRecursivePointerType(s.Pointer, basetype, 0) as MaybeLeft<ObjectType>;
+                if (!(s.right instanceof Array)) {
+                    rt.raiseException("Type error or not yet implemented");
+                }
                 if (s.right.length === 1) {
                     let varargs;
                     const right = s.right[0];
@@ -142,8 +167,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         ptl = right.ParameterTypeList;
                         ({ varargs } = ptl);
                     } else if ((right.type === "DirectDeclarator_modifier_IdentifierList") && (right.IdentifierList === null)) {
-                        ptl = right.ParameterTypeList;
-                        varargs = false;
+                        rt.raiseException("Type error or not yet implemented");
+                        //ptl = right.ParameterTypeList;
+                        //varargs = false;
                     }
                     if (ptl != null) {
                         const argTypes = [];
@@ -151,9 +177,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                             let _type;
                             if (_param.Declarator != null) {
-                                const _pointer = _param.Declarator.Pointer;
                                 this.rt.raiseException("Not yet implemented");
-                                /*_type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                                /*const _pointer = _param.Declarator.Pointer;
+                                _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
                                 if ((_param.Declarator.right != null) && (_param.Declarator.right.length > 0)) {
                                     const dimensions = [];
                                     for (let j = 0; j < _param.Declarator.right.length; j++) {
@@ -184,12 +210,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if ((s.right.length > 0) && (s.right[0].type === "DirectDeclarator_modifier_array")) {
                     const dimensions = [];
                     for (let j = 0; j < s.right.length; j++) {
-                        let dim = s.right[j];
-                        if (dim.type !== "DirectDeclarator_modifier_array") {
-                            rt.raiseException("unacceptable array initialization", dim);
+                        const dimSpec = s.right[j];
+                        if (dimSpec.type !== "DirectDeclarator_modifier_array") {
+                            rt.raiseException("unacceptable array initialization", dimSpec);
                         }
-                        if (dim.Expression !== null) {
-                            dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
+                        let dim: number;
+                        if (dimSpec.Expression !== null) {
+                            dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimSpec.Expression, param))) as ArithmeticVariable).v.value;
                         } else if (j > 0) {
                             rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                         } else {
@@ -357,28 +384,34 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const stat = s.CompoundStatement;
                 rt.defFunc(typedScope, name, basetype, argTypes, argNames, stat, interp);
             },
-            *Declaration(interp, s, param) {
+            *Declaration(interp, s: DeclarationSpec, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType> }): ResultOrGen<void> {
                 const { rt } = interp;
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
-                const readonly = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
-                const basetype = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param)).t) : rt.simpleType(s.DeclarationSpecifiers);
+                const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
+                const _basetype = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param)) as MaybeLeft<ObjectType>) : rt.simpleType(s.DeclarationSpecifiers);
+                const basetype = (_basetype === "VOID") ? rt.raiseException("Type error or not yet implemented") : _basetype;
 
                 for (const dec of s.InitDeclaratorList) {
-                    let visitResult;
+                    let visitResult : { name: string, type: Variable };
                     {
                         const _basetype = param.basetype;
                         param.basetype = basetype;
-                        visitResult = yield* interp.visit(interp, dec.Declarator, param);
+                        visitResult = (yield* interp.visit(interp, dec.Declarator, param)) as { name: string, type: Variable };
                         param.basetype = _basetype;
                     }
                     const { name, type } = visitResult;
-                    let init = dec.Initializers;
+                    let initSpec = dec.Initializers;
 
-                    if (dec.Declarator.right.length > 0) {
-                        if (dec.Declarator.right[0].type === "DirectDeclarator_modifier_array") {
-                            const dimensions = [];
-                            for (let j = 0; j < dec.Declarator.right.length; j++) {
-                                let dim = dec.Declarator.right[j];
+                    if (!(dec.Declarator.right instanceof Array)) {
+                        rt.raiseException("Not yet implemented");
+                    }
+                    const rhs = dec.Declarator.right as (DirectDeclaratorModifierParameterTypeListSpec | UnknownSpec)[];
+                    if (rhs.length > 0) {
+                        if (rhs[0].type as string === "DirectDeclarator_modifier_array") {
+                            rt.raiseException("Not yet implemented");
+                            /*const dimensions = [];
+                            for (let j = 0; j < rhs.length; j++) {
+                                let dim = rhs[j];
                                 if (dim.Expression !== null) {
                                     //rt.raiseException("Not yet implemented");
                                     dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
@@ -386,8 +419,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                 } else {
                                     if (init.type === "Initializer_expr") {
-                                        const initializer: Variable = yield* interp.visit(interp, init, param);
-                                        rt.raiseException("Not yet implemented");
+                                        const initializer: Variable = yield* interp.visit(interp, init, param);*/
                                         // if basetype is char and initializer.t is char*
                                         /*if (variables.asArithmeticType(basetype)?.sig === "I8" && variables.typesEqual(initializer.t, variables.staticArrayType(variables.initializer.t)) rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
                                             // string init
@@ -401,7 +433,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                             };
                                         } else {
                                             rt.raiseException("cannot initialize an array to " + rt.makeValString(initializer), init);
-                                        }*/
+                                        }
                                     } else {
                                         dim = init.Initializers.length;
                                     }
@@ -416,34 +448,41 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                             init.dataType = dec.Declarator.left.DataType;
                             init.readonly = readonly;
-                            rt.defVar(name, init);
-                        } else if (dec.Declarator.right[0].type === "DirectDeclarator_modifier_Constructor") {
+                            rt.defVar(name, init);*/
+                        } else if (rhs[0].type as string === "DirectDeclarator_modifier_Constructor") {
+                            //rt.raiseException("Not yet implemented");
                             const constructorArgs = [];
-                            for (const dim of dec.Declarator.right) {
-                                if (dim.Expressions !== null) {
-                                    for (const argumentExpression of dim.Expressions) {
+                            for (const dim of rhs) {
+                                if ((dim as any).Expressions !== null) {
+                                    for (const argumentExpression of (dim as any).Expressions) {
                                         const resolvedArgument = yield* interp.visit(interp, argumentExpression, param);
                                         constructorArgs.push(resolvedArgument);
                                     }
                                 }
                             }
-                            const initClass = variables.class(type, {}, "SELF");
-                            init = rt.getFuncByParams(type, "o(())", constructorArgs).target(this, initClass, ...constructorArgs);
+                            const classType = variables.asClassType(type.t);
+                            if (classType === null) {
+                                rt.raiseException("Not yet implemented / Type Error");
+                            }
+                            const initClass = variables.class(classType, {}, "SELF");
+                            const xinit = rt.getFuncByParams(classType, "o(())", constructorArgs).target(this, initClass, ...constructorArgs);
+                            rt.raiseException("Not yet implemented");
 
-                            init.dataType = dec.Declarator.left.DataType;
-                            init.readonly = readonly;
-                            rt.defVar(name, init);
+                            /*xinit.t = (dec.Declarator.left as any).DataType;
+                            xinit.v.isConst = readonly;
+                            rt.defVar(name, xinit);*/
                         }
                     } else {
-                        if (init == null) {
-                            init = rt.defaultValue(type, "SELF");
-                        } else {
-                            init = yield* interp.visit(interp, init.Expression);
+                        let initVar = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : (yield* interp.visit(interp, initSpec.Expression)) as Variable;
+                        
+                        if (!variables.typesEqual(initVar.t, basetype.t)) {
+                            const castVar = rt.cast(basetype.t, initVar);
+                            initVar = asResult(castVar) ?? (yield *castVar as Gen<Variable>);
                         }
-
-                        init.dataType = dec.Declarator.left.DataType;
-                        init.readonly = readonly;
-                        rt.defVar(name, init);
+                        if (isConst) {
+                            rt.raiseException("Not yet implemented");
+                        }
+                        rt.defVar(name, initVar);
                     }
                 }
             },
@@ -506,7 +545,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 }
             },
-            *Initializer_expr(interp, s, param) {
+            *Initializer_expr(interp, s: InitializerExprSpec, param) {
                 ({
                     rt
                 } = interp);
@@ -1142,11 +1181,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const cond = (asResult(boolYield) ?? (yield* boolYield as Gen<ArithmeticVariable>)).v.value;
                 return yield* interp.visit(interp, cond ? s.t : s.f, param);
             },
-            *ConstantExpression(interp, s, param) {
+            *ConstantExpression(interp, s: ConstantExpressionSpec, param) {
                 ({
                     rt
                 } = interp);
-                return yield* interp.visit(interp, s.Expression, param);
+                debugger;
+                return yield* interp.visit(interp, (s as any).Expression, param);
             },
             *StringLiteralExpression(interp, s, param) {
                 return yield* interp.visit(interp, s.value, param);
@@ -1233,26 +1273,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return variables.arithmetic("I8", a[0].charCodeAt(0), null);
             },
-            *FloatConstant(interp, s, param) {
+            *FloatConstant(interp, s, param): ResultOrGen<ArithmeticVariable> {
                 ({
                     rt
                 } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
-                return variables.arithmetic("F32", val.v.value, null);
+                return variables.arithmetic("F64", val.v.value, null);
             },
-            DecimalFloatConstant(interp, s, _param) {
+            DecimalFloatConstant(interp, s, _param): ArithmeticVariable {
                 ({
                     rt
                 } = interp);
                 return variables.arithmetic("F64", parseFloat(s.value), null);
             },
-            HexFloatConstant(interp, s, _param) {
+            HexFloatConstant(interp, s, _param): ArithmeticVariable {
                 ({
                     rt
                 } = interp);
                 return variables.arithmetic("F64", parseInt(s.value, 16), null);
             },
-            DecimalConstant(interp, s, _param) {
+            DecimalConstant(interp, s: DecimalConstantSpec, _param): ArithmeticVariable {
                 ({
                     rt
                 } = interp);
@@ -1260,7 +1300,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const intProps = variables.arithmeticProperties["I32"];
                 const uintProps = variables.arithmeticProperties["U32"];
                 if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    interp.rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                    rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
                 }
                 if (num > intProps.maxv) {
                     return variables.arithmetic("U32", (uintProps.maxv + 1) - num, null);
@@ -1275,7 +1315,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const intProps = variables.arithmeticProperties["I32"];
                 const uintProps = variables.arithmeticProperties["U32"];
                 if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    interp.rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                    rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
                 }
                 if (num > intProps.maxv) {
                     return variables.arithmetic("U32", num, null);
@@ -1290,7 +1330,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const intProps = variables.arithmeticProperties["I32"];
                 const uintProps = variables.arithmeticProperties["U32"];
                 if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    interp.rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                    rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
                 }
                 if (num > intProps.maxv) {
                     return variables.arithmetic("U32", num, null);
@@ -1305,7 +1345,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const intProps = variables.arithmeticProperties["I32"];
                 const uintProps = variables.arithmeticProperties["U32"];
                 if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    interp.rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                    rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
                 }
                 if (num > intProps.maxv) {
                     return variables.arithmetic("U32", num, null);
