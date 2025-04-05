@@ -235,14 +235,21 @@ export class CRuntime {
     defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: interp.CompoundStatementSpec | null, interp: interp.Interpreter): void {
         let f: CFunction | null = null;
         if (stmts != null) {
-            f = function*(rt: CRuntime, _this: Variable, ...args: Variable[]) {
+            f = function*(rt: CRuntime, ...args: Variable[]) {
                 // logger.warn("calling function: %j", name);
                 rt.enterScope("function " + name);
+                if (args.length !== argTypes.length) {
+                    rt.raiseException(`Expected ${argTypes.length} arguments, got ${args.length}`)
+                }
                 argNames.forEach(function(argName, i) {
+                    if (argTypes[i].v.lvHolder === null) {
+                        debugger;
+                        args[i] = variables.clone(args[i], "SELF", false, rt.raiseException);
+                    }
                     if (args[i].v.isConst && !argTypes[i].v.isConst) {
                         rt.raiseException("Cannot pass a const-value where a volatile value is required")
                     } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
-                        args[i] = variables.clone(args[i], args[i].v.lvHolder, true, this.raiseException);
+                        args[i] = variables.clone(args[i], args[i].v.lvHolder, true, rt.raiseException);
                     }
                     rt.defVar(argName, args[i]);
                 });
@@ -490,7 +497,12 @@ export class CRuntime {
 
         console.log(`defining variable: '${varname}' of type '${this.makeTypeStringOfVar(object)}'`);
 
-        vc.variables[varname] = variables.clone(object, object.v.lvHolder ?? "SELF", false, this.raiseException);
+        if (object.v.lvHolder === null) {
+            //@ts-ignore
+            object.v.lvHolder = "SELF";
+        }
+
+        vc.variables[varname] = object;//variables.clone(object, object.v.lvHolder ?? "SELF", false, this.raiseException);
     };
 
     inrange(x: number, t: ArithmeticType, onError?: () => string) {

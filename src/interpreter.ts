@@ -92,7 +92,7 @@ export interface DirectDeclaratorSpec extends StatementMeta {
     type: "DirectDeclarator",
     left: IdentifierSpec | DirectDeclaratorSpec,
     right: DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | DirectDeclaratorModifier[],
-    Reference?: any,
+    Reference?: any[][],
     Pointer: any | null,
 }
 type DirectDeclaratorModifier = DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | DirectDeclaratorModifierArraySpec;
@@ -252,12 +252,15 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 while (i < s.ParameterList.length) {
                     const _param = s.ParameterList[i];
 
-                    let _type;
+                    let _type: MaybeLeft<ObjectType>;
                     let _init = null;
                     let _name = null;
                     let _readonly = false;
                     if (param.insideDirectDeclarator_modifier_ParameterTypeList) {
                         const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
+                        if (_basetype === "VOID") {
+                            rt.raiseException("Type error or not yet implemented");
+                        }
                         _type = _basetype;
                     } else {
                         if (_param.Declarator == null) {
@@ -267,21 +270,27 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                         const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: any) => specifier?.DeclarationSpecifiers || specifier);
                         const _basetype = rt.simpleType(_declarationSpecifiers);
+                        if (_basetype === "VOID") {
+                            rt.raiseException("Type error or not yet implemented");
+                        }
                         const _reference = _param.Declarator.Declarator.Reference;
                         _readonly = _declarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
 
                         if (_reference) {
-                            rt.raiseException("not yet implemented");
-                            //_type = rt.makeReferenceType(_basetype);
+                            _type = { t: _basetype.t, v: { lvHolder: "SELF" } };
                         } else {
                             const _pointer = _param.Declarator.Declarator.Pointer;
-                            _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                            const __type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                            if (__type === "VOID") {
+                                rt.raiseException("Type error or not yet implemented");
+                            }
+                            _type = __type;
                         }
 
                         if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
                             const __basetype = param.basetype;
                             param.basetype = _basetype;
-                            const { name, type } = yield* interp.visit(interp, _param.Declarator.Declarator.left, param);
+                            const { name, type } = (yield* interp.visit(interp, _param.Declarator.Declarator.left, param)) as { type: MaybeLeft<ObjectType>, name: string };
                             param.basetype = __basetype;
                             _name = name;
                         } else {
@@ -398,7 +407,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (!(dec.Declarator.right instanceof Array)) {
                         rt.raiseException("Not yet implemented");
                     }
-                    const rhs = dec.Declarator.right as (DirectDeclaratorModifierParameterTypeListSpec | UnknownSpec)[];
+                    const rhs = dec.Declarator.right as DirectDeclaratorModifier[];
                     if (rhs.length > 0) {
                         if (rhs[0].type as string === "DirectDeclarator_modifier_array") {
                             rt.raiseException("Not yet implemented");
@@ -466,6 +475,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                     } else {
                         let initVar = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : (yield* interp.visit(interp, initSpec.Expression)) as Variable;
+                        if (s.InitDeclaratorList[0].Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
+                            initVar = variables.clone(initVar, "SELF", false, rt.raiseException);
+                        }
 
                         if (!variables.typesEqual(initVar.t, basetype.t)) {
                             const castVar = rt.cast(basetype.t, initVar);
@@ -917,31 +929,20 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                // console.log "==================="
-                // console.log "s: " + JSON.stringify(s)
-                // console.log "==================="
                 const args: Variable[] = yield* (function*() {
                     const result = [];
                     for (const e of s.args) {
                         let thisArg = yield* interp.visit(interp, e, param);
                         thisArg = interp.rt.asCapturedVariable(thisArg);
-                        // console.log "-------------------"
-                        // console.log "e: " + JSON.stringify(e)
-                        // console.log "-------------------"
                         result.push(thisArg);
                     }
                     return result;
                 }).call(this);
-                debugger;
                 const ret = yield* interp.visit(interp, s.Expression, { functionArgs: args });
 
-                // console.log "==================="
-                // console.log "ret: " + JSON.stringify(ret)
-                // console.log "args: " + JSON.stringify(args)
-                // console.log "==================="
                 const retfun = variables.asFunction(ret);
                 if (retfun !== null) {
-                    const resultOrGen = rt.getFunctionTarget(retfun.v)(rt, ret, ...args);
+                    const resultOrGen = rt.getFunctionTarget(retfun.v)(rt, ...args);
                     return asResult(resultOrGen) ?? (yield* resultOrGen as Gen<Variable>);
                 } else {
                     let bindThis;
@@ -955,7 +956,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (bindThis !== null) {
                         rt.raiseException("not yet implemented");
                     }
-                    const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_call)", args))(rt, ret, ...args);
+                    const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_call)", args))(rt, ...args);
                     return asResult<Variable>(r) ?? (yield* r as Gen<Variable>);
                 }
             },
@@ -1173,7 +1174,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                debugger;
                 return yield* interp.visit(interp, (s as any).Expression, param);
             },
             *StringLiteralExpression(interp, s, param) {
