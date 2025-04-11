@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ArrayVariable, MaybeLeft, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables } from "./variables";
+import { ArithmeticVariable, ArrayVariable, ClassType, ClassVariable, MaybeLeft, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -12,8 +12,8 @@ const isGenerator = (g: any): boolean => {
     return (g != null ? g.constructor : undefined) === sampleGenerator.constructor;
 };
 
-type Gen<T> = Generator<unknown, T, unknown>;
-type ResultOrGen<T> = T | Gen<T>;
+export type Gen<T> = Generator<unknown, T, unknown>;
+export type ResultOrGen<T> = T | Gen<T>;
 function asResult<T>(g: ResultOrGen<T> | null): T | null {
     if (g !== null && (g as Gen<T>).constructor === sampleGenerator.constructor) {
         return null;
@@ -93,7 +93,7 @@ export interface DirectDeclaratorSpec extends StatementMeta {
     left: IdentifierSpec | DirectDeclaratorSpec,
     right: DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | DirectDeclaratorModifier[],
     Reference?: any[][],
-    Pointer: any | null,
+    Pointer: any[][] | null,
 }
 type DirectDeclaratorModifier = DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | DirectDeclaratorModifierArraySpec;
 export interface DirectDeclaratorModifierArraySpec extends StatementMeta {
@@ -125,11 +125,28 @@ export interface InitializerExprSpec extends StatementMeta {
     type: "Initializer_expr",
     Expression: ConstantExpressionSpec
 }
+export interface StructDeclarationSpec extends StatementMeta {
+    type: "StructDeclaration",
+    DeclarationIdentifiers: string[],
+    StructMemberList: StructMemberSpec[],
+    InitVariables: boolean,
+}
+export interface StructMemberSpec extends StatementMeta {
+    type: "StructMember",
+    MemberType: string[],
+    Declarators: InitDeclaratorSpec[],
+}
 export interface UnknownSpec {
     type: "<stub>"
 }
+type DeclaratorYield = { name: string, type: MaybeLeft<ObjectType> };
 
 type InterpStatement = any;
+
+export interface MemberObject {
+    name: string,
+    variable: Variable
+}
 
 export class Interpreter extends BaseInterpreter<InterpStatement> {
     visitors: { [name: string]: (interp: Interpreter, s: InterpStatement, param?: any) => any };
@@ -165,10 +182,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         //varargs = false;
                     }
                     if (ptl != null) {
-                        const argTypes = [];
+                        const argTypes: (MaybeLeft<ObjectType> | "VOID")[] = [];
                         for (const _param of ptl.ParameterList) {
-                            const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
-                            let _type;
+                            const _basetypeYield = rt.simpleType(_param.DeclarationSpecifiers);
+                            const _basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">))
+                            let _type: MaybeLeft<ObjectType> | "VOID";
                             if (_param.Declarator != null) {
                                 this.rt.raiseException("Not yet implemented");
                                 /*const _pointer = _param.Declarator.Pointer;
@@ -194,9 +212,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             } else {
                                 _type = _basetype;
                             }
-                            argTypes.push(_type);
+                            rt.raiseException("not yet implemented");
+                            //argTypes.push(_type);
                         }
-                        rt.raiseException("not yet implemented");
                         //basetype = variables.functionType(basetype, argTypes);
                     }
                 }
@@ -233,7 +251,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                const basetype = rt.simpleType(s.DeclarationSpecifiers);
+                const basetypeYield = rt.simpleType(s.DeclarationSpecifiers);
+                const basetype = asResult(basetypeYield) ?? (yield* (basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
                 const _basetype = param.basetype;
                 param.basetype = basetype;
                 for (const declarator of s.Declarators) {
@@ -257,7 +276,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     let _name = null;
                     let _readonly = false;
                     if (param.insideDirectDeclarator_modifier_ParameterTypeList) {
-                        const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
+                        const _basetypeYield = rt.simpleType(_param.DeclarationSpecifiers);
+                        const _basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
                         if (_basetype === "VOID") {
                             rt.raiseException("Type error or not yet implemented");
                         }
@@ -269,7 +289,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         _init = _param.Declarator.Initializers;
 
                         const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: any) => specifier?.DeclarationSpecifiers || specifier);
-                        const _basetype = rt.simpleType(_declarationSpecifiers);
+                        const _basetypeYield = rt.simpleType(_declarationSpecifiers);
+                        const _basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
                         if (_basetype === "VOID") {
                             rt.raiseException("Type error or not yet implemented");
                         }
@@ -290,7 +311,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
                             const __basetype = param.basetype;
                             param.basetype = _basetype;
-                            const { name, type } = (yield* interp.visit(interp, _param.Declarator.Declarator.left, param)) as { type: MaybeLeft<ObjectType>, name: string };
+                            const { name } = (yield* interp.visit(interp, _param.Declarator.Declarator.left, param)) as DeclaratorYield;
                             param.basetype = __basetype;
                             _name = name;
                         } else {
@@ -363,7 +384,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Not yet implemented");
                 }
                 const name = s.Declarator.left.Identifier;
-                let basetype = rt.simpleType(s.DeclarationSpecifiers);
+                const _basetypeYield = rt.simpleType(s.DeclarationSpecifiers);
+                let basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
                 const pointer = s.Declarator.Pointer;
                 basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
                 let ptl: any;
@@ -390,17 +412,19 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const { rt } = interp;
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
-                const _basetype = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param)) as MaybeLeft<ObjectType>) : rt.simpleType(s.DeclarationSpecifiers);
+                const _basetypeYield: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType>>) : rt.simpleType(s.DeclarationSpecifiers);
+                const _basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
                 const basetype = (_basetype === "VOID") ? rt.raiseException("Type error or not yet implemented") : _basetype;
 
                 for (const dec of s.InitDeclaratorList) {
-                    let visitResult: { name: string, type: Variable };
+                    let visitResult: DeclaratorYield;
                     {
                         const _basetype = param.basetype;
                         param.basetype = basetype;
-                        visitResult = (yield* interp.visit(interp, dec.Declarator, param)) as { name: string, type: Variable };
+                        visitResult = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
                         param.basetype = _basetype;
                     }
+                    const decType: MaybeLeft<ObjectType> = (dec.Declarator.Pointer instanceof Array) ? { t: { sig: "PTR", pointee: basetype.t }, v: { lvHolder: "SELF" } } : basetype;
                     const { name, type } = visitResult;
                     let initSpec = dec.Initializers;
 
@@ -474,13 +498,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.defVar(name, xinit);*/
                         }
                     } else {
-                        let initVar = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : (yield* interp.visit(interp, initSpec.Expression)) as Variable;
-                        if (s.InitDeclaratorList[0].Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
+                        const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<Variable>;
+                        let initVar = asResult(initVarYield) ?? (yield* (initVarYield as Gen<Variable>));
+                        if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
                             initVar = variables.clone(initVar, "SELF", false, rt.raiseException);
                         }
 
-                        if (!variables.typesEqual(initVar.t, basetype.t)) {
-                            const castVar = rt.cast(basetype.t, initVar);
+                        if (!variables.typesEqual(initVar.t, decType.t)) {
+                            const castVar = rt.cast(decType.t, initVar);
                             initVar = asResult(castVar) ?? (yield* castVar as Gen<Variable>);
                         }
                         if (isConst) {
@@ -510,31 +535,25 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 vectorClass.readonly = false;
                 rt.defVar(s.Identifier, basetype, vectorClass);*/
             },
-            *StructDeclaration(interp, s, param) {
+            *StructDeclaration(interp, s: StructDeclarationSpec, param) {
                 ({ rt } = interp);
 
                 for (const identifier of s.DeclarationIdentifiers) {
-                    const structMemberList = [];
+                    const structMemberList: MemberObject[] = [];
                     for (const structMember of s.StructMemberList) {
                         for (const dec of structMember.Declarators) {
                             let init = dec.Initializers;
 
-                            param.basetype = rt.simpleType(structMember.MemberType);
-                            const { name, type } = yield* interp.visit(interp, dec.Declarator, param);
+                            const _simpleTypeYield = rt.simpleType(structMember.MemberType);
+                            param.basetype = asResult(_simpleTypeYield) ?? (yield* (_simpleTypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
+                            const { name, type } = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
 
-                            if (init == null) {
-                                init = rt.defaultValue(type, "SELF");
-                            } else {
-                                init = yield* interp.visit(interp, init.Expression);
-                            }
+                            const initvarYield = (init == null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, init.Expression) as Gen<Variable>;
+                            const initvar = asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>));
 
                             structMemberList.push({
                                 name,
-                                type,
-                                initialize(_rt: any, _this: any) {
-                                    init.left = true;
-                                    return init;
-                                }
+                                variable: variables.clone(initvar, "SELF", false, rt.raiseException)
                             });
                         }
                     }
@@ -544,8 +563,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         //const structType = rt.newStruct(`initialized_struct_${identifier}`, structMemberList);
                         //rt.defVar(identifier, rt.defaultValue(structType));
                     } else {
-                        rt.raiseException("not yet implemented");
-                        //rt.newStruct(identifier, structMemberList);
+                        if (rt.scope.length !== 1) {
+                            rt.raiseException("Nested classes are not yet implemented");
+                        }
+                        rt.defineStruct("{global}", identifier, structMemberList);
                     }
                 }
             },
@@ -1078,10 +1099,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 let ret = yield* interp.visit(interp, s.Expression, param);
                 ret = variables.clone(rt.asCapturedVariable(ret), null, false, rt.raiseException);
-                const type = yield* interp.visit(interp, s.TypeName, param);
-                return rt.cast(type, ret);
+                const type = (yield* interp.visit(interp, s.TypeName, param)) as MaybeLeft<ObjectType> | "VOID";
+                if (type === "VOID") {
+                    rt.raiseException("Cannot cast to void");
+                }
+                return rt.cast(type.t, ret);
             },
-            TypeName(interp, s, _param) {
+            *TypeName(interp, s, _param): Gen<MaybeLeft<ObjectType> | "VOID"> {
                 ({
                     rt
                 } = interp);
@@ -1091,7 +1115,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         typename.push(baseType);
                     }
                 }
-                return rt.simpleType(typename);
+                const resultYield = rt.simpleType(typename);
+                return asResult(resultYield) ?? (yield* (resultYield as Gen<MaybeLeft<ObjectType> | "VOID">));
             },
             *BinOpExpression(interp, s, param) {
                 ({
@@ -1179,7 +1204,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             *StringLiteralExpression(interp, s, param) {
                 return yield* interp.visit(interp, s.value, param);
             },
-            *StructExpression(interp, s, param) {
+            *StructExpression(interp, s, param: { structType: ClassType }) {
                 ({ rt } = interp);
 
                 const convertToObjectArray = function*(expr: any) {
@@ -1190,8 +1215,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 };
 
-                const valuesToStruct = function(arrayValues: any) {
-                    const fillerStruct: any = rt.defaultValue(param.structType, null);
+                const valuesToStruct = function*(arrayValues: any) {
+                    const fillerStructYield = rt.defaultValue(param.structType, null) as ResultOrGen<ClassVariable>;
+                    const fillerStruct = asResult(fillerStructYield) ?? (yield* (fillerStructYield as Gen<ClassVariable>));
                     const orderedKeys = Object.keys(fillerStruct.v.members);
 
                     for (let k = 0; k < arrayValues.length; k++) {
@@ -1455,9 +1481,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const arr = new Array(curDim);
                         let i = 0;
                         while (i < curDim) {
+                            const defaultValueYield = this.rt.defaultValue(type, null);
+                            const shorthand = asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>));
                             arr[i] = {
                                 type: "Initializer_expr",
-                                shorthand: this.rt.defaultValue(type, null)
+                                shorthand
                             };
                             i++;
                         }
@@ -1480,9 +1508,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             arr[0] = variables.arithmetic(arithmeticType.sig, -1, null);
                             let i = 1;
                             while (i < curDim) {
+                                const defaultValueYield = this.rt.defaultValue(type, null);
+                                const shorthand = asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>));
                                 arr[i] = {
                                     type: "Initializer_expr",
-                                    shorthand: this.rt.defaultValue(type, null)
+                                    shorthand
                                 };
                                 i++;
                             }
@@ -1516,9 +1546,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         i = init.Initializers.length;
                         while (i < curDim) {
+                            const defaultValueYield = this.rt.defaultValue(type, null);
+                            const shorthand = asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>));
                             arr[i] = {
                                 type: "Initializer_expr",
-                                shorthand: this.rt.defaultValue(type, null)
+                                shorthand
                             };
                             i++;
                         }
@@ -1570,18 +1602,18 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             if (init && (init.type !== "Initializer_expr")) {
                 this.rt.raiseException("dimensions do not agree, too few initializers", param.node);
             }
-            let initval;
+            let initval: Variable;
             if (init) {
                 if ("shorthand" in init) {
-                    initval = init.shorthand;
+                    initval = init.shorthand as Variable;
                 } else {
-                    initval = yield* this.visit(this, init.Expression, param);
+                    initval = (yield* this.visit(this, init.Expression, param)) as Variable;
                 }
             } else {
-                initval = this.rt.defaultValue(type, null);
+                const defaultValueYield = this.rt.defaultValue(type, null);
+                initval = asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>));
             }
-            this.rt.raiseException("Not yet implemented");
-            //return initval;
+            return initval;
         }
     };
 

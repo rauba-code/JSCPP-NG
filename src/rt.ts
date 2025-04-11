@@ -40,7 +40,7 @@ export interface JSCPPConfig {
     stopExecutionCheck?: () => boolean;
 }
 
-export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)" | "o(_call)";
+export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)" | "o(_call)" | "o(_stub)";
 
 export interface Member {
     type: ObjectType;
@@ -84,9 +84,25 @@ export interface FunctionSymbol {
 }
 
 export interface TypeHandlerMap {
+    //name: string,
     functionDB: TypeDB;
     functionsByID: FunctionSymbol[];
+    //parent: Domain | null,
+    //children: { [domain: string]: Domain },
 }
+
+//export interface NamespaceDomain extends DomainLike {
+//    type: "NAMESPACE"
+//}
+//
+//export interface ClassDomain extends DomainLike {
+//    type: "CLASS",
+//    objectType: ClassType,
+//    /** Empty constructor. Overloadable */
+//    ctor: interp.ResultOrGen<(rt: CRuntime) => ClassVariable>,
+//}
+
+//export type Domain = NamespaceDomain | ClassDomain;
 
 export interface TypeSignature {
     inline: string,
@@ -106,16 +122,22 @@ export class CRuntime {
     constructor(config: JSCPPConfig) {
         this.parser = constructTypeParser();
         this.config = config;
-        this.typeMap = {
-            "{global}": {
-                functionDB: new TypeDB(this.parser),
-                functionsByID: []
-            }
-        };
+        this.typeMap = {};
+        this.addTypeDomain("{global}");
 
         this.scope = [{ "$name": "{global}", variables: {} }];
         this.namespace = {};
         this.typedefs = {};
+    }
+
+    addTypeDomain(domain: string) {
+        if (domain in this.typeMap) {
+            this.raiseException(`Domain ${domain} already exists`);
+        }
+        this.typeMap[domain] = {
+            functionDB: new TypeDB(this.parser),
+            functionsByID: []
+        };
     }
 
     include(name: string) {
@@ -147,7 +169,7 @@ export class CRuntime {
         let at: ArithmeticType | null;
         let sat: ArrayType<ObjectType> | null;
         if (variables.asPointerType(t) ?? variables.asIndexPointerType(t) !== null) {
-            throw new Error("Not yet implemented");
+            this.raiseException("Not yet implemented");
         } else if ((at = variables.asArithmeticType(t)) !== null) {
             return variables.arithmeticProperties[at.sig].bytes;
         } else if ((sat = variables.asArrayType(t)) !== null) {
@@ -185,26 +207,20 @@ export class CRuntime {
             if (!lc.v.lvHolder === null) {
                 this.raiseException("Access to a member of a non-lvalue variable is forbidden");
             }
-            const lsig: string[] = variables.toStringSequence(lc.t, true, this.raiseException)
-            const linlinesig: string = lsig.join(" ");
-            if (linlinesig in this.typeMap) {
-                const memberFn: TypeHandlerMap = this.typeMap[linlinesig];
-                let fnid: number;
-                try {
-                    fnid = memberFn.functionDB.matchSingleFunction(identifier, this.raiseException);
-                } catch (e) {
-                    this.raiseException(e);
-                }
+            const domainName: string = this.domainString(lc.t);
+            if (domainName in this.typeMap) {
+                const memberFn: TypeHandlerMap = this.typeMap[domainName];
+                const fnid = memberFn.functionDB.matchSingleFunction(identifier, this.raiseException);
                 if (fnid >= 0) {
                     const fnsym: FunctionSymbol = memberFn.functionsByID[fnid];
                     return variables.function(fnsym.type, identifier, fnsym.target, lc, "SELF");
                 } else if (identifier in lc.v.members) {
                     return lc.v.members[identifier];
                 } else {
-                    this.raiseException(`type '${linlinesig}' does not have a member called '${identifier}'`);
+                    this.raiseException(`type '${this.makeTypeString(lc.t)}' does not have a member called '${identifier}'`);
                 }
             } else {
-                this.raiseException(`type '${linlinesig}' is unknown`);
+                this.raiseException(`type '${this.makeTypeString(lc.t)}' is unknown`);
             }
         } else {
             this.raiseException("only a class or struct can have members");
@@ -224,8 +240,8 @@ export class CRuntime {
     };
 
     /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeDB-associated functions */
-    createFunctionTypeSignature(domain: ClassType | "{global}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[]): TypeSignature {
-        const thisSig: string[] = (domain === "{global}") ? [] : variables.toStringSequence(domain, true, this.raiseException);
+    createFunctionTypeSignature(domain: ClassType | "{global}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], noThis = false): TypeSignature {
+        const thisSig: string[] = (domain === "{global}" || noThis) ? [] : variables.toStringSequence(domain, true, this.raiseException);
         const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.v.lvHolder !== null, this.raiseException);
         const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
         const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat().flat();
@@ -334,7 +350,7 @@ export class CRuntime {
     }
 
     regFunc(f: CFunction | null, domain: ClassType | "{global}", name: string, fnsig: TypeSignature): void {
-        const domainInlineSig: string = (domain === "{global}") ? domain : domain.identifier;
+        const domainInlineSig: string = this.domainString(domain);
         if (!(domainInlineSig in this.typeMap)) {
             this.raiseException(`type '${fnsig.inline}' is unknown`);
         }
@@ -421,7 +437,7 @@ export class CRuntime {
             }
             i--;
         }
-        this.raiseException("variable " + varname + " does not exist");
+        this.raiseException("variable '" + varname + "' does not exist");
     };
 
     deleteVar(varname: string): void {
@@ -434,7 +450,7 @@ export class CRuntime {
             }
             i--;
         }
-        this.raiseException("variable " + varname + " does not exist");
+        this.raiseException("variable '" + varname + "' does not exist");
     };
 
     varAlreadyDefined(varname: string): boolean {
@@ -449,9 +465,9 @@ export class CRuntime {
         return false;
     };
 
-    simpleType(_type: string | (string | { Identifier: string })[]): MaybeLeft<ObjectType> | "VOID" {
+    simpleType(_type: string | (string | { Identifier: string })[]): interp.ResultOrGen<MaybeLeft<ObjectType> | "VOID"> {
         if (_type instanceof Array) {
-            _type.forEach((x) => { if (typeof(x) !== "string") { this.raiseException("Not yet implemented"); } });
+            _type.forEach((x) => { if (typeof (x) !== "string") { this.raiseException("Not yet implemented"); } });
             const typeStr = (_type as string[]).join(" ");
             if (typeStr in variables.defaultArithmeticResolutionMap) {
                 return variables.arithmetic(variables.defaultArithmeticResolutionMap[typeStr], null, null);
@@ -459,8 +475,15 @@ export class CRuntime {
             if (typeStr === "void") {
                 return "VOID";
             }
+            if (typeStr in this.typeMap) {
+                const fnid = this.typeMap[typeStr].functionDB.matchFunctionExact("o(_stub)", ["FUNCTION", "Return", "(", ")"], this.raiseException);
+                if (fnid >= 0) {
+                    return { t: variables.classType(typeStr, [], null), v: { lvHolder: null } }
+                    //return this.getFunctionTarget(this.typeMap[typeStr].functionsByID[fnid])(this);
+                }
+            }
         }
-        this.raiseException("Not yet implemented");
+        this.raiseException("Type error or not yet implemented");
         /*if (Array.isArray(type)) {
             if (type.length > 1) {
                 const typeStr = type.map((t) => (t as { Identifier: string }).Identifier ?? t)
@@ -891,57 +914,22 @@ export class CRuntime {
         }
     };
 
-    defineStruct(type: ClassType): void {
-        const domain = this.domainString(type);
-        if (domain in this.typeMap) {
-            this.raiseException(`domain '${domain}' is already defined`);
-        }
 
-        this.raiseException("Not yet implemented");
+    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObject[]): void {
+        const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
+        const domainInline = this.domainString(classType);
+        this.addTypeDomain(domainInline);
 
-        /*this.types[typeSig.inline] = {
-            cConstructor(rt, _this) {
-                const v = _this.v as ObjectValue;
-                v.members = {};
-                for (const member of members) {
-                    v.members[member.name] = (member.initialize != null) ? rt.cloneDeep(member.initialize(rt, _this)) as Variable : rt.defaultValue(member.type, true);
-                }
-            },
-            members,
-            handlers: {
-                // ...defaults.defaultOpHandler.handlers,
-                "o(=)": {
-                    default(rt: CRuntime, l: any, r: any) {
-                        if (!l.left) {
-                            rt.raiseException(rt.makeValString(l) + " is not a left value");
-                        } else if (l.readonly) {
-                            rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
-                        }
+        const members : { [name: string]: Variable } = {};
+        memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable } )
+        const stubClass = variables.class(classType, members, null);
 
-                        l.v = rt.cast(l.t, r).v;
-                        return l;
-                    },
-                },
-                "o(&)": {
-                    default(rt: CRuntime, l: any, r: any) {
-                        if (r === undefined) {
-                            if (!l.left) {
-                                rt.raiseException(rt.makeValString(l) + " is not a left value");
-                            }
-                            if ("array" in l) {
-                                return rt.val(rt.arrayPointerType(l.t, l.array.length), rt.makeArrayPointerValue(l.array, l.arrayIndex));
-                            } else {
-                                const t = rt.normalPointerType(l.t);
-                                return rt.val(t, rt.makeNormalPointerValue(l));
-                            }
+        //const domainMap = this.typeMap[domainInline];
+        const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null} }, [], true)
+        this.regFunc(function (rt: CRuntime): ClassVariable {
+            return variables.clone(stubClass, null, false, rt.raiseException);
+        }, classType, "o(_stub)", stubCtorTypeSig);
 
-                        } else {
-                            rt.raiseException(`operator & between types '${rt.makeTypeString(l)}' and '${rt.makeTypeString(r)}' is undefined`)
-                        }
-                    },
-                },
-            },
-        };*/
     };
 
     /*defineClass(classname: string, members: Member[]) {
@@ -1031,15 +1019,20 @@ export class CRuntime {
         return variable.v.value;
     }
 
-    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): Variable {
+    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): interp.ResultOrGen<Variable> {
         let classType: ClassType | null;
         let pointerType: PointerType | null;
         if (type.sig in variables.arithmeticSig) {
             return variables.arithmetic(type.sig as ArithmeticSig, null, lvHolder as LValueHolder<ArithmeticVariable>, false);
         } else if ((classType = variables.asClassType(type)) !== null) {
-            const value = variables.class(classType, {}, lvHolder as LValueHolder<ClassVariable>);
-            this.getFunctionTarget(this.getOpByParams("{global}", "o(_ctor)", [value]))(this, value);
-            return value;
+            const domainName = classType.identifier;
+            if (!(domainName in this.typeMap)) {
+                this.raiseException(`Could not resolve a class named '${domainName}'`)
+            }
+            const fnid = this.typeMap[domainName].functionDB.matchFunctionExact("o(_stub)", ["FUNCTION", "Return", "(", ")"], this.raiseException);
+            if (fnid >= 0) {
+                return this.getFunctionTarget(this.typeMap[domainName].functionsByID[fnid])(this);
+            }
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
             this.raiseException("Not yet implemented");
             /*} else if (type.ptrType === "array") {
@@ -1067,7 +1060,7 @@ export class CRuntime {
                     if (currentNode != null) {
                         const ln = currentNode.sLine;
                         const col = currentNode.sColumn;
-                        return `[line ${ln}, column ${col}]`;
+                        return `[line ${ln}:${col}]`;
                     } else {
                         return "[position unavailable]";
                     }
@@ -1090,7 +1083,7 @@ export class CRuntime {
                     if (currentNode != null) {
                         const ln = currentNode.sLine;
                         const col = currentNode.sColumn;
-                        return `[line ${ln}, column ${col}]`;
+                        return `[line ${ln}:${col}]`;
                     } else {
                         return "[position unavailable]";
                     }

@@ -1,5 +1,5 @@
 import { CRuntime, OpSignature } from "./rt";
-import { ArithmeticVariable, IndexPointerVariable, PointerVariable, Variable, variables } from "./variables";
+import { ArithmeticVariable, IndexPointerVariable, PointerVariable, Variable, Function, variables, IndexPointerValue } from "./variables";
 
 function raiseSupportException(rt: CRuntime, l: Variable, r: Variable, op: string): never {
     rt.raiseException(`${rt.makeTypeStringOfVar(l)} does not support ${op} on ${rt.makeTypeStringOfVar(r)}`);
@@ -78,7 +78,7 @@ function binaryArithmeticCmp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticV
 }
 
 const defaultOpHandler: OpHandler[] = [
-   {
+    {
         type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
         op: "o(_*_)",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): ArithmeticVariable {
@@ -379,6 +379,40 @@ const defaultOpHandler: OpHandler[] = [
             return variables.arithmetic("BOOL", !(l.v.pointee === r.v.pointee) ? 1 : 0, null);
         }
     },
+    {
+        op: "o(&_)",
+        type: "!LValue FUNCTION PTR ?0 ( LREF ?0 )",
+        default(rt: CRuntime, l: Variable | Function): PointerVariable | IndexPointerVariable<Variable> {
+            if (l.v.lvHolder === null) {
+                rt.raiseException("Cannot refer to an lvalue"); // unreachable
+            } else if (l.v.lvHolder === "SELF") {
+                return variables.pointer(l, null);
+            }
+            const holder: IndexPointerValue<Variable> = l.v.lvHolder;
+            const x = l as Variable;
+            return variables.indexPointer({ t: { sig: "ARRAY", object: x.t, size: holder.pointee.values.length }, v: holder.pointee }, l.v.lvHolder.index, null);
+        }
+    },
+    {
+        op: "o(*_)",
+        type: "!LValue FUNCTION LREF ?0 ( PTR ?0 )",
+        default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>): Variable {
+            const lp = variables.asPointer(l);
+            const li = variables.asIndexPointer(l);
+            if (lp !== null) {
+                if (lp.v.pointee === "VOID") {
+                    rt.raiseException("Attempt to dereference a void-pointer");
+                }
+                return { t: lp.t.pointee, v: lp.v.pointee } as Variable;
+            } else if (li !== null) {
+                if (li.v.index < 0 || li.v.index > li.v.pointee.values.length) {
+                    rt.raiseException("Segmentation fault: dereference of a pointer that points to an array element whose index is out of range");
+                }
+                return { t: li.t.array.object, v: li.v.pointee.values[li.v.index] } as Variable;
+            }
+            rt.raiseException("Unreachable");
+        }
+    },
 ];
 
 export function addDefaultOperations(rt: CRuntime): void {
@@ -386,295 +420,3 @@ export function addDefaultOperations(rt: CRuntime): void {
         rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type.split(" ")));
     })
 }
-
-/*const types_pointer : OpHandler[] = [
-    {
-        op: "o(_=_)",
-        default(rt, l, r) {
-            if (l.v.lvHolder === null) {
-                rt.raiseException(rt.makeValString(l) + " is not a left value");
-            } else if (l.readonly) {
-                rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
-            }
-            const t = rt.cast(l.t, r);
-            l.t = t.t;
-            l.v = t.v;
-            return l;
-        }
-    },
-    {
-        op: "o(&_)",
-        default(rt, l, r) {
-            if (r === undefined) {
-             s["function"]   if (rt.isArrayElementType(l)) {
-                    if (l.array) {
-                        return rt.val(rt.arrayPointerType(l.t, l.array.length), rt.makeArrayPointerValue(l.array, l.arrayIndex));
-                    } else {
-                        const t = rt.normalPointerType(l.t);
-                        return rt.val(t, rt.makeNormalPointerValue(l));
-                    }
-                } else {
-                    raiseSupportException(rt, l, r, "&");
-                }
-            } else {
-                rt.raiseException("you cannot cast bitwise and on pointer");
-            }
-        }
-    },
-    {
-        op: "o(_call)",
-        default(rt, l, bindThis, ...args) {
-            if (!rt.isPointerType(l) || !rt.isFunctionPointerType(l)) {
-                rt.raiseException(`pointer target(${rt.makeValueString(l)}) is not a function`);
-            } else {
-                return rt.types["function"].handlers["o(())"].default(rt, l.v.target, bindThis, ...args);
-            }
-        }
-    }
-];
-const types_function = [
-    {
-        op: "o(_call)",
-        default(rt, l, bindThis: Variable, ...args) {
-            if (!rt.isFunctionType(l)) {
-                rt.raiseException(rt.makeTypeString(l?.t) + " does not support ()");
-            } else {
-                if (rt.isFunctionPointerType(l)) {
-                    l = l.v.target;
-                }
-                if (l.v.target === null) {
-                    rt.raiseException(`function ${l.v.name} does not seem to be implemented`);
-                } else {l.v.value
-                    return rt.getCompatibleFunc(l.v.defineType, l.v.name, args)(rt, bindThis, ...args);
-                }
-            }
-        }
-    },
-    {
-        op: "o(&_)",
-        default(rt, l) {
-            if (rt.isFunctionType(l)) {
-                const lt = l.t;
-                if ("retType" in lt) {
-                    const t = rt.functionPointerType(lt.retType, lt.signature);
-                    return rt.val(t, rt.makeFunctionPointerValue(l, l.v.name, l.v.defineType, lt.signature, lt.retType));
-                } else {
-                    rt.raiseException(rt.makeTypeString(lt) + " is an operator function");
-                }
-            } else {
-                rt.raiseException(rt.makeValueString(l) + " is not a function");
-            }
-        }
-    }
-];
-const types_pointer_normal : OpHandler[] = [
-    {
-        op: "o(*_)",
-        type: "!Pointee FUNCTION ?0 ( PTR ?0 )",
-        default(rt, l, r) {
-            if (r === undefined) {
-                if (!rt.isNormalPointerType(l)) {
-                    rt.raiseException(`pointer (${rt.makeValueString(l)}) is not a normal pointer`);
-                } else {
-                    if (l.v.target === null) {
-                        rt.raiseException("you cannot dereference an unitialized pointer");
-                    }
-                    return l.v.target;
-                }
-            } else {
-                rt.raiseException("you cannot multiply a pointer");
-            }
-        }
-    },
-    {
-        op: "o(_->_)",
-        type: "FUNCTION ObjectOrFunction ( PTR Class )",
-        default(rt, l) {
-            if (!rt.isNormalPointerType(l)) {
-                rt.raiseException(`pointer (${rt.makeValueString(l)}) is not a normal pointer`);
-            } else {
-                return l.v.target;
-            }
-        }
-    }
-];
-const types_pointer_array: OpHandler[] = [
-    {
-        op: "o(*_)",
-        type: "!Pointee FUNCTION ?0 ( PTR ?0 )",
-        default(rt, l, r) {
-            if (r === undefined) {
-                if (!rt.isArrayType(l)) {
-                    rt.raiseException(`pointer (${rt.makeValueString(l)}) is not a normal pointer`);
-                } else {
-                    const arr = l.v.target;
-                    const ret = {
-                        type: "pointer",
-                        left: true,
-                        t: l.t.eleType,
-                        array: arr,
-                        arrayIndex: l.v.position,
-                    }
-                    return ret;
-                }
-            } else {
-                rt.raiseException("you cannot multiply a pointer");
-            }
-        }
-    },
-    {
-        op: "o(_[])",
-        default(rt, l, r: Variable) {
-            l = rt.captureValue(l);
-            r = rt.types["pointer_array"].handlers["o(+)"].default(rt, l, r);
-            return rt.types["pointer_array"].handlers["o(*)"].default(rt, r);
-        }
-    },
-    {
-        op: "o(_->_)",
-        default(rt, l) {
-            l = rt.types["pointer_array"].handlers["o(*)"].default(rt, l);
-            return l;
-        }
-    },
-    {
-        op: "o(_-_)",
-        default(rt, l, r) {
-            if (rt.isArrayType(l)) {
-                if (rt.isNumericType(r)) {
-                    const i = rt.cast(rt.intTypeLiteral, r).v;
-                    return rt.val(l.t, rt.makeArrayPointerValue(l.v.target, l.v.position - i));
-                } else if (rt.isArrayType(r)) {
-                    if (l.v.target === r.v.target) {
-                        return l.v.position - r.v.position;
-                    } else {
-                        rt.raiseException("you cannot perform minus on pointers pointing to different arrays"); void
-                        }
-                } else {
-                    rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
-                }
-            } else {
-                rt.raiseException(rt.makeTypeString(l?.t) + " is not an array pointer type");
-            }
-        }
-    },
-    {
-        op: "o(_<_)",
-        default(rt, l, r) {
-            if (rt.isArrayType(l) && rt.isArrayType(r)) {
-                if (l.v.target === r.v.target) {
-                    return l.v.position < r.v.position;
-                } else {
-                    rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
-                }
-            } else {
-                rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
-            }
-        }
-    },
-    {
-        op: "o(_>_)",
-        default(rt, l, r) {
-            if (rt.isArrayType(l) && rt.isArrayType(r)) {
-                if (l.v.target === r.v.target) {
-                    return l.v.position > r.v.position;
-                } else {
-                    rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
-                }
-            } else {
-                rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
-            }
-        }
-    },
-    {
-        op: "o(_<=_)",
-        default(rt, l, r) {
-            if (rt.isArrayType(l) && rt.isArrayType(r)) {
-                if (l.v.target === r.v.target) {
-                    return l.v.position <= r.v.position;
-                } else {
-                    rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
-                }
-            } else {
-                rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
-            }
-        }
-    },
-    {
-        op: "o(_>=_)",
-        default(rt, l, r) {
-            if (rt.isArrayType(l) && rt.isArrayType(r)) {
-                itypef (l.v.target === r.v.target) {
-                    return l.v.position >= r.v.position;
-                } else {
-                    rt.raiseException("you cannot perform compare on pointers pointing to different arrays");
-                }
-            } else {
-                rt.raiseException(rt.makeTypeString(r?.t) + " is not an array pointer type");
-            }
-        }
-    },
-    {
-        op: "o(_+_)",
-        default(rt, l, r) {
-            if (rt.isArrayType(l) && rt.isNumericType(r)) {
-                const i = rt.cast(rt.intTypeLiteral, r).v;
-                return rt.val(l.t, rt.makeArrayPointerValue(l.v.target, l.v.position + i));
-            } else if (rt.isStringType(l) && rt.isStringType(r as ArrayVariable)) {
-                return rt.makeCharArrayFromString(rt.getStringFromCharArray(l) + rt.getStringFromCharArray(r as ArrayVariable));
-            } else {
-                rt.raiseException("cannot add non-numeric to an array pointer");
-            }
-        }
-    },
-    {
-        op: "o(_+=_)",
-        default(rt, l, r) {
-            r = rt.types["pointer_array"].handlers["o(+)"].default(rt, l, r);
-            return rt.types["pointer"].handlers["="].default(rt, l, r);
-        }
-    },
-    {
-        op: "o(_-=_)",
-        default(rt, l, r) {
-            r = rt.types["pointer_array"].handlers["o(-)"].default(rt, l, r);
-            return rt.types["pointer"].handlers["="].default(rt, l, r);
-        }
-    },
-    {
-        op: "o(_++)",
-        default(rt, l, dummy) {
-            if (l.v.lvHolder === null) {
-                rt.raiseException(rt.makeValString(l) + " is not a left value");
-            }
-            if (!rt.isArrayType(l)) {
-                rt.raiseException(rt.makeTypeString(l?.t) + " is not an array pointer type");
-            } else {
-                if (dummy) {
-                    return rt.val(l.t, rt.makeArrayPointerValue(l.v.target, l.v.position++));
-                } else {
-                    l.v.position++;
-                    return l;
-                }
-            }
-        }
-    },
-    {
-        op: "o(_--)",
-        default(rt, l, dummy) {
-            if (l.v.lvHolder === null) {
-                rt.raiseException(rt.makeValString(l) + " is not a left value");
-            }
-            if (!rt.isArrayType(l)) {
-                rt.raiseException(rt.makeTypeString(l?.t) + " is not an array pointer type");
-            } else {
-                if (dummy) {
-                    return rt.val(l.t, rt.makeArrayPointerValue(l.v.target, l.v.position--));
-                } else {
-                    l.v.position--;
-                    return l;
-                }
-            }
-        }
-    }
-];*/

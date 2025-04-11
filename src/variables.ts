@@ -161,6 +161,22 @@ const defaultArithmeticResolutionMap: { [x: string]: ArithmeticSig } = {
     "long double": "F64",
 }
 
+// convenience specialisation types of the ArithmeticType
+
+export interface I8Type { readonly sig: "I8" };
+export interface I16Type { readonly sig: "I16" };
+export interface I32Type { readonly sig: "I32" };
+export interface I64Type { readonly sig: "I64" };
+export interface U8Type { readonly sig: "U8" };
+export interface U16Type { readonly sig: "U16" };
+export interface U32Type { readonly sig: "U32" };
+export interface U64Type { readonly sig: "U64" };
+export interface F32Type { readonly sig: "F32" };
+export interface F64Type { readonly sig: "F64" };
+export interface BoolType { readonly sig: "BOOL" };
+export type IntegerType = I8Type | I16Type | I32Type | I64Type | U8Type | U16Type | U32Type | U64Type;
+export type FloatType = F32Type | F64Type;
+
 export interface ArithmeticType {
     readonly sig: ArithmeticSig,
 }
@@ -170,12 +186,20 @@ export interface PointerType {
     readonly pointee: ObjectType | FunctionType | VoidType, // OBJECT | FUNCTION | VOID
 }
 
-// this includes both "class" and "struct" types
+/** This includes both "class" and "struct" types */
 export interface ClassType {
     readonly sig: "CLASS",
     readonly identifier: string,
     readonly templateSpec: ObjectType[],
     readonly memberOf: ClassType | null,
+}
+
+/** Templated specialisation of the `ClassType` */
+export interface AbstractTemplatedClassType<TMemberOf extends (ClassType | null), T extends ObjectType[]> {
+    readonly sig: "CLASS",
+    readonly identifier: string,
+    readonly templateSpec: T,
+    readonly memberOf: TMemberOf,
 }
 
 export interface FunctionType {
@@ -399,7 +423,9 @@ export const variables = {
                 onError("not yet implemented (you might be doing something wrong here)");
             },
             "CLASS": () => {
-                onError("not yet implemented");
+                const x = object as ClassVariable;
+                const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(v, "SELF", false, onError)] ));
+                return variables.class(x.t, members, lvHolder as LValueHolder<ClassVariable>, isConst);
             },
             "FUNCTION": () => {
                 onError("not yet implemented");
@@ -408,7 +434,7 @@ export const variables = {
         if (!object.v.isConst && isConst) {
             onError("Cannot clone from a volatile variable to a constant");
         }
-        const where : BranchKey = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig as BranchKey;
+        const where: BranchKey = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig as BranchKey;
         return branch[where]() as TVar;
     },
     asVoidType(type: AnyType): VoidType | null {

@@ -15,6 +15,25 @@ function makeString(type: string | string[]): string {
     return type.join(' ');
 }
 
+function abstractFunctionReturnSig(sig: string[]): string[] {
+    let level = 0;
+    let returnStarts = -1;
+    let returnEnds = -1;
+    for (let i = 0; i < sig.length; i++) {
+        if (sig[i] === "FUNCTION") {
+            if (level === 0) {
+                returnStarts = i + 1;
+            }
+            level++;
+        } else if (sig[i] === "(") {
+            returnEnds = i;
+        } else if (sig[i] === ")") {
+            level--;
+        }
+    }
+    return sig.slice(0, returnStarts).concat("Return", ...sig.slice(returnEnds));
+}
+
 
 export class TypeDB {
     parser: LLParser
@@ -33,12 +52,8 @@ export class TypeDB {
         return typecheck.parseSubset(this.parser, makeStringArr(subtype), makeStringArr(supertype), this.scope, this.strict_order, allow_lvalue_substitution);
     }
 
-    addFunctionOverload(identifier: string, function_type: string | string[], function_id: number, onError: (x: string) => void) {
-        const sa = makeStringArr(function_type);
-        if (sa.length < 2) {
-            onError(`Malformed function type signature: '${sa.join(" ")}'`)
-        }
-        sa[1] = "Return";
+    addFunctionOverload(identifier: string, function_type: string | string[], function_id: number, _onError: (x: string) => void) {
+        const sa = abstractFunctionReturnSig(makeStringArr(function_type));
         if (!(identifier in this.functions)) {
             this.functions[identifier] = { overloads: [ { type: sa, fnid: function_id }  ], cache: {} };
         } else {
