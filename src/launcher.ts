@@ -10,12 +10,12 @@ import * as PEGUtil from "pegjs-util";
 import * as defaults from "./defaults";
 
 const includes: { [fileName: string]: IncludeModule } = {
+    iostream: require("./includes/iostream"),
     /*ifstream: require("./includes/ifstream"),
     ofstream: require("./includes/ofstream"),
     fstream: require("./includes/fstream"),
     sstream: require("./includes/sstream"),
     string: require("./includes/string"),
-    iostream: require("./includes/iostream"),
     cctype: require("./includes/cctype"),
     climits: require("./includes/climits"),
     cstring: require("./includes/cstring"),

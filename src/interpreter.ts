@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ArrayVariable, ClassType, ClassVariable, MaybeLeft, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables } from "./variables";
+import { ArithmeticVariable, ArrayVariable, ClassType, ClassVariable, InitArithmeticVariable, InitVariable, MaybeLeft, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -184,8 +184,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (ptl != null) {
                         const argTypes: (MaybeLeft<ObjectType> | "VOID")[] = [];
                         for (const _param of ptl.ParameterList) {
-                            const _basetypeYield = rt.simpleType(_param.DeclarationSpecifiers);
-                            const _basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">))
+                            const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                             let _type: MaybeLeft<ObjectType> | "VOID";
                             if (_param.Declarator != null) {
                                 this.rt.raiseException("Not yet implemented");
@@ -227,7 +226,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         let dim: number;
                         if (dimSpec.Expression !== null) {
-                            dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimSpec.Expression, param))) as ArithmeticVariable).v.value ?? -1;
+                            const castResult = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimSpec.Expression, param))) as ArithmeticVariable);
+                            dim = castResult.v.state === "INIT" ? castResult.v.value : -1;
                         } else if (j > 0) {
                             rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dimSpec);
                         } else {
@@ -251,8 +251,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                const basetypeYield = rt.simpleType(s.DeclarationSpecifiers);
-                const basetype = asResult(basetypeYield) ?? (yield* (basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
+                const basetype = rt.simpleType(s.DeclarationSpecifiers);
                 const _basetype = param.basetype;
                 param.basetype = basetype;
                 for (const declarator of s.Declarators) {
@@ -276,8 +275,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     let _name = null;
                     let _readonly = false;
                     if (param.insideDirectDeclarator_modifier_ParameterTypeList) {
-                        const _basetypeYield = rt.simpleType(_param.DeclarationSpecifiers);
-                        const _basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
+                        const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                         if (_basetype === "VOID") {
                             rt.raiseException("Type error or not yet implemented");
                         }
@@ -289,8 +287,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         _init = _param.Declarator.Initializers;
 
                         const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: any) => specifier?.DeclarationSpecifiers || specifier);
-                        const _basetypeYield = rt.simpleType(_declarationSpecifiers);
-                        const _basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
+                        const _basetype = rt.simpleType(_declarationSpecifiers);
                         if (_basetype === "VOID") {
                             rt.raiseException("Type error or not yet implemented");
                         }
@@ -384,8 +381,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Not yet implemented");
                 }
                 const name = s.Declarator.left.Identifier;
-                const _basetypeYield = rt.simpleType(s.DeclarationSpecifiers);
-                let basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
+                let basetype = rt.simpleType(s.DeclarationSpecifiers);
                 const pointer = s.Declarator.Pointer;
                 basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
                 let ptl: any;
@@ -412,8 +408,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const { rt } = interp;
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
-                const _basetypeYield: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType>>) : rt.simpleType(s.DeclarationSpecifiers);
-                const _basetype = asResult(_basetypeYield) ?? (yield* (_basetypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
+                const _basetype: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType>>) : rt.simpleType(s.DeclarationSpecifiers);
                 const basetype = (_basetype === "VOID") ? rt.raiseException("Type error or not yet implemented") : _basetype;
 
                 for (const dec of s.InitDeclaratorList) {
@@ -498,14 +493,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.defVar(name, xinit);*/
                         }
                     } else {
-                        const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<Variable>;
+                        const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<InitVariable>;
                         let initVar = asResult(initVarYield) ?? (yield* (initVarYield as Gen<Variable>));
                         if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
                             initVar = variables.clone(initVar, "SELF", false, rt.raiseException);
                         }
 
                         if (!variables.typesEqual(initVar.t, decType.t)) {
-                            const castVar = rt.cast(decType.t, initVar);
+                            const castVar = rt.cast(decType.t, initVar as InitVariable);
                             initVar = asResult(castVar) ?? (yield* castVar as Gen<Variable>);
                         }
                         if (isConst) {
@@ -545,7 +540,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             let init = dec.Initializers;
 
                             const _simpleTypeYield = rt.simpleType(structMember.MemberType);
-                            param.basetype = asResult(_simpleTypeYield) ?? (yield* (_simpleTypeYield as Gen<MaybeLeft<ObjectType> | "VOID">));
+                            param.basetype = _simpleTypeYield;
                             const { name, type } = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
 
                             const initvarYield = (init == null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, init.Expression) as Gen<Variable>;
@@ -900,7 +895,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 if (s.Expression) {
                     let ret = yield* interp.visit(interp, s.Expression, param);
-                    ret = interp.rt.asCapturedVariable(ret);
 
                     return [
                         "return",
@@ -954,7 +948,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const result = [];
                     for (const e of s.args) {
                         let thisArg = yield* interp.visit(interp, e, param);
-                        thisArg = interp.rt.asCapturedVariable(thisArg);
                         result.push(thisArg);
                     }
                     return result;
@@ -1098,14 +1091,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 let ret = yield* interp.visit(interp, s.Expression, param);
-                ret = variables.clone(rt.asCapturedVariable(ret), null, false, rt.raiseException);
+                ret = variables.clone(ret, null, false, rt.raiseException);
                 const type = (yield* interp.visit(interp, s.TypeName, param)) as MaybeLeft<ObjectType> | "VOID";
                 if (type === "VOID") {
                     rt.raiseException("Cannot cast to void");
                 }
                 return rt.cast(type.t, ret);
             },
-            *TypeName(interp, s, _param): Gen<MaybeLeft<ObjectType> | "VOID"> {
+            TypeName(interp, s, _param): MaybeLeft<ObjectType> | "VOID" {
                 ({
                     rt
                 } = interp);
@@ -1115,8 +1108,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         typename.push(baseType);
                     }
                 }
-                const resultYield = rt.simpleType(typename);
-                return asResult(resultYield) ?? (yield* (resultYield as Gen<MaybeLeft<ObjectType> | "VOID">));
+                return rt.simpleType(typename);
             },
             *BinOpExpression(interp, s, param) {
                 ({
@@ -1134,8 +1126,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     let left = yield* interp.visit(interp, s.left, param);
                     let right = yield* interp.visit(interp, s.right, param);
-                    left = rt.asCapturedVariable(left);
-                    right = rt.asCapturedVariable(right);
                     const r = rt.getFunctionTarget(rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right]))(rt, left, right);
                     if (isGenerator(r)) {
                         return yield* r as Generator;
@@ -1191,8 +1181,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 const obj = yield* interp.visit(interp, s.cond, param);
                 const boolType = variables.arithmeticType("BOOL");
-                const boolYield = rt.cast(boolType, obj) as ResultOrGen<ArithmeticVariable>;
-                const cond = (asResult(boolYield) ?? (yield* boolYield as Gen<ArithmeticVariable>)).v.value;
+                const boolYield = rt.cast(boolType, obj) as ResultOrGen<InitArithmeticVariable>;
+                const cond = (asResult(boolYield) ?? (yield* boolYield as Gen<InitArithmeticVariable>)).v.value;
                 return yield* interp.visit(interp, cond ? s.t : s.f, param);
             },
             *ConstantExpression(interp, s: ConstantExpressionSpec, param) {
@@ -1491,7 +1481,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         init.Initializers = arr;
                     } else if ((init.Initializers.length === 1) && arithmeticType !== null && !variables.arithmeticProperties[arithmeticType.sig].isFloat) {
-                        val = this.rt.cast(arithmeticType, (yield* this.visit(this, init.Initializers[0].Expression, param))) as ArithmeticVariable;
+                        val = this.rt.cast(arithmeticType, (yield* this.visit(this, init.Initializers[0].Expression, param))) as InitArithmeticVariable;
                         if ((val.v.value === -1) || (val.v.value === 0)) {
                             const arr = new Array(curDim);
                             let i = 0;

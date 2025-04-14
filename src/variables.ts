@@ -252,46 +252,75 @@ export interface MaybeLeftCV<T extends ObjectType> {
     readonly v: { readonly lvHolder: LValueHolder<any>, readonly isConst: boolean }
 }
 
-export interface ArithmeticValue {
-    readonly lvHolder: LValueHolder<ArithmeticVariable>;
+export interface UnboundValue<VSelf extends Variable> {
+    readonly lvHolder: LValueIndexHolder<VSelf>;
     readonly isConst: boolean;
-    /** 'null' implies an uninitialised value. */
-    value: number | null
+    state: "UNBOUND";
 }
 
-export interface ArrayValue<VElem extends Variable> {
-    readonly lvHolder: LValueHolder<ArrayVariable<VElem>>;
+export interface UninitValue<VSelf extends Variable> {
+    readonly lvHolder: LValueHolder<VSelf>;
     readonly isConst: boolean;
-    readonly values: VElem["v"][],
+    state: "UNINIT";
 }
 
-export interface ClassValue {
-    readonly lvHolder: LValueHolder<ClassVariable>;
+export interface InitValue<VSelf extends Variable> {
+    readonly lvHolder: LValueHolder<VSelf>;
     readonly isConst: boolean;
+    state: "INIT";
+}
+
+export type LValueIndexHolder<VSelf extends Variable> = { readonly array: ArrayValue<VSelf>, readonly index: number };
+
+export type LValueHolder<VSelf extends Variable> = LValueIndexHolder<VSelf> | "SELF" | null;
+
+export interface InitArithmeticValue extends InitValue<ArithmeticVariable> {
+    value: number;
+}
+
+export interface ArrayValue<VElem extends Variable> extends InitValue<ArrayVariable<VElem>> {
+    readonly values: VElem["v"][];
+}
+
+export interface ClassValue extends InitValue<ClassVariable> {
     members: { [name: string]: Variable };
 }
 
-export interface PointerValue {
-    readonly lvHolder: LValueHolder<PointerVariable>;
-    readonly isConst: boolean;
+export interface InitPointerValue extends InitValue<PointerVariable> {
     pointee: ObjectValue | FunctionValue | "VOID";
-}
+};
 
-export interface IndexPointerValue<VElem extends Variable> {
-    readonly lvHolder: LValueHolder<IndexPointerVariable<VElem>>;
-    readonly isConst: boolean;
+export interface InitIndexPointerValue<VElem extends Variable> extends InitValue<IndexPointerVariable<VElem>> {
     index: number,
     pointee: ArrayValue<VElem>,
 }
 
+export type ArithmeticValue = InitArithmeticValue | UninitValue<ArithmeticVariable>;
+
+export type PointerValue = InitPointerValue | UninitValue<PointerVariable>;
+
+export type IndexPointerValue<VElem extends Variable> = InitIndexPointerValue<VElem> | UninitValue<IndexPointerVariable<VElem>>;
+
+export type MaybeUnboundArithmeticValue = ArithmeticValue | UnboundValue<ArithmeticVariable>;
+
+export type MaybeUnboundClassValue = ClassValue | UnboundValue<ClassVariable>;
+
+export type MaybeUnboundPointerValue = PointerValue | UnboundValue<PointerVariable>;
+
+export type MaybeUnboundIndexPointerValue<VElem extends Variable> = IndexPointerValue<VElem> | UnboundValue<IndexPointerVariable<VElem>>;
+
 export interface FunctionValue {
     readonly lvHolder: "SELF" | null;
     readonly isConst: boolean;
+    readonly state: "INIT";
     target: CFunction | null;
     name: string;
     bindThis: ClassVariable | null;
 }
+
 export type ObjectValue = ArithmeticValue | ArrayValue<any> | ClassValue | PointerValue | IndexPointerValue<any>;
+export type InitObjectValue = InitArithmeticValue | ArrayValue<any> | ClassValue | InitPointerValue | InitIndexPointerValue<any>;
+export type MaybeUnboundObjectValue = MaybeUnboundArithmeticValue | ArrayValue<any> | MaybeUnboundClassValue | MaybeUnboundPointerValue | MaybeUnboundIndexPointerValue<any>;
 
 /** Determiner of referee. 
   * > `null` for non-lvalues, e.g., `6`, `"hello"`, `{ 2, -3 }` `(int)x`, `sin(x)`, etc.;
@@ -302,46 +331,37 @@ export type ObjectValue = ArithmeticValue | ArrayValue<any> | ClassValue | Point
   * > > Likewise, the type of `&x` would then be `int*` (but it's `IndexPointerVariable` in the runtime);
   * > > `int *w = &a[1]; w++;` would be okay and it would point to a[2];
 */
-export type LValueHolder<VSelf extends Variable> = IndexPointerValue<VSelf> | "SELF" | null;
 
-export interface ArithmeticVariable {
-    readonly t: ArithmeticType;
-    v: ArithmeticValue;
+export interface AbstractVariable<TType, TValue> {
+    readonly t: TType,
+    v: TValue,
 }
-export interface StaticArrayVariable<VElem extends Variable> {
-    readonly t: StaticArrayType<VElem["t"]>;
-    v: ArrayValue<VElem>;
-}
-export interface DynamicArrayVariable<VElem extends Variable> {
-    readonly t: DynamicArrayType<VElem["t"]>;
-    v: ArrayValue<VElem>;
-}
+
+export type ArithmeticVariable = AbstractVariable<ArithmeticType, ArithmeticValue>;
+export type StaticArrayVariable<VElem extends Variable> = AbstractVariable<StaticArrayType<VElem["t"]>, ArrayValue<VElem>>;
+export type DynamicArrayVariable<VElem extends Variable> = AbstractVariable<DynamicArrayType<VElem["t"]>, ArrayValue<VElem>>;
 export type ArrayVariable<VElem extends Variable> = StaticArrayVariable<VElem> | DynamicArrayVariable<VElem>;
-export interface Function {
-    readonly t: FunctionType;
-    v: FunctionValue;
-}
-export interface ClassVariable {
-    readonly t: ClassType;
-    v: ClassValue;
-}
-export interface PointerVariable {
-    readonly t: PointerType;
-    v: PointerValue;
-}
-// alias to 'PTR [t.array.object]' in typecheck notation
-export interface IndexPointerVariable<VElem extends Variable> {
-    readonly t: IndexPointerType<VElem["t"]>;
-    v: IndexPointerValue<VElem>;
-}
+export type Function = AbstractVariable<FunctionType, FunctionValue>;
+export type ClassVariable = AbstractVariable<ClassType, ClassValue>;
+export type PointerVariable = AbstractVariable<PointerType, PointerValue>;
+export type IndexPointerVariable<VElem extends Variable> = AbstractVariable<IndexPointerType<VElem["t"]>, IndexPointerValue<VElem>>;
 
+export type InitArithmeticVariable = AbstractVariable<ArithmeticType, InitArithmeticValue>;
+export type InitClassVariable = AbstractVariable<ClassType, ClassValue>;
+export type InitPointerVariable = AbstractVariable<PointerType, InitPointerValue>;
+export type InitIndexPointerVariable<VElem extends Variable> = AbstractVariable<IndexPointerType<VElem["t"]>, InitIndexPointerValue<VElem>>;
+
+export type MaybeUnboundArithmeticVariable = AbstractVariable<ArithmeticType, MaybeUnboundArithmeticValue>;
+export type MaybeUnboundClassVariable = AbstractVariable<ClassType, MaybeUnboundClassValue>;
+export type MaybeUnboundPointerVariable = AbstractVariable<PointerType, MaybeUnboundPointerValue>;
+export type MaybeUnboundIndexPointerVariable<VElem extends Variable> = AbstractVariable<IndexPointerType<VElem["t"]>, MaybeUnboundIndexPointerValue<VElem>>;
 
 // Equals to 'Object' in typecheck notation
 export type Variable = ArithmeticVariable | ArrayVariable<any> | ClassVariable | PointerVariable | IndexPointerVariable<any>;
+export type InitVariable = InitArithmeticVariable | ArrayVariable<any> | InitClassVariable | InitPointerVariable | InitIndexPointerVariable<any>;
+export type MaybeUnboundVariable = MaybeUnboundArithmeticVariable | ArrayVariable<any> | MaybeUnboundClassVariable | MaybeUnboundPointerVariable | MaybeUnboundIndexPointerVariable<any>;
 
-export type VariableValue = Variable["v"];
-
-export type CFunction = (rt: CRuntime, ...args: Variable[]) => Variable | Generator<unknown, any, unknown>;
+export type CFunction = (rt: CRuntime, ...args: Variable[]) => InitVariable | Generator<unknown, InitVariable, unknown>;
 
 export const variables = {
     voidType(): VoidType {
@@ -368,33 +388,45 @@ export const variables = {
     functionType(fulltype: string[]): FunctionType {
         return { sig: "FUNCTION", fulltype };
     },
-    arithmetic(sig: ArithmeticSig, value: number | null, lvHolder: LValueHolder<ArithmeticVariable>, isConst: boolean = false): ArithmeticVariable {
-        return { t: variables.arithmeticType(sig), v: { lvHolder, value, isConst } };
+    uninitArithmetic(sig: ArithmeticSig, lvHolder: LValueHolder<ArithmeticVariable>, isConst: boolean = false): ArithmeticVariable {
+        return { t: variables.arithmeticType(sig), v: { lvHolder, state: "UNINIT", isConst } };
     },
-    pointer(pointee: Variable | Function | "VOID", lvHolder: LValueHolder<PointerVariable>, isConst: boolean = false): PointerVariable {
+    arithmetic(sig: ArithmeticSig, value: number, lvHolder: LValueHolder<ArithmeticVariable>, isConst: boolean = false): InitArithmeticVariable {
+        return { t: variables.arithmeticType(sig), v: { lvHolder, state: "INIT", value, isConst } };
+    },
+    uninitPointer(object: AnyType, lvHolder: LValueHolder<PointerVariable>, isConst: boolean = false): PointerVariable {
+        return { t: variables.pointerType(object), v: { lvHolder, state: "UNINIT", isConst } };
+    },
+    pointer(pointee: Variable | Function | "VOID", lvHolder: LValueHolder<PointerVariable>, isConst: boolean = false): InitPointerVariable {
         const t = variables.pointerType((pointee as Variable | Function).t ?? variables.voidType());
-        const val = (pointee as Variable | Function).v ?? "VOID";
-        return { t, v: { lvHolder, pointee: val, isConst } };
+        const val = (pointee as Variable | Function).v ?? pointee;
+        return { t, v: { lvHolder, state: "INIT", pointee: val, isConst } };
     },
-    indexPointer<VElem extends Variable>(array: ArrayVariable<VElem>, index: number, lvHolder: LValueHolder<IndexPointerVariable<VElem>>, isConst: boolean = false): IndexPointerVariable<VElem> {
+    indexPointer<VElem extends Variable>(array: ArrayVariable<VElem>, index: number, lvHolder: LValueHolder<IndexPointerVariable<VElem>>, isConst: boolean = false): InitIndexPointerVariable<VElem> {
         const t = variables.indexPointerType(array.t);
-        return { t, v: { lvHolder, pointee: array.v, index, isConst } };
+        return { t, v: { lvHolder, state: "INIT", pointee: array.v, index, isConst } };
     },
-    class(t: ClassType, members: { [name: string]: Variable }, lvHolder: LValueHolder<ClassVariable>, isConst: boolean = false): ClassVariable {
-        return { t, v: { lvHolder, members, isConst } };
+    class(t: ClassType, members: { [name: string]: Variable }, lvHolder: LValueHolder<ClassVariable>, isConst: boolean = false): InitClassVariable {
+        return { t, v: { lvHolder, state: "INIT", members, isConst } };
     },
     staticArray<VElem extends Variable>(objectType: VElem["t"], values: VElem["v"][], lvHolder: LValueHolder<StaticArrayVariable<VElem>>, isConst: boolean = false): StaticArrayVariable<VElem> {
-        return { t: variables.staticArrayType(objectType, values.length), v: { lvHolder, values, isConst } };
+        return { t: variables.staticArrayType(objectType, values.length), v: { lvHolder, state: "INIT", values, isConst } };
     },
     dynamicArray<VElem extends Variable>(objectType: VElem["t"], values: VElem["v"][], lvHolder: LValueHolder<DynamicArrayVariable<VElem>>, isConst: boolean = false): DynamicArrayVariable<VElem> {
-        return { t: variables.dynamicArrayType(objectType), v: { lvHolder, values, isConst } };
+        return { t: variables.dynamicArrayType(objectType), v: { lvHolder, state: "INIT", values, isConst } };
     },
     function(fulltype: string[], name: string, target: CFunction | null, bindThis: ClassVariable | null, lvHolder: "SELF" | null): Function {
-        return { t: variables.functionType(fulltype), v: { lvHolder, name, target, bindThis, isConst: true } };
+        return { t: variables.functionType(fulltype), v: { lvHolder, state: "INIT", name, target, bindThis, isConst: true } };
     },
-    deref(object: PointerVariable): Variable | Function | "VOID" {
+    deref(object: MaybeUnboundPointerVariable, onError: (x: string) => never): Variable | Function {
         if (variables.asVoidType(object.t.pointee) !== null) {
-            return "VOID";
+            onError("Attempted dereference of a void* type (not yet implemented)");
+        }
+        if (object.v.state === "UNINIT") {
+            onError("Attempted dereference of an uninitialised value (segmentation fault)");
+        }
+        if (object.v.state === "UNBOUND") {
+            onError("Attempted dereference of an out-of-bounds array element (segmentation fault)");
         }
         return {
             t: (object.t.pointee as ObjectType | FunctionType),
@@ -404,28 +436,31 @@ export const variables = {
     },
     /** Create a new variable with the same type and value as the original one */
     clone<TVar extends Variable>(object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, onError: (x: string) => never): TVar {
+        if (object.v.state === "UNINIT") {
+            onError("Attempted clone of an uninitialised value");
+        }
         type BranchKey = "ARITHMETIC" | "PTR" | "INDEXPTR" | "ARRAY" | "CLASS" | "FUNCTION";
         const branch: { [sig in BranchKey]: () => Variable } = {
             "ARITHMETIC": () => {
-                const x = object as ArithmeticVariable;
-                return variables.arithmetic(x.t.sig, x.v.value, lvHolder as LValueHolder<ArithmeticVariable>, isConst)
+                const x = object as InitArithmeticVariable;
+                return variables.arithmetic(x.t.sig, x.v.value, lvHolder as LValueHolder<InitArithmeticVariable>, isConst)
             },
             "PTR": () => {
-                const x = object as PointerVariable;
-                return variables.pointer(variables.deref(x), lvHolder as LValueHolder<PointerVariable>, isConst);
+                const x = object as InitPointerVariable;
+                return variables.pointer(variables.deref(x, onError), lvHolder as LValueHolder<InitPointerVariable>, isConst);
             },
             "INDEXPTR": () => {
-                const x = object as IndexPointerVariable<Variable>;
+                const x = object as InitIndexPointerVariable<Variable>;
                 const array = { t: x.t.array, v: x.v.pointee, left: false, readonly: false } as ArrayVariable<Variable>;
-                return variables.indexPointer(array, x.v.index, lvHolder as LValueHolder<IndexPointerVariable<Variable>>, isConst);
+                return variables.indexPointer(array, x.v.index, lvHolder as LValueHolder<InitIndexPointerVariable<Variable>>, isConst);
             },
             "ARRAY": () => {
                 onError("not yet implemented (you might be doing something wrong here)");
             },
             "CLASS": () => {
-                const x = object as ClassVariable;
-                const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(v, "SELF", false, onError)] ));
-                return variables.class(x.t, members, lvHolder as LValueHolder<ClassVariable>, isConst);
+                const x = object as InitClassVariable;
+                const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(v, "SELF", false, onError)]));
+                return variables.class(x.t, members, lvHolder as LValueHolder<InitClassVariable>, isConst);
             },
             "FUNCTION": () => {
                 onError("not yet implemented");
@@ -561,44 +596,47 @@ export const variables = {
     },
     arithmeticAssign(lhs: ArithmeticVariable, value: number, onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
-        lhs.v.value = value;
+        lhs.v.state = "INIT";
+        (lhs.v as InitArithmeticValue).value = value;
     },
     arithmeticValueAssign(lv: ArithmeticValue, value: number, onError: (x: string) => never): void {
         checkAssignable(lv, onError);
-        lv.value = value;
+        lv.state = "INIT";
+        (lv as InitArithmeticValue).value = value;
     },
     pointerAssign(lhs: PointerVariable, pointee: Variable | Function | "VOID", onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
+        lhs.v.state = "INIT";
         const pointeeType = pointee === "VOID" ? variables.voidType() : pointee.t;
         if (!variables.typesEqual(lhs.t.pointee, pointeeType)) {
             const expected = variables.toStringSequence(lhs.t.pointee, false, onError).join(" ");
             const received = variables.toStringSequence(pointeeType, false, onError).join(" ");
             onError(`expected type '${expected}', got '${received}'`)
         }
-        lhs.v.pointee = pointee === "VOID" ? "VOID" : pointee.v;
+        (lhs.v as InitPointerValue).pointee = pointee === "VOID" ? "VOID" : pointee.v;
     },
     indexPointerAssign<VElem extends Variable>(lhs: IndexPointerVariable<VElem>, array: ArrayVariable<VElem>, index: number, onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
+        lhs.v.state = "INIT";
         if (!variables.typesEqual(lhs.t.array.object, array.t.object)) {
             const expected = variables.toStringSequence(lhs.t.array.object, false, onError).join(" ");
             const received = variables.toStringSequence(array.t.object, false, onError).join(" ");
             onError(`expected type '${expected}', got '${received}'`)
         }
-        lhs.v.pointee = array.v;
-        lhs.v.index = index;
+        (lhs.v as InitIndexPointerValue<VElem>).pointee = array.v;
+        (lhs.v as InitIndexPointerValue<VElem>).index = index;
     },
     indexPointerAssignIndex(lhs: IndexPointerVariable<Variable>, index: number, onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
-        lhs.v.index = index;
+        lhs.v.state = "INIT";
+        (lhs.v as InitIndexPointerValue<Variable>).index = index;
     },
-    // by idea you should assign a new array
-    /*arrayAssign<VElem extends Variable>(lhs: ArrayVariable<VElem>, array: VElem["v"][], onError: (x: string) => never): void {
-        checkAssignable(lhs, onError);
-        if (lhs.t.sig === "ARRAY" && lhs.t.size !== array.length) {
-            onError(`Expected static array assignment of size ${array.length}`)
+    arrayMember(lhs: ArrayVariable<Variable>, index: number): MaybeUnboundVariable {
+        if (index >= 0 && index < lhs.v.values.length) {
+            return { t: lhs.t.object, v: lhs.v.values[index] } as Variable;
         }
-        lhs.v.values = array;
-    },*/
+        return { t: lhs.t.object as ArithmeticType, v: { lvHolder: { array: lhs.v, index } as LValueIndexHolder<Variable>, isConst: false, state: "UNBOUND" } as UnboundValue<ArithmeticVariable> };
+    },
     toStringSequence(type: AnyType, left: boolean, onError: (x: string) => never): string[] {
         let result = new Array<string>();
         if (left) {
@@ -612,12 +650,15 @@ export const variables = {
     defaultArithmeticResolutionMap: defaultArithmeticResolutionMap,
 } as const;
 
-function checkAssignable(v: VariableValue, onError: (x: string) => never): void {
+function checkAssignable(v: MaybeUnboundObjectValue, onError: (x: string) => never): void {
     if (v.lvHolder === null) {
         onError("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
     if (v.isConst) {
         onError("Attempted assignment to a constant value");
+    }
+    if (v.state === "UNBOUND") {
+        onError("Attempted assignment to an array element whose index is out of bounds (segmentation fault)");
     }
 }
 
