@@ -1,26 +1,24 @@
 import { CRuntime } from "../rt";
-import { ArithmeticVariable, IndexPointerVariable, Variable, variables } from "../variables";
+import { ArithmeticVariable, IndexPointerVariable, InitIndexPointerVariable, Variable, variables } from "../variables";
 
 export = function (rt: CRuntime, _this: Variable, _dest: Variable, _src: Variable): IndexPointerVariable<ArithmeticVariable> {
-    const _dest0: IndexPointerVariable<Variable> | null = variables.asIndexPointer(_dest);
-    const _src0: IndexPointerVariable<Variable> | null = variables.asIndexPointer(_src);
-    if (_src0 !== null && _dest0 !== null) {
-        const elemType = _dest0.t.array.object;
-        if (variables.asArithmeticType(elemType) === null || variables.asArithmeticType(_src0.t.array.object) === null) {
-            rt.raiseException("Invalid array element types passed to internal function 'cstring_strcpy'");
-        }
-        const dest = _dest0 as IndexPointerVariable<ArithmeticVariable>;
-        const src = _src0 as IndexPointerVariable<ArithmeticVariable>;
+    const _arithmetic = variables.uninitArithmetic("I8", null);
+    const dest: InitIndexPointerVariable<ArithmeticVariable> | null = variables.asInitIndexPointerOfElem(_dest, _arithmetic);
+    const src: InitIndexPointerVariable<ArithmeticVariable> | null = variables.asInitIndexPointerOfElem(_src, _arithmetic);
+    if (src !== null && dest !== null) {
         const srcarr = src.v.pointee.values;
         let i = src.v.index;
         const destarr = dest.v.pointee.values;
         let j = dest.v.index;
-        while (i < srcarr.length && j < destarr.length && srcarr[i].value !== 0) {
-            const srcval = srcarr[j];
-            if (srcval.value === null) {
+        while (i < srcarr.length && j < destarr.length) {
+            const srcval = srcarr[i];
+            if (srcval.state !== "INIT") {
                 rt.raiseException("source array contains uninitialised values");
             }
             variables.arithmeticValueAssign(destarr[j], srcval.value, rt.raiseException);
+            if (srcval.value === 0) {
+                break;
+            }
             i++;
             j++;
         }

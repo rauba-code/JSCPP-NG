@@ -1,7 +1,7 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, ArrayType, CFunction, ClassType, ClassVariable, Function, FunctionType, FunctionValue, IndexPointerType, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, MaybeLeft, MaybeLeftCV, ObjectType, PointerType, PointerVariable, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, ArrayType, CFunction, ClassType, ClassVariable, Function, FunctionType, FunctionValue, IndexPointerType, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointerType, PointerVariable, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray } from "./utf8";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
@@ -622,9 +622,6 @@ export class CRuntime {
       * > Does not really depend on signedness, just on limits set by basic arithmetic types. 
       * For floating-point values, rounds to the nearest precision available.*/
     adjustArithmeticValue(x: InitArithmeticVariable): void {
-        if (x.v.value === null) {
-            return; // actually it's unreachable
-        }
         const info = variables.arithmeticProperties[x.t.sig];
         if (!info.isFloat && !Number.isInteger(x.v.value)) {
             x.v.value = Math.sign(x.v.value) * Math.floor(Math.abs(x.v.value));
@@ -726,7 +723,7 @@ export class CRuntime {
         if (arithmeticTarget !== null && arithmeticVar !== null) {
             const targetInfo = variables.arithmeticProperties[arithmeticTarget.sig];
             const fromInfo = variables.arithmeticProperties[arithmeticVar.t.sig];
-            const arithmeticValue = this.value(arithmeticVar);
+            const arithmeticValue = this.arithmeticValue(arithmeticVar);
             if (target.sig === "BOOL") {
                 return variables.arithmetic(target.sig, arithmeticVar.v ? 1 : 0, null);
             } else if (targetInfo.isFloat) {
@@ -1013,11 +1010,19 @@ export class CRuntime {
 
     /** Safely accesses values.
       * Panics if value is uninitalised. */
-    value(variable: ArithmeticVariable): number {
-        if (variable.v.state === "UNINIT") {
+    arithmeticValue(variable: MaybeUnboundArithmeticVariable): number {
+        if (variable.v.state !== "INIT") {
             this.raiseException("Access of an uninitialised value")
         }
         return variable.v.value;
+    }
+
+    expectValue(variable: MaybeUnboundVariable | Variable): InitVariable {
+        if (variable.v.state !== "INIT") {
+            this.raiseException("Access of an uninitialised value")
+        } else {
+            return variable as InitVariable;
+        }
     }
 
     defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): interp.ResultOrGen<Variable> {

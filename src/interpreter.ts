@@ -667,7 +667,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const e = yield* interp.visit(interp, s.Expression, param);
                 let ret;
                 let castYield = rt.cast(variables.arithmeticType("BOOL"), e) as ResultOrGen<ArithmeticVariable>;
-                if (rt.value(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>))) {
+                if (rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>))) {
                     ret = yield* interp.visit(interp, s.Statement, param);
                 } else if (s.ElseStatement) {
                     ret = yield* interp.visit(interp, s.ElseStatement, param);
@@ -710,7 +710,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
                         const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
-                        const castBool = rt.value(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
+                        const castBool = rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
                         if (!castBool) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
@@ -762,7 +762,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
                         const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
-                        const castBool = rt.value(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
+                        const castBool = rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
                         if (!castBool) { break; }
                     }
                 }
@@ -844,7 +844,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
                         const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
-                        const castBool = rt.value(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
+                        const castBool = rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
                         if (!castBool) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);

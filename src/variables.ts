@@ -320,7 +320,7 @@ export interface FunctionValue {
 
 export type ObjectValue = ArithmeticValue | ArrayValue<any> | ClassValue | PointerValue | IndexPointerValue<any>;
 export type InitObjectValue = InitArithmeticValue | ArrayValue<any> | ClassValue | InitPointerValue | InitIndexPointerValue<any>;
-export type MaybeUnboundObjectValue = MaybeUnboundArithmeticValue | ArrayValue<any> | MaybeUnboundClassValue | MaybeUnboundPointerValue | MaybeUnboundIndexPointerValue<any>;
+export type MaybeUnboundObjectValue = MaybeUnboundArithmeticValue | ArrayValue<any> | PointerValue | MaybeUnboundClassValue | MaybeUnboundPointerValue | MaybeUnboundIndexPointerValue<any>;
 
 /** Determiner of referee. 
   * > `null` for non-lvalues, e.g., `6`, `"hello"`, `{ 2, -3 }` `(int)x`, `sin(x)`, etc.;
@@ -502,14 +502,26 @@ export const variables = {
     asArithmetic(x: Variable | Function): ArithmeticVariable | null {
         return (x.t.sig in arithmeticSig) ? x as ArithmeticVariable : null;
     },
+    asInitArithmetic(x: Variable | Function): InitArithmeticVariable | null {
+        return (x.t.sig in arithmeticSig && x.v.state === "INIT") ? x as InitArithmeticVariable : null;
+    },
     asPointer(x: Variable | Function): PointerVariable | null {
         return (x.t.sig === "PTR") ? x as PointerVariable : null;
+    },
+    asInitPointer(x: Variable | Function): InitPointerVariable | null {
+        return (x.t.sig === "PTR" && x.v.state === "INIT") ? x as InitPointerVariable : null;
     },
     asIndexPointer(x: Variable | Function): IndexPointerVariable<Variable> | null {
         return (x.t.sig === "INDEXPTR") ? x as IndexPointerVariable<Variable> : null;
     },
+    asInitIndexPointer(x: Variable | Function): InitIndexPointerVariable<Variable> | null {
+        return (x.t.sig === "INDEXPTR" && x.v.state === "INIT") ? x as InitIndexPointerVariable<Variable> : null;
+    },
     asIndexPointerOfElem<VElem extends Variable>(x: Variable | Function, elem: VElem): IndexPointerVariable<VElem> | null {
         return (x.t.sig === "INDEXPTR" && variables.typesEqual((x as IndexPointerVariable<Variable>).t.array.object, elem.t)) ? x as IndexPointerVariable<VElem> : null;
+    },
+    asInitIndexPointerOfElem<VElem extends Variable>(x: Variable | Function, elem: VElem): InitIndexPointerVariable<VElem> | null {
+        return (x.t.sig === "INDEXPTR" && variables.typesEqual((x as IndexPointerVariable<Variable>).t.array.object, elem.t) && x.v.state === "INIT") ? x as InitIndexPointerVariable<VElem> : null;
     },
     asArray(x: Variable | Function): ArrayVariable<Variable> | null {
         return (x.t.sig === "ARRAY") ? x as ArrayVariable<Variable> : null;
