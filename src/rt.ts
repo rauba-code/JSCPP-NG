@@ -714,7 +714,7 @@ export class CRuntime {
         return fromUtf8CharArray(byteArray);
     }
 
-    cast(target: ObjectType, v: InitVariable): InitVariable | Generator<unknown, InitVariable, unknown> {
+    cast(target: ObjectType, v: InitVariable): MaybeUnboundVariable | Generator<unknown, MaybeUnboundVariable, unknown> {
         // TODO: looking for global overload
         if (variables.typesEqual(v.t, target)) {
             return v;
@@ -1012,21 +1012,31 @@ export class CRuntime {
     /** Safely accesses values.
       * Panics if value is uninitalised. */
     arithmeticValue(variable: MaybeUnboundArithmeticVariable): number {
-        if (variable.v.state !== "INIT") {
+        if (variable.v.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value")
+        } else if (variable.v.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
         return variable.v.value;
     }
 
-    expectValue(variable: MaybeUnboundVariable | Variable): InitVariable {
-        if (variable.v.state !== "INIT") {
+    expectValue(variable: MaybeUnboundVariable): InitVariable {
+        if (variable.v.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value")
-        } else {
-            return variable as InitVariable;
+        } else if (variable.v.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
+        return variable as InitVariable;
     }
 
-    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): interp.ResultOrGen<Variable> {
+    unbound(variable: MaybeUnboundVariable): Variable {
+        if (variable.v.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        }
+        return variable as Variable;
+    }
+
+    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): interp.ResultOrGen<MaybeUnboundVariable> {
         let classType: ClassType | null;
         let pointerType: PointerType | null;
         if (type.sig in variables.arithmeticSig) {

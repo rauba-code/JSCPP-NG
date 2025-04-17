@@ -361,7 +361,7 @@ export type Variable = ArithmeticVariable | ArrayVariable<any> | ClassVariable |
 export type InitVariable = InitArithmeticVariable | ArrayVariable<any> | InitClassVariable | InitPointerVariable | InitIndexPointerVariable<any>;
 export type MaybeUnboundVariable = MaybeUnboundArithmeticVariable | ArrayVariable<any> | MaybeUnboundClassVariable | MaybeUnboundPointerVariable | MaybeUnboundIndexPointerVariable<any>;
 
-export type CFunction = (rt: CRuntime, ...args: Variable[]) => InitVariable | Generator<unknown, InitVariable, unknown>;
+export type CFunction = (rt: CRuntime, ...args: Variable[]) => MaybeUnboundVariable | Generator<unknown, MaybeUnboundVariable, unknown>;
 
 export const variables = {
     voidType(): VoidType {

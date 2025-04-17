@@ -1,5 +1,5 @@
 import { CRuntime, OpSignature } from "./rt";
-import { ArithmeticVariable, IndexPointerVariable, PointerVariable, Variable, Function, variables, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable } from "./variables";
+import { ArithmeticVariable, IndexPointerVariable, PointerVariable, Variable, Function, variables, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable } from "./variables";
 
 function raiseSupportException(rt: CRuntime, l: Variable, r: Variable, op: string): never {
     rt.raiseException(`${rt.makeTypeStringOfVar(l)} does not support ${op} on ${rt.makeTypeStringOfVar(r)}`);
@@ -9,7 +9,7 @@ type OpHandler = {
     type: string,
     op: OpSignature,
     // no operators known to me return void
-    default: ((rt: CRuntime, ...args: Variable[]) => InitVariable)
+    default: ((rt: CRuntime, ...args: Variable[]) => MaybeUnboundVariable)
 };
 
 function binaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable, op: (a: number, b: number) => number): InitArithmeticVariable {
@@ -433,7 +433,7 @@ const defaultOpHandler: OpHandler[] = [
     {
         op: "o(_[_])",
         type: "!LValue FUNCTION LREF ?0 ( LREF PTR ?0 Arithmetic )",
-        default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, index: ArithmeticVariable): InitVariable {
+        default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, index: ArithmeticVariable): MaybeUnboundVariable {
             const _lp = variables.asPointer(l);
             const _li = variables.asIndexPointer(l);
             const idx = rt.arithmeticValue(index);
@@ -450,7 +450,7 @@ const defaultOpHandler: OpHandler[] = [
                 const li = rt.expectValue(_li) as InitIndexPointerVariable<Variable>;
                 const id = idx + li.v.index;
                 if (id < 0 || id >= li.v.pointee.values.length) {
-                    rt.raiseException("Segmentation fault: out-of-range member access of an array");
+                    return { t: li.t.array.object, v: { lvHolder: { array: li.v.pointee, index: id }, isConst: false, state: "UNBOUND" } } as MaybeUnboundVariable
                 }
                 return { t: li.t.array.object, v: li.v.pointee.values[id] } as InitVariable;
             }
