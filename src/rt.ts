@@ -1,7 +1,7 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, ArrayType, CFunction, ClassType, ClassVariable, Function, FunctionType, FunctionValue, IndexPointerType, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointerType, PointerVariable, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, ArrayType, CFunction, ClassType, Function, FunctionType, FunctionValue, IndexPointerType, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointerType, PointerVariable, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray } from "./utf8";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
@@ -40,7 +40,7 @@ export interface JSCPPConfig {
     stopExecutionCheck?: () => boolean;
 }
 
-export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)" | "o(_call)" | "o(_stub)";
+export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[_])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)" | "o(_call)" | "o(_stub)";
 
 export interface Member {
     type: ObjectType;
@@ -251,7 +251,7 @@ export class CRuntime {
         return this.typeSignature(result);
     }
 
-    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: interp.CompoundStatementSpec | null, interp: interp.Interpreter): void {
+    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
         let f: CFunction | null = null;
         if (stmts != null) {
             f = function*(rt: CRuntime, ...args: Variable[]) {
@@ -316,7 +316,8 @@ export class CRuntime {
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
         if (fnID < 0) {
-            this.raiseException(`No matching function '(${domainSig})::${identifier}'`);
+            const prettyPrintParams = params.map((x, i) => `${i+1}) ${this.makeTypeString(x.t, x.v.lvHolder !== null, false)}`).join("\n");
+            this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: \n${prettyPrintParams}`);
         }
         return domainMap.functionsByID[fnID];
     };

@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ArrayVariable, ClassType, ClassVariable, InitArithmeticVariable, InitVariable, MaybeLeft, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables } from "./variables";
+import { ArithmeticVariable, ArrayVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, InitVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables, LValueIndexHolder, ArrayValue } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -50,93 +50,110 @@ export interface StatementMeta {
     eColumn: number,
     eOffset: number
 };
-export interface IdentifierSpec extends StatementMeta {
+export interface XIdentifier extends StatementMeta {
     type: "Identifier",
     Identifier: string
 };
-export interface IdentifierExpressionSpec extends StatementMeta {
+export interface XIdentifierExpression extends StatementMeta {
     type: "IdentifierExpression",
     Identifier: string
 };
-export interface CompoundStatementSpec extends StatementMeta {
+export interface XCompoundStatement extends StatementMeta {
     type: "CompoundStatement",
     Statements: object[]
 }
-export interface FunctionDefinitionSpec extends StatementMeta {
+export interface XFunctionDefinition extends StatementMeta {
     type: "FunctionDefinition",
-    Declarator: DirectDeclaratorSpec,
+    Declarator: XDirectDeclarator,
     DeclarationSpecifiers: string[],
-    CompoundStatement: CompoundStatementSpec,
+    CompoundStatement: XCompoundStatement,
 };
-export interface PostfixExpressionMethodInvocationSpec extends StatementMeta {
+export interface XPostfixExpression_MethodInvocation extends StatementMeta {
     type: "PostfixExpression_MethodInvocation",
     Expression: object,
     args: object[],
 };
-export interface InitDeclaratorSpec extends StatementMeta {
+export interface XPostfixExpression_ArrayAccess extends StatementMeta {
+    type: "PostfixExpression_ArrayAccess",
+    Expression: XIdentifierExpression,
+    index: XConstantExpression,
+};
+export interface XInitDeclarator extends StatementMeta {
     type: "InitDeclarator",
-    Declarator: DirectDeclaratorSpec,
-    Initializers: InitializerExprSpec | null,
+    Declarator: XDirectDeclarator,
+    Initializers: XInitializerExpr | null,
 }
-export interface ParameterDeclarationSpec extends StatementMeta {
+export interface XParameterDeclaration extends StatementMeta {
     type: "ParameterDeclaration"
     DeclarationSpecifiers: string[],
-    Declarator: InitDeclaratorSpec,
+    Declarator: XInitDeclarator,
 }
-export interface ParameterTypeListSpec extends StatementMeta {
+export interface XParameterTypeList extends StatementMeta {
     type: "ParameterTypeList",
-    ParameterList: ParameterDeclarationSpec[],
+    ParameterList: XParameterDeclaration[],
     varargs: boolean,
 }
-export interface DirectDeclaratorSpec extends StatementMeta {
+export interface XDirectDeclarator extends StatementMeta {
     type: "DirectDeclarator",
-    left: IdentifierSpec | DirectDeclaratorSpec,
-    right: DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | DirectDeclaratorModifier[],
+    left: XIdentifier | XDirectDeclarator,
+    right: XDirectDeclarator_modifier_ParameterTypeList | XDirectDeclarator_modifier_IdentifierList | DirectDeclaratorModifier[],
     Reference?: any[][],
     Pointer: any[][] | null,
 }
-type DirectDeclaratorModifier = DirectDeclaratorModifierParameterTypeListSpec | DirectDeclaratorModifierIdentifierListSpec | DirectDeclaratorModifierArraySpec;
-export interface DirectDeclaratorModifierArraySpec extends StatementMeta {
+type DirectDeclaratorModifier = XDirectDeclarator_modifier_ParameterTypeList | XDirectDeclarator_modifier_IdentifierList | XDirectDeclarator_modifier_Array;
+export interface XDirectDeclarator_modifier_Array extends StatementMeta {
     type: "DirectDeclarator_modifier_array",
-    Expression: UnknownSpec | null,
+    /** Array length specifier */
+    Expression: XConstantExpression | null,
+    Modifier: any[],
 }
-export interface DirectDeclaratorModifierParameterTypeListSpec extends StatementMeta {
+export interface XDirectDeclarator_modifier_ParameterTypeList extends StatementMeta {
     type: "DirectDeclarator_modifier_ParameterTypeList",
-    ParameterTypeList: ParameterTypeListSpec,
+    ParameterTypeList: XParameterTypeList,
 }
-export interface DirectDeclaratorModifierIdentifierListSpec extends StatementMeta {
+export interface XDirectDeclarator_modifier_IdentifierList extends StatementMeta {
     type: "DirectDeclarator_modifier_IdentifierList",
     IdentifierList: any,
 }
-export interface DeclarationSpec extends StatementMeta {
+export interface XDeclaration extends StatementMeta {
     type: "Declaration",
     DeclarationSpecifiers: string[],
-    InitDeclaratorList: InitDeclaratorSpec[],
+    InitDeclaratorList: XInitDeclarator[],
 }
-export interface DecimalConstantSpec extends StatementMeta {
+export interface XDecimalConstant extends StatementMeta {
     type: "DecimalConstant",
     value: string
 }
-export interface ConstantExpressionSpec extends StatementMeta {
+export interface XOctalConstant extends StatementMeta {
+    type: "OctalConstant",
+    value: string
+}
+export interface XConstantExpression extends StatementMeta {
     type: "ConstantExpression",
-    Expression: DecimalConstantSpec,
+    Expression: XDecimalConstant | XOctalConstant,
 }
-export interface InitializerExprSpec extends StatementMeta {
+export interface XInitializerExpr extends StatementMeta {
     type: "Initializer_expr",
-    Expression: ConstantExpressionSpec
+    Expression: XConstantExpression
 }
-export interface StructDeclarationSpec extends StatementMeta {
+export interface XStructDeclaration extends StatementMeta {
     type: "StructDeclaration",
     DeclarationIdentifiers: string[],
-    StructMemberList: StructMemberSpec[],
+    StructMemberList: XStructMember[],
     InitVariables: boolean,
 }
-export interface StructMemberSpec extends StatementMeta {
+export interface XStructMember extends StatementMeta {
     type: "StructMember",
     MemberType: string[],
-    Declarators: InitDeclaratorSpec[],
+    Declarators: XInitDeclarator[],
 }
-export interface UnknownSpec {
+export interface XBinOpExpression extends StatementMeta {
+    type: "BinOpExpression" | "LogicalANDExpression" | "LogicalORExpression",
+    op: string,
+    left: XPostfixExpression_ArrayAccess,
+    right: XConstantExpression,
+}
+export interface XUnknown {
     type: "<stub>"
 }
 type DeclaratorYield = { name: string, type: MaybeLeft<ObjectType> };
@@ -162,7 +179,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     i++;
                 }
             },
-            *DirectDeclarator(interp, s: DirectDeclaratorSpec, param: { basetype: MaybeLeft<ObjectType> }) {
+            *DirectDeclarator(interp, s: XDirectDeclarator, param: { basetype: MaybeLeft<ObjectType> }) {
                 ({ rt } = interp);
                 let { basetype } = param;
                 basetype = interp.buildRecursivePointerType(s.Pointer, basetype, 0) as MaybeLeft<ObjectType>;
@@ -220,16 +237,16 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if ((s.right.length > 0) && (s.right[0].type === "DirectDeclarator_modifier_array")) {
                     const dimensions = [];
                     for (let j = 0; j < s.right.length; j++) {
-                        const dimSpec = s.right[j];
-                        if (dimSpec.type !== "DirectDeclarator_modifier_array") {
-                            rt.raiseException("unacceptable array initialization", dimSpec);
+                        const Xdim = s.right[j];
+                        if (Xdim.type !== "DirectDeclarator_modifier_array") {
+                            rt.raiseException("unacceptable array initialization", Xdim);
                         }
                         let dim: number;
-                        if (dimSpec.Expression !== null) {
-                            const castResult = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimSpec.Expression, param))) as ArithmeticVariable);
+                        if (Xdim.Expression !== null) {
+                            const castResult = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, Xdim.Expression, param))) as ArithmeticVariable);
                             dim = castResult.v.state === "INIT" ? castResult.v.value : -1;
                         } else if (j > 0) {
-                            rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dimSpec);
+                            rt.raiseException("multidimensional array must have bounds for all dimensions except the first", Xdim);
                         } else {
                             dim = -1;
                         }
@@ -260,7 +277,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 param.basetype = _basetype;
             },
-            *ParameterTypeList(interp, s: ParameterTypeListSpec, param) {
+            *ParameterTypeList(interp, s: XParameterTypeList, param) {
                 const argTypes = [];
                 const argNames = [];
                 const readonlyArgs: boolean[] = [];
@@ -369,7 +386,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return { argTypes, argNames, readonlyArgs };
             },
-            *FunctionDefinition(interp, s: FunctionDefinitionSpec, param) {
+            *FunctionDefinition(interp, s: XFunctionDefinition, param) {
                 ({
                     rt
                 } = interp);
@@ -404,7 +421,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const stat = s.CompoundStatement;
                 rt.defFunc(typedScope, name, basetype, argTypes, argNames, stat, interp);
             },
-            *Declaration(interp, s: DeclarationSpec, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType> }): ResultOrGen<void> {
+            *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType>, node?: XInitializerExpr | null }): ResultOrGen<void> {
                 const { rt } = interp;
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
@@ -428,18 +445,22 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     const rhs = dec.Declarator.right as DirectDeclaratorModifier[];
                     if (rhs.length > 0) {
-                        if (rhs[0].type as string === "DirectDeclarator_modifier_array") {
-                            rt.raiseException("Not yet implemented");
-                            /*const dimensions = [];
+                        if (rhs[0].type === "DirectDeclarator_modifier_array") {
+                            const dimensions: Array<number> = [];
                             for (let j = 0; j < rhs.length; j++) {
-                                let dim = rhs[j];
+                                const _dim = rhs[j];
+                                if (_dim.type !== "DirectDeclarator_modifier_array") {
+                                    rt.raiseException("Type error or not yet implemented");
+                                }
+                                const dim = _dim as XDirectDeclarator_modifier_Array;
                                 if (dim.Expression !== null) {
-                                    //rt.raiseException("Not yet implemented");
-                                    dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
+                                    const castYield = rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ResultOrGen<MaybeUnboundArithmeticVariable>;
+                                    dimensions.push(rt.arithmeticValue(asResult(castYield) ?? (yield* (castYield as Gen<MaybeUnboundArithmeticVariable>))));
                                 } else if (j > 0) {
                                     rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                 } else {
-                                    if (init.type === "Initializer_expr") {
+                                    rt.raiseException("not yet implemented");
+                                    /*if (init.type === "Initializer_expr") {
                                         const initializer: Variable = yield* interp.visit(interp, init, param);
                                         if basetype is char and initializer.t is char*
                                         if (variables.asArithmeticType(basetype)?.sig === "I8" && variables.typesEqual(initializer.t, variables.staticArrayType(variables.initializer.t)) rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
@@ -457,19 +478,17 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                         }
                                     } else {
                                         dim = init.Initializers.length;
-                                    }
+                                    }*/
                                 }
-                                dimensions.push(dim);
                             }
 
-                            param.node = init;
-                            const arrayYield = interp.arrayInit(dimensions, init, basetype, param);
-                            init = asResult(arrayYield) ?? (yield* arrayYield as Gen<StaticArrayVariable<Variable>>);
+                            param.node = initSpec;
+                            const arrayYield = interp.arrayInit(dimensions, initSpec, basetype.t, param);
+                            const arrayInit = asResult(arrayYield) ?? (yield* arrayYield as Gen<StaticArrayVariable<Variable>>);
                             delete param.node;
 
-                            init.dataType = dec.Declarator.left.DataType;
-                            init.readonly = readonly;
-                            rt.defVar(name, init);*/
+                            const indexPointer = variables.indexPointer(arrayInit, 0, "SELF", false);
+                            rt.defVar(name, indexPointer);
                         } else if (rhs[0].type as string === "DirectDeclarator_modifier_Constructor") {
                             //rt.raiseException("Not yet implemented");
                             const constructorArgs = [];
@@ -530,7 +549,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 vectorClass.readonly = false;
                 rt.defVar(s.Identifier, basetype, vectorClass);*/
             },
-            *StructDeclaration(interp, s: StructDeclarationSpec, param) {
+            *StructDeclaration(interp, s: XStructDeclaration, param) {
                 ({ rt } = interp);
 
                 for (const identifier of s.DeclarationIdentifiers) {
@@ -565,7 +584,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 }
             },
-            *Initializer_expr(interp, s: InitializerExprSpec, param) {
+            *Initializer_expr(interp, s: XInitializerExpr, param) {
                 ({
                     rt
                 } = interp);
@@ -924,15 +943,19 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 return yield* interp.visit(interp, s.Expression, param);
             },
-            *PostfixExpression_ArrayAccess(interp, s, param) {
+            *PostfixExpression_ArrayAccess(interp, s: XPostfixExpression_ArrayAccess, param) {
                 ({
                     rt
                 } = interp);
-                const ret = yield* interp.visit(interp, s.Expression, param);
-                const index = yield* interp.visit(interp, s.index, param);
+                const _ret = (yield* interp.visit(interp, s.Expression, param)) as Variable | Function;
+                if (variables.asFunction(_ret) !== null) {
+                    rt.raiseException("Type error or not yet implemented");
+                }
+                const ret = _ret as Variable;
+                const index = variables.asArithmetic(yield* interp.visit(interp, s.index, param)) ?? rt.raiseException("Type error or not yet implemented");
 
-                param.structType = ret.t.eleType;
-                const funsym = rt.getOpByParams("{global}", "o(_[])", [index.t]);
+                param.structType = ret.t;
+                const funsym = rt.getOpByParams("{global}", "o(_[_])", [ret, index]);
                 const r = rt.getFunctionTarget(funsym)(rt, ret, index);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
@@ -940,7 +963,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return r;
                 }
             },
-            *PostfixExpression_MethodInvocation(interp, s: PostfixExpressionMethodInvocationSpec, param) {
+            *PostfixExpression_MethodInvocation(interp, s: XPostfixExpression_MethodInvocation, param) {
                 ({
                     rt
                 } = interp);
@@ -1110,13 +1133,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return rt.simpleType(typename);
             },
-            *BinOpExpression(interp, s, param) {
+            *BinOpExpression(interp, s: XBinOpExpression, param) {
                 ({
                     rt
                 } = interp);
                 const {
                     op
                 } = s;
+                debugger;
                 if (op === "&&") {
                     s.type = "LogicalANDExpression";
                     return yield* interp.visit(interp, s, param);
@@ -1134,7 +1158,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 }
             },
-            *LogicalANDExpression(interp, s, param) {
+            *LogicalANDExpression(interp, s: XBinOpExpression, param) {
                 ({
                     rt
                 } = interp);
@@ -1156,7 +1180,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return asResult(target) ?? (yield* target as Gen<ArithmeticVariable>);
                 }
             },
-            *LogicalORExpression(interp, s, param) {
+            *LogicalORExpression(interp, s: XBinOpExpression, param) {
                 const op = "o(_||_)";
                 const left = yield* interp.visit(interp, s.left, param);
                 const right = yield* interp.visit(interp, s.right, param);
@@ -1185,11 +1209,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const cond = (asResult(boolYield) ?? (yield* boolYield as Gen<InitArithmeticVariable>)).v.value;
                 return yield* interp.visit(interp, cond ? s.t : s.f, param);
             },
-            *ConstantExpression(interp, s: ConstantExpressionSpec, param) {
+            *ConstantExpression(interp, s: XConstantExpression, param) {
                 ({
                     rt
                 } = interp);
-                return yield* interp.visit(interp, (s as any).Expression, param);
+                return yield* interp.visit(interp, s.Expression, param);
             },
             *StringLiteralExpression(interp, s, param) {
                 return yield* interp.visit(interp, s.value, param);
@@ -1296,7 +1320,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 return variables.arithmetic("F64", parseInt(s.value, 16), null);
             },
-            DecimalConstant(interp, s: DecimalConstantSpec, _param): ArithmeticVariable {
+            DecimalConstant(interp, s: XDecimalConstant, _param): ArithmeticVariable {
                 ({
                     rt
                 } = interp);
@@ -1459,13 +1483,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         }
     };
 
-    *arrayInit(dimensions: number[], init: any, type: ObjectType, param: any): ResultOrGen<StaticArrayVariable<Variable>> {
+    *arrayInit(dimensions: number[], init: XInitializerExpr | null, type: ObjectType, param: any): ResultOrGen<StaticArrayVariable<Variable>> {
         if (dimensions.length > 0) {
             let val;
             const curDim = dimensions[0];
             const arithmeticType = variables.asArithmeticType(type);
             if (init) {
-                if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
+                throw new Error("not yet implemented");
+                /*if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
                     // last level, short hand init
                     if (init.Initializers.length === 0) {
                         const arr = new Array(curDim);
@@ -1568,25 +1593,34 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 } else {
                     this.rt.raiseException("dimensions do not agree, " + curDim + " != " + init.Initializers.length, param.node);
-                }
+                }*/
             }
             {
-                let arr: ObjectValue[] = [];
+                let arrObject = {
+                    t: variables.staticArrayType(type, curDim),
+                    v: {
+                        isConst: false,
+                        lvHolder: "SELF",
+                        state: "INIT",
+                        values: new Array<ObjectValue>(), 
+                    }
+                };
                 let i = 0;
                 while (i < curDim) {
                     let top: Variable;
-                    if (init && i < init.Initializers.length) {
-                        top = yield* this.arrayInit(dimensions.slice(1), init.Initializers[i], type, param);
+                    if (init && i < (init as any).Initializers.length) {
+                        top = yield* this.arrayInit(dimensions.slice(1), (init as any).Initializers[i], type, param);
                     } else {
                         top = yield* this.arrayInit(dimensions.slice(1), null, type, param);
                     }
                     if (!variables.typesEqual(type, top.t)) {
                         this.rt.raiseException("Invalid array element type");
                     }
-                    arr.push(top.v);
+                    const lvHolder: LValueIndexHolder<Variable> = { array: arrObject.v as ArrayValue<Variable>, index: i };
+                    arrObject.v.values.push(variables.clone(top, lvHolder, false, this.rt.raiseException, true).v);
                     i++;
                 }
-                return variables.staticArray(type, arr, null);
+                return arrObject as StaticArrayVariable<Variable>;
             }
         } else {
             if (init && (init.type !== "Initializer_expr")) {
@@ -1594,11 +1628,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             }
             let initval: Variable;
             if (init) {
-                if ("shorthand" in init) {
+                this.rt.raiseException("not yet implemented");
+                /*if ("shorthand" in init) {
                     initval = init.shorthand as Variable;
                 } else {
                     initval = (yield* this.visit(this, init.Expression, param)) as Variable;
-                }
+                }*/
             } else {
                 const defaultValueYield = this.rt.defaultValue(type, null);
                 initval = asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>));

@@ -204,7 +204,6 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            debugger;
             return binaryArithmeticDirectAssign(rt, l, r);
         }
     },
@@ -411,7 +410,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(*_)",
-        type: "!LValue FUNCTION LREF ?0 ( PTR ?0 )",
+        type: "!LValue FUNCTION LREF ?0 ( LREF PTR ?0 )",
         default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>): InitVariable {
             const _lp = variables.asPointer(l);
             const _li = variables.asIndexPointer(l);
@@ -423,10 +422,37 @@ const defaultOpHandler: OpHandler[] = [
                 return { t: lp.t.pointee, v: lp.v.pointee } as InitVariable;
             } else if (_li !== null) {
                 const li = rt.expectValue(_li) as InitIndexPointerVariable<Variable>;
-                if (li.v.index < 0 || li.v.index > li.v.pointee.values.length) {
+                if (li.v.index < 0 || li.v.index >= li.v.pointee.values.length) {
                     rt.raiseException("Segmentation fault: dereference of a pointer that points to an array element whose index is out of range");
                 }
                 return { t: li.t.array.object, v: li.v.pointee.values[li.v.index] } as InitVariable;
+            }
+            rt.raiseException("Unreachable");
+        }
+    },
+    {
+        op: "o(_[_])",
+        type: "!LValue FUNCTION LREF ?0 ( LREF PTR ?0 Arithmetic )",
+        default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, index: ArithmeticVariable): InitVariable {
+            const _lp = variables.asPointer(l);
+            const _li = variables.asIndexPointer(l);
+            const idx = rt.arithmeticValue(index);
+            if (_lp !== null) {
+                const lp = rt.expectValue(_lp) as InitPointerVariable;
+                if (lp.v.pointee === "VOID") {
+                    rt.raiseException("Attempt to dereference a void-pointer");
+                }
+                if (idx !== 0) {
+                    rt.raiseException("Segmentation fault: non-zeroth member access of a pointer that is not an array");
+                }
+                return { t: lp.t.pointee, v: lp.v.pointee } as InitVariable;
+            } else if (_li !== null) {
+                const li = rt.expectValue(_li) as InitIndexPointerVariable<Variable>;
+                const id = idx + li.v.index;
+                if (id < 0 || id >= li.v.pointee.values.length) {
+                    rt.raiseException("Segmentation fault: out-of-range member access of an array");
+                }
+                return { t: li.t.array.object, v: li.v.pointee.values[id] } as InitVariable;
             }
             rt.raiseException("Unreachable");
         }

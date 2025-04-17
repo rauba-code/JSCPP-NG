@@ -435,12 +435,9 @@ export const variables = {
         } as Variable | Function;
     },
     /** Create a new variable with the same type and value as the original one */
-    clone<TVar extends Variable>(object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, onError: (x: string) => never): TVar {
-        if (object.v.state === "UNINIT") {
-            onError("Attempted clone of an uninitialised value");
-        }
+    clone<TVar extends Variable>(object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, onError: (x: string) => never, allowUninit: boolean = false): TVar {
         type BranchKey = "ARITHMETIC" | "PTR" | "INDEXPTR" | "ARRAY" | "CLASS" | "FUNCTION";
-        const branch: { [sig in BranchKey]: () => Variable } = {
+        let branch: { [sig in BranchKey]: () => Variable } = {
             "ARITHMETIC": () => {
                 const x = object as InitArithmeticVariable;
                 return variables.arithmetic(x.t.sig, x.v.value, lvHolder as LValueHolder<InitArithmeticVariable>, isConst)
@@ -465,6 +462,33 @@ export const variables = {
             "FUNCTION": () => {
                 onError("not yet implemented");
             },
+        }
+        if (object.v.state === "UNINIT") {
+            if (!allowUninit) {
+                onError("Attempted clone of an uninitialised value");
+            }
+            branch = {
+                "ARITHMETIC": () => {
+                    const x = object as ArithmeticVariable;
+                    return variables.uninitArithmetic(x.t.sig, lvHolder as LValueHolder<InitArithmeticVariable>, isConst)
+                },
+                "PTR": () => {
+                    const x = object as PointerVariable;
+                    return variables.uninitPointer(x.t.pointee, lvHolder as LValueHolder<InitPointerVariable>, isConst);
+                },
+                "INDEXPTR": () => {
+                    onError("not yet implemented (you might be doing something wrong here)");
+                },
+                "ARRAY": () => {
+                    onError("not yet implemented (you might be doing something wrong here)");
+                },
+                "CLASS": () => {
+                    onError("unreachable");
+                },
+                "FUNCTION": () => {
+                    onError("unreachable");
+                },
+            }
         }
         if (!object.v.isConst && isConst) {
             onError("Cannot clone from a volatile variable to a constant");
