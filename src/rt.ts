@@ -306,7 +306,7 @@ export class CRuntime {
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
         }
-        console.log(`getfunc: '(${domainSig})::${identifier}'`);
+        //console.log(`getfunc: '(${domainSig})::${identifier}'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
         if (fnID < 0) {
@@ -321,7 +321,7 @@ export class CRuntime {
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
         }
-        console.log(`getfunc: '(${domainSig})::${identifier}'`);
+        //console.log(`getfunc: '(${domainSig})::${identifier}'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
         if (fnID < 0) {
@@ -353,7 +353,7 @@ export class CRuntime {
             this.raiseException(`type '${fnsig.inline}' is unknown`);
         }
         const domainMap: TypeHandlerMap = this.typeMap[domainInlineSig];
-        console.log(`regfunc: '${fnsig.inline}'`);
+        //console.log(`regfunc: '${fnsig.inline}'`);
 
         const existingOverloadID: number = domainMap.functionDB.matchFunctionExact(name, fnsig.array, this.raiseException);
         if (existingOverloadID !== -1) {
@@ -515,7 +515,7 @@ export class CRuntime {
 
         const vc = this.scope[this.scope.length - 1];
 
-        console.log(`defining variable: '${varname}' of type '${this.makeTypeStringOfVar(object)}'`);
+        //console.log(`defining variable: '${varname}' of type '${this.makeTypeStringOfVar(object)}'`);
 
         if (object.v.lvHolder === null) {
             //@ts-ignore
@@ -1018,7 +1018,7 @@ export class CRuntime {
         return variable as Variable;
     }
 
-    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): interp.ResultOrGen<MaybeUnboundVariable> {
+    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): interp.ResultOrGen<Variable> {
         let classType: ClassType | null;
         let pointerType: PointerType<ObjectType | FunctionType> | null;
         if (type.sig in variables.arithmeticSig) {
@@ -1030,7 +1030,7 @@ export class CRuntime {
             }
             const fnid = this.typeMap[domainName].functionDB.matchFunctionExact("o(_stub)", ["FUNCTION", "Return", "(", ")"], this.raiseException);
             if (fnid >= 0) {
-                return this.getFunctionTarget(this.typeMap[domainName].functionsByID[fnid])(this);
+                return this.getFunctionTarget(this.typeMap[domainName].functionsByID[fnid])(this) as interp.ResultOrGen<InitClassVariable>;
             }
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
             return variables.uninitPointer(pointerType.pointee, pointerType.sizeConstraint, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);

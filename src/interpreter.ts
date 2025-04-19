@@ -346,25 +346,20 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 rt.raiseException("not yet implemented");
                                 //_type = variables.pointerType(variables.functionType(_type, _argTypes));
                             } else {
-                                rt.raiseException("not yet implemented");
-                                /*const dimensions = [];
-                                let j = 0;
-                                while (j < _param.Declarator.Declarator.right.length) {
-                                    let dim = _param.Declarator.Declarator.right[j];
-                                    if (dim.type !== "DirectDeclarator_modifier_array") {
-                                        rt.raiseException("unacceptable array initialization", dim);
+                                for (let j = _param.Declarator.Declarator.right.length - 1; j >= 0; j--) {
+                                    const dimObj = _param.Declarator.Declarator.right[j];
+                                    if (dimObj.type !== "DirectDeclarator_modifier_array") {
+                                        rt.raiseException("unacceptable array initialization", dimObj);
                                     }
-                                    if (dim.Expression !== null) {
-                                        dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
+                                    if (dimObj.Expression !== null) {
+                                        const sizeConstraint = rt.arithmeticValue(rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticVariable);
+                                        _type = { t: variables.pointerType(_type.t, sizeConstraint), v: { lvHolder: _type.v.lvHolder } };
                                     } else if (j > 0) {
-                                        rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
+                                        rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dimObj);
                                     } else {
-                                        dim = -1;
+                                        _type = { t: variables.pointerType(_type.t, null), v: { lvHolder: _type.v.lvHolder } };
                                     }
-                                    dimensions.push(dim);
-                                    j++;
                                 }
-                                _type = interp.arrayType(dimensions, _type);*/
                             }
                         }
                     }
@@ -512,7 +507,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                     } else {
                         const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<Variable>;
-                        let initVar = rt.unbound(asResult(initVarYield) ?? (yield* (initVarYield as Gen<Variable>)));
+                        let initVar = asResult(initVarYield) ?? (yield* (initVarYield as Gen<Variable>));
                         if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
                             initVar = variables.clone(initVar, "SELF", false, rt.raiseException);
                         }
@@ -562,7 +557,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const { name, type } = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
 
                             const initvarYield = (init == null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, init.Expression) as Gen<Variable>;
-                            const initvar = rt.unbound(asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>)));
+                            const initvar = asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>));
 
                             structMemberList.push({
                                 name,
@@ -1143,7 +1138,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const {
                     op
                 } = s;
-                debugger;
+                //debugger;
                 if (op === "&&") {
                     s.type = "LogicalANDExpression";
                     return yield* interp.visit(interp, s, param);
@@ -1421,7 +1416,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
     *visit(interp: Interpreter, s: any, param?: any) {
         let ret;
         //const { rt } = interp;
-        console.log(`${s.sLine}: visiting ${s.type}`);
+        //console.log(`${s.sLine}: visiting ${s.type}`);
         if ("type" in s) {
             if (param === undefined) {
                 param = { scope: "{global}" };
@@ -1488,9 +1483,18 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
     *arrayInit(dimensions: number[], init: XInitializerExpr | null, type: ObjectType, param: any): ResultOrGen<InitIndexPointerVariable<Variable>> {
         if (dimensions.length > 0) {
-            let val;
+            //let val;
             const curDim = dimensions[0];
-            const arithmeticType = variables.asArithmeticType(type);
+            //const arithmeticType = variables.asArithmeticType(type);
+            const arrType: PointerType<ObjectType> = (() => {
+                let _arrType = type;
+                for (let i = dimensions.length - 1; i >= 0; i--) {
+                    // will happen at least once
+                    _arrType = variables.pointerType(_arrType, dimensions[i]);
+                }
+                return _arrType as PointerType<ObjectType>
+            })();
+            const childType = arrType.pointee;
             if (init) {
                 throw new Error("not yet implemented");
                 /*if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
@@ -1599,16 +1603,16 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }*/
             }
             {
-                let memoryObject = variables.arrayMemory(type, new Array<ObjectValue>());
+                let memoryObject = variables.arrayMemory(childType, new Array<ObjectValue>());
                 let i = 0;
                 while (i < curDim) {
                     let top: Variable;
-                    if (init && i < (init as any).Initializers.length) {
-                        top = yield* this.arrayInit(dimensions.slice(1), (init as any).Initializers[i], type, param);
-                    } else {
-                        top = yield* this.arrayInit(dimensions.slice(1), null, type, param);
-                    }
-                    if (!variables.typesEqual(type, top.t)) {
+                    //if (init && i < init.Initializers.length) {
+                    //    top = yield* this.arrayInit(dimensions.slice(1), init.Initializers[i], type, param);
+                    //} else {
+                    top = yield* this.arrayInit(dimensions.slice(1), null, type, param);
+                    //}
+                    if (!variables.typesEqual(childType, top.t)) {
                         this.rt.raiseException("Invalid array element type");
                     }
                     const lvHolder: LValueIndexHolder<Variable> = { array: memoryObject as ArrayMemory<Variable>, index: i };
@@ -1631,7 +1635,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }*/
             } else {
                 const defaultValueYield = this.rt.defaultValue(type, null);
-                initval = this.rt.unbound(asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>)));
+                initval = asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>));
             }
             return initval;
         }
