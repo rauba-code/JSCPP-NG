@@ -596,32 +596,30 @@ export const variables = {
         lv.state = "INIT";
         (lv as InitArithmeticValue).value = value;
     },
-    pointerAssign(lhs: PointerVariable, pointee: Variable | Function | "VOID", onError: (x: string) => never): void {
+    directPointerAssign<VElem extends PointeeVariable>(lhs: PointerVariable<PointeeVariable>, pointee: VElem, onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
-        lhs.v.state = "INIT";
-        const pointeeType = pointee === "VOID" ? variables.voidType() : pointee.t;
-        if (!variables.typesEqual(lhs.t.pointee, pointeeType)) {
+        if (!variables.typesEqual(lhs.t.pointee, pointee.t)) {
             const expected = variables.toStringSequence(lhs.t.pointee, false, onError).join(" ");
-            const received = variables.toStringSequence(pointeeType, false, onError).join(" ");
+            const received = variables.toStringSequence(pointee.t, false, onError).join(" ");
             onError(`expected type '${expected}', got '${received}'`)
         }
-        (lhs.v as InitPointerValue).pointee = pointee === "VOID" ? "VOID" : pointee.v;
-    },
-    indexPointerAssign<VElem extends Variable>(lhs: IndexPointerVariable<VElem>, array: ArrayMemory<VElem>, index: number, onError: (x: string) => never): void {
-        checkAssignable(lhs.v, onError);
         lhs.v.state = "INIT";
-        if (!variables.typesEqual(lhs.t.array.object, array.t.object)) {
-            const expected = variables.toStringSequence(lhs.t.array.object, false, onError).join(" ");
-            const received = variables.toStringSequence(array.t.object, false, onError).join(" ");
+        (lhs.v as InitDirectPointerValue<VElem>).pointee = pointee.v;
+    },
+    indexPointerAssign<VElem extends Variable>(lhs: PointerVariable<VElem>, array: ArrayMemory<VElem>, index: number, onError: (x: string) => never): void {
+        checkAssignable(lhs.v, onError);
+        if (!variables.typesEqual(lhs.t.pointee, array.objectType)) {
+            const expected = variables.toStringSequence(lhs.t.pointee, false, onError).join(" ");
+            const received = variables.toStringSequence(array.objectType, false, onError).join(" ");
             onError(`expected type '${expected}', got '${received}'`)
         }
-        (lhs.v as InitIndexPointerValue<VElem>).pointee = array.v;
+        lhs.v.state = "INIT";
+        (lhs.v as InitIndexPointerValue<VElem>).pointee = array;
         (lhs.v as InitIndexPointerValue<VElem>).index = index;
     },
-    indexPointerAssignIndex(lhs: IndexPointerVariable<Variable>, index: number, onError: (x: string) => never): void {
+    indexPointerAssignIndex(lhs: InitIndexPointerVariable<Variable>, index: number, onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
-        lhs.v.state = "INIT";
-        (lhs.v as InitIndexPointerValue<Variable>).index = index;
+        lhs.v.index = index;
     },
     toStringSequence(type: AnyType, left: boolean, onError: (x: string) => never): string[] {
         let result = new Array<string>();
@@ -636,15 +634,12 @@ export const variables = {
     defaultArithmeticResolutionMap: defaultArithmeticResolutionMap,
 } as const;
 
-function checkAssignable(v: MaybeUnboundObjectValue, onError: (x: string) => never): void {
+function checkAssignable(v: ObjectValue, onError: (x: string) => never): void {
     if (v.lvHolder === null) {
         onError("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
     if (v.isConst) {
         onError("Attempted assignment to a constant value");
-    }
-    if (v.state === "UNBOUND") {
-        onError("Attempted assignment to an array element whose index is out of bounds (segmentation fault)");
     }
 }
 

@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, StaticArrayVariable, Variable, variables, LValueIndexHolder, ArrayValue, MaybeUnboundVariable, InitVariable } from "./variables";
+import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -182,7 +182,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             *DirectDeclarator(interp, s: XDirectDeclarator, param: { basetype: MaybeLeft<ObjectType> }) {
                 ({ rt } = interp);
                 let { basetype } = param;
-                basetype = interp.buildRecursivePointerType(s.Pointer, basetype, 0) as MaybeLeft<ObjectType>;
+                basetype = interp.buildRecursivePointerType(rt, s.Pointer, basetype, 0) as MaybeLeft<ObjectType>;
                 if (!(s.right instanceof Array)) {
                     rt.raiseException("Type error or not yet implemented");
                 }
@@ -206,7 +206,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             if (_param.Declarator != null) {
                                 this.rt.raiseException("Not yet implemented");
                                 /*const _pointer = _param.Declarator.Pointer;
-                                _type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                                _type = interp.buildRecursivePointerType(rt, _pointer, _basetype, 0);
                                 if ((_param.Declarator.right != null) && (_param.Declarator.right.length > 0)) {
                                     const dimensions = [];
                                     for (let j = 0; j < _param.Declarator.right.length; j++) {
@@ -315,7 +315,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             _type = { t: _basetype.t, v: { lvHolder: "SELF" } };
                         } else {
                             const _pointer = _param.Declarator.Declarator.Pointer;
-                            const __type = interp.buildRecursivePointerType(_pointer, _basetype, 0);
+                            const __type = interp.buildRecursivePointerType(rt, _pointer, _basetype, 0);
                             if (__type === "VOID") {
                                 rt.raiseException("Type error or not yet implemented");
                             }
@@ -400,7 +400,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const name = s.Declarator.left.Identifier;
                 let basetype = rt.simpleType(s.DeclarationSpecifiers);
                 const pointer = s.Declarator.Pointer;
-                basetype = interp.buildRecursivePointerType(pointer, basetype, 0);
+                basetype = interp.buildRecursivePointerType(rt, pointer, basetype, 0);
                 let ptl: any;
                 let varargs;
                 if (s.Declarator.right instanceof Array) {
@@ -436,7 +436,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         visitResult = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
                         param.basetype = _basetype;
                     }
-                    const decType: MaybeLeft<ObjectType> = (dec.Declarator.Pointer instanceof Array) ? { t: { sig: "PTR", pointee: basetype.t }, v: { lvHolder: "SELF" } } : basetype;
+                    const decType: MaybeLeft<ObjectType> = (dec.Declarator.Pointer instanceof Array) ? variables.uninitPointer(basetype.t, null, "SELF") : basetype;
                     const { name, type } = visitResult;
                     let initSpec = dec.Initializers;
 
@@ -484,11 +484,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                             param.node = initSpec;
                             const arrayYield = interp.arrayInit(dimensions, initSpec, basetype.t, param);
-                            const arrayInit = asResult(arrayYield) ?? (yield* arrayYield as Gen<StaticArrayVariable<Variable>>);
+                            const arrayInit = asResult(arrayYield) ?? (yield* arrayYield as Gen<InitIndexPointerVariable<Variable>>);
                             delete param.node;
 
-                            const indexPointer = variables.indexPointer(arrayInit, 0, "SELF", false);
-                            rt.defVar(name, indexPointer);
+                            rt.defVar(name, arrayInit);
                         } else if (rhs[0].type as string === "DirectDeclarator_modifier_Constructor") {
                             //rt.raiseException("Not yet implemented");
                             const constructorArgs = [];
@@ -810,16 +809,20 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const sym = rt.getFuncByParams(iterable.t, "__iterator", []);
                     iterator = rt.getFunctionTarget(sym)(rt, iterable);
                 } catch (ex) {
-                    if (variables.asArrayType !== null) {
-                        iterator = iterable.v.target[Symbol.iterator]();
-                    }
+                    // ???
+                    rt.raiseException("not yet implemented");
+                    //if (variables.asArrayType !== null) {
+                    //    iterator = iterable.v.target[Symbol.iterator]();
+                    //}
                 }
 
                 if (!iterator) {
                     rt.raiseException(`Variable '${s.Expression.Identifier}' is not iterator type.`);
                 }
 
-                for (const element of iterator) {
+                rt.raiseException("not yet implemented");
+
+                /*for (const element of iterator) {
                     variable.v = element.v;
 
                     const r = yield* interp.visit(interp, s.Statement, param);
@@ -842,7 +845,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                 rt.exitScope(param.scope);
                 param.scope = scope_bak;
-                return return_val;
+                return return_val;*/
             },
             *IterationStatement_for(interp, s, param) {
                 let return_val;
@@ -1483,7 +1486,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         }
     };
 
-    *arrayInit(dimensions: number[], init: XInitializerExpr | null, type: ObjectType, param: any): ResultOrGen<StaticArrayVariable<Variable>> {
+    *arrayInit(dimensions: number[], init: XInitializerExpr | null, type: ObjectType, param: any): ResultOrGen<InitIndexPointerVariable<Variable>> {
         if (dimensions.length > 0) {
             let val;
             const curDim = dimensions[0];
@@ -1596,15 +1599,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }*/
             }
             {
-                let arrObject = {
-                    t: variables.staticArrayType(type, curDim),
-                    v: {
-                        isConst: false,
-                        lvHolder: "SELF",
-                        state: "INIT",
-                        values: new Array<ObjectValue>(), 
-                    }
-                };
+                let memoryObject = variables.arrayMemory(type, new Array<ObjectValue>());
                 let i = 0;
                 while (i < curDim) {
                     let top: Variable;
@@ -1616,11 +1611,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (!variables.typesEqual(type, top.t)) {
                         this.rt.raiseException("Invalid array element type");
                     }
-                    const lvHolder: LValueIndexHolder<Variable> = { array: arrObject.v as ArrayValue<Variable>, index: i };
-                    arrObject.v.values.push(variables.clone(top, lvHolder, false, this.rt.raiseException, true).v);
+                    const lvHolder: LValueIndexHolder<Variable> = { array: memoryObject as ArrayMemory<Variable>, index: i };
+                    memoryObject.values.push(variables.clone(top, lvHolder, false, this.rt.raiseException, true).v);
                     i++;
                 }
-                return arrObject as StaticArrayVariable<Variable>;
+                return variables.indexPointer(memoryObject, 0, true, null, false);
             }
         } else {
             if (init && (init.type !== "Initializer_expr")) {
@@ -1642,10 +1637,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         }
     };
 
-    buildRecursivePointerType(pointer: any, basetype: MaybeLeft<ObjectType> | "VOID", level: number): MaybeLeft<ObjectType> | "VOID" {
+    buildRecursivePointerType(rt: CRuntime, pointer: any[] | null, basetype: MaybeLeft<ObjectType> | "VOID", level: number): MaybeLeft<ObjectType> | "VOID" {
         if (pointer && (pointer.length > level)) {
-            const type = { t: variables.pointerType(basetype === "VOID" ? variables.voidType() : basetype.t), v: { lvHolder: null } } as MaybeLeft<PointerType>;
-            return this.buildRecursivePointerType(pointer, type, level + 1);
+            if (basetype === "VOID") {
+                rt.raiseException("not yet implemented");
+            }
+            const type = { t: variables.pointerType(basetype.t, null), v: { lvHolder: null } } as MaybeLeft<PointerType<ObjectType | FunctionType>>;
+            return this.buildRecursivePointerType(rt, pointer, type, level + 1);
         } else {
             return basetype;
         }

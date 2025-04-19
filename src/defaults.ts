@@ -1,5 +1,5 @@
 import { CRuntime, OpSignature } from "./rt";
-import { ArithmeticVariable, IndexPointerVariable, PointerVariable, Variable, Function, variables, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable } from "./variables";
+import { ArithmeticVariable, PointerVariable, Variable, Function, variables, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable, PointeeVariable, InitDirectPointerVariable } from "./variables";
 
 function raiseSupportException(rt: CRuntime, l: Variable, r: Variable, op: string): never {
     rt.raiseException(`${rt.makeTypeStringOfVar(l)} does not support ${op} on ${rt.makeTypeStringOfVar(r)}`);
@@ -372,89 +372,77 @@ const defaultOpHandler: OpHandler[] = [
     {
         op: "o(_==_)",
         type: "!Pointer FUNCTION BOOL ( ?0 ?0 )",
-        default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, r: PointerVariable | IndexPointerVariable<Variable>): InitArithmeticVariable {
-            if (l.v.state === "UNINIT" || r.v.state === "UNINIT") {
-                rt.raiseException("Attempted equality comparison of uninitialised pointer values");
+        default(rt: CRuntime, _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitArithmeticVariable {
+            const l = rt.expectValue(_l) as InitPointerVariable<PointeeVariable>;
+            const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
+            if (l.v.subtype === "DIRECT" && r.v.subtype === "DIRECT") {
+                // this works because pointers are always created from the same Variable["v"] object
+                return variables.arithmetic("BOOL", l.v.pointee === r.v.pointee ? 1 : 0, null);
+            } else if (l.v.subtype === "INDEX" && r.v.subtype === "INDEX") {
+                return variables.arithmetic("BOOL", l.v.pointee === r.v.pointee && l.v.index === r.v.index ? 1 : 0, null);
+            } else {
+                return variables.arithmetic("BOOL", 0, null);
             }
-            // this works because pointers are always created from the same Variable["v"] object
-            return variables.arithmetic("BOOL", l.v.pointee === r.v.pointee ? 1 : 0, null);
         }
     },
     {
         op: "o(_!=_)",
         type: "!Pointer FUNCTION BOOL ( ?0 ?0 )",
-        default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, r: PointerVariable | IndexPointerVariable<Variable>): InitArithmeticVariable {
-            if (l.v.state === "UNINIT" || r.v.state === "UNINIT") {
-                rt.raiseException("Attempted equality comparison of uninitialised pointer values");
+        default(rt: CRuntime, _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitArithmeticVariable {
+            const l = rt.expectValue(_l) as InitPointerVariable<PointeeVariable>;
+            const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
+            if (l.v.subtype === "DIRECT" && r.v.subtype === "DIRECT") {
+                return variables.arithmetic("BOOL", !(l.v.pointee === r.v.pointee) ? 1 : 0, null);
+            } else if (l.v.subtype === "INDEX" && r.v.subtype === "INDEX") {
+                return variables.arithmetic("BOOL", !(l.v.pointee === r.v.pointee && l.v.index === r.v.index) ? 1 : 0, null);
+            } else {
+                return variables.arithmetic("BOOL", 1, null);
             }
-            // this works because pointers are always created from the same Variable["v"] object
-            return variables.arithmetic("BOOL", !(l.v.pointee === r.v.pointee) ? 1 : 0, null);
         }
     },
     {
         op: "o(&_)",
         type: "!LValue FUNCTION PTR ?0 ( LREF ?0 )",
-        default(rt: CRuntime, l: Variable | Function): InitPointerVariable | InitIndexPointerVariable<Variable> {
+        default(rt: CRuntime, l: Variable | Function): InitDirectPointerVariable<PointeeVariable> | InitIndexPointerVariable<Variable> {
             if (l.v.lvHolder === null) {
-                rt.raiseException("Cannot refer to an lvalue"); // unreachable
+                rt.raiseException("Cannot refer to a non-lvalue"); // unreachable
             } else if (l.v.lvHolder === "SELF") {
-                return variables.pointer(l, null);
+                return variables.directPointer(l, null);
             }
             if (variables.asFunction(l) !== null) {
                 rt.raiseException("Assertion failed: `l` must not be a Function");
             }
             const holder = l.v.lvHolder;
-            const x = l as Variable;
-            return variables.indexPointer<Variable>({ t: { sig: "ARRAY", object: x.t, size: holder.array.values.length }, v: holder.array }, l.v.lvHolder.index, null);
+            return variables.indexPointer<Variable>(holder.array, holder.index, false, null);
         }
     },
     {
         op: "o(*_)",
         type: "!LValue FUNCTION LREF ?0 ( LREF PTR ?0 )",
-        default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>): InitVariable {
-            const _lp = variables.asPointer(l);
-            const _li = variables.asIndexPointer(l);
-            if (_lp !== null) {
-                const lp = rt.expectValue(_lp) as InitPointerVariable;
-                if (lp.v.pointee === "VOID") {
-                    rt.raiseException("Attempt to dereference a void-pointer");
-                }
-                return { t: lp.t.pointee, v: lp.v.pointee } as InitVariable;
-            } else if (_li !== null) {
-                const li = rt.expectValue(_li) as InitIndexPointerVariable<Variable>;
-                if (li.v.index < 0 || li.v.index >= li.v.pointee.values.length) {
-                    rt.raiseException("Segmentation fault: dereference of a pointer that points to an array element whose index is out of range");
-                }
-                return { t: li.t.array.object, v: li.v.pointee.values[li.v.index] } as InitVariable;
+        default(rt: CRuntime, _l: PointerVariable<PointeeVariable>): MaybeUnboundVariable {
+            if (variables.asFunctionType(_l.t.pointee) !== null) {
+                rt.raiseException("Cannot dereference a function pointer");
             }
-            rt.raiseException("Unreachable");
+            const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
+            return variables.deref<Variable>(l) as MaybeUnboundVariable;
         }
     },
     {
         op: "o(_[_])",
         type: "!LValue FUNCTION LREF ?0 ( LREF PTR ?0 Arithmetic )",
-        default(rt: CRuntime, l: PointerVariable | IndexPointerVariable<Variable>, index: ArithmeticVariable): MaybeUnboundVariable {
-            const _lp = variables.asPointer(l);
-            const _li = variables.asIndexPointer(l);
-            const idx = rt.arithmeticValue(index);
-            if (_lp !== null) {
-                const lp = rt.expectValue(_lp) as InitPointerVariable;
-                if (lp.v.pointee === "VOID") {
-                    rt.raiseException("Attempt to dereference a void-pointer");
-                }
-                if (idx !== 0) {
-                    rt.raiseException("Segmentation fault: non-zeroth member access of a pointer that is not an array");
-                }
-                return { t: lp.t.pointee, v: lp.v.pointee } as InitVariable;
-            } else if (_li !== null) {
-                const li = rt.expectValue(_li) as InitIndexPointerVariable<Variable>;
-                const id = idx + li.v.index;
-                if (id < 0 || id >= li.v.pointee.values.length) {
-                    return { t: li.t.array.object, v: { lvHolder: { array: li.v.pointee, index: id }, isConst: false, state: "UNBOUND" } } as MaybeUnboundVariable
-                }
-                return { t: li.t.array.object, v: li.v.pointee.values[id] } as InitVariable;
+        default(rt: CRuntime, _l: PointerVariable<PointeeVariable>, index: ArithmeticVariable): MaybeUnboundVariable {
+            if (variables.asFunctionType(_l.t.pointee) !== null) {
+                rt.raiseException("Cannot dereference a function pointer");
             }
-            rt.raiseException("Unreachable");
+            const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
+            const i = rt.arithmeticValue(index);
+            if (i === 0) {
+                return variables.deref(l) as MaybeUnboundVariable;
+            }
+            if (l.v.subtype === "INDEX") {
+                return variables.arrayMember<Variable>(l.v.pointee, i) as MaybeUnboundVariable;
+            }
+            rt.raiseException("(Segmentation fault) attempt to access a non-array pointer member outside the bounds")
         }
     },
 ];

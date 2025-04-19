@@ -1,7 +1,7 @@
 import { CRuntime } from "../rt";
-import { ArithmeticVariable, IndexPointerVariable, InitIndexPointerVariable, Variable, variables } from "../variables";
+import { ArithmeticVariable, InitIndexPointerVariable, variables } from "../variables";
 
-export = function (rt: CRuntime, _this: Variable, _dest: Variable, _src: Variable): IndexPointerVariable<ArithmeticVariable> {
+export = function (rt: CRuntime, _dest: InitIndexPointerVariable<ArithmeticVariable>, _src: InitIndexPointerVariable<ArithmeticVariable>): InitIndexPointerVariable<ArithmeticVariable> {
     const _arithmetic = variables.uninitArithmetic("I8", null);
     const dest: InitIndexPointerVariable<ArithmeticVariable> | null = variables.asInitIndexPointerOfElem(_dest, _arithmetic);
     const src: InitIndexPointerVariable<ArithmeticVariable> | null = variables.asInitIndexPointerOfElem(_src, _arithmetic);
