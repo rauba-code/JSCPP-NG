@@ -161,7 +161,6 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
 
                 if (step.done) {
                     const exitVal = step.value.v as MaybeUnboundArithmeticValue;
-                    debugger;
                     if (exitVal.state === "UNINIT") {
                         throw new Error("[return statement] Access of an uninitialised variable");
                     } else if (exitVal.state === "UNBOUND") {

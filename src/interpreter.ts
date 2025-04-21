@@ -153,6 +153,15 @@ export interface XBinOpExpression extends StatementMeta {
     left: XPostfixExpression_ArrayAccess,
     right: XConstantExpression,
 }
+export interface XStringLiteral extends StatementMeta {
+    type: "StringLiteral",
+    value: string,
+    prefix: string | null;
+}
+export interface XStringLiteralExpression extends StatementMeta {
+    type: "StringLiteralExpression",
+    value: XStringLiteral,
+}
 export interface XUnknown {
     type: "<stub>"
 }
@@ -1213,7 +1222,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 return yield* interp.visit(interp, s.Expression, param);
             },
-            *StringLiteralExpression(interp, s, param) {
+            *StringLiteralExpression(interp, s: XStringLiteralExpression, param) {
                 return yield* interp.visit(interp, s.value, param);
             },
             *StructExpression(interp, s, param: { structType: ClassType }) {
@@ -1254,34 +1263,28 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                 return valuesToStruct(arrayValues);
             },
-            StringLiteral(interp, _s, _param) {
+            StringLiteral(interp, s: XStringLiteral, _param): InitIndexPointerVariable<ArithmeticVariable> {
                 ({
                     rt
                 } = interp);
-                rt.raiseException("Not yet implemented");
-                /*switch (s.prefix) {
+                // TODO: fix a bug that treats single-byte escape literals beyond \x7f as Unicode code points.
+                switch (s.prefix) {
                     case null:
-                        let maxCode = -1;
-                        let minCode = 1;
-                        for (const i of s.value) {
-                            const code = i.charCodeAt(0);
-                            if (maxCode < code) { maxCode = code; }
-                            if (minCode > code) { minCode = code; }
-                        }
-                        const {
-                            limits
-                        } = rt.config;
-                        const typeName = (maxCode <= limits["char"].max) && (minCode >= limits["char"].min) ? "char" : "wchar_t";
-                        return rt.makeCharArrayFromString(s.value, typeName);
+                        return rt.getCharArrayFromString(s.value);
                     case "L":
-                        return rt.makeCharArrayFromString(s.value, "wchar_t");
+                        rt.raiseException("Not yet implemented");
+                    //return rt.makeCharArrayFromString(s.value, "wchar_t");
                     case "u8":
-                        return rt.makeCharArrayFromString(s.value, "char");
+                        rt.raiseException("Not yet implemented");
+                    //return rt.makeCharArrayFromString(s.value, "char");
                     case "u":
-                        return rt.makeCharArrayFromString(s.value, "char16_t");
+                        rt.raiseException("Not yet implemented");
+                    //return rt.makeCharArrayFromString(s.value, "char16_t");
                     case "U":
-                        return rt.makeCharArrayFromString(s.value, "char32_t");
-                }*/
+                        rt.raiseException("Not yet implemented");
+                    //return rt.makeCharArrayFromString(s.value, "char32_t");
+                }
+                rt.raiseException(`Invalid string prefix: '${s.prefix}'`);
             },
             BooleanConstant(interp, s, _param) {
                 ({

@@ -1,9 +1,9 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
-import { fromUtf8CharArray } from "./utf8";
+import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 
 export interface IncludeModule {
@@ -694,6 +694,21 @@ export class CRuntime {
         }
         const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index).map((x: ArithmeticValue) => x.state === "INIT" ? x.value : 0));
         return fromUtf8CharArray(byteArray);
+    }
+
+    getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticVariable> {
+        let array = toUtf8CharArray(src);
+        console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; } ).join(""));
+        let memoryObject = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), new Array<ArithmeticValue>())
+        array.forEach((iv, ii) => {
+            const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: ii };
+            memoryObject.values.push(variables.arithmetic("I8", iv, lvHolder, false).v);
+        })
+        // add a null-terminator ('\0')
+        const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: array.length };
+        memoryObject.values.push(variables.arithmetic("I8", 0, lvHolder, false).v);
+        
+        return variables.indexPointer(memoryObject, 0, true, null, false);
     }
 
     cast(target: ObjectType, v: InitVariable): MaybeUnboundVariable | Generator<unknown, MaybeUnboundVariable, unknown> {
