@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType } from "./variables";
+import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, CFunctionBool, ResultOrGen, Gen } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -12,8 +12,6 @@ const isGenerator = (g: any): boolean => {
     return (g != null ? g.constructor : undefined) === sampleGenerator.constructor;
 };
 
-export type Gen<T> = Generator<unknown, T, unknown>;
-export type ResultOrGen<T> = T | Gen<T>;
 function asResult<T>(g: ResultOrGen<T> | null): T | null {
     if (g !== null && (g as Gen<T>).constructor === sampleGenerator.constructor) {
         return null;
@@ -458,8 +456,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 }
                                 const dim = _dim as XDirectDeclarator_modifier_Array;
                                 if (dim.Expression !== null) {
-                                    const castYield = rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ResultOrGen<MaybeUnboundArithmeticVariable>;
-                                    dimensions.push(rt.arithmeticValue(asResult(castYield) ?? (yield* (castYield as Gen<MaybeUnboundArithmeticVariable>))));
+                                    const castYield = rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ResultOrGen<InitArithmeticVariable>;
+                                    dimensions.push(rt.arithmeticValue(asResult(castYield) ?? (yield* (castYield as Gen<InitArithmeticVariable>))));
                                 } else if (j > 0) {
                                     rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
                                 } else {
@@ -515,20 +513,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.defVar(name, xinit);*/
                         }
                     } else {
-                        const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<Variable>;
-                        let initVar = asResult(initVarYield) ?? (yield* (initVarYield as Gen<Variable>));
-                        if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
-                            initVar = variables.clone(initVar, "SELF", false, rt.raiseException);
-                        }
+                        const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<MaybeUnboundVariable | "VOID">;
+                        const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
+                        if (initVarOrVoid === "VOID") {
+                            rt.raiseException("Expected a non-void value");
+                        } else {
+                            let initVar = rt.unbound(initVarOrVoid);
+                            
+                            if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
+                                initVar = variables.clone(initVar, "SELF", false, rt.raiseException, true);
+                            }
 
-                        if (!variables.typesEqual(initVar.t, decType.t)) {
-                            const castVar = rt.cast(decType.t, rt.expectValue(initVar));
-                            initVar = rt.expectValue(asResult(castVar) ?? (yield* castVar as Gen<Variable>));
+                            if (!variables.typesEqual(initVar.t, decType.t)) {
+                                const castVar = rt.cast(decType.t, rt.expectValue(initVar));
+                                initVar = rt.expectValue(asResult(castVar) ?? (yield* castVar as Gen<Variable>));
+                            }
+                            if (isConst) {
+                                rt.raiseException("Not yet implemented");
+                            }
+                            rt.defVar(name, initVar);
                         }
-                        if (isConst) {
-                            rt.raiseException("Not yet implemented");
-                        }
-                        rt.defVar(name, initVar);
                     }
                 }
             },
@@ -970,14 +974,17 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return r;
                 }
             },
-            *PostfixExpression_MethodInvocation(interp, s: XPostfixExpression_MethodInvocation, param) {
+            *PostfixExpression_MethodInvocation(interp, s: XPostfixExpression_MethodInvocation, param): ResultOrGen<MaybeUnboundVariable | "VOID"> {
                 ({
                     rt
                 } = interp);
                 const args: Variable[] = yield* (function*() {
                     const result = [];
                     for (const e of s.args) {
-                        let thisArg = yield* interp.visit(interp, e, param);
+                        const thisArg = yield* interp.visit(interp, e, param);
+                        if (thisArg === "VOID") {
+                            rt.raiseException("Expected a non-void value in parameter");
+                        }
                         result.push(rt.unbound(thisArg));
                     }
                     return result;
@@ -987,7 +994,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const retfun = variables.asFunction(ret);
                 if (retfun !== null) {
                     const resultOrGen = rt.getFunctionTarget(retfun.v)(rt, ...args);
-                    return asResult(resultOrGen) ?? (yield* resultOrGen as Gen<Variable>);
+                    const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
+                    if (result === "VOID") {
+                        return "VOID";
+                    }
+                    return rt.expectValue(result);
                 } else {
                     let bindThis;
                     if (ret.v.bindThis != null) {
@@ -1001,7 +1012,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         rt.raiseException("not yet implemented");
                     }
                     const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_call)", args))(rt, ...args);
-                    return rt.expectValue(asResult<MaybeUnboundVariable>(r) ?? (yield* r as Gen<MaybeUnboundVariable>));
+                    const result = asResult(r) ?? (yield* r as Gen<MaybeUnboundVariable | "VOID">);
+                    if (result === "VOID") {
+                        return "VOID";
+                    }
+                    return rt.expectValue(asResult<MaybeUnboundVariable>(result) ?? (yield* r as Gen<MaybeUnboundVariable>));
                 }
             },
             *PostfixExpression_MemberAccess(interp, s, param) {
@@ -1155,8 +1170,17 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     s.type = "LogicalORExpression";
                     return yield* interp.visit(interp, s, param);
                 } else {
-                    let left = rt.unbound(yield* interp.visit(interp, s.left, param));
-                    let right = rt.unbound(yield* interp.visit(interp, s.right, param));
+                    const _left : MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.left, param);
+                    if (_left === "VOID") {
+                        rt.raiseException("Expected a non-void value on the left-hand side of operation");
+                    }
+                    const left = rt.unbound(_left);
+                    const _right : MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.right, param);
+                    if (_right === "VOID") {
+                        rt.raiseException("Expected a non-void value on the right-hand side of operation");
+                    }
+                    const right = rt.unbound(_right);
+
                     const r = rt.getFunctionTarget(rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right]))(rt, left, right);
                     if (isGenerator(r)) {
                         return yield* r as Generator;
@@ -1183,7 +1207,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const lhsBool = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>));
                     const rhsBool = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>));
                     const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
-                    const target = rt.getFunctionTarget(boolOp)(rt, lhsBool, rhsBool);
+                    const target = (rt.getFunctionTarget(boolOp) as CFunctionBool)(rt, lhsBool, rhsBool);
                     return rt.expectValue(asResult(target) ?? (yield* target as Gen<ArithmeticVariable>));
                 }
             },
@@ -1202,7 +1226,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const lhsBool = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>));
                     const rhsBool = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>));
                     const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
-                    const target = rt.getFunctionTarget(boolOp)(rt, lhsBool, rhsBool);
+                    const target = (rt.getFunctionTarget(boolOp) as CFunctionBool)(rt, lhsBool, rhsBool);
                     return rt.expectValue(asResult(target) ?? (yield* target as Gen<ArithmeticVariable>));
                 }
             },

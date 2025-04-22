@@ -1,8 +1,10 @@
 /* eslint-disable no-shadow */
-import { CRuntime, OpSignature } from "../rt";
+import { CRuntime } from "../rt";
 //import { Cin, Cout, IomanipOperator, IomanipConfig } from "../shared/iomanip_types";
 import { read, skipSpace } from "../shared/string_utils";
-import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, InitValue, MaybeLeft, Variable, variables } from "../variables";
+import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, InitValue, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
+import * as unixapi from "../shared/unixapi";
+
 
 interface IStreamType {
     readonly sig: "CLASS",
@@ -27,16 +29,10 @@ interface OStreamType {
     readonly memberOf: null,
 };
 
-//type OStreamVariable = AbstractVariable<OStreamType, IOStreamValue>;
-
-const FD_STDIN : number = 0;
-const FD_STDOUT : number = 1;
-const FD_STDERR : number = 2;
+type OStreamVariable = AbstractVariable<OStreamType, IOStreamValue>;
 
 export = {
     load(rt: CRuntime) {
-        const { stdio } = rt.config;
-
         const charType = variables.arithmeticType("I8");
         const pcharType = variables.pointerType(charType, null);
         rt.defineStruct("{global}", "istream", [
@@ -50,10 +46,8 @@ export = {
             },
         ]);
         const cinType = rt.simpleType(["istream"]) as MaybeLeft<IStreamType>;
-        const cin = rt.defaultValue(cinType.t, "SELF") as IStreamVariable;
-        variables.arithmeticAssign(cin.v.members.fd, FD_STDIN, rt.raiseException);
-
-        debugger;
+        const cin = variables.clone(rt.defaultValue(cinType.t, "SELF") as IStreamVariable, "SELF", false, rt.raiseException);
+        variables.arithmeticAssign(cin.v.members.fd, unixapi.FD_STDIN, rt.raiseException);
 
         rt.addToNamespace("std", "cin", cin);
 
@@ -63,14 +57,27 @@ export = {
             default: ((rt: CRuntime, ...args: Variable[]) => Variable)
         };
 
+        rt.defineStruct("{global}", "ostream", [
+            {
+                name: "buf",
+                variable: variables.indexPointer<ArithmeticVariable>(variables.arrayMemory(charType, []), 0, false, "SELF")
+            },
+            {
+                name: "fd",
+                variable: variables.uninitArithmetic("I32", "SELF"),
+            },
+        ]);
+        const coutType = rt.simpleType(["ostream"]) as MaybeLeft<OStreamType>;
+        const cout = variables.clone(rt.defaultValue(coutType.t, "SELF") as OStreamVariable, "SELF", false, rt.raiseException);
+        variables.arithmeticAssign(cout.v.members.fd, unixapi.FD_STDOUT, rt.raiseException);
+
+        rt.addToNamespace("std", "cout", cout);
+
         const handlers: FunHandler[] = [{
             op: "o(_>>_)",
             type: "FUNCTION CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
             default(rt: CRuntime, l: IStreamVariable, r: ArithmeticVariable): IStreamVariable {
-                const { stdio } = rt.config;
-                if (stdio === undefined) {
-                    rt.raiseException("[CRuntime].config.stdio is undefined");
-                }
+                const stdio = rt.stdio();
                 stdio.cinStop();
                 return l;
                 /*const inputPromise: Promise<[string, boolean]> = new Promise((resolve) => {
@@ -153,7 +160,26 @@ export = {
                 return l;*/
             }
 
+        },
+        {
+            op: "o(_<<_)",
+            type: "FUNCTION CLASS ostream < > ( LREF CLASS ostream < > PTR I8 )",
+            default(rt: CRuntime, l: OStreamVariable, r: PointerVariable<ArithmeticVariable>): OStreamVariable {
+                const stdio = rt.stdio();
+                stdio.cinStop();
+                const iptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmetic("I8", null));
+                if (iptr === null) {
+                    rt.raiseException("Variable is not an initialised index pointer");
+                }
+                unixapi.write(rt, l.v.members.fd, iptr);
+                
+                return l;
+            }
         }];
+
+        handlers.forEach((x) => {
+            rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type));
+        })
 
         /*const _cinString = function(rt: CRuntime, _cin: Cin, t: ArrayVariable) {
             if (!rt.isStringType(t.t)) {
@@ -167,101 +193,102 @@ export = {
                 _cin.v.eofbit = b.length === 0;
 
                 b = skipSpace(b);*/
-                //const r = read(rt, /^\S*/, b, t.t)[0];
-                /*_cin.v.failbit = r.length === 0;
-                _cin.v.buf = b.substring(r.length);
+        //const r = read(rt, /^\S*/, b, t.t)[0];
+        /*_cin.v.failbit = r.length === 0;
+        _cin.v.buf = b.substring(r.length);
 
-                const initialPos = t.v.position;
-                const tar = t.v.target;
-                if ((tar.length - initialPos) <= r.length) {
-                    rt.raiseException(`target string buffer is ${r.length - (tar.length - initialPos)} too short`);
-                }
+        const initialPos = t.v.position;
+        const tar = t.v.target;
+        if ((tar.length - initialPos) <= r.length) {
+            rt.raiseException(`target string buffer is ${r.length - (tar.length - initialPos)} too short`);
+        }
 
-                for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                    tar[i + initialPos] = rt.val(rt.charTypeLiteral, r.charCodeAt(i));
-                }
-                tar[r.length + initialPos] = rt.val(rt.charTypeLiteral, 0);
-                stdio.cinProceed();
-            }).catch((err) => {
-                console.log(err);
-                stdio.promiseError(err);
-            });
+        for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
+            tar[i + initialPos] = rt.val(rt.charTypeLiteral, r.charCodeAt(i));
+        }
+        tar[r.length + initialPos] = rt.val(rt.charTypeLiteral, 0);
+        stdio.cinProceed();
+    }).catch((err) => {
+        console.log(err);
+        stdio.promiseError(err);
+    });
 
-            return _cin;
-        };
-        rt.regOperator(_cinString, cin.t, ">>", [pchar], cin.t);
+    return _cin;
+};
+rt.regOperator(_cinString, cin.t, ">>", [pchar], cin.t);
 
-        const _getline = function(rt: CRuntime, _cin: Cin, t: ArrayVariable, limitV: IntVariable, delimV: IntVariable) {
-            stdio.cinStop();
-            stdio.getInput().then(result => {
-                let removeDelim;
-                _cin.v.buf = result;
-                if (!rt.isStringType(t.t)) {
-                    rt.raiseException("only a pointer to string can be used as storage");
-                }
-                const limit = limitV.v;
-                const delim = (delimV != null) ? String.fromCharCode(delimV.v) : '\n';
-                const b = _cin.v.buf;
-                _cin.v.eofbit = b.length === 0;
+const _getline = function(rt: CRuntime, _cin: Cin, t: ArrayVariable, limitV: IntVariable, delimV: IntVariable) {
+    stdio.cinStop();
+    stdio.getInput().then(result => {
+        let removeDelim;
+        _cin.v.buf = result;
+        if (!rt.isStringType(t.t)) {
+            rt.raiseException("only a pointer to string can be used as storage");
+        }
+        const limit = limitV.v;
+        const delim = (delimV != null) ? String.fromCharCode(delimV.v) : '\n';
+        const b = _cin.v.buf;
+        _cin.v.eofbit = b.length === 0;
 
-                let r = read(rt, new RegExp(`^[^${delim}]*`), b, t.t)[0];
-                if ((r.length + 1) > limit) {
-                    r = r.substring(0, limit - 1);
-                }
-                if (b.charAt(r.length) === delim.charAt(0)) {
-                    removeDelim = true;
-                    _cin.v.failbit = false;
-                } else {
-                    _cin.v.failbit = r.length === 0;
-                }
+        let r = read(rt, new RegExp(`^[^${delim}]*`), b, t.t)[0];
+        if ((r.length + 1) > limit) {
+            r = r.substring(0, limit - 1);
+        }
+        if (b.charAt(r.length) === delim.charAt(0)) {
+            removeDelim = true;
+            _cin.v.failbit = false;
+        } else {
+            _cin.v.failbit = r.length === 0;
+        }
 
-                _cin.v.buf = b.substring(r.length + (removeDelim ? 1 : 0));
+        _cin.v.buf = b.substring(r.length + (removeDelim ? 1 : 0));
 
-                const initialPos = t.v.position;
-                const tar = t.v.target;
-                if ((tar.length - initialPos) <= r.length) {
-                    rt.raiseException(`target string buffer is ${r.length - (tar.length - initialPos)} too short`);
-                }
+        const initialPos = t.v.position;
+        const tar = t.v.target;
+        if ((tar.length - initialPos) <= r.length) {
+            rt.raiseException(`target string buffer is ${r.length - (tar.length - initialPos)} too short`);
+        }
 
-                for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                    tar[i + initialPos] = rt.val(rt.charTypeLiteral, r.charCodeAt(i));
-                }
-                tar[r.length + initialPos] = rt.val(rt.charTypeLiteral, 0);
+        for (let i = 0, end = r.length, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
+            tar[i + initialPos] = rt.val(rt.charTypeLiteral, r.charCodeAt(i));
+        }
+        tar[r.length + initialPos] = rt.val(rt.charTypeLiteral, 0);
 
-                stdio.write(b + "\n");
-                stdio.cinProceed();
-            }).catch((err) => {
-                console.log(err);
-                stdio.promiseError(err);
-            });
-            return _cin;
-        };
+        stdio.write(b + "\n");
+        stdio.cinProceed();
+    }).catch((err) => {
+        console.log(err);
+        stdio.promiseError(err);
+    });
+    return _cin;
+};
 
-        rt.regFunc(_getline, cin.t, "getline", [pchar, rt.intTypeLiteral, rt.charTypeLiteral], cin.t);
-        rt.regFunc(_getline, cin.t, "getline", [pchar, rt.intTypeLiteral], cin.t);
+rt.regFunc(_getline, cin.t, "getline", [pchar, rt.intTypeLiteral, rt.charTypeLiteral], cin.t);
+rt.regFunc(_getline, cin.t, "getline", [pchar, rt.intTypeLiteral], cin.t);
 
-        const _get = function(rt: CRuntime, _cin: Cin) {
-            const b = _cin.v.buf;
-            _cin.v.eofbit = b.length === 0;
+const _get = function(rt: CRuntime, _cin: Cin) {
+    const b = _cin.v.buf;
+    _cin.v.eofbit = b.length === 0;
 
-            if (_cin.v.eofbit) {
-                return rt.val(rt.intTypeLiteral, "\n".charCodeAt(0));
-            } else {
-                const r = read(rt, /^.|[\r\n]/, b, rt.charTypeLiteral);
-                _cin.v.buf = b.substring(r.length);
-                const v = r[0].charCodeAt(0);
-                return rt.val(rt.intTypeLiteral, v);
-            }
-        };
+    if (_cin.v.eofbit) {
+        return rt.val(rt.intTypeLiteral, "\n".charCodeAt(0));
+    } else {
+        const r = read(rt, /^.|[\r\n]/, b, rt.charTypeLiteral);
+        _cin.v.buf = b.substring(r.length);
+        const v = r[0].charCodeAt(0);
+        return rt.val(rt.intTypeLiteral, v);
+    }
+};
 
-        rt.regFunc(_get, cin.t, "get", [], rt.intTypeLiteral);
+rt.regFunc(_get, cin.t, "get", [], rt.intTypeLiteral);
 
-        const _bool = (rt: CRuntime, _cin: Cin) => rt.val(rt.boolTypeLiteral, !_cin.v.failbit);
+const _bool = (rt: CRuntime, _cin: Cin) => rt.val(rt.boolTypeLiteral, !_cin.v.failbit);
 
-        rt.regOperator(_bool, cin.t, "bool", [], rt.boolTypeLiteral);
+rt.regOperator(_bool, cin.t, "bool", [], rt.boolTypeLiteral);
 
-        // ######################### cout
-        const type = rt.newClass("coutmanipulator", []);
+// ######################### cout*/
+
+        /*const type = rt.newClass("coutmanipulator", []);
 
         let coutType: ClassType;
         try {
@@ -455,6 +482,6 @@ export = {
         };
 
         rt.regOperator(_addIOManipulator, coutType, "<<", [type], coutType);*/
-        
+
     }
 };

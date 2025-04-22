@@ -347,7 +347,10 @@ export type Variable = ArithmeticVariable | ClassVariable | PointerVariable<Poin
 export type InitVariable = InitArithmeticVariable | InitClassVariable | InitPointerVariable<ArithmeticVariable | ClassVariable | Function | PointerVariable<any>>;
 export type MaybeUnboundVariable = MaybeUnboundArithmeticVariable | MaybeUnboundClassVariable | MaybeUnboundPointerVariable<PointeeVariable>;
 
-export type CFunction = (rt: CRuntime, ...args: Variable[]) => MaybeUnboundVariable | Generator<unknown, MaybeUnboundVariable, unknown>;
+export type Gen<T> = Generator<unknown, T, unknown>;
+export type ResultOrGen<T> = T | Gen<T>;
+export type CFunction = (rt: CRuntime, ...args: Variable[]) => ResultOrGen<MaybeUnboundVariable | "VOID">;
+export type CFunctionBool = (rt: CRuntime, ...args: Variable[]) => ResultOrGen<InitArithmeticVariable>;
 
 export const variables = {
     voidType(): VoidType {
@@ -414,32 +417,29 @@ export const variables = {
     },
     /** Create a new variable with the same type and value as the original one */
     clone<TVar extends Variable>(object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, onError: (x: string) => never, allowUninit: boolean = false): TVar {
-        type BranchKey = "ARITHMETIC" | "PTR" | "ARRAY" | "CLASS" | "FUNCTION";
-        let branch: { [sig in BranchKey]: () => Variable } = {
-            "ARITHMETIC": () => {
+        type BranchKey = "ARITHMETIC" | "PTR" | "CLASS" | "FUNCTION";
+        let branch: { [sig in BranchKey]: (x: LValueHolder<Variable>) => Variable } = {
+            "ARITHMETIC": (_lvHolder: LValueHolder<InitArithmeticVariable>) => {
                 const x = object as InitArithmeticVariable;
-                return variables.arithmetic(x.t.sig, x.v.value, lvHolder as LValueHolder<InitArithmeticVariable>, isConst)
+                return variables.arithmetic(x.t.sig, x.v.value, _lvHolder, isConst)
             },
-            "PTR": () => {
+            "PTR": (_lvHolder: LValueHolder<InitPointerVariable<PointeeVariable>>) => {
                 const _x = object as InitPointerVariable<PointeeVariable>;
                 if (_x.v.subtype === "DIRECT") {
                     const x = _x as InitDirectPointerVariable<PointeeVariable>;
                     const child = variables.derefDirect(x);
-                    return variables.directPointer(child, lvHolder as LValueHolder<InitDirectPointerVariable<PointeeVariable>>, isConst);
+                    return variables.directPointer(child, _lvHolder, isConst);
                 } else {
                     const x = _x as InitIndexPointerVariable<PointeeVariable>;
-                    return variables.indexPointer(x.v.pointee, x.v.index, x.t.sizeConstraint !== null ? true : false, lvHolder as LValueHolder<InitIndexPointerVariable<Variable>>, isConst);
+                    return variables.indexPointer(x.v.pointee, x.v.index, x.t.sizeConstraint !== null ? true : false, _lvHolder, isConst);
                 }
             },
-            "ARRAY": () => {
-                onError("not yet implemented (you might be doing something wrong here)");
-            },
-            "CLASS": () => {
+            "CLASS": (_lvHolder: LValueHolder<InitClassVariable>) => {
                 const x = object as InitClassVariable;
                 const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(v, "SELF", false, onError, true)]));
-                return variables.class(x.t, members, lvHolder as LValueHolder<InitClassVariable>, isConst);
+                return variables.class(x.t, members, _lvHolder, isConst);
             },
-            "FUNCTION": () => {
+            "FUNCTION": (_lvHolder: LValueHolder<any>) => {
                 onError("not yet implemented");
             },
         }
@@ -448,16 +448,13 @@ export const variables = {
                 onError("Attempted clone of an uninitialised value");
             }
             branch = {
-                "ARITHMETIC": () => {
+                "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticVariable>) => {
                     const x = object as ArithmeticVariable;
-                    return variables.uninitArithmetic(x.t.sig, lvHolder as LValueHolder<InitArithmeticVariable>, isConst)
+                    return variables.uninitArithmetic(x.t.sig, _lvHolder, isConst)
                 },
-                "PTR": () => {
+                "PTR": (_lvHolder: LValueHolder<PointerVariable<PointeeVariable>>) => {
                     const x = object as PointerVariable<PointeeVariable>;
-                    return variables.uninitPointer(x.t.pointee, x.t.sizeConstraint, lvHolder as LValueHolder<InitPointerVariable<PointeeVariable>>, isConst);
-                },
-                "ARRAY": () => {
-                    onError("not yet implemented (you might be doing something wrong here)");
+                    return variables.uninitPointer(x.t.pointee, x.t.sizeConstraint, _lvHolder, isConst);
                 },
                 "CLASS": () => {
                     onError("unreachable");
@@ -471,7 +468,7 @@ export const variables = {
             onError("Cannot clone from a volatile variable to a constant");
         }
         const where: BranchKey = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig as BranchKey;
-        return branch[where]() as TVar;
+        return branch[where](lvHolder) as TVar;
     },
     asVoidType(type: AnyType): VoidType | null {
         return (type.sig === "VOID") ? type as VoidType : null;
@@ -519,7 +516,7 @@ export const variables = {
         return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "INDEX") ? x as InitIndexPointerVariable<Variable> : null;
     },
     asInitIndexPointerOfElem<VElem extends Variable>(x: Variable | Function, elem: VElem): InitIndexPointerVariable<VElem> | null {
-        return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "DIRECT" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitIndexPointerVariable<VElem> : null;
+        return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "INDEX" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitIndexPointerVariable<VElem> : null;
     },
     asClass(x: Variable | Function): ClassVariable | null {
         return (x.t.sig === "CLASS") ? x as ClassVariable : null;

@@ -12,6 +12,7 @@ import { InitArithmeticValue, MaybeUnboundArithmeticValue } from "./variables";
 
 const includes: { [fileName: string]: IncludeModule } = {
     iostream: require("./includes/iostream"),
+    _bits__unixapi: require("./includes/bits/unixapi"),
     /*ifstream: require("./includes/ifstream"),
     ofstream: require("./includes/ofstream"),
     fstream: require("./includes/fstream"),
@@ -40,6 +41,7 @@ const headerAlias: { [filename: string]: string } = {
     "stdio.h": "cstdio",
     "stdlib.h": "cstdlib",
     "bits/stdc++.h": "_bits__stdcpp",
+    "bits/unixapi.h": "_bits__unixapi",
     "time.h": "ctime"
 };
 

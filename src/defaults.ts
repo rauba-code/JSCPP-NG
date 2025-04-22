@@ -449,6 +449,6 @@ const defaultOpHandler: OpHandler[] = [
 
 export function addDefaultOperations(rt: CRuntime): void {
     defaultOpHandler.forEach((x: OpHandler) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type.split(" ")));
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type));
     })
 }

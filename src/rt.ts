@@ -1,7 +1,7 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
@@ -10,15 +10,7 @@ export interface IncludeModule {
     load(rt: CRuntime): void;
 }
 
-export interface JSCPPConfig {
-    specifiers?: Specifier[];
-    arithmeticResolutionMap?: { [x: string]: ArithmeticSig };
-    includes?: { [fileName: string]: IncludeModule };
-    loadedLibraries: string[];
-    fstream?: {
-        open: (context: object, fileName: string) => object
-    };
-    stdio?: {
+export interface Stdio {
         isMochaTest?: boolean;
         promiseError: (promise_error: string) => void;
         drain?: () => string;
@@ -30,7 +22,17 @@ export interface JSCPPConfig {
         getInput: () => Promise<string>;
         finishCallback: (ExitCode: number) => void;
         write: (s: string) => void;
+}
+
+export interface JSCPPConfig {
+    specifiers?: Specifier[];
+    arithmeticResolutionMap?: { [x: string]: ArithmeticSig };
+    includes?: { [fileName: string]: IncludeModule };
+    loadedLibraries: string[];
+    fstream?: {
+        open: (context: object, fileName: string) => object
     };
+    stdio?: Stdio;
     unsigned_overflow?: "error" | "warn" | "ignore";
 
     debug?: boolean;
@@ -99,7 +101,7 @@ export interface TypeHandlerMap {
 //    type: "CLASS",
 //    objectType: ClassType,
 //    /** Empty constructor. Overloadable */
-//    ctor: interp.ResultOrGen<(rt: CRuntime) => ClassVariable>,
+//    ctor: ResultOrGen<(rt: CRuntime) => ClassVariable>,
 //}
 
 //export type Domain = NamespaceDomain | ClassDomain;
@@ -165,6 +167,7 @@ export class CRuntime {
         return x.target;
     }
 
+
     getSizeByType(t: ObjectType): number {
         let at: ArithmeticType | null;
         let pt: PointerType<ObjectType | FunctionType> | null;
@@ -224,8 +227,23 @@ export class CRuntime {
         }
     };
 
-    typeSignature(array: string[]): TypeSignature {
+    stdio(): Stdio {
+        if (this.config.stdio === undefined) {
+            this.raiseException("[CRuntime].config.stdio is undefined");
+        }
+        return this.config.stdio;
+    }
+
+    arrayTypeSignature(array: string[]): TypeSignature {
         const inline: string = array.join(" ");
+        if (!parse(this.parser, array)) {
+            this.raiseException(`Malformed type signature: '${inline}'`)
+        }
+        return { inline, array };
+    };
+
+    typeSignature(inline: string): TypeSignature {
+        const array: string[] = inline.split(" ");
         if (!parse(this.parser, array)) {
             this.raiseException(`Malformed type signature: '${inline}'`)
         }
@@ -241,8 +259,8 @@ export class CRuntime {
         const thisSig: string[] = (domain === "{global}" || noThis) ? [] : variables.toStringSequence(domain, true, this.raiseException);
         const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.v.lvHolder !== null, this.raiseException);
         const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
-        const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat().flat();
-        return this.typeSignature(result);
+        const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat(2);
+        return this.arrayTypeSignature(result);
     }
 
     defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
@@ -711,7 +729,7 @@ export class CRuntime {
         return variables.indexPointer(memoryObject, 0, true, null, false);
     }
 
-    cast(target: ObjectType, v: InitVariable): MaybeUnboundVariable | Generator<unknown, MaybeUnboundVariable, unknown> {
+    cast(target: ObjectType, v: InitVariable): ResultOrGen<InitVariable> {
         // TODO: looking for global overload
         if (variables.typesEqual(v.t, target)) {
             return v;
@@ -761,7 +779,7 @@ export class CRuntime {
             if (boolSym.target === null) {
                 this.raiseException("Function is defined but not implemented");
             }
-            return boolSym.target(this, v);
+            return boolSym.target(this, v) as ResultOrGen<InitArithmeticVariable>;
         }
         //const pointerTarget = variables.asPointerType(v);
         //const iptrVar = variables.asIndexPointer(v);
@@ -924,6 +942,7 @@ export class CRuntime {
         //const domainMap = this.typeMap[domainInline];
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
+            debugger;
             return variables.clone(stubClass, null, false, rt.raiseException);
         }, classType, "o(_stub)", stubCtorTypeSig);
     };
@@ -1033,7 +1052,7 @@ export class CRuntime {
         return variable as Variable;
     }
 
-    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): interp.ResultOrGen<Variable> {
+    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): ResultOrGen<Variable> {
         let classType: ClassType | null;
         let pointerType: PointerType<ObjectType | FunctionType> | null;
         if (type.sig in variables.arithmeticSig) {
@@ -1043,9 +1062,12 @@ export class CRuntime {
             if (!(domainName in this.typeMap)) {
                 this.raiseException(`Could not resolve a class named '${domainName}'`)
             }
+            debugger;
             const fnid = this.typeMap[domainName].functionDB.matchFunctionExact("o(_stub)", ["FUNCTION", "Return", "(", ")"], this.raiseException);
             if (fnid >= 0) {
-                return this.getFunctionTarget(this.typeMap[domainName].functionsByID[fnid])(this) as interp.ResultOrGen<InitClassVariable>;
+                return this.getFunctionTarget(this.typeMap[domainName].functionsByID[fnid])(this) as ResultOrGen<InitClassVariable>;
+            } else {
+                this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
             return variables.uninitPointer(pointerType.pointee, pointerType.sizeConstraint, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);
