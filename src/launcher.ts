@@ -11,7 +11,7 @@ import * as defaults from "./defaults";
 import { InitArithmeticValue, MaybeUnboundArithmeticValue } from "./variables";
 
 const includes: { [fileName: string]: IncludeModule } = {
-    //iostream: require("./includes/iostream"),
+    iostream: require("./includes/iostream"),
     /*ifstream: require("./includes/ifstream"),
     ofstream: require("./includes/ofstream"),
     fstream: require("./includes/fstream"),

@@ -436,7 +436,7 @@ export const variables = {
             },
             "CLASS": () => {
                 const x = object as InitClassVariable;
-                const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(v, "SELF", false, onError)]));
+                const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(v, "SELF", false, onError, true)]));
                 return variables.class(x.t, members, lvHolder as LValueHolder<InitClassVariable>, isConst);
             },
             "FUNCTION": () => {
