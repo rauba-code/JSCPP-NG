@@ -165,8 +165,6 @@ export = {
             op: "o(_<<_)",
             type: "FUNCTION CLASS ostream < > ( LREF CLASS ostream < > PTR I8 )",
             default(rt: CRuntime, l: OStreamVariable, r: PointerVariable<ArithmeticVariable>): OStreamVariable {
-                const stdio = rt.stdio();
-                stdio.cinStop();
                 const iptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmetic("I8", null));
                 if (iptr === null) {
                     rt.raiseException("Variable is not an initialised index pointer");
