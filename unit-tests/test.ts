@@ -76,8 +76,8 @@ function doCases(cases: SingleTestCase[], cb: Callback) {
     for (const sample of cases) {
         const cppFile = sample.cpp;
         const code = fs.readFileSync(testFolder + cppFile, "utf-8");
-        const input = sample.in;
-        const expected = sample.out;
+        const input = sample.in ?? "";
+        const expected = sample.out ?? "";
         const except = sample.exception ?? "default_exception";
         const { exitcode, config } = sample;
         _describe(`${cppFile}`, () => doSample(code, input, expected, except, exitcode, config, (result: boolean) => success = success && result));

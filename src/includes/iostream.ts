@@ -1,8 +1,8 @@
 /* eslint-disable no-shadow */
 import { CRuntime } from "../rt";
 //import { Cin, Cout, IomanipOperator, IomanipConfig } from "../shared/iomanip_types";
-import { read, skipSpace } from "../shared/string_utils";
-import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, InitValue, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
+import { read, sizeNonSpace, skipSpace } from "../shared/string_utils";
+import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, InitValue, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 
 
@@ -13,12 +13,15 @@ interface IStreamType {
     readonly memberOf: null,
 };
 
-type IStreamVariable = AbstractVariable<IStreamType, IOStreamValue>;
+type IStreamVariable = AbstractVariable<IStreamType, IStreamValue>;
 
-interface IOStreamValue extends InitValue<IStreamVariable> {
+interface IStreamValue extends InitValue<IStreamVariable> {
     members: {
-        "buf": InitPointerVariable<ArithmeticVariable>,
+        "buf": InitIndexPointerVariable<ArithmeticVariable>,
         "fd": InitArithmeticVariable,
+        "eofbit": InitArithmeticVariable,
+        "badbit": InitArithmeticVariable,
+        "failbit": InitArithmeticVariable,
     },
 }
 
@@ -29,12 +32,18 @@ interface OStreamType {
     readonly memberOf: null,
 };
 
-type OStreamVariable = AbstractVariable<OStreamType, IOStreamValue>;
+interface OStreamValue extends InitValue<OStreamVariable> {
+    members: {
+        "fd": InitArithmeticVariable,
+    },
+}
+
+
+type OStreamVariable = AbstractVariable<OStreamType, OStreamValue>;
 
 export = {
     load(rt: CRuntime) {
         const charType = variables.arithmeticType("I8");
-        const pcharType = variables.pointerType(charType, null);
         rt.defineStruct("{global}", "istream", [
             {
                 name: "buf",
@@ -43,6 +52,18 @@ export = {
             {
                 name: "fd",
                 variable: variables.uninitArithmetic("I32", "SELF"),
+            },
+            {
+                name: "eofbit",
+                variable: variables.arithmetic("BOOL", 0, "SELF"),
+            },
+            {
+                name: "badbit",
+                variable: variables.arithmetic("BOOL", 0, "SELF"),
+            },
+            {
+                name: "failbit",
+                variable: variables.arithmetic("BOOL", 0, "SELF"),
             },
         ]);
         const cinType = rt.simpleType(["istream"]) as MaybeLeft<IStreamType>;
@@ -59,10 +80,6 @@ export = {
 
         rt.defineStruct("{global}", "ostream", [
             {
-                name: "buf",
-                variable: variables.indexPointer<ArithmeticVariable>(variables.arrayMemory(charType, []), 0, false, "SELF")
-            },
-            {
                 name: "fd",
                 variable: variables.uninitArithmetic("I32", "SELF"),
             },
@@ -73,104 +90,111 @@ export = {
 
         rt.addToNamespace("std", "cout", cout);
 
+        const endl = rt.getCharArrayFromString("\n");
+        rt.addToNamespace("std", "endl", endl);
+
         const handlers: FunHandler[] = [{
             op: "o(_>>_)",
-            type: "FUNCTION CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
+            type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
             default(rt: CRuntime, l: IStreamVariable, r: ArithmeticVariable): IStreamVariable {
                 const stdio = rt.stdio();
                 stdio.cinStop();
-                return l;
-                /*const inputPromise: Promise<[string, boolean]> = new Promise((resolve) => {
+                const inputPromise: Promise<[InitIndexPointerVariable<ArithmeticVariable>, boolean]> = new Promise((resolve) => {
                     let result = l.v.members.buf;
-                    if (!result) {
+                    if (result) {
                         stdio.getInput().then((result) => {
-                            resolve([result, false]);
+                            resolve([rt.getCharArrayFromString(result), false]);
                         });
                     } else {
                         resolve([result, true]);
                     }
-                });*/
-                /*        if (!t.left) {
-                            rt.raiseException("only left value can be used as storage");
-                        }
-                        if (!rt.isPrimitiveType(t.t) && !rt.isStringClass(t.t)) {
+                });
+                inputPromise.then(([result, is_raw]) => {
+                    variables.indexPointerAssign(l.v.members.buf, result.v.pointee, 0, rt.raiseException);
+                    let b = l.v.members.buf;
+                    variables.arithmeticAssign(l.v.members.eofbit, (b.v.pointee.values.length === 0) ? 1 : 0, rt.raiseException);
+                    skipSpace(rt, b);
+                    const len = sizeNonSpace(rt, result);
+                    const strseq = rt.getStringFromCharArray(result, len);
+                    const num = Number.parseFloat(strseq);
+                    if (Number.isNaN(num)) {
+                        variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                        return l;
+                    }
+                    variables.arithmeticAssign(r, num, rt.raiseException);
+                    rt.adjustArithmeticValue(r as InitArithmeticVariable);
+                    //let q, v;
+                    /*switch (t.t.name) {
+                        case "string":
+                            b = skipSpace(b);
+                            q = read(rt, /^[^\s]+/, b, t.t);
+                            v = rt.getCharArrayFromString(q != null ? q[0] : "").v;
+                            break;
+                        case "char": case "signed char": case "unsigned char":
+                            b = skipSpace(b);
+                            q = read(rt, /^./, b, t.t);
+                            v = q[0].charCodeAt(0);
+                            break;
+                        case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
+                            b = skipSpace(b);
+                            q = read(rt, /^[-+]?(?:([0-9]*)([eE]\+?[0-9]+)?)|0/, b, t.t);
+                            v = parseInt(q[0], 10);
+                            break;
+                        case "float": case "double":
+                            b = skipSpace(b);
+                            q = read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0                                    
+                            v = parseFloat(q[0]);
+                            break;
+                        case "bool":
+                            b = skipSpace(b);
+                            q = read(rt, /^(true|false)/, b, t.t);
+                            v = q[0] === "true";
+                            break;
+                        default:
                             rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t?.t));
-                        }
+                    }*/
+                    variables.arithmeticAssign(l.v.members.failbit, (len === 0) ? 1 : 0, rt.raiseException);
+                    /*if (!l.v.members.failbit.v.value) {
+                        q.v = rt.val(r.t, v).v;
+                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + len, rt.raiseException);
+                    } else {
+                        t.v = rt.val(t.t, v, false, true).v;
+                        l.v.buf = "";
+                    }*/
 
+                    if (stdio.isMochaTest) {
+                        stdio.write(String(rt.arithmeticValue(r)) + "\n");
+                    } else if (!is_raw) {
+                        stdio.write(String(strseq) + "\n");
+                    }
 
-                        inputPromise.then(([result, is_raw]) => {
-                            _cin.v.buf = result;
-                            let b = _cin.v.buf;
-                            _cin.v.eofbit = b.length === 0;
-                            let r, v;
-                            switch (t.t.name) {
-                                case "string":
-                                    b = skipSpace(b);
-                                    r = read(rt, /^[^\s]+/, b, t.t);
-                                    v = rt.makeCharArrayFromString(r != null ? r[0] : "").v;
-                                    break;
-                                case "char": case "signed char": case "unsigned char":
-                                    b = skipSpace(b);
-                                    r = read(rt, /^./, b, t.t);
-                                    v = r[0].charCodeAt(0);
-                                    break;
-                                case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
-                                    b = skipSpace(b);
-                                    r = read(rt, /^[-+]?(?:([0-9]*)([eE]\+?[0-9]+)?)|0/, b, t.t);
-                                    v = parseInt(r[0], 10);
-                                    break;
-                                case "float": case "double":
-                                    b = skipSpace(b);
-                                    r = read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0                                    
-                                    v = parseFloat(r[0]);
-                                    break;
-                                case "bool":
-                                    b = skipSpace(b);
-                                    r = read(rt, /^(true|false)/, b, t.t);
-                                    v = r[0] === "true";
-                                    break;
-                                default:
-                                    rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t?.t));
-                            }
-                            let len = 0;
-                            if (r !== null) {
-                                len = r[0].length;
-                            }
-                            _cin.v.failbit = len === 0;
-                            if (!_cin.v.failbit) {
-                                t.v = rt.val(t.t, v).v;
-                                _cin.v.buf = b.substring(len);
-                            } else {
-                                t.v = rt.val(t.t, v, false, true).v;
-                                _cin.v.buf = "";
-                            }
-
-                            if (stdio.isMochaTest) {
-                                stdio.write((rt.isCharType(t.t) ? String.fromCharCode(v as number) : v) + "\n");
-                            } else if (!is_raw) {
-                                stdio.write(b + "\n");
-                            }
-
-                            stdio.cinProceed();
-                        }).catch((err) => {
-                            console.log(err);
-                            stdio.promiseError(err);
-                        });
-                        return _cin;
-                return l;*/
+                    stdio.cinProceed();
+                }).catch((err) => {
+                    console.log(err);
+                    stdio.promiseError(err);
+                });
+                return l;
             }
 
         },
         {
             op: "o(_<<_)",
-            type: "FUNCTION CLASS ostream < > ( LREF CLASS ostream < > PTR I8 )",
+            type: "FUNCTION LREF CLASS ostream < > ( LREF CLASS ostream < > PTR I8 )",
             default(rt: CRuntime, l: OStreamVariable, r: PointerVariable<ArithmeticVariable>): OStreamVariable {
                 const iptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmetic("I8", null));
                 if (iptr === null) {
                     rt.raiseException("Variable is not an initialised index pointer");
                 }
                 unixapi.write(rt, l.v.members.fd, iptr);
-                
+                return l;
+            }
+        },
+        {
+            op: "o(_<<_)",
+            type: "FUNCTION LREF CLASS ostream < > ( LREF CLASS ostream < > Arithmetic )",
+            default(rt: CRuntime, l: OStreamVariable, r: ArithmeticVariable): OStreamVariable {
+                const str = rt.getCharArrayFromString(String(rt.arithmeticValue(r)))
+                unixapi.write(rt, l.v.members.fd, str);
                 return l;
             }
         }];

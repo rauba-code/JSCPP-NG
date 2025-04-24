@@ -20,7 +20,7 @@ describe("Test debugger", () => {
         }`;
 
         let proceed = true;
-        const mydebugger = JSCPP.run(code, () => Promise.resolve("5"), { 
+        const mydebugger = JSCPP.run(code, () => Promise.resolve(rt.getCharArrayFromString("5")), { 
             debug: true, 
             stdio: {
                 cinStop() {

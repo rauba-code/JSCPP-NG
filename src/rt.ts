@@ -11,17 +11,17 @@ export interface IncludeModule {
 }
 
 export interface Stdio {
-        isMochaTest?: boolean;
-        promiseError: (promise_error: string) => void;
-        drain?: () => string;
-        cinStop: () => void;
-        cinProceed: () => void;
-        cinState: () => boolean;
-        setReadResult: (result: string) => void;
-        getReadResult: () => string;
-        getInput: () => Promise<string>;
-        finishCallback: (ExitCode: number) => void;
-        write: (s: string) => void;
+    isMochaTest?: boolean;
+    promiseError: (promise_error: string) => void;
+    drain?: () => string;
+    cinStop: () => void;
+    cinProceed: () => void;
+    cinState: () => boolean;
+    setReadResult: (result: string) => void;
+    getReadResult: () => string;
+    getInput: () => Promise<string>;
+    finishCallback: (ExitCode: number) => void;
+    write: (s: string) => void;
 }
 
 export interface JSCPPConfig {
@@ -328,7 +328,7 @@ export class CRuntime {
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
         if (fnID < 0) {
-            const prettyPrintParams = params.map((x, i) => `${i+1}) ${this.makeTypeString(x.t, x.v.lvHolder !== null, false)}`).join("\n");
+            const prettyPrintParams = params.map((x, i) => `${i + 1}) ${this.makeTypeString(x.t, x.v.lvHolder !== null, false)}`).join("\n");
             this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: \n${prettyPrintParams}`);
         }
         return domainMap.functionsByID[fnID];
@@ -605,7 +605,7 @@ export class CRuntime {
                 const x = type as PointerType<ObjectType | FunctionType>;
                 if (x.sizeConstraint !== null) {
                     return inner(x.pointee) + "[" + String(x.sizeConstraint) + "]";
-                } else { 
+                } else {
                     return inner(x.pointee) + "*";
                 }
             },
@@ -706,17 +706,20 @@ export class CRuntime {
     };
 
     /** Parses an character array representing the UTF-8 sequence into a string. */
-    getStringFromCharArray(src: InitIndexPointerVariable<ArithmeticVariable>): string {
+    getStringFromCharArray(src: InitIndexPointerVariable<ArithmeticVariable>, len: number | null = null): string {
         if (!(src.t.pointee.sig === "I8" || src.t.pointee.sig === "U8")) {
             this.raiseException("Not a char array")
         }
-        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index).map((x: ArithmeticValue) => x.state === "INIT" ? x.value : 0));
+        if (len === null) {
+            len = src.v.pointee.values.length - src.v.index;
+        }
+        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index, src.v.index + len).map((x: ArithmeticValue) => x.state === "INIT" ? x.value : 0));
         return fromUtf8CharArray(byteArray);
     }
 
     getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticVariable> {
         let array = toUtf8CharArray(src);
-        console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; } ).join(""));
+        console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; }).join(""));
         let memoryObject = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), new Array<ArithmeticValue>())
         array.forEach((iv, ii) => {
             const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: ii };
@@ -725,7 +728,7 @@ export class CRuntime {
         // add a null-terminator ('\0')
         const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: array.length };
         memoryObject.values.push(variables.arithmetic("I8", 0, lvHolder, false).v);
-        
+
         return variables.indexPointer(memoryObject, 0, true, null, false);
     }
 

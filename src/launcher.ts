@@ -8,7 +8,7 @@ import Debugger from "./debugger"
 // @ts-ignore;
 import * as PEGUtil from "pegjs-util";
 import * as defaults from "./defaults";
-import { InitArithmeticValue, MaybeUnboundArithmeticValue } from "./variables";
+import { ArithmeticVariable, InitArithmeticValue, InitIndexPointerVariable, MaybeUnboundArithmeticValue } from "./variables";
 
 const includes: { [fileName: string]: IncludeModule } = {
     iostream: require("./includes/iostream"),
@@ -127,7 +127,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                 inputbuffer = "";
                 return x;
             },
-            getInput() {
+            getInput(): Promise<string> {
                 return Promise.resolve(input?.() ?? "'InputFunction' is missing.");
             },
             finishCallback(_ExitCode: number) {

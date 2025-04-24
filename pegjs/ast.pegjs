@@ -169,7 +169,7 @@ StructDeclaration
     } 
 
 StructMemberDeclaration
-  = a:TypeScopedIdentifier b:InitDeclaratorList SEMI {
+  = a:DeclarationSpecifiers b:InitDeclaratorList SEMI {
     return addPositionInfo({type: 'StructMember', MemberType: a, Declarators: b });
   };
 
@@ -990,3 +990,4 @@ SCOPEOP    =  a:"::"        Spacing {return a;};
 EOT        =  !_    ;
 
 _          =  . ;
+
