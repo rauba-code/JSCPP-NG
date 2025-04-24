@@ -1,8 +1,8 @@
 /* eslint-disable no-shadow */
-import { CRuntime } from "../rt";
+import { CRuntime, OpSignature } from "../rt";
 //import { Cin, Cout, IomanipOperator, IomanipConfig } from "../shared/iomanip_types";
 import { read, sizeNonSpace, skipSpace } from "../shared/string_utils";
-import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, InitValue, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
+import { AbstractVariable, ArithmeticVariable, CFunction, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, InitValue, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 
 
@@ -72,10 +72,10 @@ export = {
 
         rt.addToNamespace("std", "cin", cin);
 
-        type FunHandler = {
+        type OpHandler = {
             type: string,
-            op: string,
-            default: ((rt: CRuntime, ...args: Variable[]) => Variable)
+            op: OpSignature,
+            default: ((rt: CRuntime, ...args: Variable[]) => Variable | Promise<Variable>)
         };
 
         rt.defineStruct("{global}", "ostream", [
@@ -93,74 +93,41 @@ export = {
         const endl = rt.getCharArrayFromString("\n");
         rt.addToNamespace("std", "endl", endl);
 
-        const handlers: FunHandler[] = [{
+        const opHandlers: OpHandler[] = [{
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
-            default(rt: CRuntime, l: IStreamVariable, r: ArithmeticVariable): IStreamVariable {
+            async default(rt: CRuntime, l: IStreamVariable, r: ArithmeticVariable): Promise<IStreamVariable> {
                 const stdio = rt.stdio();
                 stdio.cinStop();
-                const inputPromise: Promise<[InitIndexPointerVariable<ArithmeticVariable>, boolean]> = new Promise((resolve) => {
+
+                const inputPromise: Promise<[boolean]> = new Promise((resolve) => {
                     let result = l.v.members.buf;
-                    if (result) {
+                    if (result.v.index >= result.v.pointee.values.length) {
                         stdio.getInput().then((result) => {
-                            resolve([rt.getCharArrayFromString(result), false]);
+                            variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result).v.pointee, 0, rt.raiseException);
+                            resolve([false]);
                         });
                     } else {
-                        resolve([result, true]);
+                        resolve([true]);
                     }
                 });
-                inputPromise.then(([result, is_raw]) => {
-                    variables.indexPointerAssign(l.v.members.buf, result.v.pointee, 0, rt.raiseException);
+                try {
+                    const [is_raw] = await inputPromise;
                     let b = l.v.members.buf;
                     variables.arithmeticAssign(l.v.members.eofbit, (b.v.pointee.values.length === 0) ? 1 : 0, rt.raiseException);
                     skipSpace(rt, b);
-                    const len = sizeNonSpace(rt, result);
-                    const strseq = rt.getStringFromCharArray(result, len);
+                    const len = sizeNonSpace(rt, b);
+                    const strseq = rt.getStringFromCharArray(b, len);
                     const num = Number.parseFloat(strseq);
                     if (Number.isNaN(num)) {
                         variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                        stdio.cinProceed();
                         return l;
                     }
                     variables.arithmeticAssign(r, num, rt.raiseException);
-                    rt.adjustArithmeticValue(r as InitArithmeticVariable);
-                    //let q, v;
-                    /*switch (t.t.name) {
-                        case "string":
-                            b = skipSpace(b);
-                            q = read(rt, /^[^\s]+/, b, t.t);
-                            v = rt.getCharArrayFromString(q != null ? q[0] : "").v;
-                            break;
-                        case "char": case "signed char": case "unsigned char":
-                            b = skipSpace(b);
-                            q = read(rt, /^./, b, t.t);
-                            v = q[0].charCodeAt(0);
-                            break;
-                        case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
-                            b = skipSpace(b);
-                            q = read(rt, /^[-+]?(?:([0-9]*)([eE]\+?[0-9]+)?)|0/, b, t.t);
-                            v = parseInt(q[0], 10);
-                            break;
-                        case "float": case "double":
-                            b = skipSpace(b);
-                            q = read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0                                    
-                            v = parseFloat(q[0]);
-                            break;
-                        case "bool":
-                            b = skipSpace(b);
-                            q = read(rt, /^(true|false)/, b, t.t);
-                            v = q[0] === "true";
-                            break;
-                        default:
-                            rt.raiseException(">> operator in istream cannot accept " + rt.makeTypeString(t?.t));
-                    }*/
+                    rt.adjustArithmeticValue((r as InitArithmeticVariable));
                     variables.arithmeticAssign(l.v.members.failbit, (len === 0) ? 1 : 0, rt.raiseException);
-                    /*if (!l.v.members.failbit.v.value) {
-                        q.v = rt.val(r.t, v).v;
-                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + len, rt.raiseException);
-                    } else {
-                        t.v = rt.val(t.t, v, false, true).v;
-                        l.v.buf = "";
-                    }*/
+                    variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + len, rt.raiseException);
 
                     if (stdio.isMochaTest) {
                         stdio.write(String(rt.arithmeticValue(r)) + "\n");
@@ -169,11 +136,12 @@ export = {
                     }
 
                     stdio.cinProceed();
-                }).catch((err) => {
+                    return l;
+                } catch (err) {
                     console.log(err);
                     stdio.promiseError(err);
-                });
-                return l;
+                    return l;
+                }
             }
 
         },
@@ -197,10 +165,71 @@ export = {
                 unixapi.write(rt, l.v.members.fd, str);
                 return l;
             }
-        }];
+        }
+        ];
 
-        handlers.forEach((x) => {
-            rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type));
+        opHandlers.forEach((x) => {
+            rt.regFunc(x.default as CFunction, "{global}", x.op, rt.typeSignature(x.type));
+        })
+
+
+        type FunHandler = {
+            type: string,
+            op: string,
+            default: ((rt: CRuntime, ...args: Variable[]) => Variable | Promise<Variable>)
+        };
+        
+        const cinHandlers : FunHandler[] = [
+        {
+            op: "get",
+            type: "FUNCTION I32 ( LREF CLASS istream < > )",
+            async default(rt: CRuntime, l: IStreamVariable): Promise<InitArithmeticVariable> {
+                const stdio = rt.stdio();
+                stdio.cinStop();
+                const inputPromise: Promise<[boolean]> = new Promise((resolve) => {
+                    let result = l.v.members.buf;
+                    if (result.v.index >= result.v.pointee.values.length) {
+                        stdio.getInput().then((result) => {
+                            variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result).v.pointee, 0, rt.raiseException);
+                            resolve([false]);
+                        });
+                    } else {
+                        resolve([true]);
+                    }
+                });
+                try {
+                    const [is_raw] = await inputPromise;
+                    let b = l.v.members.buf;
+                    variables.arithmeticAssign(l.v.members.eofbit, (b.v.pointee.values.length === 0) ? 1 : 0, rt.raiseException);
+                    const top = variables.arrayMember(b.v.pointee, b.v.index);
+                    if (top.v.state === "UNBOUND") {
+                        debugger;
+                        return variables.arithmetic("I32", -1, null);
+                    }
+                    //if (eof) {
+                    //    variables.arithmeticAssign(l.v.members.failbit, (len === 0) ? 1 : 0, rt.raiseException);
+                    //}
+                    variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
+
+                    if (stdio.isMochaTest) {
+                        stdio.write(String(rt.arithmeticValue(top)) + "\n");
+                    } else if (!is_raw) {
+                        stdio.write(String(rt.arithmeticValue(top)) + "\n");
+                    }
+
+                    stdio.cinProceed();
+                    return variables.clone((rt.expectValue(top) as InitArithmeticVariable), null, false, rt.raiseException);
+                } catch (err) {
+                    console.log(err);
+                    stdio.promiseError(err);
+                    return variables.arithmetic("I32", -1, null);
+                }
+            }
+        }
+        ]
+
+        cinHandlers.forEach((x) => {
+            rt.regFunc(x.default as CFunction, cin.t, x.op, rt.typeSignature(x.type));
         })
 
         /*const _cinString = function(rt: CRuntime, _cin: Cin, t: ArrayVariable) {
