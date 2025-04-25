@@ -197,7 +197,7 @@ export class CRuntime {
         }
     };*/
 
-    getMember(l: Variable, identifier: string): Variable | Function {
+    getMember(l: Variable, identifier: string): Variable {
         //l = this.asCapturedVariable(l);
         let lc = variables.asClass(l);
         if (lc !== null) {
@@ -209,12 +209,7 @@ export class CRuntime {
             }
             const domainName: string = this.domainString(lc.t);
             if (domainName in this.typeMap) {
-                const memberFn: TypeHandlerMap = this.typeMap[domainName];
-                const fnid = memberFn.functionDB.matchSingleFunction(identifier, this.raiseException);
-                if (fnid >= 0) {
-                    const fnsym: FunctionSymbol = memberFn.functionsByID[fnid];
-                    return variables.function(fnsym.type, identifier, fnsym.target, lc, "SELF");
-                } else if (identifier in lc.v.members) {
+                if (identifier in lc.v.members) {
                     return lc.v.members[identifier];
                 } else {
                     this.raiseException(`type '${this.makeTypeString(lc.t)}' does not have a member called '${identifier}'`);
@@ -274,7 +269,6 @@ export class CRuntime {
                 }
                 argNames.forEach(function(argName, i) {
                     if (argTypes[i].v.lvHolder === null) {
-                        debugger;
                         args[i] = variables.clone(args[i], "SELF", false, rt.raiseException);
                     }
                     if (args[i].v.isConst && !argTypes[i].v.isConst) {
@@ -324,9 +318,10 @@ export class CRuntime {
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
         }
-        //console.log(`getfunc: '(${domainSig})::${identifier}'`);
+        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
+        console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
+        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
         if (fnID < 0) {
             const prettyPrintParams = params.map((x, i) => `${i + 1}) ${this.makeTypeString(x.t, x.v.lvHolder !== null, false)}`).join("\n");
             this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: \n${prettyPrintParams}`);
@@ -945,7 +940,6 @@ export class CRuntime {
         //const domainMap = this.typeMap[domainInline];
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
-            debugger;
             return variables.clone(stubClass, null, false, rt.raiseException);
         }, classType, "o(_stub)", stubCtorTypeSig);
     };
@@ -1065,7 +1059,6 @@ export class CRuntime {
             if (!(domainName in this.typeMap)) {
                 this.raiseException(`Could not resolve a class named '${domainName}'`)
             }
-            debugger;
             const fnid = this.typeMap[domainName].functionDB.matchFunctionExact("o(_stub)", ["FUNCTION", "Return", "(", ")"], this.raiseException);
             if (fnid >= 0) {
                 return this.getFunctionTarget(this.typeMap[domainName].functionsByID[fnid])(this) as ResultOrGen<InitClassVariable>;

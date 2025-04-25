@@ -1,5 +1,5 @@
 import { resolveIdentifier } from "./shared/string_utils";
-import { CRuntime, OpSignature, RuntimeScope } from "./rt";
+import { CRuntime, FunctionSymbol, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, CFunctionBool, ResultOrGen, Gen } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -68,7 +68,7 @@ export interface XFunctionDefinition extends StatementMeta {
 };
 export interface XPostfixExpression_MethodInvocation extends StatementMeta {
     type: "PostfixExpression_MethodInvocation",
-    Expression: object,
+    Expression: XIdentifierExpression | PostfixExpression,
     args: object[],
 };
 export interface XPostfixExpression_ArrayAccess extends StatementMeta {
@@ -76,6 +76,13 @@ export interface XPostfixExpression_ArrayAccess extends StatementMeta {
     Expression: XIdentifierExpression,
     index: XConstantExpression,
 };
+export interface XPostfixExpression_MemberAccess extends StatementMeta {
+    type: "PostfixExpression_MemberAccess",
+    Expression: XIdentifierExpression,
+    member: string,
+};
+export type PostfixExpression = XPostfixExpression_MethodInvocation | XPostfixExpression_ArrayAccess | XPostfixExpression_MemberAccess;
+
 export interface XInitDeclarator extends StatementMeta {
     type: "InitDeclarator",
     Declarator: XDirectDeclarator,
@@ -191,7 +198,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 let { basetype } = param;
                 basetype = interp.buildRecursivePointerType(rt, s.Pointer, basetype, 0) as MaybeLeft<ObjectType>;
                 if (!(s.right instanceof Array)) {
-                    rt.raiseException("Type error or not yet implemented");
+                    rt.raiseException("Direct declarator error: Type error or not yet implemented");
                 }
                 if (s.right.length === 1) {
                     let varargs;
@@ -201,7 +208,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         ptl = right.ParameterTypeList;
                         ({ varargs } = ptl);
                     } else if ((right.type === "DirectDeclarator_modifier_IdentifierList") && (right.IdentifierList === null)) {
-                        rt.raiseException("Type error or not yet implemented");
+                        rt.raiseException("Direct declarator error: Type error or not yet implemented");
                         //ptl = right.ParameterTypeList;
                         //varargs = false;
                     }
@@ -211,7 +218,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                             let _type: MaybeLeft<ObjectType> | "VOID";
                             if (_param.Declarator != null) {
-                                this.rt.raiseException("Not yet implemented");
+                                this.rt.raiseException("Direct declarator error: Not yet implemented");
                                 /*const _pointer = _param.Declarator.Pointer;
                                 _type = interp.buildRecursivePointerType(rt, _pointer, _basetype, 0);
                                 if ((_param.Declarator.right != null) && (_param.Declarator.right.length > 0)) {
@@ -219,12 +226,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     for (let j = 0; j < _param.Declarator.right.length; j++) {
                                         let dim = _param.Declarator.right[j];
                                         if (dim.type !== "DirectDeclarator_modifier_array") {
-                                            rt.raiseException("unacceptable array initialization", dim);
+                                            rt.raiseException("Direct declarator error: unacceptable array initialization", dim);
                                         }
                                         if (dim.Expression !== null) {
                                             dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
                                         } else if (j > 0) {
-                                            rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
+                                            rt.raiseException("Direct declarator error: multidimensional array must have bounds for all dimensions except the first", dim);
                                         } else {
                                             dim = -1;
                                         }
@@ -235,7 +242,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             } else {
                                 _type = _basetype;
                             }
-                            rt.raiseException("not yet implemented");
+                            rt.raiseException("Direct declarator error: not yet implemented");
                             //argTypes.push(_type);
                         }
                         //basetype = variables.functionType(basetype, argTypes);
@@ -246,14 +253,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     for (let j = 0; j < s.right.length; j++) {
                         const Xdim = s.right[j];
                         if (Xdim.type !== "DirectDeclarator_modifier_array") {
-                            rt.raiseException("unacceptable array initialization", Xdim);
+                            rt.raiseException("Direct declarator error: unacceptable array initialization", Xdim);
                         }
                         let dim: number;
                         if (Xdim.Expression !== null) {
                             const castResult = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, Xdim.Expression, param))) as ArithmeticVariable);
                             dim = castResult.v.state === "INIT" ? castResult.v.value : -1;
                         } else if (j > 0) {
-                            rt.raiseException("multidimensional array must have bounds for all dimensions except the first", Xdim);
+                            rt.raiseException("Direct declarator error: multidimensional array must have bounds for all dimensions except the first", Xdim);
                         } else {
                             dim = -1;
                         }
@@ -301,19 +308,19 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (param.insideDirectDeclarator_modifier_ParameterTypeList) {
                         const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                         if (_basetype === "VOID") {
-                            rt.raiseException("Type error or not yet implemented");
+                            rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }
                         _type = _basetype;
                     } else {
                         if (_param.Declarator == null) {
-                            rt.raiseException("missing declarator for argument", _param);
+                            rt.raiseException("Parameter type list error: missing declarator for argument", _param);
                         }
                         _init = _param.Declarator.Initializers;
 
                         const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: any) => specifier?.DeclarationSpecifiers || specifier);
                         const _basetype = rt.simpleType(_declarationSpecifiers);
                         if (_basetype === "VOID") {
-                            rt.raiseException("Type error or not yet implemented");
+                            rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }
                         const _reference = _param.Declarator.Declarator.Reference;
                         _readonly = _declarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
@@ -324,7 +331,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const _pointer = _param.Declarator.Declarator.Pointer;
                             const __type = interp.buildRecursivePointerType(rt, _pointer, _basetype, 0);
                             if (__type === "VOID") {
-                                rt.raiseException("Type error or not yet implemented");
+                                rt.raiseException("Parameter type list error: Type error or not yet implemented");
                             }
                             _type = __type;
                         }
@@ -337,12 +344,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             _name = name;
                         } else {
                             if (_param.Declarator.Declarator.left.type !== "Identifier") {
-                                rt.raiseException("Not yet implemented");
+                                rt.raiseException("Parameter type list error: Not yet implemented");
                             }
                             _name = _param.Declarator.Declarator.left.Identifier;
                         }
                         if (!(_param.Declarator.Declarator.right instanceof Array)) {
-                            rt.raiseException("not yet implemented");
+                            rt.raiseException("Parameter type list error: not yet implemented");
                         }
                         if (_param.Declarator.Declarator.right.length > 0) {
                             if (_param.Declarator.Declarator.right[0].type === "DirectDeclarator_modifier_ParameterTypeList") {
@@ -350,19 +357,19 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
                                 const { argTypes: _argTypes, argNames: _argNames, optionalArgs: _optionalArgs } = yield* interp.visit(interp, dim.ParameterTypeList, param);
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
-                                rt.raiseException("not yet implemented");
+                                rt.raiseException("Parameter type list error: not yet implemented");
                                 //_type = variables.pointerType(variables.functionType(_type, _argTypes));
                             } else {
                                 for (let j = _param.Declarator.Declarator.right.length - 1; j >= 0; j--) {
                                     const dimObj = _param.Declarator.Declarator.right[j];
                                     if (dimObj.type !== "DirectDeclarator_modifier_array") {
-                                        rt.raiseException("unacceptable array initialization", dimObj);
+                                        rt.raiseException("Parameter type list error: unacceptable array initialization", dimObj);
                                     }
                                     if (dimObj.Expression !== null) {
                                         const sizeConstraint = rt.arithmeticValue(rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticVariable);
                                         _type = { t: variables.pointerType(_type.t, sizeConstraint), v: { lvHolder: _type.v.lvHolder } };
                                     } else if (j > 0) {
-                                        rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dimObj);
+                                        rt.raiseException("Parameter type list error: multidimensional array must have bounds for all dimensions except the first", dimObj);
                                     } else {
                                         _type = { t: variables.pointerType(_type.t, null), v: { lvHolder: _type.v.lvHolder } };
                                     }
@@ -378,7 +385,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         });
                     } else */ {
                         if (optionalArgs.length > 0) {
-                            rt.raiseException("all default arguments must be at the end of arguments list", _param);
+                            rt.raiseException("Parameter type list error: all default arguments must be at the end of arguments list", _param);
                         }
                         argTypes.push(_type);
                         argNames.push(_name);
@@ -395,9 +402,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const {
                     scope
                 } = param;
-                const typedScope = scope === "{global}" ? "{global}" : rt.raiseException("Not yet implemented");
+                const typedScope = scope === "{global}" ? "{global}" : rt.raiseException("Function definition error: Not yet implemented");
                 if (s.Declarator.left.type !== "Identifier") {
-                    rt.raiseException("Not yet implemented");
+                    rt.raiseException("Function definition error: Not yet implemented");
                 }
                 const name = s.Declarator.left.Identifier;
                 let basetype = rt.simpleType(s.DeclarationSpecifiers);
@@ -406,7 +413,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 let ptl: any;
                 let varargs;
                 if (s.Declarator.right instanceof Array) {
-                    rt.raiseException("unacceptable argument list", s.Declarator.right);
+                    rt.raiseException("Function definition error: unacceptable argument list", s.Declarator.right);
                 }
                 if (s.Declarator.right.type === "DirectDeclarator_modifier_ParameterTypeList") {
                     ptl = s.Declarator.right.ParameterTypeList;
@@ -417,7 +424,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     ptl = { ParameterList: [] };
                     varargs = false;
                 } else {
-                    rt.raiseException("unacceptable argument list", s.Declarator.right);
+                    rt.raiseException("Function definition error: unacceptable argument list", s.Declarator.right);
                 }
                 const { argTypes, argNames } = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
@@ -428,7 +435,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
                 const _basetype: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType>>) : rt.simpleType(s.DeclarationSpecifiers);
-                const basetype = (_basetype === "VOID") ? rt.raiseException("Type error or not yet implemented") : _basetype;
+                const basetype = (_basetype === "VOID") ? rt.raiseException("Declaration error: Type error or not yet implemented") : _basetype;
 
                 for (const dec of s.InitDeclaratorList) {
                     let visitResult: DeclaratorYield;
@@ -443,7 +450,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     let initSpec = dec.Initializers;
 
                     if (!(dec.Declarator.right instanceof Array)) {
-                        rt.raiseException("Not yet implemented");
+                        rt.raiseException("Declaration error: Not yet implemented");
                     }
                     const rhs = dec.Declarator.right as DirectDeclaratorModifier[];
                     if (rhs.length > 0) {
@@ -452,16 +459,16 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             for (let j = 0; j < rhs.length; j++) {
                                 const _dim = rhs[j];
                                 if (_dim.type !== "DirectDeclarator_modifier_array") {
-                                    rt.raiseException("Type error or not yet implemented");
+                                    rt.raiseException("Declaration error: Type error or not yet implemented");
                                 }
                                 const dim = _dim as XDirectDeclarator_modifier_Array;
                                 if (dim.Expression !== null) {
                                     const castYield = rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ResultOrGen<InitArithmeticVariable>;
                                     dimensions.push(rt.arithmeticValue(asResult(castYield) ?? (yield* (castYield as Gen<InitArithmeticVariable>))));
                                 } else if (j > 0) {
-                                    rt.raiseException("multidimensional array must have bounds for all dimensions except the first", dim);
+                                    rt.raiseException("Declaration error: multidimensional array must have bounds for all dimensions except the first", dim);
                                 } else {
-                                    rt.raiseException("not yet implemented");
+                                    rt.raiseException("Declaration error: not yet implemented");
                                     /*if (init.type === "Initializer_expr") {
                                         const initializer: Variable = yield* interp.visit(interp, init, param);
                                         if basetype is char and initializer.t is char*
@@ -476,7 +483,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                                 }))
                                             };
                                         } else {
-                                            rt.raiseException("cannot initialize an array to " + rt.makeValString(initializer), init);
+                                            rt.raiseException("Declaration error: cannot initialize an array to " + rt.makeValString(initializer), init);
                                         }
                                     } else {
                                         dim = init.Initializers.length;
@@ -491,7 +498,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                             rt.defVar(name, arrayInit);
                         } else if (rhs[0].type as string === "DirectDeclarator_modifier_Constructor") {
-                            //rt.raiseException("Not yet implemented");
+                            //rt.raiseException("Declaration error: Not yet implemented");
                             const constructorArgs = [];
                             for (const dim of rhs) {
                                 if ((dim as any).Expressions !== null) {
@@ -502,11 +509,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 }
                             }
                             const _classType = variables.asClassType(type.t);
-                            const classType = (_classType === null) ? rt.raiseException("Not yet implemented / Type Error") : _classType;
+                            const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
 
                             const initClass = variables.class(classType, {}, "SELF");
                             const xinit = rt.getFunctionTarget(rt.getFuncByParams(classType, "o(())", constructorArgs))(this, initClass, ...constructorArgs);
-                            rt.raiseException("Not yet implemented");
+                            rt.raiseException("Declaration error: Not yet implemented");
 
                             /*xinit.t = (dec.Declarator.left as any).DataType;
                             xinit.v.isConst = readonly;
@@ -516,7 +523,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<MaybeUnboundVariable | "VOID">;
                         const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
                         if (initVarOrVoid === "VOID") {
-                            rt.raiseException("Expected a non-void value");
+                            rt.raiseException("Declaration error: Expected a non-void value");
                         } else {
                             let initVar = rt.unbound(initVarOrVoid);
                             
@@ -529,7 +536,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 initVar = rt.expectValue(asResult(castVar) ?? (yield* castVar as Gen<Variable>));
                             }
                             if (isConst) {
-                                rt.raiseException("Not yet implemented");
+                                rt.raiseException("Declaration error: Not yet implemented");
                             }
                             rt.defVar(name, initVar);
                         }
@@ -540,9 +547,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({ rt } = interp);
 
                 const basetype = rt.simpleType(s.DeclarationSpecifiers);
-                rt.raiseException("Not yet implemented");
+                rt.raiseException("Template declaration error: Not yet implemented");
                 /*if (!rt.isVectorClass(basetype))
-                    rt.raiseException("Only vectors are currently supported for STL Declaration!");
+                    rt.raiseException("Template declaration error: Only vectors are currently supported for STL Declaration!");
 
                 const vectorClass: any = rt.defaultValue(basetype, true);
 
@@ -580,12 +587,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
 
                     if (s.InitVariables) {
-                        rt.raiseException("not yet implemented");
+                        rt.raiseException("Struct declaration error: not yet implemented");
                         //const structType = rt.newStruct(`initialized_struct_${identifier}`, structMemberList);
                         //rt.defVar(identifier, rt.defaultValue(structType));
                     } else {
                         if (rt.scope.length !== 1) {
-                            rt.raiseException("Nested classes are not yet implemented");
+                            rt.raiseException("Struct declaration error: Nested classes are not yet implemented");
                         }
                         rt.defineStruct("{global}", identifier, structMemberList);
                     }
@@ -603,7 +610,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 const ce = yield* interp.visit(interp, s.ConstantExpression);
                 if (param["switch"] === undefined) {
-                    rt.raiseException("you cannot use case outside switch block");
+                    rt.raiseException("Label 'case' error: you cannot use case outside switch block");
                 }
                 if (param.scope === "SelectionStatement_switch_cs") {
                     return [
@@ -611,7 +618,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         (rt.cast(ce.t, param["switch"]) as Variable).v === ce.v
                     ];
                 } else {
-                    rt.raiseException("you can only use case directly in a switch block");
+                    rt.raiseException("Label 'case' error: you can only use case directly in a switch block");
                 }
             },
             Label_default(interp, _s, param) {
@@ -619,7 +626,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 if (param["switch"] === undefined) {
-                    rt.raiseException("you cannot use default outside switch block");
+                    rt.raiseException("Label 'default' error: you cannot use default outside switch block");
                 }
                 if (param.scope === "SelectionStatement_switch_cs") {
                     return [
@@ -627,7 +634,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         true
                     ];
                 } else {
-                    rt.raiseException("you can only use default directly in a switch block");
+                    rt.raiseException("Label 'default' error: you can only use default directly in a switch block");
                 }
             },
             *CompoundStatement(interp, s, param) {
@@ -818,17 +825,17 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     iterator = rt.getFunctionTarget(sym)(rt, iterable);
                 } catch (ex) {
                     // ???
-                    rt.raiseException("not yet implemented");
+                    rt.raiseException("For-each iteration statement error: not yet implemented");
                     //if (variables.asArrayType !== null) {
                     //    iterator = iterable.v.target[Symbol.iterator]();
                     //}
                 }
 
                 if (!iterator) {
-                    rt.raiseException(`Variable '${s.Expression.Identifier}' is not iterator type.`);
+                    rt.raiseException(`For-each iteration statement error: Variable '${s.Expression.Identifier}' is not iterator type.`);
                 }
 
-                rt.raiseException("not yet implemented");
+                rt.raiseException("For-each iteration statement error: not yet implemented");
 
                 /*for (const element of iterator) {
                     variable.v = element.v;
@@ -905,7 +912,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                rt.raiseException("not implemented");
+                rt.raiseException("Go-to statement error: not implemented");
             },
             JumpStatement_continue(interp, _s, _param) {
                 ({
@@ -960,10 +967,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 const _ret = (yield* interp.visit(interp, s.Expression, param)) as Variable | Function;
                 if (variables.asFunction(_ret) !== null) {
-                    rt.raiseException("Type error or not yet implemented");
+                    rt.raiseException("Array access statement error: Type error or not yet implemented");
                 }
                 const ret = _ret as Variable;
-                const index = variables.asArithmetic(yield* interp.visit(interp, s.index, param)) ?? rt.raiseException("Type error or not yet implemented");
+                const index = variables.asArithmetic(yield* interp.visit(interp, s.index, param)) ?? rt.raiseException("Array access statement error: Type error or not yet implemented");
 
                 param.structType = ret.t;
                 const funsym = rt.getOpByParams("{global}", "o(_[_])", [ret, index]);
@@ -974,42 +981,42 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return r;
                 }
             },
-            *PostfixExpression_MethodInvocation(interp, s: XPostfixExpression_MethodInvocation, param): ResultOrGen<MaybeUnboundVariable | "VOID"> {
+            *PostfixExpression_MethodInvocation(interp, s: XPostfixExpression_MethodInvocation, param): ResultOrGen<MaybeUnboundVariable | "VOID" | "PROMISE"> {
                 ({
                     rt
                 } = interp);
-                const args: Variable[] = yield* (function*() {
+                let args: Variable[] = yield* (function*() {
                     const result = [];
                     for (const e of s.args) {
                         const thisArg = yield* interp.visit(interp, e, param);
                         if (thisArg === "VOID") {
-                            rt.raiseException("Expected a non-void value in parameter");
+                            rt.raiseException("Method invocation error: Expected a non-void value in parameter");
                         }
                         result.push(rt.unbound(thisArg));
                     }
                     return result;
                 }).call(this);
-                const ret = yield* interp.visit(interp, s.Expression, { functionArgs: args });
-
-                const retfun = variables.asFunction(ret);
-                if (retfun !== null) {
-                    const resultOrGen = rt.getFunctionTarget(retfun.v)(rt, ...args);
+                if (s.Expression.type === "PostfixExpression_MemberAccess") {
+                    // TODO: optimise (remove double visitation)
+                    const holderClass = variables.asClass(rt.unbound(yield* interp.visit(interp, s.Expression.Expression, { })));
+                    if (holderClass === null) {
+                        rt.raiseException("Method invocation error: Could not visit holder class");
+                    }
+                    args = [holderClass, ...args];
+                }
+                const ret : Variable | FunctionSymbol = yield* interp.visit(interp, s.Expression, { functionArgs: args });
+                
+                const retfun = ("type" in ret) ? ret : variables.asFunction(ret)?.v;
+                if (retfun !== undefined) {
+                    const resultOrGen = rt.getFunctionTarget(retfun)(rt, ...args);
                     const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
                     if (result === "VOID") {
                         return "VOID";
                     }
                     return rt.expectValue(result);
                 } else {
-                    let bindThis;
-                    if (ret.v.bindThis != null) {
-                        ({
-                            bindThis
-                        } = ret.v);
-                    } else {
-                        bindThis = ret;
-                    }
-                    if (bindThis !== null) {
-                        rt.raiseException("not yet implemented");
+                    if ("type" in ret) {
+                        rt.raiseException("Method invocation error: unexpected function symbol");
                     }
                     const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_call)", args))(rt, ...args);
                     const result = asResult(r) ?? (yield* r as Gen<MaybeUnboundVariable | "VOID">);
@@ -1019,12 +1026,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return rt.expectValue(asResult<MaybeUnboundVariable>(result) ?? (yield* r as Gen<MaybeUnboundVariable>));
                 }
             },
-            *PostfixExpression_MemberAccess(interp, s, param) {
+            *PostfixExpression_MemberAccess(interp, s, param: { functionArgs?: MaybeLeft<ObjectType>[] }): ResultOrGen<Variable | FunctionSymbol> {
                 ({
                     rt
                 } = interp);
-                const ret = yield* interp.visit(interp, s.Expression, param);
-                return rt.getMember(ret, s.member);
+                const functionArgs = param.functionArgs;
+                param.functionArgs = undefined;
+                const ret = (yield* interp.visit(interp, s.Expression, param)) as MaybeUnboundVariable | "VOID";
+                if (ret === "VOID") {
+                    rt.raiseException("Member access error: Expected a non-void value")
+                }
+                const rclass = variables.asClass(rt.unbound(ret));
+                if (rclass === null) {
+                    rt.raiseException("Member access error: Expected a class/struct object");
+                }
+                param.functionArgs = functionArgs;
+                if (param.functionArgs === undefined) {
+                    return rt.getMember(rclass, s.member);
+                } else {
+                    return rt.getFuncByParams(rclass.t, s.member, param.functionArgs)
+                }
             },
             *PostfixExpression_MemberPointerAccess(interp, s, param) {
                 ({
@@ -1033,7 +1054,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 let ret = yield* interp.visit(interp, s.Expression, param);
                 const retc = variables.asClass(ret);
                 if (retc === null) {
-                    rt.raiseException("Expected a class or struct");
+                    rt.raiseException("Member pointer access error: Expected a class or struct");
                 }
                 const maybePtrType = variables.asPointerType(ret.t);
                 if (maybePtrType !== null && variables.asFunctionType(maybePtrType.pointee) === null) {
@@ -1042,7 +1063,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (isGenerator(ret)) {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
-                        rt.raiseException("Expected a generator");
+                        rt.raiseException("Member pointer access error: Expected a generator");
                     }
                 } else {
                     const member = yield* interp.visit(interp, {
@@ -1053,7 +1074,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (isGenerator(ret)) {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
-                        rt.raiseException("Expected a generator");
+                        rt.raiseException("Member pointer access error: Expected a generator");
                     }
                 }
             },
@@ -1139,7 +1160,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ret = variables.clone(ret, null, false, rt.raiseException);
                 const type = (yield* interp.visit(interp, s.TypeName, param)) as MaybeLeft<ObjectType> | "VOID";
                 if (type === "VOID") {
-                    rt.raiseException("Cannot cast to void");
+                    rt.raiseException("Cast error: Cannot cast to void");
                 }
                 return rt.cast(type.t, ret);
             },
@@ -1172,12 +1193,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     const _left : MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.left, param);
                     if (_left === "VOID") {
-                        rt.raiseException("Expected a non-void value on the left-hand side of operation");
+                        rt.raiseException("Binary operation expression error: Expected a non-void value on the left-hand side of operation");
                     }
                     const left = rt.unbound(_left);
                     const _right : MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.right, param);
                     if (_right === "VOID") {
-                        rt.raiseException("Expected a non-void value on the right-hand side of operation");
+                        rt.raiseException("Binary operation expression error: Expected a non-void value on the right-hand side of operation");
                     }
                     const right = rt.unbound(_right);
 
@@ -1281,7 +1302,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     for (const valueArray of arrayValues) {
                         structArray.push(valuesToStruct(valueArray));
                     }
-                    rt.raiseException("Not yet implemented");
+                    rt.raiseException("Struct expression error: Not yet implemented");
                     //return variables.indexPointer(param.structType, structArray.length), rt.makeArrayPointerValue(structArray, 0));
                 }
 
@@ -1296,19 +1317,19 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     case null:
                         return rt.getCharArrayFromString(s.value);
                     case "L":
-                        rt.raiseException("Not yet implemented");
+                        rt.raiseException("String literal error: Not yet implemented");
                     //return rt.makeCharArrayFromString(s.value, "wchar_t");
                     case "u8":
-                        rt.raiseException("Not yet implemented");
+                        rt.raiseException("String literal error: Not yet implemented");
                     //return rt.makeCharArrayFromString(s.value, "char");
                     case "u":
-                        rt.raiseException("Not yet implemented");
+                        rt.raiseException("String literal error: Not yet implemented");
                     //return rt.makeCharArrayFromString(s.value, "char16_t");
                     case "U":
-                        rt.raiseException("Not yet implemented");
+                        rt.raiseException("String literal error: Not yet implemented");
                     //return rt.makeCharArrayFromString(s.value, "char32_t");
                 }
-                rt.raiseException(`Invalid string prefix: '${s.prefix}'`);
+                rt.raiseException(`Invalid string prefix error: '${s.prefix}'`);
             },
             BooleanConstant(interp, s, _param) {
                 ({
@@ -1322,7 +1343,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 const a = s.Char;
                 if (a.length !== 1) {
-                    rt.raiseException("a character constant must have and only have one character.");
+                    rt.raiseException("Character constant error: a character constant must have and only have one character.");
                 }
                 return variables.arithmetic("I8", a[0].charCodeAt(0), null);
             },
@@ -1353,7 +1374,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const intProps = variables.arithmeticProperties["I32"];
                 const uintProps = variables.arithmeticProperties["U32"];
                 if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                    rt.raiseException(`Decimal constant error: Constant integer expression '${num}' is not in a signed 32-bit integer range`);
                 }
                 if (num > intProps.maxv) {
                     return variables.arithmetic("U32", (uintProps.maxv + 1) - num, null);
@@ -1368,7 +1389,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const intProps = variables.arithmeticProperties["I32"];
                 const uintProps = variables.arithmeticProperties["U32"];
                 if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                    rt.raiseException(`Hexadecimal constant error: Constant integer expression '${num}' is not in a signed 32-bit integer range`);
                 }
                 if (num > intProps.maxv) {
                     return variables.arithmetic("U32", num, null);
@@ -1383,7 +1404,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const intProps = variables.arithmeticProperties["I32"];
                 const uintProps = variables.arithmeticProperties["U32"];
                 if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                    rt.raiseException(`Binary constant error: Constant integer expression '${num}' is not in a signed 32-bit integer range`);
                 }
                 if (num > intProps.maxv) {
                     return variables.arithmetic("U32", num, null);
@@ -1398,7 +1419,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const intProps = variables.arithmeticProperties["I32"];
                 const uintProps = variables.arithmeticProperties["U32"];
                 if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    rt.raiseException(`Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                    rt.raiseException(`Octal constant error: Constant integer expression '${num}' is not in a signed 32-bit integer range`);
                 }
                 if (num > intProps.maxv) {
                     return variables.arithmetic("U32", num, null);
@@ -1409,7 +1430,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                rt.raiseException("not implemented");
+                rt.raiseException("Namespace definition error: not implemented");
             },
             UsingDirective(interp, s, _param) {
                 ({ rt } = interp);
@@ -1423,13 +1444,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                rt.raiseException("not implemented");
+                rt.raiseException("Using-declaration error: not implemented");
             },
             NamespaceAliasDefinition(interp, _s, _param) {
                 ({
                     rt
                 } = interp);
-                rt.raiseException("not implemented");
+                rt.raiseException("Namespace alias definition error: not implemented");
             },
             unknown(interp, s, _param) {
                 ({
@@ -1523,7 +1544,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             })();
             const childType = arrType.pointee;
             if (init) {
-                throw new Error("not yet implemented");
+                throw new Error("Array initialisation error: not yet implemented");
                 /*if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
                     // last level, short hand init
                     if (init.Initializers.length === 0) {
@@ -1587,7 +1608,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                         shorthand: (yield* this.arrayInit(dimensions.slice(1), _init, type, param))
                                     };
                                 } else {
-                                    this.rt.raiseException("Not implemented initializer type: " + _init.type);
+                                    this.rt.raiseException("Not implemented initializer type error: " + _init.type);
                                 }
                             }
                             arr[i] = initval;
@@ -1640,7 +1661,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     top = yield* this.arrayInit(dimensions.slice(1), null, type, param);
                     //}
                     if (!variables.typesEqual(childType, top.t)) {
-                        this.rt.raiseException("Invalid array element type");
+                        this.rt.raiseException("Array initialisation error: Invalid array element type");
                     }
                     const lvHolder: LValueIndexHolder<Variable> = { array: memoryObject as ArrayMemory<Variable>, index: i };
                     memoryObject.values.push(variables.clone(top, lvHolder, false, this.rt.raiseException, true).v);
@@ -1650,11 +1671,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             }
         } else {
             if (init && (init.type !== "Initializer_expr")) {
-                this.rt.raiseException("dimensions do not agree, too few initializers", param.node);
+                this.rt.raiseException("Array initialisation error: dimensions do not agree, too few initializers", param.node);
             }
             let initval: Variable;
             if (init) {
-                this.rt.raiseException("not yet implemented");
+                this.rt.raiseException("Array initialisation error: not yet implemented");
                 /*if ("shorthand" in init) {
                     initval = init.shorthand as Variable;
                 } else {
@@ -1671,7 +1692,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
     buildRecursivePointerType(rt: CRuntime, pointer: any[] | null, basetype: MaybeLeft<ObjectType> | "VOID", level: number): MaybeLeft<ObjectType> | "VOID" {
         if (pointer && (pointer.length > level)) {
             if (basetype === "VOID") {
-                rt.raiseException("not yet implemented");
+                rt.raiseException("Array initialisation error: not yet implemented");
             }
             const type = { t: variables.pointerType(basetype.t, null), v: { lvHolder: null } } as MaybeLeft<PointerType<ObjectType | FunctionType>>;
             return this.buildRecursivePointerType(rt, pointer, type, level + 1);

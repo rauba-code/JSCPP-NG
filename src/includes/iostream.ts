@@ -1,7 +1,7 @@
 /* eslint-disable no-shadow */
 import { CRuntime, OpSignature } from "../rt";
 //import { Cin, Cout, IomanipOperator, IomanipConfig } from "../shared/iomanip_types";
-import { read, sizeNonSpace, skipSpace } from "../shared/string_utils";
+import { sizeNonSpace, sizeUntilNewline, skipSpace } from "../shared/string_utils";
 import { AbstractVariable, ArithmeticVariable, CFunction, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, InitValue, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 
@@ -102,9 +102,9 @@ export = {
 
                 const inputPromise: Promise<[boolean]> = new Promise((resolve) => {
                     let result = l.v.members.buf;
-                    if (result.v.index >= result.v.pointee.values.length) {
+                    if (result.v.index + 1 >= result.v.pointee.values.length) {
                         stdio.getInput().then((result) => {
-                            variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result).v.pointee, 0, rt.raiseException);
+                            variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
                             resolve([false]);
                         });
                     } else {
@@ -139,7 +139,7 @@ export = {
                     return l;
                 } catch (err) {
                     console.log(err);
-                    stdio.promiseError(err);
+                    stdio.promiseError(err.message);
                     return l;
                 }
             }
@@ -176,31 +176,86 @@ export = {
         type FunHandler = {
             type: string,
             op: string,
-            default: ((rt: CRuntime, ...args: Variable[]) => Variable | Promise<Variable>)
+            default: ((rt: CRuntime, ...args: Variable[]) => Variable)
         };
-        
-        const cinHandlers : FunHandler[] = [
-        {
-            op: "get",
-            type: "FUNCTION I32 ( LREF CLASS istream < > )",
-            async default(rt: CRuntime, l: IStreamVariable): Promise<InitArithmeticVariable> {
-                const stdio = rt.stdio();
-                stdio.cinStop();
-                const inputPromise: Promise<[boolean]> = new Promise((resolve) => {
-                    let result = l.v.members.buf;
-                    if (result.v.index >= result.v.pointee.values.length) {
-                        stdio.getInput().then((result) => {
-                            variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result).v.pointee, 0, rt.raiseException);
-                            resolve([false]);
-                        });
-                    } else {
-                        resolve([true]);
+        function _getline(rt: CRuntime, l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStreamVariable {
+            const stdio = rt.stdio();
+            stdio.cinStop();
+
+            const inputPromise: Promise<[boolean, IStreamVariable]> = new Promise((resolve) => {
+                let result = l.v.members.buf;
+                // + 1 because of trailing '\0'
+                if (result.v.index + 1 >= result.v.pointee.values.length) {
+                    stdio.getInput().then((result) => {
+                        variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
+                        resolve([false, l]);
+                    });
+                } else {
+                    resolve([true, l]);
+                }
+            });
+            inputPromise.then(([_is_raw, l]) => {
+                let b = l.v.members.buf;
+                const count = rt.arithmeticValue(_count);
+                const delim = rt.arithmeticValue(_delim);
+                const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmetic("I8", null));
+                if (s === null) {
+                    rt.raiseException("Not an index pointer");
+                }
+                const oldiptr = variables.clone(b, "SELF", false, rt.raiseException);
+                variables.arithmeticAssign(l.v.members.eofbit, (b.v.pointee.values.length === 0) ? 1 : 0, rt.raiseException);
+                let cnt = 0;
+                while (cnt < count - 1) {
+                    const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticVariable;
+                    const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                    if (bi === delim) {
+                        // consume the delimiter
+                        variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                        break;
                     }
-                });
-                try {
-                    const [is_raw] = await inputPromise;
+                    variables.arithmeticAssign(si, bi, rt.raiseException);
+                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    cnt++;
+                }
+                if (cnt === 0) {
+                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                }
+
+                debugger;
+                stdio.write(rt.getStringFromCharArray(oldiptr, b.v.index - oldiptr.v.index));
+
+                stdio.cinProceed();
+            }).catch((err) => {
+                console.log(err);
+                stdio.promiseError(err.message);
+            })
+            return l;
+        }
+
+        const cinHandlers: FunHandler[] = [
+            {
+                op: "get",
+                type: "FUNCTION I32 ( LREF CLASS istream < > )",
+                default(rt: CRuntime, l: IStreamVariable): InitArithmeticVariable {
+                    /*const stdio = rt.stdio();
+                    stdio.cinStop();
+                    const inputPromise: Promise<[boolean]> = new Promise((resolve) => {
+                        let result = l.v.members.buf;
+                        if (result.v.index >= result.v.pointee.values.length) {
+                            stdio.getInput().then((result) => {
+                                variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result).v.pointee, 0, rt.raiseException);
+                                resolve([false]);
+                            });
+                        } else {
+                            resolve([true]);
+                        }
+                    });
+                    try {
+                        const [is_raw] = await inputPromise;*/
                     let b = l.v.members.buf;
-                    variables.arithmeticAssign(l.v.members.eofbit, (b.v.pointee.values.length === 0) ? 1 : 0, rt.raiseException);
+                    if (b.v.pointee.values.length === 0) {
+                        variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                    }
                     const top = variables.arrayMember(b.v.pointee, b.v.index);
                     if (top.v.state === "UNBOUND") {
                         debugger;
@@ -211,25 +266,40 @@ export = {
                     //}
                     variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
 
-                    if (stdio.isMochaTest) {
+                    /*if (stdio.isMochaTest) {
                         stdio.write(String(rt.arithmeticValue(top)) + "\n");
                     } else if (!is_raw) {
                         stdio.write(String(rt.arithmeticValue(top)) + "\n");
-                    }
+                    }*/
 
-                    stdio.cinProceed();
+                    //stdio.cinProceed();
+                    debugger;
                     return variables.clone((rt.expectValue(top) as InitArithmeticVariable), null, false, rt.raiseException);
-                } catch (err) {
-                    console.log(err);
-                    stdio.promiseError(err);
-                    return variables.arithmetic("I32", -1, null);
+                    /*} catch (err) {
+                        console.log(err);
+                        stdio.promiseError(err.message);
+                        return variables.arithmetic("I32", -1, null);
+                    }*/
+                }
+            },
+            {
+                op: "getline",
+                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 I32 I8 )",
+                default(rt: CRuntime, l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStreamVariable {
+                    return _getline(rt, l, _s, _count, _delim);
+                }
+            },
+            {
+                op: "getline",
+                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 I32 )",
+                default(rt: CRuntime, l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IStreamVariable {
+                    return _getline(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"));
                 }
             }
-        }
         ]
 
         cinHandlers.forEach((x) => {
-            rt.regFunc(x.default as CFunction, cin.t, x.op, rt.typeSignature(x.type));
+            rt.regFunc(x.default, cin.t, x.op, rt.typeSignature(x.type));
         })
 
         /*const _cinString = function(rt: CRuntime, _cin: Cin, t: ArrayVariable) {
@@ -261,7 +331,7 @@ export = {
         stdio.cinProceed();
     }).catch((err) => {
         console.log(err);
-        stdio.promiseError(err);
+        stdio.promiseError(err.message);
     });
 
     return _cin;
@@ -309,7 +379,7 @@ const _getline = function(rt: CRuntime, _cin: Cin, t: ArrayVariable, limitV: Int
         stdio.cinProceed();
     }).catch((err) => {
         console.log(err);
-        stdio.promiseError(err);
+        stdio.promiseError(err.message);
     });
     return _cin;
 };

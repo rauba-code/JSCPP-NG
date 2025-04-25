@@ -17,7 +17,22 @@ export function sizeNonSpace(rt: CRuntime, buf: InitIndexPointerVariable<Arithme
     let i = 0;
     while (true) {
         const chr : number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i));
-        if (chr === 0 || chr === 32) {
+        if (chr === 0 || chr === 32 || chr === 9 || chr === 10) {
+            break;
+        }
+        i++;
+    }
+    return i;
+};
+
+export function sizeUntilNewline(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>): number {
+    if (buf.v.pointee.values.length === 0) {
+        return 0;
+    }
+    let i = 0;
+    while (true) {
+        const chr : number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i));
+        if (chr === 10) {
             break;
         }
         i++;
