@@ -1,5 +1,5 @@
 import { CRuntime } from "../rt";
-import { ArithmeticVariable, InitIndexPointerVariable, ObjectType, variables } from "../variables";
+import { ArithmeticVariable, InitArithmeticVariable, InitIndexPointerVariable, ObjectType, variables } from "../variables";
 
 export function skipSpace(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>): void {
     if (buf.v.pointee.values.length === 0) {
@@ -25,14 +25,14 @@ export function sizeNonSpace(rt: CRuntime, buf: InitIndexPointerVariable<Arithme
     return i;
 };
 
-export function sizeUntilNewline(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>): number {
+export function sizeUntil(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>, delim: InitArithmeticVariable): number {
     if (buf.v.pointee.values.length === 0) {
         return 0;
     }
     let i = 0;
     while (true) {
         const chr : number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i));
-        if (chr === 10) {
+        if (chr === delim.v.value || chr === 0) {
             break;
         }
         i++;

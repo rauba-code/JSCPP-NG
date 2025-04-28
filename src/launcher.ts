@@ -12,6 +12,7 @@ import { ArithmeticVariable, InitArithmeticValue, InitIndexPointerVariable, Mayb
 
 const includes: { [fileName: string]: IncludeModule } = {
     iostream: require("./includes/iostream"),
+    iomanip: require("./includes/iomanip"),
     _bits__unixapi: require("./includes/bits/unixapi"),
     /*ifstream: require("./includes/ifstream"),
     ofstream: require("./includes/ofstream"),
@@ -25,7 +26,6 @@ const includes: { [fileName: string]: IncludeModule } = {
     cstdio: require("./includes/cstdio"),
     cstdlib: require("./includes/cstdlib"),
     ctime: require("./includes/ctime"),
-    iomanip: require("./includes/iomanip"),
     vector: require("./includes/vector"),
     algorithm: require("./includes/algorithm"),
     functional: require("./includes/functional"),
