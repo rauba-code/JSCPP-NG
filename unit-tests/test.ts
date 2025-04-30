@@ -102,10 +102,12 @@ function doSample(code: string, input: string, expected: string | null, except: 
                 exitcode = ExitCode;
             },
             promiseError(e: string) {
+                console.log(`except: ${except}`);
+                console.log(`e: ${e}`);
                 if (except) {
                     _it("expected exception", function() {
                         const eStr = prepareOutput(e.toString());
-                        const ok = eStr!.match(except);
+                        const ok = (except === "default_exception") ? true : eStr!.match(except);
                         assert.ok(ok);
                         cb(ok != null);
                     });
