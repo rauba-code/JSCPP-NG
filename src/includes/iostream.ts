@@ -38,7 +38,7 @@ export = {
         type OpHandler = {
             type: string,
             op: OpSignature,
-            default: ((rt: CRuntime, ...args: Variable[]) => Variable | Promise<Variable>)
+            default: ((rt: CRuntime, ...args: Variable[]) => Variable)
         };
 
         rt.defineStruct("{global}", "ostream", [
@@ -115,12 +115,22 @@ export = {
                     }
                 });
                 inputPromise.then(([is_raw]) => {
-                    let b = l.v.members.buf;
-                    const oldptr = variables.clone(b, "SELF", false, rt.raiseException);
-                    variables.arithmeticAssign(l.v.members.eofbit, (b.v.pointee.values.length === 0) ? 1 : 0, rt.raiseException);
-                    skipSpace(rt, b);
-                    const len = sizeNonSpace(rt, b);
-                    const strseq = rt.getStringFromCharArray(b, len);
+                    const buf = l.v.members.buf;
+                    //const fd = l.v.members.fd;
+                    const eofbit = l.v.members.eofbit;
+                    const failbit = l.v.members.failbit;
+                    //const badbit = l.v.members.badbit;
+                    if (eofbit.v.value) {
+                        failbit.v.value = 1;
+                        return l;
+                    }
+                    const oldptr = variables.clone(buf, "SELF", false, rt.raiseException);
+                    if (buf.v.pointee.values.length <= buf.v.index) {
+                        variables.arithmeticAssign(eofbit, 1, rt.raiseException);
+                    }
+                    skipSpace(rt, buf);
+                    const len = sizeNonSpace(rt, buf);
+                    const strseq = rt.getStringFromCharArray(buf, len);
                     const num = Number.parseFloat(strseq);
                     if (Number.isNaN(num)) {
                         variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
@@ -210,7 +220,7 @@ export = {
         ];
 
         opHandlers.forEach((x) => {
-            rt.regFunc(x.default as CFunction, "{global}", x.op, rt.typeSignature(x.type));
+            rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type));
         })
 
 
@@ -263,7 +273,6 @@ export = {
                     variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
                 }
 
-                debugger;
                 if (!is_raw) {
                     unixapi.write(rt, variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr);
                 }
@@ -298,17 +307,12 @@ export = {
                     try {
                         const [is_raw] = await inputPromise;*/
                     let b = l.v.members.buf;
-                    if (b.v.pointee.values.length === 0) {
+                    if (b.v.pointee.values.length <= b.v.index) {
                         variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                    }
-                    const top = variables.arrayMember(b.v.pointee, b.v.index);
-                    if (top.v.state === "UNBOUND") {
-                        debugger;
+                        variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
                         return variables.arithmetic("I32", -1, null);
                     }
-                    //if (eof) {
-                    //    variables.arithmeticAssign(l.v.members.failbit, (len === 0) ? 1 : 0, rt.raiseException);
-                    //}
+                    const top = rt.unbound(variables.arrayMember(b.v.pointee, b.v.index));
                     variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
 
                     /*if (stdio.isMochaTest) {
@@ -318,7 +322,6 @@ export = {
                     }*/
 
                     //stdio.cinProceed();
-                    debugger;
                     return variables.clone((rt.expectValue(top) as InitArithmeticVariable), null, false, rt.raiseException);
                     /*} catch (err) {
                         console.log(err);

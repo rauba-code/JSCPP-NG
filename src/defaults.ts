@@ -401,6 +401,26 @@ const defaultOpHandler: OpHandler[] = [
         }
     },
     {
+        op: "o(_=_)",
+        type: "!Pointer FUNCTION ?0 ( LREF ?0 ?0 )",
+        default(rt, _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitPointerVariable<PointeeVariable> {
+            const l = rt.expectValue(_l) as InitPointerVariable<PointeeVariable>;
+            const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
+            if (!(l.t.sizeConstraint === null || l.t.sizeConstraint === r.t.sizeConstraint)) {
+                rt.raiseException("Assignment between pointers of invalid sizes");
+            }
+            if (r.v.subtype === "INDEX") {
+                if (variables.asFunctionType(l.t.pointee) !== null) {
+                    rt.raiseException("Function-pointer assignment invalid inside arrays");
+                }
+                variables.indexPointerAssign(l as InitPointerVariable<Variable>, (r as InitIndexPointerVariable<Variable>).v.pointee, r.v.index, rt.raiseException);
+            } else if (r.v.subtype === "DIRECT") {
+                variables.directPointerAssign(l, r, rt.raiseException);
+            }
+            return l;
+        }
+    },
+    {
         op: "o(&_)",
         type: "!LValue FUNCTION PTR ?0 ( LREF ?0 )",
         default(rt: CRuntime, l: Variable | Function): InitDirectPointerVariable<PointeeVariable> | InitIndexPointerVariable<Variable> {
@@ -418,7 +438,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(*_)",
-        type: "!LValue FUNCTION LREF ?0 ( LREF PTR ?0 )",
+        type: "!LValue FUNCTION LREF ?0 ( PTR ?0 )",
         default(rt: CRuntime, _l: PointerVariable<PointeeVariable>): MaybeUnboundVariable {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot dereference a function pointer");
@@ -429,7 +449,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(_[_])",
-        type: "!LValue FUNCTION LREF ?0 ( LREF PTR ?0 Arithmetic )",
+        type: "!LValue FUNCTION LREF ?0 ( PTR ?0 Arithmetic )",
         default(rt: CRuntime, _l: PointerVariable<PointeeVariable>, index: ArithmeticVariable): MaybeUnboundVariable {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot dereference a function pointer");
@@ -440,7 +460,7 @@ const defaultOpHandler: OpHandler[] = [
                 return variables.deref(l) as MaybeUnboundVariable;
             }
             if (l.v.subtype === "INDEX") {
-                return variables.arrayMember<Variable>(l.v.pointee, i) as MaybeUnboundVariable;
+                return variables.arrayMember<Variable>(l.v.pointee, i + l.v.index) as MaybeUnboundVariable;
             }
             rt.raiseException("(Segmentation fault) attempt to access a non-array pointer member outside the bounds")
         }

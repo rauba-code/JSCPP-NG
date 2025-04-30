@@ -528,7 +528,7 @@ export const variables = {
         return lhs.sig === rhs.sig;
     },
     pointerTypesEqual(lhs: PointerType<ObjectType | FunctionType>, rhs: PointerType<ObjectType | FunctionType>): boolean {
-        return variables.typesEqual(lhs.pointee, rhs.pointee);
+        return variables.typesEqual(lhs.pointee, rhs.pointee) && lhs.sizeConstraint === rhs.sizeConstraint;
     },
     classTypesEqual(lhs: ClassType, rhs: ClassType): boolean {
         if (lhs.identifier !== rhs.identifier) {

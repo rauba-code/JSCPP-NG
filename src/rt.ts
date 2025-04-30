@@ -30,7 +30,7 @@ export interface JSCPPConfig {
     includes?: { [fileName: string]: IncludeModule };
     loadedLibraries: string[];
     fstream?: {
-        open: (context: object, fileName: string) => object
+        open: (context: any, fileName: string) => FileInstance;
     };
     stdio?: Stdio;
     unsigned_overflow?: "error" | "warn" | "ignore";
@@ -111,6 +111,17 @@ export interface TypeSignature {
     array: string[],
 }
 
+export type FileInstance = {
+    name: string;
+    _open: boolean;
+    is_open: () => boolean;
+    read: (data: string) => string | void;
+    clear: () => void;
+    write: (data: string) => void;
+    close: () => void;
+};
+
+export type FileManager = { freefd: number, files: { [fd: number]: FileInstance } };
 
 export class CRuntime {
     parser: LLParser;
@@ -120,16 +131,43 @@ export class CRuntime {
     typeMap: { [domainIdentifier: string]: TypeHandlerMap };
     typedefs: { [name: string]: AnyType };
     interp: interp.BaseInterpreter<any>;
+    fileio: FileManager;
 
     constructor(config: JSCPPConfig) {
         this.parser = constructTypeParser();
         this.config = config;
         this.typeMap = {};
         this.addTypeDomain("{global}");
+        this.fileio = { freefd: 4, files: {} };
 
         this.scope = [{ "$name": "{global}", variables: {} }];
         this.namespace = {};
         this.typedefs = {};
+    }
+
+    openFile(path: InitIndexPointerVariable<ArithmeticVariable>): number {
+        const { fstream } = this.config;
+        if (fstream === undefined) {
+            this.raiseException("[CRuntime].config.fstream is undefined");
+        }
+        const fileName = this.getStringFromCharArray(path);
+        const fileInst = fstream.open({ t: { name: "ofstream" } }, fileName);
+        this.fileio.files[this.fileio.freefd] = fileInst;
+        return fileInst.is_open() ? this.fileio.freefd++ : -1;
+    }
+
+    fileRead(fd: InitArithmeticVariable): InitIndexPointerVariable<ArithmeticVariable> {
+        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        const readData = fileInst.read("");
+        if (readData === undefined) {
+            this.raiseException("File read failed unexpectedly")
+        }
+        return this.getCharArrayFromString(readData);
+    }
+
+    fileClose(fd: InitArithmeticVariable): void {
+        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        fileInst.close();
     }
 
     addTypeDomain(domain: string) {
@@ -279,13 +317,14 @@ export class CRuntime {
                     rt.defVar(argName, args[i]);
                 });
                 let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
+                debugger;
                 if (retType === "VOID") {
                     if (Array.isArray(ret)) {
                         if ((ret[0] === "return") && ret[1]) {
                             rt.raiseException("void function cannot return a value");
                         }
                     }
-                    ret = undefined;
+                    ret = "VOID";
                 } else {
                     if (ret instanceof Array && (ret[0] === "return")) {
                         ret = rt.cast(retType.t, ret[1]);
@@ -323,8 +362,12 @@ export class CRuntime {
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fnID = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
         if (fnID < 0) {
-            const prettyPrintParams = params.map((x, i) => `${i + 1}) ${this.makeTypeString(x.t, x.v.lvHolder !== null, false)}`).join("\n");
-            this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: \n${prettyPrintParams}`);
+            const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, false)).join(", ") + ")";
+            const overloads = domainMap.functionDB.functions[identifier];
+            const overloadsMsg = (overloads !== undefined)
+                ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.type.join(" ")}`).join("\n")
+                : "No available overloads";
+            this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
         }
         return domainMap.functionsByID[fnID];
     };
@@ -535,7 +578,7 @@ export class CRuntime {
             object.v.lvHolder = "SELF";
         }
 
-        vc.variables[varname] = object;//variables.clone(object, object.v.lvHolder ?? "SELF", false, this.raiseException);
+        vc.variables[varname] = object;
     };
 
     inrange(x: number, t: ArithmeticType, onError?: () => string) {
@@ -632,7 +675,7 @@ export class CRuntime {
             }
             return;
         }
-        let q: number = (x.v.value - info.minv) % (info.maxv + 1 - info.minv);
+        let q: number = x.v.value % (info.maxv + 1 - info.minv);
         if (q < 0) {
             q += info.maxv + 1 - info.minv;
         }
@@ -709,7 +752,8 @@ export class CRuntime {
             len = src.v.pointee.values.length - src.v.index;
         }
         const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index, src.v.index + len).map((x: ArithmeticValue) => x.state === "INIT" ? x.value : 0));
-        return fromUtf8CharArray(byteArray);
+        // remove trailing null-terminators '\0' from the end
+        return fromUtf8CharArray(byteArray).replace(/\0+$/, "");
     }
 
     getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticVariable> {
@@ -727,7 +771,7 @@ export class CRuntime {
         return variables.indexPointer(memoryObject, 0, true, null, false);
     }
 
-    cast(target: ObjectType, v: InitVariable): ResultOrGen<InitVariable> {
+    cast(target: ObjectType, v: InitVariable, allowUToSOverflow: boolean = false): ResultOrGen<InitVariable> {
         // TODO: looking for global overload
         if (variables.typesEqual(v.t, target)) {
             return v;
@@ -765,7 +809,7 @@ export class CRuntime {
                     }
                 } else {
                     const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
-                    if (this.inrange(newVar.v.value as number, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                    if (allowUToSOverflow || this.inrange(newVar.v.value as number, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
                         this.adjustArithmeticValue(newVar);
                         return newVar;
                     }
@@ -779,10 +823,17 @@ export class CRuntime {
             }
             return boolSym.target(this, v) as ResultOrGen<InitArithmeticVariable>;
         }
-        //const pointerTarget = variables.asPointerType(v);
-        //const iptrVar = variables.asIndexPointer(v);
-        //const pointerVar = (iptrVar === null) ? variables.asPointer(v) : variables.pointerType(iptrVar.t.array.object);
-        this.raiseException("Not yet implemented");
+        const pointerTarget = variables.asPointerType(target);
+        const iptrVar = variables.asInitIndexPointer(v);
+        const dptrVar = variables.asInitDirectPointer(v);
+        if (pointerTarget !== null && iptrVar !== null) {
+            if (variables.typesEqual(pointerTarget.pointee, iptrVar.t.pointee)) {
+                if (pointerTarget.sizeConstraint === null || pointerTarget.sizeConstraint === iptrVar.t.sizeConstraint) {
+                    return variables.indexPointer(iptrVar.v.pointee, iptrVar.v.index, pointerTarget.sizeConstraint !== null, null);
+                }
+            }
+        }
+        this.raiseException("Cast: Type error not yet implemented");
         /*else if (this.isPrimitiveType(target) && this.isArrayType(value)) {
             if (this.isTypeEqualTo(target, value.t.eleType)) {
                 return value;

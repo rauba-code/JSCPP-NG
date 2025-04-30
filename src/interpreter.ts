@@ -167,6 +167,20 @@ export interface XStringLiteralExpression extends StatementMeta {
     type: "StringLiteralExpression",
     value: XStringLiteral,
 }
+export interface XTypeName extends StatementMeta {
+    type: "TypeName",
+    base: string[],
+    extra: XAbstractDeclarator | null,
+}
+export interface XAbstractDeclarator extends StatementMeta {
+    type: "AbstractDeclarator",
+    Pointer: any[][] | null,
+}
+export interface XCastExpression extends StatementMeta {
+    type: "CastExpression",
+    TypeName: XTypeName,
+    Expression: XIdentifierExpression | PostfixExpression 
+}
 export interface XUnknown {
     type: "<stub>"
 }
@@ -511,13 +525,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const _classType = variables.asClassType(type.t);
                             const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
 
-                            const initClass = variables.class(classType, {}, "SELF");
-                            const xinit = rt.getFunctionTarget(rt.getFuncByParams(classType, "o(())", constructorArgs))(this, initClass, ...constructorArgs);
-                            rt.raiseException("Declaration error: Not yet implemented");
-
-                            /*xinit.t = (dec.Declarator.left as any).DataType;
-                            xinit.v.isConst = readonly;
-                            rt.defVar(name, xinit);*/
+                            //const initClass = variables.class(classType, {}, "SELF");
+                            const xinitYield = rt.getFunctionTarget(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs))(rt, ...constructorArgs);
+                            const xinitOrVoid = asResult(xinitYield) ?? (yield* (xinitYield as Gen<MaybeUnboundVariable | "VOID">))
+                            if (xinitOrVoid === "VOID") {
+                                rt.raiseException("Declaration error: Expected a non-void value");
+                            } else {
+                                rt.defVar(name, rt.unbound(xinitOrVoid));
+                            }
                         }
                     } else {
                         const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<MaybeUnboundVariable | "VOID">;
@@ -1152,7 +1167,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const type = yield* interp.visit(interp, s.TypeName, param);
                 return variables.arithmetic("I32", rt.getSizeByType(type), null);
             },
-            *CastExpression(interp, s, param) {
+            *CastExpression(interp, s: XCastExpression, param) {
                 ({
                     rt
                 } = interp);
@@ -1162,9 +1177,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (type === "VOID") {
                     rt.raiseException("Cast error: Cannot cast to void");
                 }
-                return rt.cast(type.t, ret);
+                return rt.cast(type.t, ret, true);
             },
-            TypeName(interp, s, _param): MaybeLeft<ObjectType> | "VOID" {
+            TypeName(interp, s: XTypeName, _param): MaybeLeft<ObjectType> | "VOID" {
                 ({
                     rt
                 } = interp);
@@ -1173,6 +1188,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (baseType !== "const") {
                         typename.push(baseType);
                     }
+                }
+                if (s.extra) {
+                    return interp.buildRecursivePointerType(rt, s.extra.Pointer, rt.simpleType(typename), 0);
                 }
                 return rt.simpleType(typename);
             },
@@ -1183,7 +1201,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const {
                     op
                 } = s;
-                //debugger;
                 if (op === "&&") {
                     s.type = "LogicalANDExpression";
                     return yield* interp.visit(interp, s, param);
