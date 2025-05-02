@@ -76,6 +76,12 @@ export interface OStreamValue extends InitValue<OStreamVariable> {
     members: {
         /** The UNIX-like input file descriptor (1 for stdin, >=3 for files). */
         "fd": InitArithmeticVariable,
+        /** The end-of-file status flag. */
+        "eofbit": InitArithmeticVariable,
+        /** The bad status flag (system-level I/O error). */
+        "badbit": InitArithmeticVariable,
+        /** The fail status flag (no or unformatted input, bad file name, etc.) */
+        "failbit": InitArithmeticVariable,
         /** The arithmetic base of integers.
           * One of 8, 10 and 16;
           * (default = 10) */

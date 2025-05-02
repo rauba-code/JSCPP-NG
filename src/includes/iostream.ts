@@ -1,6 +1,6 @@
 import { CRuntime, OpSignature } from "../rt";
 import { sizeNonSpace, skipSpace } from "../shared/string_utils";
-import { ArithmeticProperties, ArithmeticVariable, CFunction, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
+import { ArithmeticProperties, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 import { iomanip_token_mode, IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
 
@@ -254,7 +254,9 @@ export = {
                     rt.raiseException("Not an index pointer");
                 }
                 const oldiptr = variables.clone(b, "SELF", false, rt.raiseException);
-                variables.arithmeticAssign(l.v.members.eofbit, (b.v.pointee.values.length === 0) ? 1 : 0, rt.raiseException);
+                if (b.v.index >= b.v.pointee.values.length) {
+                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                }
                 let cnt = 0;
                 while (cnt < count - 1) {
                     const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticVariable;

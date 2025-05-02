@@ -8,7 +8,7 @@ import Debugger from "./debugger"
 // @ts-ignore;
 import * as PEGUtil from "pegjs-util";
 import * as defaults from "./defaults";
-import { ArithmeticVariable, InitArithmeticValue, InitIndexPointerVariable, MaybeUnboundArithmeticValue } from "./variables";
+import { InitArithmeticValue, MaybeUnboundArithmeticValue } from "./variables";
 
 const includes: { [fileName: string]: IncludeModule } = {
     iostream: require("./includes/iostream"),

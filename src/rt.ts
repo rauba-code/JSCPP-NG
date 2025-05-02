@@ -4,6 +4,7 @@ import * as interp from "./interpreter";
 import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
 import { TypeDB } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
+import { sizeUntil } from './shared/string_utils';
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 
 export interface IncludeModule {
@@ -168,6 +169,11 @@ export class CRuntime {
     fileClose(fd: InitArithmeticVariable): void {
         const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
         fileInst.close();
+    }
+
+    fileWrite(fd: InitArithmeticVariable, data: InitIndexPointerVariable<ArithmeticVariable>): void {
+        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
     }
 
     addTypeDomain(domain: string) {

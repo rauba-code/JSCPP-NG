@@ -1,16 +1,12 @@
 import { CRuntime, OpSignature } from "../rt";
-import { read, sizeNonSpace, skipSpace } from "../shared/string_utils";
+import { sizeNonSpace, skipSpace } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
-import { ArithmeticValue, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, ObjectType, PointerVariable, Variable, variables } from "../variables";
+import { ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
 
 type IfStreamVariable = ios_base.IStreamVariable;
 
 export = {
     load(rt: CRuntime) {
-        const { fstream } = rt.config;
-        if (fstream === undefined) {
-            rt.raiseException("[CRuntime].config.fstream is undefined");
-        }
 
         const charType = variables.arithmeticType("I8");
         rt.defineStruct("{global}", "ifstream", [
@@ -137,6 +133,36 @@ export = {
             op: string,
             default: ((rt: CRuntime, ...args: Variable[]) => Variable | "VOID")
         };
+        function _getline(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+            let b = l.v.members.buf;
+            const count = rt.arithmeticValue(_count);
+            const delim = rt.arithmeticValue(_delim);
+            const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmetic("I8", null));
+            if (s === null) {
+                rt.raiseException("Not an index pointer");
+            }
+            if (b.v.index >= b.v.pointee.values.length) {
+                variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+            }
+            let cnt = 0;
+            while (cnt < count - 1) {
+                const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticVariable;
+                const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                if (bi === delim || bi === 0) {
+                    // consume the delimiter
+                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    variables.arithmeticAssign(si, 0, rt.raiseException);
+                    break;
+                }
+                variables.arithmeticAssign(si, bi, rt.raiseException);
+                variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                cnt++;
+            }
+            if (cnt === 0) {
+                variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+            }
+            return l;
+        }
         const memberHandlers: FunHandler[] = [
             {
                 op: "get",
@@ -156,14 +182,6 @@ export = {
                 }
             },
             {
-                op: "close",
-                type: "FUNCTION VOID ( LREF CLASS ifstream < > )",
-                default(rt: CRuntime, l: IfStreamVariable): "VOID" {
-                    rt.fileClose(l.v.members.fd);
-                    return "VOID"
-                }
-            },
-            /*{
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 I8 )",
                 default(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
@@ -176,7 +194,15 @@ export = {
                 default(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IfStreamVariable {
                     return _getline(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"));
                 }
-            }*/
+            },
+            {
+                op: "close",
+                type: "FUNCTION VOID ( LREF CLASS ifstream < > )",
+                default(rt: CRuntime, l: IfStreamVariable): "VOID" {
+                    rt.fileClose(l.v.members.fd);
+                    return "VOID"
+                }
+            },
         ]
 
         memberHandlers.forEach((x) => {
