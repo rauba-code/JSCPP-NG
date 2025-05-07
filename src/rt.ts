@@ -366,8 +366,8 @@ export class CRuntime {
         const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
         console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
-        if (fnID < 0) {
+        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
+        if (fn === null) {
             const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, false)).join(", ") + ")";
             const overloads = domainMap.functionDB.functions[identifier];
             const overloadsMsg = (overloads !== undefined)
@@ -375,7 +375,12 @@ export class CRuntime {
                 : "No available overloads";
             this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
         }
-        return domainMap.functionsByID[fnID];
+        if (fn.valueActions.length === 0) {
+            const fnID = fn.fnid;
+            return domainMap.functionsByID[fnID];
+        } else {
+            this.raiseException("Not yet implemented");
+        }
     };
 
     tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionSymbol | null {
@@ -385,11 +390,16 @@ export class CRuntime {
         }
         //console.log(`getfunc: '(${domainSig})::${identifier}'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fnID = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
-        if (fnID < 0) {
+        const fn = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
+        if (fn === null) {
             return null;
         }
-        return domainMap.functionsByID[fnID];
+        if (fn.valueActions.length === 0) {
+            const fnID = fn.fnid;
+            return domainMap.functionsByID[fnID];
+        } else {
+            this.raiseException("Not yet implemented");
+        }
     };
 
     makeBinaryOperatorFuncName = (name: string) => `o(_${name}_)`;
@@ -417,9 +427,9 @@ export class CRuntime {
         const domainMap: TypeHandlerMap = this.typeMap[domainInlineSig];
         //console.log(`regfunc: '${fnsig.inline}'`);
 
-        const existingOverloadID: number = domainMap.functionDB.matchFunctionExact(name, fnsig.array, this.raiseException);
-        if (existingOverloadID !== -1) {
-            const overload = domainMap.functionsByID[existingOverloadID];
+        const existingOverloadId = domainMap.functionDB.matchExactOverload(name, fnsig.inline);
+        if (existingOverloadId !== -1) {
+            const overload = domainMap.functionsByID[existingOverloadId];
             if (overload.target === null) {
                 if (f === null) {
                     this.raiseException(`Redefinition of a function prototype '${domainInlineSig}::${name}'`);
@@ -429,8 +439,7 @@ export class CRuntime {
                 const existingOverloadType: string = overload.type.join(" ");
                 this.raiseException(`Overloaded function '${domainInlineSig}::${name}' of type '${fnsig.inline}' is already covered by the overload of type '${existingOverloadType}'`)
             }
-        }
-        else {
+        } else {
             if (this.varAlreadyDefined(name)) {
                 if (!(domain === "{global}" && name in this.scope[0].variables && variables.asFunction(this.scope[0].variables[name]) !== null)) {
                     if (domain === "{global}" && name in this.scope[0].variables) {
@@ -536,10 +545,12 @@ export class CRuntime {
                 return "VOID";
             }
             if (typeStr in this.typeMap) {
-                const fnid = this.typeMap[typeStr].functionDB.matchFunctionExact("o(_stub)", ["FUNCTION", "Return", "(", ")"], this.raiseException);
-                if (fnid >= 0) {
+                const fn = this.typeMap[typeStr].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
+
+                if (fn !== null) {
                     return { t: variables.classType(typeStr, [], null), v: { lvHolder: null } }
-                    //return this.getFunctionTarget(this.typeMap[typeStr].functionsByID[fnid])(this);
+                } else {
+                    this.raiseException("No constructor for the specified structure");
                 }
             }
         }
@@ -1116,8 +1127,8 @@ export class CRuntime {
             if (!(domainName in this.typeMap)) {
                 this.raiseException(`Could not resolve a class named '${domainName}'`)
             }
-            const fnid = this.typeMap[domainName].functionDB.matchFunctionExact("o(_stub)", ["FUNCTION", "Return", "(", ")"], this.raiseException);
-            if (fnid >= 0) {
+            const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
+            if (fnid !== -1) {
                 return this.getFunctionTarget(this.typeMap[domainName].functionsByID[fnid])(this) as ResultOrGen<InitClassVariable>;
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)

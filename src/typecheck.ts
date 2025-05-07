@@ -9,6 +9,21 @@ export class TypeParseError extends Error {
     }
 }
 
+const arithmeticSig = {
+    "I8": Object,
+    "U8": Object,
+    "I16": Object,
+    "U16": Object,
+    "I32": Object,
+    "U32": Object,
+    "I64": Object,
+    "U64": Object,
+    "F32": Object,
+    "F64": Object,
+    "BOOL": Object,
+}
+export type ArithmeticSig = keyof (typeof term);
+
 const term = {
     "FUNCTION": Object,
     "VOID": Object,
@@ -29,10 +44,10 @@ const term = {
     "F32": Object,
     "F64": Object,
     "BOOL": Object,
-    "STRINGLITERAL": Object, // unused
-    "CHARLITERAL": Object, // unused
-    "INTLITERAL": Object, // unused
-    "FLOATLITERAL": Object, // unused
+    //"STRINGLITERAL": Object, // unused
+    //"CHARLITERAL": Object, // unused
+    //"INTLITERAL": Object, // unused
+    //"FLOATLITERAL": Object, // unused
     "<": Object,
     ">": Object,
     "(": Object,
@@ -59,7 +74,7 @@ const nonTerm = {
     "ArraySize": Object,
     "Class": Object,
     "Arithmetic": Object,
-    "Literal": Object, // unused
+    //"Literal": Object, // unused
     "ObjectOrFunction": Object,
     "Return": Object
 } as const;
@@ -239,6 +254,17 @@ interface SigPair {
     wildcards: (number | string[])[],
 }
 
+interface FunctionMatchSigPair extends SigPair {
+    /** Triggered on FunctionParamOrEnd call. 0 means not a parameter; 
+      * In "FUNCTION R ( A B FUNCTION C ( D ) )", `param_depth` R is 0, for A, B and C it is 1, and 2 for D. */
+    paramDepth: number,
+    firstLevelParamBreadth: number,
+}
+
+interface SubsetSigPair extends SigPair {
+    allow_lvalue_substitution: boolean,
+}
+
 export function arrayValuesEqual(a: string[], b: string[]): boolean {
     if (a.length !== b.length) {
         return false;
@@ -249,6 +275,168 @@ export function arrayValuesEqual(a: string[], b: string[]): boolean {
         }
     }
     return true;
+}
+
+export interface ParseFunctionMatchResult {
+    valueActions: ("CLONE" | "BORROW" | "CAST")[],
+    castActions: { arg: number, targetSig: ArithmeticSig }[],
+};
+
+/** Tests if `subtype` function is a valid match for `supertype`, provides preparatory actions for argument conversion.
+ *  @param parser The LL(1) Parser, created using `constructTypeParser`.
+ *  @param subtype Sequence of tokens, which describes the subset of types.
+ *  @param supertype Sequence of tokens, which describes the superset of types.
+ *  @param scope The topmost nonterminal token of both statements (default = `'Type'`).
+ *  @param strict_order Ensure that typed wildcard statements are going from ?0 in ascending order in the sequence (default = `true`).
+ *  @remarks It is assumed that `parse(parser, subtype)` and `parse(parser, supertype)` return `true` (i.e., `subtype` and `supertype` are always valid). This function does NOT check if given sentences are valid.
+ *  @throws TypeParseError on preparsing errors (see: `strict_order`).
+ **/
+export function parseFunctionMatch(parser: LLParser, subtype: string[], supertype: string[], strict_order = true): ParseFunctionMatchResult | null {
+    let subData = preparse(subtype, strict_order);
+    let superData = preparse(supertype, strict_order);
+    const pair: FunctionMatchSigPair = {
+        subtype: subData.sentence,
+        subwc: subData.wildcardMap,
+        supertype: superData.sentence,
+        superwc: superData.wildcardMap,
+        wildcards: new Array<number | string[]>(),
+        paramDepth: 0,
+        firstLevelParamBreadth: 0,
+    }
+    const result: ParseFunctionMatchResult = {
+        valueActions: new Array(),
+        castActions: new Array(),
+    };
+    const retv = parseFunctionMatchInner(parser, 'Function', pair, result);
+    return (retv && pair.subtype.length === 0 && pair.supertype.length === 0) ? result : null;
+}
+
+function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: FunctionMatchSigPair, result: ParseFunctionMatchResult): boolean {
+    let retv: boolean | null = null;
+    parser[scope].forEach((argument) => {
+        if (retv !== null) {
+            return;
+        }
+        function matchNontermOrWildcard(supertop: string): void {
+            const innerScope: NonTerm | null = argument[supertop] as NonTerm | null;
+            if (innerScope === null) {
+                if (supertop === scope) {
+                    // wildcard management
+                    pair.supertype = pair.supertype.slice(1);
+                    const subtype0 = pair.subtype;
+                    let r = parseInner(parser, scope, pair.subtype);
+                    if (r !== null) {
+                        const wcInstance = subtype0.slice(0, subtype0.length - r.length);
+                        let subresult: number | string[];
+                        if (wcInstance.length === 1 && wcInstance[0] in nonTerm) {
+                            // subset is also a wildcard
+                            subresult = pair.subwc[0];
+                            pair.subwc = pair.subwc.slice(1);
+                        } else {
+                            subresult = wcInstance;
+                        }
+                        const superwc: number | string[] = pair.wildcards[pair.superwc[0]];
+                        if (superwc === undefined) {
+                            pair.wildcards[pair.superwc[0]] = subresult;
+                        } else if (typeof superwc === "number") {
+                            if (superwc !== subresult) {
+                                retv = false;
+                            }
+                        } else {
+                            // superwc is an array
+                            if (typeof subresult === "number" || !arrayValuesEqual(superwc, subresult)) {
+                                retv = false;
+                            }
+                        }
+                    }
+                    if (retv === null) {
+                        retv = r !== null;
+                    }
+                    if (retv === true && r !== null) {
+                        pair.subtype = r;
+                        pair.superwc = pair.superwc.slice(1);
+                    }
+                    return;
+                } else {
+                    if (!(pair.subtype.length > 0 && pair.subtype[0] === supertop)) {
+                        retv = false;
+                        return;
+                    }
+                    pair.supertype = pair.supertype.slice(1);
+                    pair.subtype = pair.subtype.slice(1);
+                }
+            } else {
+                const delta = (scope === "Function" && innerScope === "FunctionParamOrEnd") ? 1 : 0;
+                pair.paramDepth += delta;
+                const nestedRetv = parseFunctionMatchInner(parser, innerScope as NonTerm, pair, result);
+                pair.paramDepth -= delta;
+                if (!nestedRetv) {
+                    retv = false;
+                    return;
+                }
+            }
+            
+        }
+        if (pair.supertype.length > 0 && pair.supertype[0] in argument) {
+            if (pair.paramDepth === 1 && scope === "Parametric") {
+                let valueAction : "BORROW" | "COPY" | "CAST" = "COPY";
+                if (pair.subtype.length > 0 && pair.subtype[0] === "LREF") {
+                    if (pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef") {
+                        valueAction = "BORROW";
+                        matchNontermOrWildcard(pair.supertype[0]);
+                    } else {
+                        debugger;
+                        const subtype = pair.subtype;
+                        const supertype = pair.supertype;
+                        pair.subtype = pair.subtype.slice(1);
+                        matchNontermOrWildcard(pair.supertype[0]);
+                        if (retv === false) {
+                            if (supertype[0] in arithmeticSig) {
+                                // implicit arithmetic conversions
+                                valueAction = "CAST";
+                                if (subtype[0] in arithmeticSig) {
+                                    pair.subtype = subtype.slice(1);
+                                }
+                                throw new Error("Not yet implemented");
+                            } else {
+                                return false;
+                            }
+                            /*if (retv === false) {
+                                return false;
+                            }*/
+                        } else {
+                            valueAction = "COPY";
+                        }
+                    }
+                } else {
+                    matchNontermOrWildcard(pair.supertype[0]);
+                }
+                pair.firstLevelParamBreadth++;
+            } else {
+                matchNontermOrWildcard(pair.supertype[0]);
+            }
+        } else if (pair.supertype.length > 0 && "identifier" in argument) {
+            if (!(pair.subtype.length > 0 && pair.subtype[0] === pair.supertype[0])) {
+                retv = false;
+                return;
+            }
+            pair.supertype = pair.supertype.slice(1);
+            pair.subtype = pair.subtype.slice(1);
+        } else if (pair.supertype.length > 0 && "positiveint" in argument) {
+            if (!(pair.subtype.length > 0 && pair.subtype[0] === pair.supertype[0] && parseInt(pair.subtype[0]) >= 0)) {
+                retv = false;
+                return;
+            }
+            pair.supertype = pair.supertype.slice(1);
+            pair.subtype = pair.subtype.slice(1);
+        } else {
+            retv = false;
+        }
+    });
+    if (retv === null) {
+        return true;
+    }
+    return retv;
 }
 
 /** Tests if `subtype` is a subset of or equivalent to `supertype`.
@@ -264,26 +452,27 @@ export function arrayValuesEqual(a: string[], b: string[]): boolean {
 export function parseSubset(parser: LLParser, subtype: string[], supertype: string[], scope: NonTerm = 'Type', strict_order = true, allow_lvalue_substitution = false): boolean {
     let subData = preparse(subtype, strict_order);
     let superData = preparse(supertype, strict_order);
-    const pair: SigPair = {
+    const pair: SubsetSigPair = {
         subtype: subData.sentence,
         subwc: subData.wildcardMap,
         supertype: superData.sentence,
         superwc: superData.wildcardMap,
-        wildcards: new Array<number | string[]>()
+        wildcards: new Array<number | string[]>(),
+        allow_lvalue_substitution,
     }
-    const p1: boolean = parseSubsetInner(parser, scope, pair, allow_lvalue_substitution);
+    const p1: boolean = parseSubsetInner(parser, scope, pair);
     const p2: boolean = pair.subtype.length === 0 && pair.supertype.length === 0;
     return p1 && p2;
 }
 
-function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SigPair, allow_lvalue_substitution: boolean = false): boolean {
+function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SubsetSigPair): boolean {
     let retv: boolean | null = null;
     parser[scope].forEach((argument) => {
         if (retv !== null) {
             return;
         }
         if (pair.supertype.length > 0 && pair.supertype[0] in argument) {
-            if (allow_lvalue_substitution && pair.subtype.length > 0 && pair.subtype[0] === "LREF" && !(pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef")) {
+            if (pair.allow_lvalue_substitution && pair.subtype.length > 0 && pair.subtype[0] === "LREF" && !(pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef")) {
                 pair.subtype = pair.subtype.slice(1);
             }
             const innerScope: NonTerm | null = argument[pair.supertype[0]] as NonTerm | null;
@@ -334,7 +523,7 @@ function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SigPair, allow
                     pair.subtype = pair.subtype.slice(1);
                 }
             } else {
-                if (!parseSubsetInner(parser, innerScope as NonTerm, pair, allow_lvalue_substitution)) {
+                if (!parseSubsetInner(parser, innerScope as NonTerm, pair)) {
                     retv = false;
                     return;
                 }
@@ -362,3 +551,4 @@ function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SigPair, allow
     }
     return retv;
 }
+

@@ -34,34 +34,62 @@ function abstractFunctionReturnSig(sig: string[]): string[] {
     return sig.slice(0, returnStarts).concat("Return", ...sig.slice(returnEnds));
 }
 
+export interface FunctionMatchResult extends typecheck.ParseFunctionMatchResult {
+    fnid: number,
+    valueActions: ("CLONE" | "BORROW" | "CAST")[],
+    castActions: { arg: number, targetSig: typecheck.ArithmeticSig }[],
+}
 
 export class TypeDB {
-    parser: LLParser
-    scope: NonTerm
-    strict_order: boolean
-    functions: { [identifier: string]: { overloads: { type: string[], fnid: number }[], cache: { [signature: string]: number } } }
+    parser: LLParser;
+    scope: NonTerm;
+    strict_order: boolean;
+    functions: {
+        [identifier: string]: {
+            overloads: {
+                type: string[],
+                fnid: number
+            }[],
+            cache: {
+                [signature: string]: FunctionMatchResult | null
+            },
+            exactCache: {
+                [signature: string]: number // fnid
+            }
+        }
+    };
 
     constructor(parser: LLParser, scope: NonTerm = "Type", strict_order = true) {
         this.parser = parser;
         this.scope = scope;
         this.strict_order = strict_order;
         this.functions = {}
-    }
+    };
 
     matchSubset(subtype: string | string[], supertype: string | string[], allow_lvalue_substitution = false): boolean {
         return typecheck.parseSubset(this.parser, makeStringArr(subtype), makeStringArr(supertype), this.scope, this.strict_order, allow_lvalue_substitution);
-    }
+    };
 
-    addFunctionOverload(identifier: string, function_type: string | string[], function_id: number, _onError: (x: string) => void) {
+    matchFunction(subtype: string | string[], supertype: string | string[]): typecheck.ParseFunctionMatchResult | null {
+        return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), this.strict_order);
+    };
+
+    addFunctionOverload(identifier: string, function_type: string | string[], function_id: number, onError: (x: string) => void): void {
         const sa = abstractFunctionReturnSig(makeStringArr(function_type));
+        const inline = sa.join(" ");
         if (!(identifier in this.functions)) {
-            this.functions[identifier] = { overloads: [ { type: sa, fnid: function_id }  ], cache: {} };
+            this.functions[identifier] = { overloads: [{ type: sa, fnid: function_id }], cache: {}, exactCache: { [inline]: function_id } };
         } else {
             this.functions[identifier].overloads.push({ type: sa, fnid: function_id });
             // clean the cache for this function
             this.functions[identifier].cache = {};
+            // keep exactCache
+            if (inline in this.functions[identifier].exactCache) {
+                onError(`Redeclaration of a function '${identifier}'`);
+            }
+            this.functions[identifier].exactCache[inline] = function_id;
         }
-    }
+    };
 
     matchSingleFunction(identifier: string, onError: (x: string) => never): number {
         const fnobj = this.functions[identifier];
@@ -72,11 +100,11 @@ export class TypeDB {
             onError(`Overloaded function ${identifier} has multiple candidates`);
         }
         return fnobj.overloads[0].fnid;
-    }
+    };
 
-    matchFunctionByParams(identifier: string, params: (string | string[])[], onError: (x: string) => void): number {
+    matchFunctionByParams(identifier: string, params: (string | string[])[], onError: (x: string) => void): FunctionMatchResult | null {
         if (!(identifier in this.functions)) {
-            return -1;
+            return null;
         }
         const targetParams: string[] = params.flatMap((x) => {
             const sa: string[] = makeStringArr(x);
@@ -86,34 +114,52 @@ export class TypeDB {
             return sa;
         });
         const target: string[] = ["FUNCTION", "Return", "("].concat(...targetParams).concat(")");
-        return this.matchFunctionExact(identifier, target, onError);
-    }
+        return this.matchOverload(identifier, target, onError);
+    };
 
-    matchFunctionExact(identifier: string, target: string[], onError: (x: string) => void): number {
+    /** Used for matching function definitions and implementations;
+     * Returns the associated function id on a match, -1 otherwise.
+     */
+    matchExactOverload(identifier: string, target: string): number {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
             return -1;
         }
         const targetInline = makeString(target);
+        if (targetInline in fnobj.exactCache) {
+            return fnobj.exactCache[targetInline];
+        }
+        return -1;
+    };
+
+    matchOverload(identifier: string, target: string[], onError: (x: string) => void): FunctionMatchResult | null {
+        const fnobj = this.functions[identifier];
+        if (fnobj === undefined) {
+            return null;
+        }
+        const targetInline = makeString(target);
         if (targetInline in fnobj.cache) {
             return fnobj.cache[targetInline];
         }
-        let retv = -1;
+        let retv: FunctionMatchResult | null = null;
+        let reti = -1;
         for (let i = 0; i < fnobj.overloads.length; i++) {
-            if (this.matchSubset(target, fnobj.overloads[i].type, true)) {
-                if (retv >= 0) {
-                    onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[retv].type.join(" ")} \n2) ${fnobj.overloads[i].type.join(" ")}`);
-                    return -1;
+            let match = this.matchFunction(target, fnobj.overloads[i].type);
+            if (match !== null) {
+                if (retv !== null) {
+                    onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[i].type.join(" ")} \n2) ${fnobj.overloads[i].type.join(" ")}`);
+                    return null;
                 }
-                retv = i;
+                retv = match as FunctionMatchResult;
+                retv.fnid = fnobj.overloads[i].fnid;
+                reti = i;
             }
         }
-        const result = retv >= 0 ? fnobj.overloads[retv].fnid : retv;
-        fnobj.cache[targetInline] = result;
-        return result;
-    }
+        fnobj.cache[targetInline] = retv;
+        return retv;
+    };
 
     parse(type: string | string[]): boolean {
         return typecheck.parse(this.parser, makeStringArr(type), this.scope, this.strict_order);
-    }
+    };
 }
