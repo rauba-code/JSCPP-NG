@@ -2,7 +2,7 @@ import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
 import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
-import { TypeDB } from "./typedb";
+import { TypeDB, FunctionMatchResult } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
@@ -122,7 +122,13 @@ export type FileInstance = {
     close: () => void;
 };
 
+
 export type FileManager = { freefd: number, files: { [fd: number]: FileInstance } };
+
+type FunctionCallInstance = {
+    actions: FunctionMatchResult,
+    target: FunctionSymbol,
+};
 
 export class CRuntime {
     parser: LLParser;
@@ -203,14 +209,6 @@ export class CRuntime {
             this.raiseException("cannot find library: " + name);
         }
     };
-
-    getFunctionTarget(x: FunctionSymbol | FunctionValue): CFunction {
-        if (x.target === null) {
-            this.raiseException("Function is defined but no implementation is found");
-        }
-        return x.target;
-    }
-
 
     getSizeByType(t: ObjectType): number {
         let at: ArithmeticType | null;
@@ -350,15 +348,43 @@ export class CRuntime {
     };
 
     /** Convenience function for static type checking of operators */
-    getOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionSymbol {
+    getOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionCallInstance {
         return this.getFuncByParams(domain, identifier, params);
     }
 
-    tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionSymbol | null {
+    tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
         return this.tryGetFuncByParams(domain, identifier, params);
     }
 
-    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionSymbol {
+    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance {
+        const fn = this.tryGetFuncByParams(domain, identifier, params); 
+        if (fn === null) {
+            const domainSig: string = this.domainString(domain);
+            if (!(domainSig in this.typeMap)) {
+                this.raiseException(`domain '${domainSig}' is unknown`);
+            }
+            const domainMap: TypeHandlerMap = this.typeMap[domainSig];
+            const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, false)).join(", ") + ")";
+            const overloads = domainMap.functionDB.functions[identifier];
+            const overloadsMsg = (overloads !== undefined)
+                ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.type.join(" ")}`).join("\n")
+                : "No available overloads";
+            this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
+        }
+        return fn;
+    };
+
+    invokeCall(callInst: FunctionCallInstance, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
+        if (callInst.target.target === null) {
+            this.raiseException("Function is defined but no implementation is found");
+        }
+        if (callInst.actions.valueActions.length !== 0) {
+            this.raiseException("Not yet implemented");
+        }
+        return callInst.target.target(this, ...args);
+    }
+
+    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
         const domainSig: string = this.domainString(domain);
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
@@ -368,38 +394,9 @@ export class CRuntime {
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
         if (fn === null) {
-            const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, false)).join(", ") + ")";
-            const overloads = domainMap.functionDB.functions[identifier];
-            const overloadsMsg = (overloads !== undefined)
-                ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.type.join(" ")}`).join("\n")
-                : "No available overloads";
-            this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
-        }
-        if (fn.valueActions.length === 0) {
-            const fnID = fn.fnid;
-            return domainMap.functionsByID[fnID];
-        } else {
-            this.raiseException("Not yet implemented");
-        }
-    };
-
-    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionSymbol | null {
-        const domainSig: string = this.domainString(domain);
-        if (!(domainSig in this.typeMap)) {
-            this.raiseException(`domain '${domainSig}' is unknown`);
-        }
-        //console.log(`getfunc: '(${domainSig})::${identifier}'`);
-        const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fn = domainMap.functionDB.matchFunctionByParams(identifier, params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException)), this.raiseException);
-        if (fn === null) {
             return null;
         }
-        if (fn.valueActions.length === 0) {
-            const fnID = fn.fnid;
-            return domainMap.functionsByID[fnID];
-        } else {
-            this.raiseException("Not yet implemented");
-        }
+        return { actions: fn, target: domainMap.functionsByID[fn.fnid] } ;
     };
 
     makeBinaryOperatorFuncName = (name: string) => `o(_${name}_)`;
@@ -436,8 +433,7 @@ export class CRuntime {
                 }
                 overload.target = f;
             } else {
-                const existingOverloadType: string = overload.type.join(" ");
-                this.raiseException(`Overloaded function '${domainInlineSig}::${name}' of type '${fnsig.inline}' is already covered by the overload of type '${existingOverloadType}'`)
+                this.raiseException(`Reimplementation of function '${domainInlineSig}::${name}' of type '${fnsig.inline}'.`)
             }
         } else {
             if (this.varAlreadyDefined(name)) {
@@ -835,14 +831,11 @@ export class CRuntime {
         }
         else if (arithmeticTarget?.sig === "BOOL") {
             const boolSym = this.getOpByParams("{global}", "o(_bool)", [v]);
-            if (boolSym.target === null) {
-                this.raiseException("Function is defined but not implemented");
-            }
-            return boolSym.target(this, v) as ResultOrGen<InitArithmeticVariable>;
+            return this.invokeCall(boolSym, v) as ResultOrGen<InitArithmeticVariable>;
         }
         const pointerTarget = variables.asPointerType(target);
         const iptrVar = variables.asInitIndexPointer(v);
-        const dptrVar = variables.asInitDirectPointer(v);
+        //const dptrVar = variables.asInitDirectPointer(v);
         if (pointerTarget !== null && iptrVar !== null) {
             if (variables.typesEqual(pointerTarget.pointee, iptrVar.t.pointee)) {
                 if (pointerTarget.sizeConstraint === null || pointerTarget.sizeConstraint === iptrVar.t.sizeConstraint) {
@@ -1128,8 +1121,8 @@ export class CRuntime {
                 this.raiseException(`Could not resolve a class named '${domainName}'`)
             }
             const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
-            if (fnid !== -1) {
-                return this.getFunctionTarget(this.typeMap[domainName].functionsByID[fnid])(this) as ResultOrGen<InitClassVariable>;
+            if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null ) {
+                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this) as ResultOrGen<InitClassVariable>;
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }

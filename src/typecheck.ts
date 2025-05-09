@@ -22,7 +22,7 @@ const arithmeticSig = {
     "F64": Object,
     "BOOL": Object,
 }
-export type ArithmeticSig = keyof (typeof term);
+export type ArithmeticSig = keyof (typeof arithmeticSig);
 
 const term = {
     "FUNCTION": Object,
@@ -279,7 +279,7 @@ export function arrayValuesEqual(a: string[], b: string[]): boolean {
 
 export interface ParseFunctionMatchResult {
     valueActions: ("CLONE" | "BORROW" | "CAST")[],
-    castActions: { arg: number, targetSig: ArithmeticSig }[],
+    castActions: { index: number, targetSig: ArithmeticSig }[],
 };
 
 /** Tests if `subtype` function is a valid match for `supertype`, provides preparatory actions for argument conversion.
@@ -379,25 +379,24 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
         }
         if (pair.supertype.length > 0 && pair.supertype[0] in argument) {
             if (pair.paramDepth === 1 && scope === "Parametric") {
-                let valueAction : "BORROW" | "COPY" | "CAST" = "COPY";
+                let valueAction : "BORROW" | "CLONE" | "CAST" = "CLONE";
                 if (pair.subtype.length > 0 && pair.subtype[0] === "LREF") {
                     if (pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef") {
                         valueAction = "BORROW";
                         matchNontermOrWildcard(pair.supertype[0]);
                     } else {
-                        debugger;
+                        pair.subtype = pair.subtype.slice(1);
                         const subtype = pair.subtype;
                         const supertype = pair.supertype;
-                        pair.subtype = pair.subtype.slice(1);
                         matchNontermOrWildcard(pair.supertype[0]);
                         if (retv === false) {
-                            if (supertype[0] in arithmeticSig) {
+                            if (supertype[0] in arithmeticSig && subtype[0] in arithmeticSig) {
                                 // implicit arithmetic conversions
                                 valueAction = "CAST";
-                                if (subtype[0] in arithmeticSig) {
-                                    pair.subtype = subtype.slice(1);
-                                }
-                                throw new Error("Not yet implemented");
+                                pair.subtype = subtype.slice(1);
+                                pair.supertype = supertype.slice(1);
+                                result.castActions.push({ index: pair.firstLevelParamBreadth, targetSig: supertype[0] as ArithmeticSig })
+                                retv = null;
                             } else {
                                 return false;
                             }
@@ -405,13 +404,15 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                 return false;
                             }*/
                         } else {
-                            valueAction = "COPY";
+                            valueAction = "CLONE";
                         }
                     }
                 } else {
                     matchNontermOrWildcard(pair.supertype[0]);
                 }
                 pair.firstLevelParamBreadth++;
+                result.valueActions.push(valueAction);
+                
             } else {
                 matchNontermOrWildcard(pair.supertype[0]);
             }

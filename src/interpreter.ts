@@ -512,7 +512,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                             rt.defVar(name, arrayInit);
                         } else if (rhs[0].type as string === "DirectDeclarator_modifier_Constructor") {
-                            //rt.raiseException("Declaration error: Not yet implemented");
                             const constructorArgs = [];
                             for (const dim of rhs) {
                                 if ((dim as any).Expressions !== null) {
@@ -526,7 +525,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
 
                             //const initClass = variables.class(classType, {}, "SELF");
-                            const xinitYield = rt.getFunctionTarget(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs))(rt, ...constructorArgs);
+                            const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs), ...constructorArgs);
                             const xinitOrVoid = asResult(xinitYield) ?? (yield* (xinitYield as Gen<MaybeUnboundVariable | "VOID">))
                             if (xinitOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
@@ -837,7 +836,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 let iterator = null;
                 try {
                     const sym = rt.getFuncByParams(iterable.t, "__iterator", []);
-                    iterator = rt.getFunctionTarget(sym)(rt, iterable);
+                    iterator = rt.invokeCall(sym, iterable);
                 } catch (ex) {
                     // ???
                     rt.raiseException("For-each iteration statement error: not yet implemented");
@@ -966,7 +965,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (param.functionArgs === undefined) {
                     return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || (globalScope !== undefined && rt.readScopedVar(globalScope, varname)) || rt.getFromNamespace(varname) || rt.readVar(varname);
                 } else {
-                    const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs);
+                    const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs).target as FunctionSymbol;
                     return variables.function(funsym.type, varname, funsym.target, null, null);
                 }
             },
@@ -989,7 +988,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                 param.structType = ret.t;
                 const funsym = rt.getOpByParams("{global}", "o(_[_])", [ret, index]);
-                const r = rt.getFunctionTarget(funsym)(rt, ret, index);
+                const r = rt.invokeCall(funsym, ret, index);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1021,20 +1020,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     args = [holderClass, ...args];
                 }
                 const ret : Variable | FunctionSymbol = yield* interp.visit(interp, s.Expression, { functionArgs: args });
-                
+
                 const retfun = ("type" in ret) ? ret : variables.asFunction(ret)?.v;
                 if (retfun !== undefined) {
-                    const resultOrGen = rt.getFunctionTarget(retfun)(rt, ...args);
-                    const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
-                    if (result === "VOID") {
-                        return "VOID";
+                    // TODO: optimise (remove double visitation)
+                    if (s.Expression.type === "IdentifierExpression") {
+                        const funcname = resolveIdentifier(s.Expression.Identifier);
+                        const resultOrGen = rt.invokeCall(rt.getFuncByParams("{global}", funcname, args), ...args);
+                        const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
+                        if (result === "VOID") {
+                            return "VOID";
+                        }
+                        return rt.expectValue(result);
+                    } else {
+                        rt.raiseException("Method invocation error: not yet implemented");
                     }
-                    return rt.expectValue(result);
                 } else {
                     if ("type" in ret) {
                         rt.raiseException("Method invocation error: unexpected function symbol");
                     }
-                    const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_call)", args))(rt, ...args);
+                    const r = rt.invokeCall(rt.getOpByParams("{global}", "o(_call)", args), ...args);
                     const result = asResult(r) ?? (yield* r as Gen<MaybeUnboundVariable | "VOID">);
                     if (result === "VOID") {
                         return "VOID";
@@ -1075,7 +1080,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const maybePtrType = variables.asPointerType(ret.t);
                 if (maybePtrType !== null && variables.asFunctionType(maybePtrType.pointee) === null) {
                     const { member } = s;
-                    const target = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_->_)", [retc]))(rt, retc) as Generator;
+                    const target = rt.invokeCall(rt.getOpByParams("{global}", "o(_->_)", [retc]), retc) as Generator;
                     if (isGenerator(ret)) {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
@@ -1086,7 +1091,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         type: "IdentifierExpression",
                         Identifier: s.member
                     }, param);
-                    const target = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_->_)", [retc]))(rt, retc) as Generator;
+                    const target = rt.invokeCall(rt.getOpByParams("{global}", "o(_->_)", [retc]), retc) as Generator;
                     if (isGenerator(ret)) {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
@@ -1099,7 +1104,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_++)", [ret]))(rt, ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(_++)", [ret]), ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1111,7 +1116,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(_--)", [ret]))(rt, ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(_--)", [ret]), ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1123,7 +1128,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(++_)", [ret]))(rt, ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(++_)", [ret]), ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1135,7 +1140,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", "o(--_)", [ret]))(rt, ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(--_)", [ret]), ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1147,7 +1152,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.getFunctionTarget(rt.getOpByParams("{global}", `o(${s.op}_)` as OpSignature, [ret]))(rt, ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", `o(${s.op}_)` as OpSignature, [ret]), ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1220,7 +1225,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     const right = rt.unbound(_right);
 
-                    const r = rt.getFunctionTarget(rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right]))(rt, left, right);
+                    const r = rt.invokeCall(rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right]), left, right);
                     if (isGenerator(r)) {
                         return yield* r as Generator;
                     } else {
@@ -1237,7 +1242,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const right = yield* interp.visit(interp, s.right, param);
                 const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
                 if (directOp !== null) {
-                    const target = rt.getFunctionTarget(directOp)(rt, left, right);
+                    const target = rt.invokeCall(directOp, left, right);
                     return rt.expectValue((isGenerator(target)) ? (yield* target as Generator) : target);
                 } else {
                     const boolType = variables.arithmeticType("BOOL");
@@ -1246,7 +1251,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const lhsBool = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>));
                     const rhsBool = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>));
                     const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
-                    const target = (rt.getFunctionTarget(boolOp) as CFunctionBool)(rt, lhsBool, rhsBool);
+                    const target = rt.invokeCall(boolOp, lhsBool, rhsBool) as ResultOrGen<InitArithmeticVariable>;
                     return rt.expectValue(asResult(target) ?? (yield* target as Gen<ArithmeticVariable>));
                 }
             },
@@ -1256,7 +1261,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const right = rt.expectValue(yield* interp.visit(interp, s.right, param));
                 const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
                 if (directOp !== null) {
-                    const target = rt.getFunctionTarget(directOp)(rt, left, right);
+                    const target = rt.invokeCall(directOp, left, right);
                     return rt.expectValue((isGenerator(target)) ? (yield* target as Generator) : target);
                 } else {
                     const boolType = variables.arithmeticType("BOOL");
@@ -1265,7 +1270,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const lhsBool = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>));
                     const rhsBool = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>));
                     const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
-                    const target = (rt.getFunctionTarget(boolOp) as CFunctionBool)(rt, lhsBool, rhsBool);
+                    const target = rt.invokeCall(boolOp, lhsBool, rhsBool) as ResultOrGen<InitArithmeticVariable>;
                     return rt.expectValue(asResult(target) ?? (yield* target as Gen<ArithmeticVariable>));
                 }
             },

@@ -37,7 +37,7 @@ function abstractFunctionReturnSig(sig: string[]): string[] {
 export interface FunctionMatchResult extends typecheck.ParseFunctionMatchResult {
     fnid: number,
     valueActions: ("CLONE" | "BORROW" | "CAST")[],
-    castActions: { arg: number, targetSig: typecheck.ArithmeticSig }[],
+    castActions: { index: number, targetSig: typecheck.ArithmeticSig }[],
 }
 
 export class TypeDB {
