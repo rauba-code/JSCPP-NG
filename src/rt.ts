@@ -1,7 +1,7 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
 import { TypeDB, FunctionMatchResult } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
@@ -374,14 +374,23 @@ export class CRuntime {
         return fn;
     };
 
-    invokeCall(callInst: FunctionCallInstance, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
+    *invokeCall(callInst: FunctionCallInstance, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
         if (callInst.target.target === null) {
             this.raiseException("Function is defined but no implementation is found");
         }
         if (callInst.actions.valueActions.length !== 0) {
-            this.raiseException("Not yet implemented");
+            for (const castAction of callInst.actions.castActions) {
+                const castYield = this.cast(variables.arithmeticType(castAction.targetSig), this.expectValue(args[castAction.index]));
+                args[castAction.index] = interp.asResult(castYield) ?? (yield *castYield as Gen<InitVariable>);
+            }
+            callInst.actions.valueActions.forEach((action, i) => {
+                if (action === "CLONE") {
+                    args[i] = variables.clone(this.expectValue(args[i]), "SELF", false, this.raiseException);
+                }
+            })
         }
-        return callInst.target.target(this, ...args);
+        const returnYield = callInst.target.target(this, ...args); 
+        return interp.asResult(returnYield) ?? (yield *returnYield as Gen<MaybeUnboundVariable | "VOID">);
     }
 
     tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
@@ -796,7 +805,8 @@ export class CRuntime {
             const fromInfo = variables.arithmeticProperties[arithmeticVar.t.sig];
             const arithmeticValue = this.arithmeticValue(arithmeticVar);
             if (target.sig === "BOOL") {
-                return variables.arithmetic(target.sig, arithmeticVar.v ? 1 : 0, null);
+                debugger;
+                return variables.arithmetic(target.sig, arithmeticValue === 0 ? 0 : 1, null);
             } else if (targetInfo.isFloat) {
                 const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeStringOfVar(v)}' to '${this.makeTypeString(target)}'`;
                 if (this.inrange(arithmeticValue, arithmeticTarget, onErr)) {

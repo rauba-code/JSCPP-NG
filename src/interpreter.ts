@@ -12,7 +12,7 @@ const isGenerator = (g: any): boolean => {
     return (g != null ? g.constructor : undefined) === sampleGenerator.constructor;
 };
 
-function asResult<T>(g: ResultOrGen<T> | null): T | null {
+export function asResult<T>(g: ResultOrGen<T> | null): T | null {
     if (g !== null && (g as Gen<T>).constructor === sampleGenerator.constructor) {
         return null;
     }
@@ -1282,7 +1282,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const boolType = variables.arithmeticType("BOOL");
                 const boolYield = rt.cast(boolType, obj) as ResultOrGen<ArithmeticVariable>;
                 const cond = rt.expectValue((asResult(boolYield) ?? (yield* boolYield as Gen<ArithmeticVariable>)));
-                return yield* interp.visit(interp, cond ? s.t : s.f, param);
+                return yield* interp.visit(interp, rt.arithmeticValue(cond as ArithmeticVariable) ? s.t : s.f, param);
             },
             *ConstantExpression(interp, s: XConstantExpression, param) {
                 ({
