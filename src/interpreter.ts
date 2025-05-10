@@ -1,5 +1,5 @@
 import { resolveIdentifier } from "./shared/string_utils";
-import { CRuntime, FunctionSymbol, OpSignature, RuntimeScope } from "./rt";
+import { CRuntime, FunctionCallInstance, FunctionSymbol, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -179,7 +179,7 @@ export interface XAbstractDeclarator extends StatementMeta {
 export interface XCastExpression extends StatementMeta {
     type: "CastExpression",
     TypeName: XTypeName,
-    Expression: XIdentifierExpression | PostfixExpression 
+    Expression: XIdentifierExpression | PostfixExpression
 }
 export interface XUnknown {
     type: "<stub>"
@@ -540,7 +540,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.raiseException("Declaration error: Expected a non-void value");
                         } else {
                             let initVar = rt.unbound(initVarOrVoid);
-                            
+
                             if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
                                 initVar = variables.clone(initVar, "SELF", false, rt.raiseException, true);
                             }
@@ -965,8 +965,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (param.functionArgs === undefined) {
                     return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || (globalScope !== undefined && rt.readScopedVar(globalScope, varname)) || rt.getFromNamespace(varname) || rt.readVar(varname);
                 } else {
-                    const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs).target as FunctionSymbol;
-                    return variables.function(funsym.type, varname, funsym.target, null, null);
+                    const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs);
+                    return funsym//variables.function(funsym.type, varname, funsym.target, null, null);
                 }
             },
             *ParenthesesExpression(interp, s, param) {
@@ -995,7 +995,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return r;
                 }
             },
-            *PostfixExpression_MethodInvocation(interp, s: XPostfixExpression_MethodInvocation, param): ResultOrGen<MaybeUnboundVariable | "VOID" | "PROMISE"> {
+            *PostfixExpression_MethodInvocation(interp, s: XPostfixExpression_MethodInvocation, param): ResultOrGen<MaybeUnboundVariable | "VOID"> {
                 ({
                     rt
                 } = interp);
@@ -1012,41 +1012,36 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }).call(this);
                 if (s.Expression.type === "PostfixExpression_MemberAccess") {
                     // TODO: optimise (remove double visitation)
-                    const holderClass = variables.asClass(rt.unbound(yield* interp.visit(interp, s.Expression.Expression, { })));
+                    const holderClass = variables.asClass(rt.unbound(yield* interp.visit(interp, s.Expression.Expression, {})));
                     if (holderClass === null) {
                         rt.raiseException("Method invocation error: Could not visit holder class");
                     }
                     args = [holderClass, ...args];
                 }
-                const ret : Variable | FunctionSymbol = yield* interp.visit(interp, s.Expression, { functionArgs: args });
+                const ret: Variable | FunctionCallInstance = yield* interp.visit(interp, s.Expression, { functionArgs: args });
 
-                const retfun = ("type" in ret) ? ret : variables.asFunction(ret)?.v;
-                if (retfun !== undefined) {
-                    // TODO: optimise (remove double visitation)
-                    if (s.Expression.type === "IdentifierExpression") {
-                        const funcname = resolveIdentifier(s.Expression.Identifier);
-                        const resultOrGen = rt.invokeCall(rt.getFuncByParams("{global}", funcname, args), ...args);
-                        const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
-                        if (result === "VOID") {
-                            return "VOID";
-                        }
-                        return rt.expectValue(result);
-                    } else {
-                        rt.raiseException("Method invocation error: not yet implemented");
-                    }
-                } else {
-                    if ("type" in ret) {
-                        rt.raiseException("Method invocation error: unexpected function symbol");
-                    }
-                    const r = rt.invokeCall(rt.getOpByParams("{global}", "o(_call)", args), ...args);
-                    const result = asResult(r) ?? (yield* r as Gen<MaybeUnboundVariable | "VOID">);
+                if ("actions" in ret) {
+                    const resultOrGen = rt.invokeCall(ret, ...args);
+                    const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
                     if (result === "VOID") {
                         return "VOID";
                     }
-                    return rt.expectValue(asResult<MaybeUnboundVariable>(result) ?? (yield* r as Gen<MaybeUnboundVariable>));
+                    return rt.expectValue(result);
+                } else {
+                    const fret = variables.asFunction(ret);
+                    if (fret !== null) {
+                        rt.raiseException("Method invocation error: Not yet implemented");
+                        
+                        /*const r = rt.invokeCall(, ...args);
+                        const result = asResult(r) ?? (yield* r as Gen<MaybeUnboundVariable | "VOID">);
+                        if (result === "VOID") {
+                            return "VOID";
+                        }
+                        return rt.expectValue(asResult<MaybeUnboundVariable>(result) ?? (yield* r as Gen<MaybeUnboundVariable>));*/
+                    }
                 }
             },
-            *PostfixExpression_MemberAccess(interp, s, param: { functionArgs?: MaybeLeft<ObjectType>[] }): ResultOrGen<Variable | FunctionSymbol> {
+            *PostfixExpression_MemberAccess(interp, s: XPostfixExpression_MemberAccess, param: { functionArgs?: MaybeLeft<ObjectType>[] }): ResultOrGen<Variable | FunctionCallInstance> {
                 ({
                     rt
                 } = interp);
@@ -1213,12 +1208,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     s.type = "LogicalORExpression";
                     return yield* interp.visit(interp, s, param);
                 } else {
-                    const _left : MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.left, param);
+                    const _left: MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.left, param);
                     if (_left === "VOID") {
                         rt.raiseException("Binary operation expression error: Expected a non-void value on the left-hand side of operation");
                     }
                     const left = rt.unbound(_left);
-                    const _right : MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.right, param);
+                    const _right: MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.right, param);
                     if (_right === "VOID") {
                         rt.raiseException("Binary operation expression error: Expected a non-void value on the right-hand side of operation");
                     }

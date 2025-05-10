@@ -465,6 +465,21 @@ const defaultOpHandler: OpHandler[] = [
             rt.raiseException("(Segmentation fault) attempt to access a non-array pointer member outside the bounds")
         }
     },
+    {
+        op: "o(_||_)",
+        type: "FUNCTION BOOL ( BOOL BOOL )",
+        default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return variables.arithmetic("BOOL", rt.arithmeticValue(l) | rt.arithmeticValue(r), null, false)
+
+        }
+    },
+    {
+        op: "o(_&&_)",
+        type: "FUNCTION BOOL ( BOOL BOOL )",
+        default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return variables.arithmetic("BOOL", rt.arithmeticValue(l) & rt.arithmeticValue(r), null, false)
+        }
+    },
 ];
 
 export function addDefaultOperations(rt: CRuntime): void {

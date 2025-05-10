@@ -125,7 +125,7 @@ export type FileInstance = {
 
 export type FileManager = { freefd: number, files: { [fd: number]: FileInstance } };
 
-type FunctionCallInstance = {
+export type FunctionCallInstance = {
     actions: FunctionMatchResult,
     target: FunctionSymbol,
 };
@@ -355,6 +355,14 @@ export class CRuntime {
         }
         return fn;
     };
+
+    /*getFuncFromVariable(funvar: Function, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
+        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
+        console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
+        if (fn === null) {
+        }
+        
+    }*/
 
     *invokeCall(callInst: FunctionCallInstance, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
         if (callInst.target.target === null) {
