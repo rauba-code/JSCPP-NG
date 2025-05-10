@@ -169,9 +169,6 @@ function preparse(sentence: string[], strict_order: boolean = true): { sentence:
         sentence = sentence.slice(1);
     }
     let wildcardMap: number[] = [];
-    if (targets.length === 0) {
-        return { sentence, wildcardMap };
-    }
     let expectedMaxId: number = 0;
     let anonWildcardId: number = targets.length;
     return {
@@ -375,44 +372,78 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                     return;
                 }
             }
-            
+
+        }
+        function tryImplicitCast(subtype: string[], supertype: string[]): { index: number, targetSig: ArithmeticSig } | null {
+            if (supertype[0] in arithmeticSig && subtype[0] in arithmeticSig) {
+                // implicit arithmetic conversions
+                return { index: pair.firstLevelParamBreadth, targetSig: supertype[0] as ArithmeticSig };
+            } else if (supertype[0] === "Arithmetic" && subtype[0] in arithmeticSig) {
+                // implicit arithmetic conversions with inferred wildcard type
+                const superwc: number | string[] = pair.wildcards[pair.superwc[0]];
+                if (superwc === undefined || typeof superwc === "number") {
+                    throw new TypeParseError("Cannot infer a function parameter in a given implicit arithmetic conversion (not yet implemented)");
+                } else if (superwc.length === 1 && superwc[0] in arithmeticSig) {
+                    return { index: pair.firstLevelParamBreadth, targetSig: superwc[0] as ArithmeticSig };
+                } else {
+                    return null;
+                }
+            } else {
+                return null;
+            }
         }
         if (pair.supertype.length > 0 && pair.supertype[0] in argument) {
             if (pair.paramDepth === 1 && scope === "Parametric") {
-                let valueAction : "BORROW" | "CLONE" | "CAST" = "CLONE";
+                let valueAction: "BORROW" | "CLONE" | "CAST" = "CLONE";
                 if (pair.subtype.length > 0 && pair.subtype[0] === "LREF") {
                     if (pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef") {
                         valueAction = "BORROW";
                         matchNontermOrWildcard(pair.supertype[0]);
                     } else {
+                        // implicit lvalue arithmetic conversion
                         pair.subtype = pair.subtype.slice(1);
                         const subtype = pair.subtype;
                         const supertype = pair.supertype;
                         matchNontermOrWildcard(pair.supertype[0]);
                         if (retv === false) {
-                            if (supertype[0] in arithmeticSig && subtype[0] in arithmeticSig) {
-                                // implicit arithmetic conversions
+                            const implicitCast = tryImplicitCast(subtype, supertype);
+                            if (implicitCast !== null) {
+                                retv = null;
                                 valueAction = "CAST";
                                 pair.subtype = subtype.slice(1);
                                 pair.supertype = supertype.slice(1);
-                                result.castActions.push({ index: pair.firstLevelParamBreadth, targetSig: supertype[0] as ArithmeticSig })
-                                retv = null;
+                                result.castActions.push(implicitCast);
                             } else {
                                 return false;
                             }
-                            /*if (retv === false) {
-                                return false;
-                            }*/
                         } else {
                             valueAction = "CLONE";
                         }
+                    }
+                } else if (pair.subtype.length > 0 && pair.subtype[0] in arithmeticSig) {
+                    // implicit non-lvalue arithmetic conversion
+                    const subtype = pair.subtype;
+                    const supertype = pair.supertype;
+                    matchNontermOrWildcard(pair.supertype[0]);
+                    if (retv === false) {
+                        const implicitCast = tryImplicitCast(subtype, supertype);
+                        if (implicitCast !== null) {
+                            retv = null;
+                            valueAction = "CAST";
+                            pair.subtype = subtype.slice(1);
+                            pair.supertype = supertype.slice(1);
+                            result.castActions.push(implicitCast);
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        valueAction = "CLONE";
                     }
                 } else {
                     matchNontermOrWildcard(pair.supertype[0]);
                 }
                 pair.firstLevelParamBreadth++;
                 result.valueActions.push(valueAction);
-                
             } else {
                 matchNontermOrWildcard(pair.supertype[0]);
             }

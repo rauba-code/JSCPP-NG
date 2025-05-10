@@ -202,7 +202,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(_=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "!Arithmetic FUNCTION ?0 ( LREF ?0 ?0 )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticDirectAssign(rt, l, r);
         }
