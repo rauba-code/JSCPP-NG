@@ -1,7 +1,7 @@
 import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, FunctionValue, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
 import { TypeDB, FunctionMatchResult } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
@@ -221,24 +221,6 @@ export class CRuntime {
         this.raiseException("Not yet implemented");
     };
 
-    /*asCapturedVariable<TVar extends Variable>(x: TVar | IndexPointerVariable<TVar>): TVar {
-        const iptr: IndexPointerVariable<TVar> | null = variables.asIndexPointer(x) as IndexPointerVariable<TVar>;
-        if (iptr === null) {
-            return x as TVar;
-        } else {
-            const idx: number = iptr.v.index;
-            const len: number = iptr.v.pointee.values.length;
-            if (idx >= len) {
-                this.raiseException(`index out of bounds access: ${idx} >= ${len}`);
-            } else if (iptr.v.index < 0) {
-                this.raiseException(`access of negative index: ${idx}`);
-            }
-            const t = iptr.t.array.object;
-            const v = iptr.v.pointee.values[idx];
-            return { t, v } as TVar;
-        }
-    };*/
-
     getMember(l: Variable, identifier: string): Variable {
         //l = this.asCapturedVariable(l);
         let lc = variables.asClass(l);
@@ -357,7 +339,7 @@ export class CRuntime {
     }
 
     getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance {
-        const fn = this.tryGetFuncByParams(domain, identifier, params); 
+        const fn = this.tryGetFuncByParams(domain, identifier, params);
         if (fn === null) {
             const domainSig: string = this.domainString(domain);
             if (!(domainSig in this.typeMap)) {
@@ -381,7 +363,7 @@ export class CRuntime {
         if (callInst.actions.valueActions.length !== 0) {
             for (const castAction of callInst.actions.castActions) {
                 const castYield = this.cast(variables.arithmeticType(castAction.targetSig), this.expectValue(args[castAction.index]));
-                args[castAction.index] = interp.asResult(castYield) ?? (yield *castYield as Gen<InitVariable>);
+                args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
             }
             callInst.actions.valueActions.forEach((action, i) => {
                 if (action === "CLONE") {
@@ -389,8 +371,8 @@ export class CRuntime {
                 }
             })
         }
-        const returnYield = callInst.target.target(this, ...args); 
-        return interp.asResult(returnYield) ?? (yield *returnYield as Gen<MaybeUnboundVariable | "VOID">);
+        const returnYield = callInst.target.target(this, ...args);
+        return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
     }
 
     tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
@@ -405,7 +387,7 @@ export class CRuntime {
         if (fn === null) {
             return null;
         }
-        return { actions: fn, target: domainMap.functionsByID[fn.fnid] } ;
+        return { actions: fn, target: domainMap.functionsByID[fn.fnid] };
     };
 
     makeBinaryOperatorFuncName = (name: string) => `o(_${name}_)`;
@@ -795,6 +777,7 @@ export class CRuntime {
 
     cast(target: ObjectType, v: InitVariable, allowUToSOverflow: boolean = false): ResultOrGen<InitVariable> {
         // TODO: looking for global overload
+        debugger;
         if (variables.typesEqual(v.t, target)) {
             return v;
         }
@@ -816,12 +799,11 @@ export class CRuntime {
                 const conversionErrorMsg: () => string = () => `${this.makeValueString(v)} of type ${this.makeTypeStringOfVar(v)} to type ${this.makeTypeString(target)}`;
                 if (!targetInfo.isSigned) {
                     if (arithmeticValue < 0) {
-                        // unsafe! bitwise truncation is platform-dependent
-                        const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue & ((1 << (8 * targetInfo.bytes)) - 1), null); // bitwise truncation
-                        if (this.inrange(newVar.v.value as number, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
-                            this.adjustArithmeticValue(newVar);
-                            return newVar;
-                        }
+                        const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
+                        this.adjustArithmeticValue(newVar);
+                        //if (this.inrange(newVar.v.value as number, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
+                        return newVar;
+                        //}
                     }
                 }
                 if (fromInfo.isFloat) {
@@ -1131,7 +1113,7 @@ export class CRuntime {
                 this.raiseException(`Could not resolve a class named '${domainName}'`)
             }
             const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
-            if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null ) {
+            if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
                 return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this) as ResultOrGen<InitClassVariable>;
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)

@@ -999,7 +999,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                debugger;
                 let args: Variable[] = yield* (function*() {
                     const result = [];
                     for (const e of s.args) {
