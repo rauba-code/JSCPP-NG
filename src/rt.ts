@@ -303,7 +303,6 @@ export class CRuntime {
                     rt.defVar(argName, args[i]);
                 });
                 let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
-                debugger;
                 if (retType === "VOID") {
                     if (Array.isArray(ret)) {
                         if ((ret[0] === "return") && ret[1]) {
@@ -389,7 +388,7 @@ export class CRuntime {
             this.raiseException(`domain '${domainSig}' is unknown`);
         }
         const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
-        console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
+        //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
         if (fn === null) {
@@ -770,7 +769,7 @@ export class CRuntime {
 
     getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticVariable> {
         let array = toUtf8CharArray(src);
-        console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; }).join(""));
+        //console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; }).join(""));
         let memoryObject = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), new Array<ArithmeticValue>())
         array.forEach((iv, ii) => {
             const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: ii };
@@ -785,7 +784,6 @@ export class CRuntime {
 
     cast(target: ObjectType, v: InitVariable, allowUToSOverflow: boolean = false): ResultOrGen<InitVariable> {
         // TODO: looking for global overload
-        debugger;
         if (variables.typesEqual(v.t, target)) {
             return v;
         }
@@ -796,7 +794,6 @@ export class CRuntime {
             const fromInfo = variables.arithmeticProperties[arithmeticVar.t.sig];
             const arithmeticValue = this.arithmeticValue(arithmeticVar);
             if (target.sig === "BOOL") {
-                debugger;
                 return variables.arithmetic(target.sig, arithmeticValue === 0 ? 0 : 1, null);
             } else if (targetInfo.isFloat) {
                 const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeStringOfVar(v)}' to '${this.makeTypeString(target)}'`;

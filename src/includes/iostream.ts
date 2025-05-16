@@ -150,7 +150,7 @@ export = {
 
                     stdio.cinProceed();
                 }).catch((err) => {
-                    console.log(err);
+                    //console.log(err);
                     stdio.promiseError(err.message);
                 })
                 return l;
@@ -282,7 +282,7 @@ export = {
 
                 stdio.cinProceed();
             }).catch((err) => {
-                console.log(err);
+                //console.log(err);
                 stdio.promiseError(err.message);
             })
             return l;

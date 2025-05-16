@@ -74,7 +74,7 @@ const testRunner = (function() {
 
         let { code, scenarios: { input, output: expected, input_filename, output_filename }, exception, exitcode, config } = sample;
 
-        const fstream = (input_filename || output_filename) && (function() {
+        const fstream = input_filename && output_filename && (function() {
             const testFiles: any = {
                 [input_filename]: { value: input },
                 [output_filename]: { value: "" }

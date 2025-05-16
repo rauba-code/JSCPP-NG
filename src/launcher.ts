@@ -155,8 +155,6 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     async function performStep() {
         try {
             while (proceed) {
-                if (_config.stopExecutionCheck?.())
-                    throw new Error("Execution terminated.");
 
                 step = mainGen.next();
                 performedSteps++;
@@ -174,13 +172,14 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                     }
                 }
 
-                if (performedSteps > (_config.maxExecutionSteps as number))
-                    throw new Error("The execution step limit has been reached.");
-                else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
-                    throw new Error("Time limit exceeded.");
-
                 if ((performedSteps % (_config.eventLoopSteps as number)) === 0) {
                     await new Promise((resolve) => setImmediate(resolve));
+                    if (_config.stopExecutionCheck?.())
+                        throw new Error("Execution terminated.");
+                    if (performedSteps > (_config.maxExecutionSteps as number))
+                        throw new Error("The execution step limit has been reached.");
+                    else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
+                        throw new Error("Time limit exceeded.");
                 }
             }
         } catch (error) {

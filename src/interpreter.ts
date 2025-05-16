@@ -1,5 +1,5 @@
 import { resolveIdentifier } from "./shared/string_utils";
-import { CRuntime, FunctionCallInstance, FunctionSymbol, OpSignature, RuntimeScope } from "./rt";
+import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
