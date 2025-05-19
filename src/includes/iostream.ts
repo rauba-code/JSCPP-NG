@@ -1,6 +1,8 @@
-import { CRuntime, OpSignature } from "../rt";
+import { CRuntime } from "../rt";
 import { sizeNonSpace, skipSpace } from "../shared/string_utils";
-import { ArithmeticProperties, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
+import * as common from "../shared/common";
+import * as ios_base_impl from "../shared/ios_base_impl";
+import { ArithmeticProperties, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 import { iomanip_token_mode, IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
 
@@ -35,42 +37,7 @@ export = {
 
         rt.addToNamespace("std", "cin", cin);
 
-        type OpHandler = {
-            type: string,
-            op: OpSignature,
-            default: ((rt: CRuntime, ...args: Variable[]) => Variable)
-        };
-
-        rt.defineStruct("{global}", "ostream", [
-            {
-                name: "fd",
-                variable: variables.uninitArithmetic("I32", "SELF"),
-            },
-            {
-                name: "base",
-                variable: variables.arithmetic("I8", 10, "SELF"),
-            },
-            {
-                name: "fill",
-                variable: variables.arithmetic("I8", 32, "SELF"),
-            },
-            {
-                name: "precision",
-                variable: variables.arithmetic("I8", -1, "SELF"),
-            },
-            {
-                name: "width",
-                variable: variables.arithmetic("I8", -1, "SELF"),
-            },
-            {
-                name: "float_display_mode",
-                variable: variables.arithmetic("I8", iomanip_token_mode.defaultfloat, "SELF"),
-            },
-            {
-                name: "position_mode",
-                variable: variables.arithmetic("I8", iomanip_token_mode.right, "SELF"),
-            },
-        ]);
+        ios_base_impl.defineOstream(rt, "ostream", []);
         const coutType = rt.simpleType(["ostream"]) as MaybeLeft<OStreamType>;
         const cout = variables.clone(rt.defaultValue(coutType.t, "SELF") as OStreamVariable, "SELF", false, rt.raiseException);
         variables.arithmeticAssign(cout.v.members.fd, unixapi.FD_STDOUT, rt.raiseException);
@@ -80,23 +47,7 @@ export = {
         const endl = rt.getCharArrayFromString("\n");
         rt.addToNamespace("std", "endl", endl);
 
-        function pad(rt: CRuntime, s: string, pmode: number, width: number, chr: number): string {
-            if (width < 0) {
-                return s;
-            }
-            switch (pmode) {
-                case iomanip_token_mode.left:
-                    return s.padEnd(width, String.fromCharCode(chr));
-                case iomanip_token_mode.right:
-                    return s.padStart(width, String.fromCharCode(chr));
-                case iomanip_token_mode.internal:
-                    rt.raiseException("Not yet implemented: internal");
-                default:
-                    rt.raiseException("Invalid position_mode value");
-            }
-        }
-
-        const opHandlers: OpHandler[] = [{
+        common.regOps(rt, [{
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
             default(rt: CRuntime, l: IStreamVariable, r: ArithmeticVariable): IStreamVariable {
@@ -155,80 +106,8 @@ export = {
                 })
                 return l;
             }
+        }]);
 
-        },
-        {
-            op: "o(_<<_)",
-            type: "FUNCTION LREF CLASS ostream < > ( LREF CLASS ostream < > PTR I8 )",
-            default(rt: CRuntime, l: OStreamVariable, r: PointerVariable<ArithmeticVariable>): OStreamVariable {
-                const iptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmetic("I8", null));
-                if (iptr === null) {
-                    rt.raiseException("Variable is not an initialised index pointer");
-                }
-                if (l.v.members.width.v.value >= 0) {
-                    const padded = pad(rt, rt.getStringFromCharArray(iptr), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
-                    unixapi.write(rt, l.v.members.fd, rt.getCharArrayFromString(padded));
-                    variables.arithmeticAssign(l.v.members.width, -1, rt.raiseException);
-                } else {
-                    unixapi.write(rt, l.v.members.fd, iptr);
-                }
-                return l;
-            }
-        },
-        {
-            op: "o(_<<_)",
-            type: "FUNCTION LREF CLASS ostream < > ( LREF CLASS ostream < > Arithmetic )",
-            default(rt: CRuntime, l: OStreamVariable, r: ArithmeticVariable): OStreamVariable {
-                const num = rt.arithmeticValue(r);
-                const numProperties = variables.arithmeticProperties[r.t.sig];
-                function numstr(rt: CRuntime, l: OStreamVariable, num: number, numProperties: ArithmeticProperties): string {
-                    if (numProperties.isFloat) {
-                        const prec = l.v.members.precision.v.value;
-                        switch (l.v.members.float_display_mode.v.value) {
-                            case iomanip_token_mode.fixed:
-                                return prec >= 0 ? num.toFixed(prec) : num.toFixed();
-                            case iomanip_token_mode.scientific:
-                                return prec >= 0 ? num.toExponential(prec) : num.toExponential();
-                            case iomanip_token_mode.hexfloat:
-                                rt.raiseException("Not yet implemented: hexfloat")
-                            case iomanip_token_mode.defaultfloat:
-                                return num.toString();
-                            default:
-                                rt.raiseException("Invalid float_display_mode value")
-                        }
-                    } else {
-                        const base = l.v.members.base.v.value;
-                        if (base !== 8 && base !== 10 && base !== 16) {
-                            rt.raiseException("Invalid base value")
-                        }
-                        if (base === 10 || num >= 0) {
-                            return num.toString(base);
-                        } else {
-                            return ((numProperties.maxv + 1 - numProperties.minv) + num).toString(base);
-                        }
-                    }
-                }
-
-                const ns = numstr(rt, l, num, numProperties);
-                const padded = pad(rt, ns, l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
-                const str = rt.getCharArrayFromString(padded);
-                variables.arithmeticAssign(l.v.members.width, -1, rt.raiseException);
-                unixapi.write(rt, l.v.members.fd, str);
-                return l;
-            }
-        }
-        ];
-
-        opHandlers.forEach((x) => {
-            rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type));
-        })
-
-
-        type FunHandler = {
-            type: string,
-            op: string,
-            default: ((rt: CRuntime, ...args: Variable[]) => Variable)
-        };
         function _getline(rt: CRuntime, l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStreamVariable {
             const stdio = rt.stdio();
             stdio.cinStop();
@@ -288,7 +167,7 @@ export = {
             return l;
         }
 
-        const cinHandlers: FunHandler[] = [
+        common.regMemberFuncs(rt, "istream", [
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS istream < > )",
@@ -346,10 +225,6 @@ export = {
                     return _getline(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"));
                 }
             }
-        ]
-
-        cinHandlers.forEach((x) => {
-            rt.regFunc(x.default, cin.t, x.op, rt.typeSignature(x.type));
-        })
+        ]);
     }
 }
