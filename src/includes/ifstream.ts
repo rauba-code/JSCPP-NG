@@ -1,7 +1,8 @@
-import { CRuntime, OpSignature } from "../rt";
+import { CRuntime } from "../rt";
 import { sizeNonSpace, skipSpace } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
-import { ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
+import * as common from "../shared/common";
+import { ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 
 type IfStreamVariable = ios_base.IStreamVariable;
 
@@ -32,15 +33,7 @@ export = {
             },
         ]);
 
-        //rt.addToNamespace("std", "ifstream", readStreamType);
-
-        type OpHandler = {
-            type: string,
-            op: OpSignature,
-            default: ((rt: CRuntime, ...args: Variable[]) => Variable | "VOID")
-        };
-
-        const opHandlers: OpHandler[] = [
+        common.regOps(rt, [
             {
                 op: "o(!_)",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
@@ -105,16 +98,11 @@ export = {
                     return l;
                 },
             }
-        ];
-
-        opHandlers.forEach((x) => {
-            rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type));
-        })
-
+        ]);
 
         const thisType = (rt.simpleType(["ifstream"]) as MaybeLeft<ClassType>).t;
 
-        const ctorHandler: OpHandler = {
+        const ctorHandler: common.OpHandler = {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ifstream < > ( PTR I8 )",
             default(_rt: CRuntime, _path: PointerVariable<ArithmeticVariable>): IfStreamVariable {
@@ -128,11 +116,6 @@ export = {
 
         rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
 
-        type FunHandler = {
-            type: string,
-            op: string,
-            default: ((rt: CRuntime, ...args: Variable[]) => Variable | "VOID")
-        };
         function _getline(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
             let b = l.v.members.buf;
             const count = rt.arithmeticValue(_count);
@@ -163,7 +146,7 @@ export = {
             }
             return l;
         }
-        const memberHandlers: FunHandler[] = [
+        common.regMemberFuncs(rt, "ifstream", [
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS ifstream < > )",
@@ -203,11 +186,7 @@ export = {
                     return "VOID"
                 }
             },
-        ]
-
-        memberHandlers.forEach((x) => {
-            rt.regFunc(x.default, thisType, x.op, rt.typeSignature(x.type));
-        })
+        ]);
 
 
 

@@ -2,9 +2,18 @@ import { CRuntime } from "../rt";
 import { sizeNonSpace, skipSpace } from "../shared/string_utils";
 import * as common from "../shared/common";
 import * as ios_base_impl from "../shared/ios_base_impl";
-import { ArithmeticProperties, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { ArithmeticVariable, Gen, InitArithmeticVariable, InitPointerVariable, MaybeLeft, ResultOrGen, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
-import { iomanip_token_mode, IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
+import { IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
+
+/*function *read(rt: CRuntime, fd: InitArithmeticVariable, buf: PointerVariable<PointerVariable<ArithmeticVariable>>): ResultOrGen<ArithmeticVariable> {
+    if (fd.v.value === unixapi.FD_STDIN) {
+
+
+    } else {
+        rt.raiseException("Not yet implemented");
+    }
+}*/
 
 export = {
     load(rt: CRuntime) {
@@ -101,7 +110,6 @@ export = {
 
                     stdio.cinProceed();
                 }).catch((err) => {
-                    //console.log(err);
                     stdio.promiseError(err.message);
                 })
                 return l;
@@ -171,44 +179,46 @@ export = {
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS istream < > )",
-                default(rt: CRuntime, l: IStreamVariable): InitArithmeticVariable {
-                    /*const stdio = rt.stdio();
+                default(rt: CRuntime, l: IStreamVariable): Gen<ArithmeticVariable> {
+                    const stdio = rt.stdio();
                     stdio.cinStop();
-                    const inputPromise: Promise<[boolean]> = new Promise((resolve) => {
+
+                    const retv = variables.arithmetic("I32", -2, null);
+                    const inputPromise: Promise<[boolean, IStreamVariable, ArithmeticVariable]> = new Promise((resolve) => {
+                        debugger;
                         let result = l.v.members.buf;
-                        if (result.v.index >= result.v.pointee.values.length) {
+                        // + 1 because of trailing '\0'
+                        if (result.v.index + 1 >= result.v.pointee.values.length) {
                             stdio.getInput().then((result) => {
-                                variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result).v.pointee, 0, rt.raiseException);
-                                resolve([false]);
+                                variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
+                                resolve([false, l, retv]);
                             });
                         } else {
-                            resolve([true]);
+                            resolve([true, l, retv]);
                         }
                     });
-                    try {
-                        const [is_raw] = await inputPromise;*/
-                    let b = l.v.members.buf;
-                    if (b.v.pointee.values.length <= b.v.index) {
-                        variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                        variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
-                        return variables.arithmetic("I32", -1, null);
-                    }
-                    const top = rt.unbound(variables.arrayMember(b.v.pointee, b.v.index));
-                    variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
+                    inputPromise.then(([_is_raw, l, retv]) => {
+                        let b = l.v.members.buf;
+                        if (b.v.pointee.values.length <= b.v.index) {
+                            variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                            variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                            return variables.arithmetic("I32", -1, null);
+                        }
+                        const top = rt.unbound(variables.arrayMember(b.v.pointee, b.v.index));
+                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
 
-                    /*if (stdio.isMochaTest) {
-                        stdio.write(String(rt.arithmeticValue(top)) + "\n");
-                    } else if (!is_raw) {
-                        stdio.write(String(rt.arithmeticValue(top)) + "\n");
-                    }*/
-
-                    //stdio.cinProceed();
-                    return variables.clone((rt.expectValue(top) as InitArithmeticVariable), null, false, rt.raiseException);
-                    /*} catch (err) {
-                        console.log(err);
+                        retv.v = variables.clone((rt.expectValue(top) as InitArithmeticVariable), null, false, rt.raiseException).v;
+                        stdio.cinProceed();
+                    }).catch((err) => {
+                        //console.log(err);
                         stdio.promiseError(err.message);
-                        return variables.arithmetic("I32", -1, null);
-                    }*/
+                    })
+                    debugger;
+                    function *stubGenerator() {
+                        yield retv;
+                        return retv;
+                    }
+                    return stubGenerator();
                 }
             },
             {

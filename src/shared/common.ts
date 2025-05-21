@@ -1,16 +1,16 @@
 import { CRuntime, OpSignature } from "../rt";
-import { ClassType, Variable, variables } from "../variables";
+import { ClassType, ResultOrGen, Variable, variables } from "../variables";
 
 export type OpHandler = {
     type: string,
     op: OpSignature,
-    default: ((rt: CRuntime, ...args: Variable[]) => Variable)
+    default: ((rt: CRuntime, ...args: Variable[]) => ResultOrGen<Variable>)
 };
 
 export type FunHandler = {
     type: string,
     op: string,
-    default: ((rt: CRuntime, ...args: Variable[]) => Variable | "VOID")
+    default: ((rt: CRuntime, ...args: Variable[]) => ResultOrGen<Variable | "VOID">)
 };
 
 export function regOps(rt: CRuntime, opHandlers: OpHandler[]) {
