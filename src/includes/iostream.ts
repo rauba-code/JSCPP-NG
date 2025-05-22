@@ -2,8 +2,9 @@ import { CRuntime } from "../rt";
 import { sizeNonSpace, skipSpace } from "../shared/string_utils";
 import * as common from "../shared/common";
 import * as ios_base_impl from "../shared/ios_base_impl";
-import { ArithmeticVariable, Gen, InitArithmeticVariable, InitPointerVariable, MaybeLeft, ResultOrGen, variables } from "../variables";
+import { ArithmeticVariable, Gen, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, MaybeLeft, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
+import * as utf8 from "../utf8";
 import { IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
 
 /*function *read(rt: CRuntime, fd: InitArithmeticVariable, buf: PointerVariable<PointerVariable<ArithmeticVariable>>): ResultOrGen<ArithmeticVariable> {
@@ -56,62 +57,106 @@ export = {
         const endl = rt.getCharArrayFromString("\n");
         rt.addToNamespace("std", "endl", endl);
 
+        function readChar(rt: CRuntime, l: IStreamVariable): Gen<InitArithmeticVariable> {
+            const stdio = rt.stdio();
+            stdio.cinStop();
+
+            const retv = variables.uninitArithmetic("I32", null);
+            const inputPromise: Promise<[boolean, IStreamVariable, ArithmeticVariable]> = new Promise((resolve) => {
+                let result = l.v.members.buf;
+                // + 1 because of trailing '\0'
+                if (result.v.index + 1 >= result.v.pointee.values.length) {
+                    stdio.getInput().then((result) => {
+                        variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
+                        if (!stdio.isMochaTest) {
+                            unixapi.write(rt, variables.arithmetic("I32", unixapi.FD_STDOUT, null), l.v.members.buf);
+                        }
+                        resolve([false, l, retv]);
+                    });
+                } else {
+                    resolve([true, l, retv]);
+                }
+            });
+            inputPromise.then(([_is_raw, l, retv]) => {
+                let buf = l.v.members.buf;
+                if (buf.v.pointee.values.length <= buf.v.index) {
+                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    return variables.arithmetic("I32", -1, null);
+                }
+                const topv = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
+
+                //variables.arithmeticAssign(retv, topv, rt.raiseException);
+                retv.v.state = "INIT";
+                (retv.v as InitArithmeticValue).value = topv;
+                stdio.cinProceed();
+            }).catch((err) => {
+                stdio.promiseError(err.message);
+            })
+            function* stubGenerator() {
+                yield retv as InitArithmeticVariable;
+                return retv as InitArithmeticVariable;
+            }
+            return stubGenerator();
+        }
+
+        const whitespaceChars = [0, 9, 10, 32];
+
         common.regOps(rt, [{
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
-            default(rt: CRuntime, l: IStreamVariable, r: ArithmeticVariable): IStreamVariable {
-                const stdio = rt.stdio();
-                stdio.cinStop();
-
-                const inputPromise: Promise<[boolean]> = new Promise((resolve) => {
-                    let result = l.v.members.buf;
-                    if (result.v.index + 1 >= result.v.pointee.values.length) {
-                        stdio.getInput().then((result) => {
-                            variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
-                            resolve([false]);
-                        });
-                    } else {
-                        resolve([true]);
-                    }
-                });
-                inputPromise.then(([is_raw]) => {
-                    const buf = l.v.members.buf;
-                    //const fd = l.v.members.fd;
-                    const eofbit = l.v.members.eofbit;
-                    const failbit = l.v.members.failbit;
-                    //const badbit = l.v.members.badbit;
-                    if (eofbit.v.value) {
+            *default(rt: CRuntime, l: IStreamVariable, r: ArithmeticVariable): Gen<IStreamVariable> {
+                const eofbit = l.v.members.eofbit;
+                const failbit = l.v.members.failbit;
+                const buf = l.v.members.buf;
+                let char: InitArithmeticVariable;
+                while (true) {
+                    char = yield* readChar(rt, l);
+                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
                         failbit.v.value = 1;
                         return l;
                     }
-                    const oldptr = variables.clone(buf, "SELF", false, rt.raiseException);
-                    if (buf.v.pointee.values.length <= buf.v.index) {
-                        variables.arithmeticAssign(eofbit, 1, rt.raiseException);
+                    if (!(whitespaceChars.includes(char.v.value))) {
+                        break;
                     }
-                    skipSpace(rt, buf);
-                    const len = sizeNonSpace(rt, buf);
-                    const strseq = rt.getStringFromCharArray(buf, len);
-                    const num = Number.parseFloat(strseq);
+                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                }
+                if (r.t.sig === "I8") {
+                    variables.arithmeticAssign(r, char.v.value, rt.raiseException);
+                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    const stdio = rt.stdio();
+                    if (stdio.isMochaTest) {
+                        stdio.write(String.fromCodePoint(char.v.value) + "\n");
+                    }
+                } else {
+                    let wordValues: number[] = [];
+                    while (!(whitespaceChars.includes(char.v.value))) {
+                        wordValues.push(char.v.value);
+                        variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                        char = yield* readChar(rt, l);
+                        if (eofbit.v.value === 1 || failbit.v.value === 1) {
+                            failbit.v.value = 1;
+                            return l;
+                        }
+                    }
+                    if (wordValues.length === 0) {
+                        failbit.v.value = 1;
+                        return l;
+                    }
+                    const wordString = utf8.fromUtf8CharArray(new Uint8Array(wordValues));
+                    const num = Number.parseFloat(wordString);
+                    const stdio = rt.stdio();
+                    if (stdio.isMochaTest) {
+                        stdio.write(wordString + "\n");
+                    }
                     if (Number.isNaN(num)) {
                         variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
-                        stdio.cinProceed();
-                        return;
+                        return l;
                     }
                     variables.arithmeticAssign(r, num, rt.raiseException);
-                    rt.adjustArithmeticValue((r as InitArithmeticVariable));
-                    variables.arithmeticAssign(l.v.members.failbit, (len === 0) ? 1 : 0, rt.raiseException);
-                    variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + len, rt.raiseException);
 
-                    if (stdio.isMochaTest) {
-                        stdio.write(rt.arithmeticValue(r).toString() + "\n");
-                    } else if (!is_raw) {
-                        stdio.write(rt.getStringFromCharArray(oldptr));
-                    }
-
-                    stdio.cinProceed();
-                }).catch((err) => {
-                    stdio.promiseError(err.message);
-                })
+                }
+                rt.adjustArithmeticValue((r as InitArithmeticVariable));
                 return l;
             }
         }]);
@@ -179,46 +224,11 @@ export = {
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS istream < > )",
-                default(rt: CRuntime, l: IStreamVariable): Gen<ArithmeticVariable> {
-                    const stdio = rt.stdio();
-                    stdio.cinStop();
-
-                    const retv = variables.arithmetic("I32", -2, null);
-                    const inputPromise: Promise<[boolean, IStreamVariable, ArithmeticVariable]> = new Promise((resolve) => {
-                        debugger;
-                        let result = l.v.members.buf;
-                        // + 1 because of trailing '\0'
-                        if (result.v.index + 1 >= result.v.pointee.values.length) {
-                            stdio.getInput().then((result) => {
-                                variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
-                                resolve([false, l, retv]);
-                            });
-                        } else {
-                            resolve([true, l, retv]);
-                        }
-                    });
-                    inputPromise.then(([_is_raw, l, retv]) => {
-                        let b = l.v.members.buf;
-                        if (b.v.pointee.values.length <= b.v.index) {
-                            variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                            variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
-                            return variables.arithmetic("I32", -1, null);
-                        }
-                        const top = rt.unbound(variables.arrayMember(b.v.pointee, b.v.index));
-                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
-
-                        retv.v = variables.clone((rt.expectValue(top) as InitArithmeticVariable), null, false, rt.raiseException).v;
-                        stdio.cinProceed();
-                    }).catch((err) => {
-                        //console.log(err);
-                        stdio.promiseError(err.message);
-                    })
-                    debugger;
-                    function *stubGenerator() {
-                        yield retv;
-                        return retv;
-                    }
-                    return stubGenerator();
+                *default(rt: CRuntime, l: IStreamVariable): Gen<ArithmeticVariable> {
+                    const retv = yield* readChar(rt, l);
+                    const buf = l.v.members.buf;
+                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    return retv;
                 }
             },
             {

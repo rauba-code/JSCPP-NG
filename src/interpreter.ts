@@ -1228,45 +1228,56 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
             },
             *LogicalANDExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticVariable> {
-                ({
-                    rt
-                } = interp);
-                const op = "o(_&&_)";
-                const left = yield* interp.visit(interp, s.left, param);
-                const right = yield* interp.visit(interp, s.right, param);
-                const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
-                if (directOp !== null) {
-                    const target = rt.invokeCall(directOp, left, right);
-                    return rt.expectValue((isGenerator(target)) ? (yield* target as Generator) : target);
-                } else {
+                const left = rt.expectValue((yield* interp.visit(interp, s.left, param)) as Variable);
+                const leftArithmetic = variables.asArithmetic(left) as InitArithmeticVariable;
+                let lhsVal : InitArithmeticVariable;
+                if (leftArithmetic === null) {
                     const boolType = variables.arithmeticType("BOOL");
                     const lhsBoolYield = rt.cast(boolType, left);
-                    const rhsBoolYield = rt.cast(boolType, right);
-                    const lhsBool = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>));
-                    const rhsBool = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>));
-                    const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
-                    const target = rt.invokeCall(boolOp, lhsBool, rhsBool) as ResultOrGen<InitArithmeticVariable>;
-                    return rt.expectValue(asResult(target) ?? (yield* target as Gen<ArithmeticVariable>));
+                    lhsVal = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>)) as InitArithmeticVariable;
+                } else {
+                    lhsVal = leftArithmetic;
                 }
+                if (lhsVal.v.value === 0) {
+                    return variables.arithmetic("BOOL", 0, null);
+                }
+                const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
+                const rightArithmetic = variables.asArithmetic(right) as InitArithmeticVariable;
+                let rhsVal : InitArithmeticVariable;
+                if (rightArithmetic === null) {
+                    const boolType = variables.arithmeticType("BOOL");
+                    const rhsBoolYield = rt.cast(boolType, right);
+                    rhsVal = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>)) as InitArithmeticVariable;
+                } else {
+                    rhsVal = rightArithmetic;
+                }
+                return variables.arithmetic("BOOL", ((lhsVal.v.value & rhsVal.v.value) !== 0) ? 1 : 0, null);
             },
             *LogicalORExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticVariable> {
-                const op = "o(_||_)";
-                const left = rt.expectValue(yield* interp.visit(interp, s.left, param));
-                const right = rt.expectValue(yield* interp.visit(interp, s.right, param));
-                const directOp = rt.tryGetOpByParams("{global}", op, [left, right]);
-                if (directOp !== null) {
-                    const target = rt.invokeCall(directOp, left, right);
-                    return rt.expectValue((isGenerator(target)) ? (yield* target as Generator) : target);
-                } else {
+                const left = rt.expectValue((yield* interp.visit(interp, s.left, param)) as Variable);
+                const leftArithmetic = variables.asArithmetic(left) as InitArithmeticVariable;
+                let lhsVal : InitArithmeticVariable;
+                if (leftArithmetic === null) {
                     const boolType = variables.arithmeticType("BOOL");
                     const lhsBoolYield = rt.cast(boolType, left);
-                    const rhsBoolYield = rt.cast(boolType, right);
-                    const lhsBool = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>));
-                    const rhsBool = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>));
-                    const boolOp = rt.getOpByParams("{global}", op, [lhsBool, rhsBool]);
-                    const target = rt.invokeCall(boolOp, lhsBool, rhsBool) as ResultOrGen<InitArithmeticVariable>;
-                    return rt.expectValue(asResult(target) ?? (yield* target as Gen<ArithmeticVariable>));
+                    lhsVal = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>)) as InitArithmeticVariable;
+                } else {
+                    lhsVal = leftArithmetic;
                 }
+                if (lhsVal.v.value === 1) {
+                    return variables.arithmetic("BOOL", 1, null);
+                }
+                const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
+                const rightArithmetic = variables.asArithmetic(right) as InitArithmeticVariable;
+                let rhsVal : InitArithmeticVariable;
+                if (rightArithmetic === null) {
+                    const boolType = variables.arithmeticType("BOOL");
+                    const rhsBoolYield = rt.cast(boolType, right);
+                    rhsVal = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>)) as InitArithmeticVariable;
+                } else {
+                    rhsVal = rightArithmetic;
+                }
+                return variables.arithmetic("BOOL", ((lhsVal.v.value | rhsVal.v.value) !== 0) ? 1 : 0, null);
             },
             *ConditionalExpression(interp, s, param) {
                 ({

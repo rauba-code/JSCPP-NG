@@ -3,6 +3,7 @@ import { ArithmeticProperties, ArithmeticVariable, PointerVariable, variables } 
 import * as common from "./common";
 import * as ios_base from "./ios_base";
 import * as unixapi from "../shared/unixapi";
+import * as utf8 from "../utf8";
 import { MemberObject } from "../interpreter";
 
 function pad(rt: CRuntime, s: string, pmode: number, width: number, chr: number): string {
@@ -91,6 +92,9 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             const num = rt.arithmeticValue(r);
             const numProperties = variables.arithmeticProperties[r.t.sig];
             function numstr(rt: CRuntime, l: ios_base.OStreamVariable, num: number, numProperties: ArithmeticProperties): string {
+                if (r.t.sig === "I8") {
+                    return rt.getStringFromCharArray(variables.indexPointer(variables.arrayMemory(r.t, [r.v]), 0, false, null));
+                }
                 if (numProperties.isFloat) {
                     const prec = l.v.members.precision.v.value;
                     switch (l.v.members.float_display_mode.v.value) {
