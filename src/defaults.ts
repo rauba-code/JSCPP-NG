@@ -134,7 +134,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_>>_)",
         type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerOp(rt, l, r, (x, y) => x << y, ">>");
+            return binaryIntegerOp(rt, l, r, (x, y) => x >> y, ">>");
         }
     },
     {
