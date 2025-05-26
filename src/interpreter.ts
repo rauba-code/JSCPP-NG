@@ -86,7 +86,7 @@ export type PostfixExpression = XPostfixExpression_MethodInvocation | XPostfixEx
 export interface XInitDeclarator extends StatementMeta {
     type: "InitDeclarator",
     Declarator: XDirectDeclarator,
-    Initializers: XInitializerExpr | null,
+    Initializers: XInitializerExpr | XInitializerArray | null,
 }
 export interface XParameterDeclaration extends StatementMeta {
     type: "ParameterDeclaration"
@@ -139,7 +139,12 @@ export interface XConstantExpression extends StatementMeta {
 }
 export interface XInitializerExpr extends StatementMeta {
     type: "Initializer_expr",
-    Expression: XConstantExpression
+    Expression: XConstantExpression,
+    shorthand?: InitArithmeticVariable,
+}
+export interface XInitializerArray extends StatementMeta {
+    type: "Initializer_array",
+    Initializers: XInitializerExpr[],
 }
 export interface XStructDeclaration extends StatementMeta {
     type: "StructDeclaration",
@@ -444,7 +449,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const stat = s.CompoundStatement;
                 rt.defFunc(typedScope, name, basetype, argTypes, argNames, stat, interp);
             },
-            *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType>, node?: XInitializerExpr | null }): ResultOrGen<void> {
+            *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType>, node?: XInitializerExpr | XInitializerArray | null }): ResultOrGen<void> {
                 const { rt } = interp;
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
@@ -461,7 +466,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     const decType: MaybeLeft<ObjectType> = (dec.Declarator.Pointer instanceof Array) ? variables.uninitPointer(basetype.t, null, "SELF") : basetype;
                     const { name, type } = visitResult;
-                    let initSpec = dec.Initializers;
+                    const initSpec = dec.Initializers;
 
                     if (!(dec.Declarator.right instanceof Array)) {
                         rt.raiseException("Declaration error: Not yet implemented");
@@ -534,7 +539,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                         }
                     } else {
-                        const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, initSpec.Expression) as Gen<MaybeUnboundVariable | "VOID">;
+                        if (initSpec !== null && initSpec.type === "Initializer_array") {
+                            rt.raiseException("Declaration error: type error");
+                        }
+                        const initVarYield = (initSpec === null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">;
                         const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
                         if (initVarOrVoid === "VOID") {
                             rt.raiseException("Declaration error: Expected a non-void value");
@@ -584,11 +592,16 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const structMemberList: MemberObject[] = [];
                     for (const structMember of s.StructMemberList) {
                         for (const dec of structMember.Declarators) {
-                            let init = dec.Initializers;
+                            const init = dec.Initializers;
+
+                            if (init !== null && init.type === "Initializer_array") {
+                                rt.raiseException("Struct declaration error: type error");
+                            }
 
                             const _simpleTypeYield = rt.simpleType(structMember.MemberType);
                             param.basetype = _simpleTypeYield;
                             const { name, type } = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
+                            
 
                             const initvarYield = (init == null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, init.Expression) as Gen<Variable>;
                             const initvar = asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>));
@@ -1031,7 +1044,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const fret = variables.asFunction(ret);
                     if (fret !== null) {
                         rt.raiseException("Method invocation error: Not yet implemented");
-                        
+
                         /*const r = rt.invokeCall(, ...args);
                         const result = asResult(r) ?? (yield* r as Gen<MaybeUnboundVariable | "VOID">);
                         if (result === "VOID") {
@@ -1230,7 +1243,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             *LogicalANDExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticVariable> {
                 const left = rt.expectValue((yield* interp.visit(interp, s.left, param)) as Variable);
                 const leftArithmetic = variables.asArithmetic(left) as InitArithmeticVariable;
-                let lhsVal : InitArithmeticVariable;
+                let lhsVal: InitArithmeticVariable;
                 if (leftArithmetic === null) {
                     const boolType = variables.arithmeticType("BOOL");
                     const lhsBoolYield = rt.cast(boolType, left);
@@ -1243,7 +1256,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
                 const rightArithmetic = variables.asArithmetic(right) as InitArithmeticVariable;
-                let rhsVal : InitArithmeticVariable;
+                let rhsVal: InitArithmeticVariable;
                 if (rightArithmetic === null) {
                     const boolType = variables.arithmeticType("BOOL");
                     const rhsBoolYield = rt.cast(boolType, right);
@@ -1256,7 +1269,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             *LogicalORExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticVariable> {
                 const left = rt.expectValue((yield* interp.visit(interp, s.left, param)) as Variable);
                 const leftArithmetic = variables.asArithmetic(left) as InitArithmeticVariable;
-                let lhsVal : InitArithmeticVariable;
+                let lhsVal: InitArithmeticVariable;
                 if (leftArithmetic === null) {
                     const boolType = variables.arithmeticType("BOOL");
                     const lhsBoolYield = rt.cast(boolType, left);
@@ -1269,7 +1282,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
                 const rightArithmetic = variables.asArithmetic(right) as InitArithmeticVariable;
-                let rhsVal : InitArithmeticVariable;
+                let rhsVal: InitArithmeticVariable;
                 if (rightArithmetic === null) {
                     const boolType = variables.arithmeticType("BOOL");
                     const rhsBoolYield = rt.cast(boolType, right);
@@ -1557,11 +1570,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         }
     };
 
-    *arrayInit(dimensions: number[], init: XInitializerExpr | null, type: ObjectType, param: any): ResultOrGen<InitIndexPointerVariable<Variable>> {
+    *arrayInit(dimensions: number[], init: XInitializerExpr | XInitializerArray | null, type: ObjectType, param: any): ResultOrGen<InitIndexPointerVariable<Variable>> {
         if (dimensions.length > 0) {
-            //let val;
             const curDim = dimensions[0];
-            //const arithmeticType = variables.asArithmeticType(type);
             const arrType: PointerType<ObjectType> = (() => {
                 let _arrType = type;
                 for (let i = dimensions.length - 1; i >= 0; i--) {
@@ -1572,8 +1583,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             })();
             const childType = arrType.pointee;
             if (init) {
-                throw new Error("Array initialisation error: not yet implemented");
-                /*if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
+                //throw new Error("Array initialisation error: not yet implemented");
+                if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
+                    const arithmeticType = variables.asArithmeticType(type);
                     // last level, short hand init
                     if (init.Initializers.length === 0) {
                         const arr = new Array(curDim);
@@ -1589,15 +1601,15 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         init.Initializers = arr;
                     } else if ((init.Initializers.length === 1) && arithmeticType !== null && !variables.arithmeticProperties[arithmeticType.sig].isFloat) {
-                        val = this.rt.cast(arithmeticType, (yield* this.visit(this, init.Initializers[0].Expression, param))) as InitArithmeticVariable;
+                        const val = this.rt.cast(arithmeticType, (yield* this.visit(this, init.Initializers[0].Expression, param))) as InitArithmeticVariable;
                         if ((val.v.value === -1) || (val.v.value === 0)) {
-                            const arr = new Array(curDim);
+                            const arr = new Array<XInitializerExpr>(curDim);
                             let i = 0;
                             while (i < curDim) {
                                 arr[i] = {
                                     type: "Initializer_expr",
                                     shorthand: variables.arithmetic(arithmeticType.sig, val.v.value, null)
-                                };
+                                } as XInitializerExpr;
                                 i++;
                             }
                             init.Initializers = arr;
@@ -1611,7 +1623,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 arr[i] = {
                                     type: "Initializer_expr",
                                     shorthand
-                                };
+                                } as XInitializerExpr;
                                 i++;
                             }
                             init.Initializers = arr;
@@ -1655,7 +1667,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         init.Initializers = arr;
                     }
                 } else if (init.type === "Initializer_expr") {
-                    let initializer: Variable;
+                    this.rt.raiseException("Array initialisation error: not yet implemented");
+                    /*let initializer: Variable;
                     if ("shorthand" in init) {
                         initializer = init.shorthand;
                     } else {
@@ -1673,10 +1686,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         };
                     } else {
                         this.rt.raiseException(`cannot initialize an array to (${this.rt.makeValueString(initializer)}) of type '${this.rt.makeTypeStringOfVar(initializer)}'`, param.node);
-                    }
+                    }*/
                 } else {
                     this.rt.raiseException("dimensions do not agree, " + curDim + " != " + init.Initializers.length, param.node);
-                }*/
+                }
             }
             {
                 let memoryObject = variables.arrayMemory(childType, new Array<ObjectValue>());

@@ -19,6 +19,12 @@ export function regOps(rt: CRuntime, opHandlers: OpHandler[]) {
     });
 }
 
+export function regGlobalFuncs(rt: CRuntime, opHandlers: FunHandler[]) {
+    opHandlers.forEach((x) => {
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type));
+    });
+}
+
 export function regMemberFuncs(rt: CRuntime, structName: string, opHandlers: FunHandler[]) {
     const simpleType = rt.simpleType([structName]);
     let structType : ClassType | null;

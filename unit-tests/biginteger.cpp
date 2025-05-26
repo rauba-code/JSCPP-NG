@@ -14,8 +14,14 @@ int main() {
 	for (i = 0; i < len1; i++) {
 		a1[i] = str1[len1 - 1 - i] - '0';
 	}
+	for (i = len1; i < 200; i++) {
+	    a1[i] = 0;
+	}
 	for (i = 0; i < len2; i++) {
 		a2[i] = str2[len2 - 1 - i] - '0';
+	}
+	for (i = len2; i < 200; i++) {
+	    a2[i] = 0;
 	}
 
 	for (i = 0; i < 200; i++) {
@@ -26,7 +32,7 @@ int main() {
 		}
 	}
 
-	for (i = 200; i >= 0; i--) {
+	for (i = 199; i >= 0; i--) {
 		if (a2[i] != 0)
 			break;
 	}
