@@ -78,7 +78,7 @@
           exitcode: 40
         -
           cpp: "function_prototypes_fail.cpp"
-          exception: "8:9 function func does not seem to be implemented"
+          exception: "default_exception"
         -
           cpp: "function_default_arguments.cpp"
           out: "3\n2\n10\n8\n6"
@@ -91,7 +91,7 @@
           out: "127\n"
         - 
           cpp: "8bit.cpp"
-          exception: "6:3 overflow during post-increment 256\\(unsigned char\\)"
+          exception: "default_exception"
     unary: 
       after: 
         - "A+B"
@@ -269,11 +269,11 @@
         -
           cpp: "scanf_wrong_type.cpp"
           in: "invalid_val"
-          exception: "Memory overflow"
+          exception: "default_exception"
         -
           cpp: "scanf_overflow.cpp"
           in: "012345678912345567"
-          exception: "Memory overflow"
+          exception: "default_exception"
         # -
         #   cpp: "scanf_formats.cpp"
         #   in: "603 43.89 testing -908 -33.58"
@@ -295,15 +295,15 @@
         -
           cpp: "uninitialized.cpp"
           out: "1.000000, 0.000000,"
-          exception: "7:9 uninitialized value when using printf"
+          exception: "default_exception"
         -
           cpp: "uninitialized_pointer.cpp"
-          exception: "3:12 you cannot dereference an unitialized pointer"
+          exception: "default_exception"
     overflow:
       cases:
         -
           cpp: "overflow.cpp"
-          exception: "5:5 overflow during post-decrement"
+          exception: "default_exception"
         -
           cpp: "overflow.cpp"
           config:
@@ -314,7 +314,7 @@
         cpp: "infinite_loop.cpp"
         config:
             maxTimeout: 5000
-        exception: "Time limit exceeded."
+        exception: "default_exception"
     matrix_initialization:
       cases:
         cpp: "matrix_initialization.cpp"

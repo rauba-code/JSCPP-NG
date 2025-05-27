@@ -102,8 +102,8 @@ function doSample(code: string, input: string, expected: string | null, except: 
                 exitcode = ExitCode;
             },
             promiseError(e: string) {
-                console.log(`except: ${except}`);
-                console.log(`e: ${e}`);
+                console.log(`except: ${JSON.stringify(except)}`);
+                console.log(`e: ${JSON.stringify(e)}`);
                 if (except) {
                     _it("expected exception", function() {
                         const eStr = prepareOutput(e.toString());

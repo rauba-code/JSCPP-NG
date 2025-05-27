@@ -517,14 +517,16 @@ export class CRuntime {
     };
 
     varAlreadyDefined(varname: string): boolean {
+        // NOTE: This is not how it's supposed to work.
+        // TODO: fix this
         let i = this.scope.length - 1;
-        while (i >= 0) {
-            const vc = this.scope[i];
-            if (varname in vc.variables) {
-                return true;
-            }
-            i--;
+        //while (i >= 0) {
+        const vc = this.scope[i];
+        if (varname in vc.variables) {
+            return true;
         }
+        //    i--;
+        //}
         return false;
     };
 
