@@ -282,50 +282,62 @@ export class CRuntime {
         return this.arrayTypeSignature(result);
     }
 
-    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
-        let f: CFunction | null = null;
-        if (stmts != null) {
-            f = function*(rt: CRuntime, ...args: Variable[]) {
-                // logger.warn("calling function: %j", name);
-                rt.enterScope("function " + name);
-                if (args.length !== argTypes.length) {
-                    rt.raiseException(`Expected ${argTypes.length} arguments, got ${args.length}`)
-                }
-                argNames.forEach(function(argName, i) {
-                    if (argTypes[i].v.lvHolder === null) {
-                        args[i] = variables.clone(args[i], "SELF", false, rt.raiseException);
+    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: interp.MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
+        while (true) {
+            let f: CFunction | null = null;
+            const _optionalArgs = [...optionalArgs]; // cloned array passed to a closure
+            if (stmts != null) {
+                f = function*(rt: CRuntime, ...args: Variable[]) {
+                    // logger.warn("calling function: %j", name);
+                    rt.enterScope("function " + name);
+                    if (args.length + _optionalArgs.length !== argTypes.length) {
+                        rt.raiseException(`Expected ${argTypes.length} arguments, got ${args.length}`)
                     }
-                    if (args[i].v.isConst && !argTypes[i].v.isConst) {
-                        rt.raiseException("Cannot pass a const-value where a volatile value is required")
-                    } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
-                        args[i] = variables.clone(args[i], args[i].v.lvHolder, true, rt.raiseException);
+                    argNames.slice(0, args.length).forEach(function(argName, i) {
+                        if (argTypes[i].v.lvHolder === null) {
+                            args[i] = variables.clone(args[i], "SELF", false, rt.raiseException);
+                        }
+                        if (args[i].v.isConst && !argTypes[i].v.isConst) {
+                            rt.raiseException("Cannot pass a const-value where a volatile value is required")
+                        } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
+                            args[i] = variables.clone(args[i], args[i].v.lvHolder, true, rt.raiseException);
+                        }
+                        rt.defVar(argName, args[i]);
+                    });
+                    for (const optarg of _optionalArgs) {
+                        rt.defVar(optarg.name, variables.clone(optarg.variable, "SELF", false, rt.raiseException));
                     }
-                    rt.defVar(argName, args[i]);
-                });
-                let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
-                if (retType === "VOID") {
-                    if (Array.isArray(ret)) {
-                        if ((ret[0] === "return") && ret[1]) {
-                            rt.raiseException("void function cannot return a value");
+                    let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
+                    if (retType === "VOID") {
+                        if (Array.isArray(ret)) {
+                            if ((ret[0] === "return") && ret[1]) {
+                                rt.raiseException("void function cannot return a value");
+                            }
+                        }
+                        ret = "VOID";
+                    } else {
+                        if (ret instanceof Array && (ret[0] === "return")) {
+                            ret = rt.cast(retType.t, ret[1]);
+                        } else if (name === "main") {
+                            ret = variables.arithmetic("I32", 0, null);
+                        } else {
+                            rt.raiseException("non-void function must return a value");
                         }
                     }
-                    ret = "VOID";
-                } else {
-                    if (ret instanceof Array && (ret[0] === "return")) {
-                        ret = rt.cast(retType.t, ret[1]);
-                    } else if (name === "main") {
-                        ret = variables.arithmetic("I32", 0, null);
-                    } else {
-                        rt.raiseException("non-void function must return a value");
-                    }
-                }
-                rt.exitScope("function " + name);
-                // logger.warn("function: returning %j", ret);
-                return ret;
-            };
+                    rt.exitScope("function " + name);
+                    // logger.warn("function: returning %j", ret);
+                    return ret;
+                };
+            }
+            const fnsig = this.createFunctionTypeSignature(domain, retType, argTypes);
+            this.regFunc(f, domain, name, fnsig);
+            if (optionalArgs.length === 0) {
+                return;
+            }
+            argTypes.push(optionalArgs[0].variable);
+            argNames.push(optionalArgs[0].name);
+            optionalArgs = optionalArgs.slice(1);
         }
-        const fnsig = this.createFunctionTypeSignature(domain, retType, argTypes);
-        this.regFunc(f, domain, name, fnsig);
     };
 
     /** Convenience function for static type checking of operators */

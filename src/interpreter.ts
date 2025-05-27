@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen } from "./variables";
+import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -193,6 +193,12 @@ type DeclaratorYield = { name: string, type: MaybeLeft<ObjectType> };
 
 type InterpStatement = any;
 
+type ParameterTypeListResult = {
+    argTypes: MaybeLeftCV<ObjectType>[],
+    argNames: string[],
+    optionalArgs: MemberObject[],
+}
+
 export interface MemberObject {
     name: string,
     variable: Variable
@@ -310,49 +316,45 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 param.basetype = _basetype;
             },
-            *ParameterTypeList(interp, s: XParameterTypeList, param) {
-                const argTypes = [];
-                const argNames = [];
-                const readonlyArgs: boolean[] = [];
-                const optionalArgs = [];
+            *ParameterTypeList(interp, s: XParameterTypeList, param): Gen<ParameterTypeListResult> {
+                const argTypes: MaybeLeftCV<ObjectType>[] = [];
+                const argNames: string[] = [];
+                const optionalArgs: MemberObject[] = [];
 
-                let i = 0;
-                while (i < s.ParameterList.length) {
-                    const _param = s.ParameterList[i];
-
-                    let _type: MaybeLeft<ObjectType>;
-                    let _init = null;
-                    let _name = null;
-                    let _readonly = false;
+                for (const _param of s.ParameterList) {
+                    let _type: MaybeLeftCV<ObjectType>;
+                    let _init: XInitializerArray | XInitializerExpr | null = null;
+                    let _name: string | null = null;
+                    let isConst = false;
                     if (param.insideDirectDeclarator_modifier_ParameterTypeList) {
                         const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                         if (_basetype === "VOID") {
                             rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }
-                        _type = _basetype;
+                        _type = { t: _basetype.t, v: { isConst: false, ..._basetype.v } } ;
                     } else {
                         if (_param.Declarator == null) {
                             rt.raiseException("Parameter type list error: missing declarator for argument", _param);
                         }
                         _init = _param.Declarator.Initializers;
 
-                        const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: any) => specifier?.DeclarationSpecifiers || specifier);
+                        const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: string | { DeclarationSpecifiers: string[] }) => (typeof specifier === "string") ? specifier : specifier.DeclarationSpecifiers);
                         const _basetype = rt.simpleType(_declarationSpecifiers);
                         if (_basetype === "VOID") {
                             rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }
                         const _reference = _param.Declarator.Declarator.Reference;
-                        _readonly = _declarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
+                        isConst = _declarationSpecifiers.some((specifier) => ["const", "static"].includes(specifier));
 
                         if (_reference) {
-                            _type = { t: _basetype.t, v: { lvHolder: "SELF" } };
+                            _type = { t: _basetype.t, v: { isConst, lvHolder: "SELF" } };
                         } else {
                             const _pointer = _param.Declarator.Declarator.Pointer;
                             const __type = interp.buildRecursivePointerType(rt, _pointer, _basetype, 0);
                             if (__type === "VOID") {
                                 rt.raiseException("Parameter type list error: Type error or not yet implemented");
                             }
-                            _type = __type;
+                            _type = { t: __type.t, v: { isConst, ...__type.v } };
                         }
 
                         if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
@@ -363,12 +365,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             _name = name;
                         } else {
                             if (_param.Declarator.Declarator.left.type !== "Identifier") {
-                                rt.raiseException("Parameter type list error: Not yet implemented");
+                                rt.raiseException("Parameter type list error: Type error or not yet implemented");
                             }
                             _name = _param.Declarator.Declarator.left.Identifier;
                         }
                         if (!(_param.Declarator.Declarator.right instanceof Array)) {
-                            rt.raiseException("Parameter type list error: not yet implemented");
+                            rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }
                         if (_param.Declarator.Declarator.right.length > 0) {
                             if (_param.Declarator.Declarator.right[0].type === "DirectDeclarator_modifier_ParameterTypeList") {
@@ -376,43 +378,46 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
                                 const { argTypes: _argTypes, argNames: _argNames, optionalArgs: _optionalArgs } = yield* interp.visit(interp, dim.ParameterTypeList, param);
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
-                                rt.raiseException("Parameter type list error: not yet implemented");
+                                rt.raiseException("Parameter type list error: Not yet implemented");
                                 //_type = variables.pointerType(variables.functionType(_type, _argTypes));
                             } else {
                                 for (let j = _param.Declarator.Declarator.right.length - 1; j >= 0; j--) {
                                     const dimObj = _param.Declarator.Declarator.right[j];
                                     if (dimObj.type !== "DirectDeclarator_modifier_array") {
-                                        rt.raiseException("Parameter type list error: unacceptable array initialization", dimObj);
+                                        rt.raiseException("Parameter type list error: Unacceptable array initialization", dimObj);
                                     }
                                     if (dimObj.Expression !== null) {
                                         const sizeConstraint = rt.arithmeticValue(rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticVariable);
-                                        _type = { t: variables.pointerType(_type.t, sizeConstraint), v: { lvHolder: _type.v.lvHolder } };
+                                        _type = { t: variables.pointerType(_type.t, sizeConstraint), v: { isConst, lvHolder: _type.v.lvHolder } };
                                     } else if (j > 0) {
-                                        rt.raiseException("Parameter type list error: multidimensional array must have bounds for all dimensions except the first", dimObj);
+                                        rt.raiseException("Parameter type list error: Multidimensional array must have bounds for all dimensions except the first", dimObj);
                                     } else {
-                                        _type = { t: variables.pointerType(_type.t, null), v: { lvHolder: _type.v.lvHolder } };
+                                        _type = { t: variables.pointerType(_type.t, null), v: { isConst, lvHolder: _type.v.lvHolder } };
                                     }
                                 }
                             }
                         }
                     }
-                    /*if (_init !== null) {
+                    const name = _name ?? rt.raiseException("Parameter type list error: expected a name");
+                    if (_init !== null) {
+                        if (_init.type !== "Initializer_expr") {
+                            rt.raiseException("Parameter type list error: Type error or not yet implemented");
+                        }
+                        const initvarYield = interp.visit(interp, _init.Expression) as Gen<Variable>;
+                        const initvar = asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>));
                         optionalArgs.push({
-                            type: _type,
-                            name: _name,
-                            expression: _init.Expression
+                            name,
+                            variable: variables.clone(initvar, "SELF", false, rt.raiseException)
                         });
-                    } else */ {
+                    } else {
                         if (optionalArgs.length > 0) {
-                            rt.raiseException("Parameter type list error: all default arguments must be at the end of arguments list", _param);
+                            rt.raiseException("Parameter type list error: All default arguments must be at the end of arguments list", _param);
                         }
                         argTypes.push(_type);
-                        argNames.push(_name);
-                        readonlyArgs.push(_readonly);
+                        argNames.push(name);
                     }
-                    i++;
-                }
-                return { argTypes, argNames, readonlyArgs };
+                };
+                return { argTypes, argNames, optionalArgs };
             },
             *FunctionDefinition(interp, s: XFunctionDefinition, param) {
                 ({
@@ -429,7 +434,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 let basetype = rt.simpleType(s.DeclarationSpecifiers);
                 const pointer = s.Declarator.Pointer;
                 basetype = interp.buildRecursivePointerType(rt, pointer, basetype, 0);
-                let ptl: any;
+                let ptl: XParameterTypeList | { ParameterList: [] };
                 let varargs;
                 if (s.Declarator.right instanceof Array) {
                     rt.raiseException("Function definition error: unacceptable argument list", s.Declarator.right);
@@ -445,9 +450,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     rt.raiseException("Function definition error: unacceptable argument list", s.Declarator.right);
                 }
-                const { argTypes, argNames } = yield* interp.visit(interp, ptl, param);
+                const { argTypes, argNames, optionalArgs } : ParameterTypeListResult = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
-                rt.defFunc(typedScope, name, basetype, argTypes, argNames, stat, interp);
+                rt.defFunc(typedScope, name, basetype, argTypes, argNames, optionalArgs, stat, interp);
             },
             *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType>, node?: XInitializerExpr | XInitializerArray | null }): ResultOrGen<void> {
                 const { rt } = interp;
@@ -466,7 +471,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     const decType: MaybeLeft<ObjectType> = (dec.Declarator.Pointer instanceof Array) ? variables.uninitPointer(basetype.t, null, "SELF") : basetype;
                     const { name, type } = visitResult;
-                    const initSpec = dec.Initializers;
+                    let initSpec = dec.Initializers;
 
                     if (!(dec.Declarator.right instanceof Array)) {
                         rt.raiseException("Declaration error: Not yet implemented");
@@ -486,27 +491,29 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     dimensions.push(rt.arithmeticValue(asResult(castYield) ?? (yield* (castYield as Gen<InitArithmeticVariable>))));
                                 } else if (j > 0) {
                                     rt.raiseException("Declaration error: multidimensional array must have bounds for all dimensions except the first", dim);
-                                } else {
-                                    rt.raiseException("Declaration error: not yet implemented");
-                                    /*if (init.type === "Initializer_expr") {
-                                        const initializer: Variable = yield* interp.visit(interp, init, param);
-                                        if basetype is char and initializer.t is char*
-                                        if (variables.asArithmeticType(basetype)?.sig === "I8" && variables.typesEqual(initializer.t, variables.staticArrayType(variables.initializer.t)) rt.isArrayType(initializer) && rt.isCharType(initializer.t.eleType)) {
+                                } else if (initSpec !== null) {
+                                    if (initSpec.type === "Initializer_expr") {
+                                        const initializer: Variable = yield* interp.visit(interp, initSpec, param);
+                                        // if basetype is char and initializer.t is char*
+                                        const initializerAsIndexPtr = variables.asInitIndexPointerOfElem(initializer, variables.uninitArithmetic("I8", null))
+                                        if (basetype.t.sig === "I8" && initializerAsIndexPtr !== null) {
                                             // string init
-                                            dim = initializer.v.target.length;
-                                            init = {
+                                            dimensions.push(initializerAsIndexPtr.v.pointee.values.length);
+                                            initSpec = {
                                                 type: "Initializer_array",
-                                                Initializers: initializer.v.target.map(e => ({
+                                                Initializers: initializerAsIndexPtr.v.pointee.values.map(e => ((e.state === "INIT") ? {
                                                     type: "Initializer_expr",
-                                                    shorthand: e
-                                                }))
-                                            };
+                                                    shorthand: variables.arithmetic("I8", e.value, null)
+                                                } as XInitializerExpr : rt.raiseException("Declaration error: expected expression")))
+                                            } as XInitializerArray;
                                         } else {
-                                            rt.raiseException("Declaration error: cannot initialize an array to " + rt.makeValString(initializer), init);
+                                            rt.raiseException("Declaration error: cannot initialize an array to " + rt.makeValueString(initializer), initSpec);
                                         }
                                     } else {
-                                        dim = init.Initializers.length;
-                                    }*/
+                                        dimensions.push(initSpec.Initializers.length);
+                                    }
+                                } else {
+                                    rt.raiseException("Declaration error: expected expression");
                                 }
                             }
 
@@ -601,7 +608,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const _simpleTypeYield = rt.simpleType(structMember.MemberType);
                             param.basetype = _simpleTypeYield;
                             const { name, type } = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
-                            
 
                             const initvarYield = (init == null) ? rt.defaultValue(type.t, "SELF") : interp.visit(interp, init.Expression) as Gen<Variable>;
                             const initvar = asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>));
@@ -1583,7 +1589,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             })();
             const childType = arrType.pointee;
             if (init) {
-                //throw new Error("Array initialisation error: not yet implemented");
                 if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
                     const arithmeticType = variables.asArithmeticType(type);
                     // last level, short hand init
