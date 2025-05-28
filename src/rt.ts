@@ -700,11 +700,11 @@ export class CRuntime {
             }
             return;
         }
-        let q: number = x.v.value % (info.maxv + 1 - info.minv);
+        let q: number = (x.v.value - info.minv) % (info.maxv + 1 - info.minv);
         if (q < 0) {
             q += info.maxv + 1 - info.minv;
         }
-        x.v.value = q;
+        x.v.value = q + info.minv;
     }
 
     makeValueString(v: Variable | Function, options: MakeValueStringOptions = {}): string {

@@ -105,7 +105,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
                         case ios_base.iomanip_token_mode.hexfloat:
                             rt.raiseException("Not yet implemented: hexfloat")
                         case ios_base.iomanip_token_mode.defaultfloat:
-                            return num.toString();
+                            return prec >= 0 ? num.toFixed(prec - 1).replace(/0+$/, "").replace(/\.$/, "") : num.toString();
                         default:
                             rt.raiseException("Invalid float_display_mode value")
                     }

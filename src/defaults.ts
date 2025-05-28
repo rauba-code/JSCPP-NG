@@ -20,7 +20,8 @@ function binaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVa
 }
 
 function unaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, op: (a: number) => number): InitArithmeticVariable {
-    const ret = variables.arithmetic(l.t.sig, op(rt.arithmeticValue(l)), null);
+    const arithmeticProperties = variables.arithmeticProperties[l.t.sig];
+    const ret = variables.arithmetic(arithmeticProperties.asSigned, op(rt.arithmeticValue(l)), null);
     rt.adjustArithmeticValue(ret);
     return ret;
 }
@@ -121,6 +122,13 @@ const defaultOpHandler: OpHandler[] = [
         type: "FUNCTION Arithmetic ( Arithmetic )",
         default(rt, l: ArithmeticVariable): InitArithmeticVariable {
             return unaryArithmeticOp(rt, l, (x) => -x);
+        }
+    },
+    {
+        op: "o(+_)",
+        type: "FUNCTION Arithmetic ( Arithmetic )",
+        default(rt, l: ArithmeticVariable): InitArithmeticVariable {
+            return unaryArithmeticOp(rt, l, (x) => x);
         }
     },
     {
