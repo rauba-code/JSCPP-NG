@@ -160,8 +160,8 @@ export interface XStructMember extends StatementMeta {
 export interface XBinOpExpression extends StatementMeta {
     type: "BinOpExpression" | "LogicalANDExpression" | "LogicalORExpression",
     op: string,
-    left: XPostfixExpression_ArrayAccess,
-    right: XConstantExpression,
+    left: XIdentifierExpression | XPostfixExpression_ArrayAccess,
+    right: XConstantExpression | XPostfixExpression_ArrayAccess,
 }
 export interface XStringLiteral extends StatementMeta {
     type: "StringLiteral",
@@ -407,7 +407,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const initvar = asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>));
                         optionalArgs.push({
                             name,
-                            variable: variables.clone(initvar, "SELF", false, rt.raiseException)
+                            variable: variables.clone(initvar, null, false, rt.raiseException)
                         });
                     } else {
                         if (optionalArgs.length > 0) {
@@ -1589,6 +1589,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             })();
             const childType = arrType.pointee;
             if (init) {
+                debugger;
                 if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
                     const arithmeticType = variables.asArithmeticType(type);
                     // last level, short hand init
@@ -1701,11 +1702,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 let i = 0;
                 while (i < curDim) {
                     let top: Variable;
-                    //if (init && i < init.Initializers.length) {
-                    //    top = yield* this.arrayInit(dimensions.slice(1), init.Initializers[i], type, param);
-                    //} else {
-                    top = yield* this.arrayInit(dimensions.slice(1), null, type, param);
-                    //}
+                    top = yield* this.arrayInit(dimensions.slice(1), init?.Initializers[i] ?? null, type, param);
                     if (!variables.typesEqual(childType, top.t)) {
                         this.rt.raiseException("Array initialisation error: Invalid array element type");
                     }
@@ -1721,12 +1718,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             }
             let initval: Variable;
             if (init) {
-                this.rt.raiseException("Array initialisation error: not yet implemented");
-                /*if ("shorthand" in init) {
-                    initval = init.shorthand as Variable;
-                } else {
-                    initval = (yield* this.visit(this, init.Expression, param)) as Variable;
-                }*/
+                initval = (init.shorthand !== undefined) ? init.shorthand : (yield* this.visit(this, init.Expression, param)) as Variable;
             } else {
                 const defaultValueYield = this.rt.defaultValue(type, null);
                 initval = asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>));
