@@ -210,10 +210,13 @@ export class CRuntime {
         }
     };
 
-    getSizeByType(t: ObjectType): number {
+    getSizeByType(t: AnyType): number {
         let at: ArithmeticType | null;
         let pt: PointerType<ObjectType | FunctionType> | null;
         if ((pt = variables.asPointerType(t)) !== null) {
+            if (pt.sizeConstraint !== null) {
+                return this.getSizeByType(pt.pointee) * pt.sizeConstraint;
+            }
             this.raiseException("Not yet implemented");
         } else if ((at = variables.asArithmeticType(t)) !== null) {
             return variables.arithmeticProperties[at.sig].bytes;

@@ -25,18 +25,21 @@ export = {
         }
         function commonUnaryOverloads(name: string, fn: (l: number) => number): common.FunHandler[] {
             return Object.entries(variables.arithmeticProperties)
-                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} )`, op: name, default: commonUnary(fn, v.isFloat ? k as ArithmeticSig : "F64")}));
+                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} )`, op: name, default: commonUnary(fn, v.isFloat ? k as ArithmeticSig : "F64") }));
         }
         function commonBinaryOverloads(name: string, fn: (l: number, r: number) => number): common.FunHandler[] {
             return Object.entries(variables.arithmeticProperties)
-                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} ${k} )`, op: name, default: commonBinary(fn, v.isFloat ? k as ArithmeticSig : "F64")}));
+                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} ${k} )`, op: name, default: commonBinary(fn, v.isFloat ? k as ArithmeticSig : "F64") }));
         }
         common.regGlobalFuncs(rt, [
-            [ { type: "!Arithmetic FUNCTION ?0 ( ?0 )", op: "abs", default: commonUnary(Math.abs, null)} ],
+            [
+                { type: "FUNCTION F32 ( F32 )", op: "abs", default: commonUnary(Math.abs, null) },
+                { type: "FUNCTION F64 ( F64 )", op: "abs", default: commonUnary(Math.abs, null) },
+            ],
             commonUnaryOverloads("fabs", Math.abs),
             commonBinaryOverloads("fmod", (l, r) => l % r),
             commonUnaryOverloads("exp", Math.exp),
-            commonUnaryOverloads("exp2", (l) => Math.exp(l*Math.LN2)),
+            commonUnaryOverloads("exp2", (l) => Math.exp(l * Math.LN2)),
             commonUnaryOverloads("expm1", Math.expm1),
             commonUnaryOverloads("log", Math.log),
             commonUnaryOverloads("log10", Math.log10),
