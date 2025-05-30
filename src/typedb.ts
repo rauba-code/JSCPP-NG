@@ -141,22 +141,31 @@ export class TypeDB {
         if (targetInline in fnobj.cache) {
             return fnobj.cache[targetInline];
         }
-        let retv: FunctionMatchResult | null = null;
-        let reti = -1;
+        let bestCandidate: FunctionMatchResult | null = null;
+        let candidateIndices: number[] = [];
         for (let i = 0; i < fnobj.overloads.length; i++) {
             let match = this.matchFunction(target, fnobj.overloads[i].type);
             if (match !== null) {
-                if (retv !== null) {
-                    onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n1) ${fnobj.overloads[i].type.join(" ")} \n2) ${fnobj.overloads[i].type.join(" ")}`);
-                    return null;
+                if (bestCandidate !== null) {
+                    if (bestCandidate.castActions.length > match.castActions.length) {
+                        candidateIndices = [ i ];
+                        bestCandidate = match as FunctionMatchResult;
+                        bestCandidate.fnid = fnobj.overloads[i].fnid;
+                    } else if (bestCandidate.castActions.length === match.castActions.length) {
+                        candidateIndices.push(i);
+                    }
+                } else {
+                    bestCandidate = match as FunctionMatchResult;
+                    bestCandidate.fnid = fnobj.overloads[i].fnid;
                 }
-                retv = match as FunctionMatchResult;
-                retv.fnid = fnobj.overloads[i].fnid;
-                reti = i;
             }
         }
-        fnobj.cache[targetInline] = retv;
-        return retv;
+        if (candidateIndices.length > 1) {
+            onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n${candidateIndices.map((iv, ii) => (ii + 1).toString() + ") " + fnobj.overloads[iv].type.join(" ")).join("\n")}`);
+            return null;
+        }
+        fnobj.cache[targetInline] = bestCandidate;
+        return bestCandidate;
     };
 
     parse(type: string | string[]): boolean {
