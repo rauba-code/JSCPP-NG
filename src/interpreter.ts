@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV } from "./variables";
+import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV, AnyType, PointerVariable, PointerValue, PointeeVariable, ArithmeticValue } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -91,7 +91,7 @@ export interface XInitDeclarator extends StatementMeta {
 export interface XParameterDeclaration extends StatementMeta {
     type: "ParameterDeclaration"
     DeclarationSpecifiers: string[],
-    Declarator: XInitDeclarator,
+    Declarator: XInitDeclarator | XAbstractDeclarator | null,
 }
 export interface XParameterTypeList extends StatementMeta {
     type: "ParameterTypeList",
@@ -124,6 +124,11 @@ export interface XDeclaration extends StatementMeta {
     type: "Declaration",
     DeclarationSpecifiers: string[],
     InitDeclaratorList: XInitDeclarator[],
+}
+export interface XTypedefDeclaration extends StatementMeta {
+    type: "Declaration",
+    DeclarationSpecifiers: string[],
+    Declarators: XDirectDeclarator[],
 }
 export interface XDecimalConstant extends StatementMeta {
     type: "DecimalConstant",
@@ -186,6 +191,10 @@ export interface XCastExpression extends StatementMeta {
     TypeName: XTypeName,
     Expression: XIdentifierExpression | PostfixExpression
 }
+export interface XUnaryExpression_Sizeof_Type extends StatementMeta {
+    type: "UnaryExpression_Sizeof_Type",
+    TypeName: XTypeName,
+}
 export interface XUnknown {
     type: "<stub>"
 }
@@ -204,6 +213,11 @@ export interface MemberObject {
     variable: Variable
 }
 
+type DirectDeclaratorResult = {
+    type: MaybeLeft<ObjectType>,
+    name: string
+}
+
 export class Interpreter extends BaseInterpreter<InterpStatement> {
     visitors: { [name: string]: (interp: Interpreter, s: InterpStatement, param?: any) => any };
     constructor(rt: CRuntime) {
@@ -218,7 +232,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     i++;
                 }
             },
-            *DirectDeclarator(interp, s: XDirectDeclarator, param: { basetype: MaybeLeft<ObjectType> }) {
+            *DirectDeclarator(interp, s: XDirectDeclarator, param: { basetype: MaybeLeft<ObjectType> }): Gen<DirectDeclaratorResult> {
                 ({ rt } = interp);
                 let { basetype } = param;
                 basetype = interp.buildRecursivePointerType(rt, s.Pointer, basetype, 0) as MaybeLeft<ObjectType>;
@@ -238,15 +252,20 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         //varargs = false;
                     }
                     if (ptl != null) {
-                        const argTypes: (MaybeLeft<ObjectType> | "VOID")[] = [];
+                        const argTypes: (MaybeLeftCV<ObjectType>)[] = [];
                         for (const _param of ptl.ParameterList) {
                             const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                             let _type: MaybeLeft<ObjectType> | "VOID";
                             if (_param.Declarator != null) {
-                                this.rt.raiseException("Direct declarator error: Not yet implemented");
-                                /*const _pointer = _param.Declarator.Pointer;
+                                if (_param.Declarator.type === "InitDeclarator" && "Pointer" in _param.Declarator) {
+                                    rt.raiseException("Direct declarator error: Not yet implemented");
+                                }
+                                const _pointer = (_param.Declarator.type === "AbstractDeclarator") ? _param.Declarator.Pointer : null;
                                 _type = interp.buildRecursivePointerType(rt, _pointer, _basetype, 0);
-                                if ((_param.Declarator.right != null) && (_param.Declarator.right.length > 0)) {
+                                if ("right" in _param.Declarator) {
+                                    rt.raiseException("Direct declarator error: Not yet implemented");
+                                }
+                                /*if ((_param.Declarator.right != null) && (_param.Declarator.right.length > 0)) {
                                     const dimensions = [];
                                     for (let j = 0; j < _param.Declarator.right.length; j++) {
                                         let dim = _param.Declarator.right[j];
@@ -267,10 +286,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             } else {
                                 _type = _basetype;
                             }
-                            rt.raiseException("Direct declarator error: not yet implemented");
-                            //argTypes.push(_type);
+                            if (_type === "VOID") {
+                                rt.raiseException("Direct declarator error: function arguments cannot have void type");
+                            }
+                            argTypes.push({ t: _type.t, v: { isConst: false, ..._type.v } });
                         }
-                        //basetype = variables.functionType(basetype, argTypes);
+                        basetype = { t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", basetype, argTypes).array), null), v: { lvHolder: null } };
                     }
                 }
                 if ((s.right.length > 0) && (s.right[0].type === "DirectDeclarator_modifier_array")) {
@@ -291,6 +312,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         dimensions.push(dim);
                     }
+                    let top: number | undefined;
+                    while ((top = dimensions.pop()) !== undefined) {
+                        basetype = { t: variables.pointerType(basetype.t, (top !== -1) ? top : null), v: basetype.v };
+                    }
                 }
 
                 if (s.left.type === "Identifier") {
@@ -298,12 +323,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     const _basetype = param.basetype;
                     param.basetype = basetype;
-                    const ret = yield* interp.visit(interp, s.left, param);
+                    const ret = (yield* interp.visit(interp, s.left, param)) as DirectDeclaratorResult;
                     param.basetype = _basetype;
                     return ret;
                 }
             },
-            *TypedefDeclaration(interp, s, param) {
+            *TypedefDeclaration(interp, s: XTypedefDeclaration, param): Gen<void> {
                 ({
                     rt
                 } = interp);
@@ -311,7 +336,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const _basetype = param.basetype;
                 param.basetype = basetype;
                 for (const declarator of s.Declarators) {
-                    const { type, name } = yield* interp.visit(interp, declarator, param);
+                    const { type, name } = (yield* interp.visit(interp, declarator, param)) as DirectDeclaratorResult;
                     rt.registerTypedef(type, name);
                 }
                 param.basetype = _basetype;
@@ -331,10 +356,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         if (_basetype === "VOID") {
                             rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }
-                        _type = { t: _basetype.t, v: { isConst: false, ..._basetype.v } } ;
+                        _type = { t: _basetype.t, v: { isConst: false, ..._basetype.v } };
                     } else {
                         if (_param.Declarator == null) {
                             rt.raiseException("Parameter type list error: missing declarator for argument", _param);
+                        }
+                        if (_param.Declarator.type === "AbstractDeclarator") {
+                            rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }
                         _init = _param.Declarator.Initializers;
 
@@ -450,7 +478,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     rt.raiseException("Function definition error: unacceptable argument list", s.Declarator.right);
                 }
-                const { argTypes, argNames, optionalArgs } : ParameterTypeListResult = yield* interp.visit(interp, ptl, param);
+                const { argTypes, argNames, optionalArgs }: ParameterTypeListResult = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
                 rt.defFunc(typedScope, name, basetype, argTypes, argNames, optionalArgs, stat, interp);
             },
@@ -477,73 +505,62 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         rt.raiseException("Declaration error: Not yet implemented");
                     }
                     const rhs = dec.Declarator.right as DirectDeclaratorModifier[];
-                    if (rhs.length > 0) {
-                        if (rhs[0].type === "DirectDeclarator_modifier_array") {
-                            const dimensions: Array<number> = [];
-                            for (let j = 0; j < rhs.length; j++) {
-                                const _dim = rhs[j];
-                                if (_dim.type !== "DirectDeclarator_modifier_array") {
-                                    rt.raiseException("Declaration error: Type error or not yet implemented");
-                                }
-                                const dim = _dim as XDirectDeclarator_modifier_Array;
-                                if (dim.Expression !== null) {
-                                    const castYield = rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ResultOrGen<InitArithmeticVariable>;
-                                    dimensions.push(rt.arithmeticValue(asResult(castYield) ?? (yield* (castYield as Gen<InitArithmeticVariable>))));
-                                } else if (j > 0) {
-                                    rt.raiseException("Declaration error: multidimensional array must have bounds for all dimensions except the first", dim);
-                                } else if (initSpec !== null) {
-                                    if (initSpec.type === "Initializer_expr") {
-                                        const initializer: Variable = yield* interp.visit(interp, initSpec, param);
-                                        // if basetype is char and initializer.t is char*
-                                        const initializerAsIndexPtr = variables.asInitIndexPointerOfElem(initializer, variables.uninitArithmetic("I8", null))
-                                        if (basetype.t.sig === "I8" && initializerAsIndexPtr !== null) {
-                                            // string init
-                                            dimensions.push(initializerAsIndexPtr.v.pointee.values.length);
-                                            initSpec = {
-                                                type: "Initializer_array",
-                                                Initializers: initializerAsIndexPtr.v.pointee.values.map(e => ((e.state === "INIT") ? {
-                                                    type: "Initializer_expr",
-                                                    shorthand: variables.arithmetic("I8", e.value, null)
-                                                } as XInitializerExpr : rt.raiseException("Declaration error: expected expression")))
-                                            } as XInitializerArray;
-                                        } else {
-                                            rt.raiseException("Declaration error: cannot initialize an array to " + rt.makeValueString(initializer), initSpec);
-                                        }
-                                    } else {
-                                        dimensions.push(initSpec.Initializers.length);
-                                    }
+                    const ptrType: PointerType<ObjectType | FunctionType> | null = variables.asPointerType(type.t);
+                    if (ptrType !== null) {
+                        if (initSpec !== null) {
+                            if (initSpec.type === "Initializer_expr") {
+                                rt.raiseException("Declaration error: not yet implemented");
+                                /*const initializer: Variable = yield* interp.visit(interp, initSpec, param);
+                                // if basetype is char and initializer.t is char*
+                                const initializerAsIndexPtr = variables.asInitIndexPointerOfElem(initializer, variables.uninitArithmetic("I8", null))
+                                if (basetype.t.sig === "I8" && initializerAsIndexPtr !== null) {
+                                    // string init
+                                    initSpec = {
+                                        type: "Initializer_array",
+                                        Initializers: initializerAsIndexPtr.v.pointee.values.map(e => ((e.state === "INIT") ? {
+                                            type: "Initializer_expr",
+                                            shorthand: variables.arithmetic("I8", e.value, null)
+                                        } as XInitializerExpr : rt.raiseException("Declaration error: expected expression")))
+                                    } as XInitializerArray;
                                 } else {
-                                    rt.raiseException("Declaration error: expected expression");
+                                    rt.raiseException("Declaration error: cannot initialize an array to " + rt.makeValueString(initializer), initSpec);
+                                }*/
+                            }
+                        }
+
+                        param.node = initSpec;
+                        let ptrBaseType = ptrType.pointee;
+                        while (ptrBaseType.sig === "PTR") {
+                            ptrBaseType = ptrBaseType.pointee;
+                        }
+                        if (ptrBaseType.sig === "FUNCTION") {
+                            rt.raiseException("Declaration error: not yet implemented");
+                        }
+                        const arrayYield = interp.arrayInit2(rt, ptrType as PointerType<ObjectType>, initSpec);
+                        const arrayInit = asResult(arrayYield) ?? (yield* arrayYield as Gen<InitIndexPointerVariable<Variable>>);
+                        delete param.node;
+
+                        rt.defVar(name, arrayInit);
+                    } else if (rhs.length > 0 && rhs[0].type as string === "DirectDeclarator_modifier_Constructor") {
+                        const constructorArgs = [];
+                        for (const dim of rhs) {
+                            if ((dim as any).Expressions !== null) {
+                                for (const argumentExpression of (dim as any).Expressions) {
+                                    const resolvedArgument = yield* interp.visit(interp, argumentExpression, param);
+                                    constructorArgs.push(resolvedArgument);
                                 }
                             }
+                        }
+                        const _classType = variables.asClassType(type.t);
+                        const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
 
-                            param.node = initSpec;
-                            const arrayYield = interp.arrayInit(dimensions, initSpec, basetype.t, param);
-                            const arrayInit = asResult(arrayYield) ?? (yield* arrayYield as Gen<InitIndexPointerVariable<Variable>>);
-                            delete param.node;
-
-                            rt.defVar(name, arrayInit);
-                        } else if (rhs[0].type as string === "DirectDeclarator_modifier_Constructor") {
-                            const constructorArgs = [];
-                            for (const dim of rhs) {
-                                if ((dim as any).Expressions !== null) {
-                                    for (const argumentExpression of (dim as any).Expressions) {
-                                        const resolvedArgument = yield* interp.visit(interp, argumentExpression, param);
-                                        constructorArgs.push(resolvedArgument);
-                                    }
-                                }
-                            }
-                            const _classType = variables.asClassType(type.t);
-                            const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
-
-                            //const initClass = variables.class(classType, {}, "SELF");
-                            const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs), ...constructorArgs);
-                            const xinitOrVoid = asResult(xinitYield) ?? (yield* (xinitYield as Gen<MaybeUnboundVariable | "VOID">))
-                            if (xinitOrVoid === "VOID") {
-                                rt.raiseException("Declaration error: Expected a non-void value");
-                            } else {
-                                rt.defVar(name, rt.unbound(xinitOrVoid));
-                            }
+                        //const initClass = variables.class(classType, {}, "SELF");
+                        const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs), ...constructorArgs);
+                        const xinitOrVoid = asResult(xinitYield) ?? (yield* (xinitYield as Gen<MaybeUnboundVariable | "VOID">))
+                        if (xinitOrVoid === "VOID") {
+                            rt.raiseException("Declaration error: Expected a non-void value");
+                        } else {
+                            rt.defVar(name, rt.unbound(xinitOrVoid));
                         }
                     } else {
                         if (initSpec !== null && initSpec.type === "Initializer_array") {
@@ -998,12 +1015,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                const _ret = (yield* interp.visit(interp, s.Expression, param)) as Variable | Function;
-                if (variables.asFunction(_ret) !== null) {
-                    rt.raiseException("Array access statement error: Type error or not yet implemented");
+                debugger;
+                const _ret = (yield* interp.visit(interp, s.Expression, param)) as PointerVariable<Variable | Function>;
+                if (variables.asFunctionType(_ret.t.pointee) !== null) {
+                    rt.raiseException("Array access statement error: Function pointer is not an array");
                 }
-                const ret = _ret as Variable;
-                const index = variables.asArithmetic(yield* interp.visit(interp, s.index, param)) ?? rt.raiseException("Array access statement error: Type error or not yet implemented");
+                const ret = _ret as PointerVariable<Variable>;
+                const index = variables.asArithmetic(yield* interp.visit(interp, s.index, param)) ?? rt.raiseException("Array access statement error: Expected an arithmetic value");
 
                 param.structType = ret.t;
                 const funsym = rt.getOpByParams("{global}", "o(_[_])", [ret, index]);
@@ -1179,12 +1197,15 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const ret = yield* interp.visit(interp, s.Expression, param);
                 return variables.arithmetic("I32", rt.getSizeByType(ret.t), null);
             },
-            *UnaryExpression_Sizeof_Type(interp, s, param) {
+            *UnaryExpression_Sizeof_Type(interp, s: XUnaryExpression_Sizeof_Type, param) {
                 ({
                     rt
                 } = interp);
-                const type = yield* interp.visit(interp, s.TypeName, param);
-                return variables.arithmetic("I32", rt.getSizeByType(type), null);
+                const type = (yield* interp.visit(interp, s.TypeName, param)) as MaybeLeft<ObjectType> | "VOID";
+                if (type === "VOID") {
+                    rt.raiseException("Sizeof statement error: Cannot apply sizeof to void");
+                }
+                return variables.arithmetic("I32", rt.getSizeByType(type.t), null);
             },
             *CastExpression(interp, s: XCastExpression, param) {
                 ({
@@ -1540,7 +1561,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             this.currentNode = _node;
         } else {
             this.currentNode = s;
-            this.rt.raiseException("untyped syntax structure");
+            interp.rt.raiseException("untyped syntax structure");
         }
         return ret;
     };
@@ -1575,6 +1596,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             includes[lib].load(this.rt);
         }
     };
+    *arrayInit2(rt: CRuntime, type: PointerType<ObjectType>, init: XInitializerExpr | XInitializerArray | null): ResultOrGen<InitIndexPointerVariable<Variable>> {
+        debugger;
+        function *arrayInitInner(type: PointerType<ObjectType>, _init: XInitializerExpr | XInitializerArray | null): ResultOrGen<PointerValue<PointeeVariable>> {
+            const arithmeticPointeeType = variables.asArithmeticType(type.pointee);
+            if (type.sizeConstraint === null) {
+                rt.raiseException("arrayInit2: not yet implemented");
+            }
+            if (arithmeticPointeeType !== null) {
+                let memoryObject = variables.arrayMemory<ArithmeticVariable>(arithmeticPointeeType, []);
+                for (let i = 0; i < type.sizeConstraint; i++) {
+                    const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: i };
+                    memoryObject.values.push(variables.uninitArithmetic(arithmeticPointeeType.sig, lvHolder, false).v);
+                }
+                return variables.indexPointer(memoryObject, 0, true, null, false).v;
+            }
+            rt.raiseException("arrayInit2: not yet implemented");
+        }
+        const retv = arrayInitInner(type, init);
+        return { t: type, v: asResult(retv) ?? (yield *(retv as Gen<PointerValue<PointeeVariable>>)) }
+    }
 
     *arrayInit(dimensions: number[], init: XInitializerExpr | XInitializerArray | null, type: ObjectType, param: any): ResultOrGen<InitIndexPointerVariable<Variable>> {
         if (dimensions.length > 0) {

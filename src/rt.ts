@@ -136,7 +136,7 @@ export class CRuntime {
     scope: RuntimeScope[];
     namespace: NamespaceScope;
     typeMap: { [domainIdentifier: string]: TypeHandlerMap };
-    typedefs: { [name: string]: AnyType };
+    typedefs: { [name: string]: MaybeLeft<ObjectType> };
     interp: interp.BaseInterpreter<any>;
     fileio: FileManager;
 
@@ -463,8 +463,8 @@ export class CRuntime {
         }
     };
 
-    registerTypedef(basttype: AnyType, name: string) {
-        return this.typedefs[name] = basttype;
+    registerTypedef(basttype: MaybeLeft<ObjectType>, name: string) {
+        this.typedefs[name] = basttype;
     };
 
     promoteNumeric(l: ArithmeticType, r: ArithmeticType): ArithmeticType {
@@ -563,6 +563,9 @@ export class CRuntime {
                 } else {
                     this.raiseException("No constructor for the specified structure");
                 }
+            }
+            if (typeStr in this.typedefs) {
+                return this.typedefs[typeStr];
             }
         }
         this.raiseException("Type error or not yet implemented");
