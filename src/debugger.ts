@@ -1,6 +1,6 @@
 import { StatementMeta } from "./interpreter";
 import { CRuntime } from "./rt";
-import { ArithmeticVariable } from "./variables";
+import { ArithmeticVariable, MaybeLeft, MaybeLeftCV, ObjectType, variables } from "./variables";
 
 interface AstNode extends StatementMeta {
     type: string;
@@ -126,9 +126,16 @@ export default class Debugger {
 
     variable(name?: string) {
         if (name) {
-            const v = this.rt.readVar(name);
+            const v = this.rt.readVarOrFunc(name);
+            const vf = variables.asFunction(v);
+            if (vf !== null) {
+                return {
+                    type: vf.t.fulltype.join(" "),
+                    value: vf.v
+                }
+            }
             return {
-                type: this.rt.makeTypeStringOfVar(v),
+                type: this.rt.makeTypeStringOfVar(v as MaybeLeftCV<ObjectType>),
                 value: v.v
             };
         } else {

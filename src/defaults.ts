@@ -438,10 +438,17 @@ const defaultOpHandler: OpHandler[] = [
                 return variables.directPointer(l, null);
             }
             if (variables.asFunction(l) !== null) {
-                rt.raiseException("Assertion failed: `l` must not be a Function");
+                rt.raiseException("Assertion failed: `l` must not be a Function"); // unreachable?
             }
             const holder = l.v.lvHolder;
             return variables.indexPointer<Variable>(holder.array, holder.index, false, null);
+        }
+    },
+    {
+        op: "o(&_)",
+        type: "!Function FUNCTION PTR ?0 ( LREF ?0 )",
+        default(_rt: CRuntime, l: Function): InitDirectPointerVariable<Function> {
+            return variables.directPointer(l, null);
         }
     },
     {

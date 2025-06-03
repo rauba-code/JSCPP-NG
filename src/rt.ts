@@ -2,9 +2,10 @@ import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
 import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
-import { TypeDB, FunctionMatchResult } from "./typedb";
+import { TypeDB, FunctionMatchResult, abstractFunctionReturnSig } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
+import * as typecheck from './typecheck';
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 
 export interface IncludeModule {
@@ -370,13 +371,48 @@ export class CRuntime {
         return fn;
     };
 
-    /*getFuncFromVariable(funvar: Function, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
-        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
-        console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
-        if (fn === null) {
+    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
+        const domainSig: string = this.domainString(domain);
+        if (!(domainSig in this.typeMap)) {
+            this.raiseException(`domain '${domainSig}' is unknown`);
         }
-        
-    }*/
+        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
+        //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
+        const domainMap: TypeHandlerMap = this.typeMap[domainSig];
+        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
+        if (fn === null) {
+            return null;
+        }
+        return { actions: fn, target: domainMap.functionsByID[fn.fnid] };
+    };
+
+
+    *invokeCallFromVariable(funvar: Function, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
+        const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
+        const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
+        //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
+        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype));
+        if (funmatch === null) {
+            this.raiseException("Invalid arguments"); // TODO: make message more comprehensive
+        }
+        if (funvar.v.target === null) {
+            this.raiseException("Function is defined but no implementation is found");
+        }
+        if (funmatch.valueActions.length !== 0) {
+            for (const castAction of funmatch.castActions) {
+                const castYield = this.cast(variables.arithmeticType(castAction.targetSig), this.expectValue(args[castAction.index]));
+                args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+            }
+            funmatch.valueActions.forEach((action, i) => {
+                if (action === "CLONE") {
+                    args[i] = variables.clone(this.expectValue(args[i]), "SELF", false, this.raiseException);
+                }
+            })
+        }
+        const returnYield = funvar.v.target(this, ...args);
+        return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
+
+    }
 
     *invokeCall(callInst: FunctionCallInstance, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
         if (callInst.target.target === null) {
@@ -396,21 +432,6 @@ export class CRuntime {
         const returnYield = callInst.target.target(this, ...args);
         return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
     }
-
-    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
-        const domainSig: string = this.domainString(domain);
-        if (!(domainSig in this.typeMap)) {
-            this.raiseException(`domain '${domainSig}' is unknown`);
-        }
-        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
-        //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
-        const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
-        if (fn === null) {
-            return null;
-        }
-        return { actions: fn, target: domainMap.functionsByID[fn.fnid] };
-    };
 
     makeBinaryOperatorFuncName = (name: string) => `o(_${name}_)`;
     makePrefixOperatorFuncName = (name: string) => `o(${name}_)`;
@@ -506,7 +527,20 @@ export class CRuntime {
         return this.resolveNamespacePath(scope.variables, varname);
     };
 
-    readVar(varname: string): Variable {
+    readVarOrFunc(varname: string): Variable | Function {
+        const rvar = this.tryReadVar(varname);
+        if (rvar !== null) {
+            return rvar;
+        }
+        const fnid = this.typeMap["{global}"].functionDB.matchSingleFunction(varname, this.raiseException);
+        if (fnid !== -1) {
+            const fninfo = this.typeMap["{global}"].functionsByID[fnid];
+            return variables.function(fninfo.type, varname, fninfo.target, null, "SELF");
+        }
+        this.raiseException("variable '" + varname + "' does not exist");
+    };
+
+    tryReadVar(varname: string): Variable | null {
         let i = this.scope.length - 1;
         while (i >= 0) {
             const vc = this.scope[i];
@@ -515,7 +549,7 @@ export class CRuntime {
             }
             i--;
         }
-        this.raiseException("variable '" + varname + "' does not exist");
+        return null;
     };
 
     deleteVar(varname: string): void {

@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV, AnyType, PointerVariable, PointerValue, PointeeVariable, ArithmeticValue } from "./variables";
+import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV, AnyType, PointerVariable, PointerValue, PointeeVariable, ArithmeticValue, FunctionValue } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -292,6 +292,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             argTypes.push({ t: _type.t, v: { isConst: false, ..._type.v } });
                         }
                         basetype = { t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", basetype, argTypes).array), null), v: { lvHolder: null } };
+                        if (s.left.type === "DirectDeclarator" && s.left.Pointer !== null) {
+                            s.left = s.left.left;
+                        } else {
+                            rt.raiseException("Invalid function pointer type;\nC-like function pointer is declared as follows:\n /*return-value*/ (*/*name-of-a-pointer*/)(/*nameless-arguments*/)");
+                        }
                     }
                 }
                 if ((s.right.length > 0) && (s.right[0].type === "DirectDeclarator_modifier_array")) {
@@ -318,6 +323,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 }
 
+                debugger;
                 if (s.left.type === "Identifier") {
                     return { type: basetype, name: s.left.Identifier };
                 } else {
@@ -509,7 +515,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (ptrType !== null) {
                         if (initSpec !== null) {
                             if (initSpec.type === "Initializer_expr") {
-                                rt.raiseException("Declaration error: not yet implemented");
+                                //rt.raiseException("Declaration error: not yet implemented");
                                 /*const initializer: Variable = yield* interp.visit(interp, initSpec, param);
                                 // if basetype is char and initializer.t is char*
                                 const initializerAsIndexPtr = variables.asInitIndexPointerOfElem(initializer, variables.uninitArithmetic("I8", null))
@@ -533,10 +539,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         while (ptrBaseType.sig === "PTR") {
                             ptrBaseType = ptrBaseType.pointee;
                         }
-                        if (ptrBaseType.sig === "FUNCTION") {
-                            rt.raiseException("Declaration error: not yet implemented");
-                        }
-                        const arrayYield = interp.arrayInit2(rt, ptrType as PointerType<ObjectType>, initSpec);
+                        const initvar = (initSpec !== null && initSpec.type === "Initializer_expr") ? (yield* interp.visit(interp, initSpec, param)) as Variable : null;
+                        const arrayYield = interp.arrayInit2(rt, ptrType as PointerType<ObjectType | FunctionType>, initvar);
                         const arrayInit = asResult(arrayYield) ?? (yield* arrayYield as Gen<InitIndexPointerVariable<Variable>>);
                         delete param.node;
 
@@ -868,7 +872,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     yield* interp.visit(interp, s.Initializer, param);
                 }
 
-                const variable = rt.readVar(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
+                const variable = rt.readVarOrFunc(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
                 let iterator = null;
                 try {
                     const sym = rt.getFuncByParams(iterable.t, "__iterator", []);
@@ -999,10 +1003,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                 const varname = resolveIdentifier(s.Identifier);
                 if (param.functionArgs === undefined) {
-                    return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || (globalScope !== undefined && rt.readScopedVar(globalScope, varname)) || rt.getFromNamespace(varname) || rt.readVar(varname);
+                    return rt.readScopedVar(currentScope, varname) || rt.readScopedVar(declarationScope, varname) || (globalScope !== undefined && rt.readScopedVar(globalScope, varname)) || rt.getFromNamespace(varname) || rt.readVarOrFunc(varname);
                 } else {
+                    const funvar = rt.tryReadVar(varname);
+                    if (funvar !== null) {
+                        return funvar;
+                    }
                     const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs);
-                    return funsym//variables.function(funsym.type, varname, funsym.target, null, null);
+                    return funsym
                 }
             },
             *ParenthesesExpression(interp, s, param) {
@@ -1015,7 +1023,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                debugger;
                 const _ret = (yield* interp.visit(interp, s.Expression, param)) as PointerVariable<Variable | Function>;
                 if (variables.asFunctionType(_ret.t.pointee) !== null) {
                     rt.raiseException("Array access statement error: Function pointer is not an array");
@@ -1067,15 +1074,25 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     const fret = variables.asFunction(ret);
                     if (fret !== null) {
-                        rt.raiseException("Method invocation error: Not yet implemented");
-
-                        /*const r = rt.invokeCall(, ...args);
-                        const result = asResult(r) ?? (yield* r as Gen<MaybeUnboundVariable | "VOID">);
+                        const resultOrGen = rt.invokeCallFromVariable(fret, ...args);
+                        const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
                         if (result === "VOID") {
                             return "VOID";
                         }
-                        return rt.expectValue(asResult<MaybeUnboundVariable>(result) ?? (yield* r as Gen<MaybeUnboundVariable>));*/
+                        return rt.expectValue(result);
                     }
+                    const fpret = variables.asInitDirectPointer(ret);
+                    if (fpret !== null && variables.asFunctionType(fpret.t.pointee) !== null) {
+                        const fn = { t: fpret.t.pointee as FunctionType, v: fpret.v.pointee as FunctionValue };
+                        const resultOrGen = rt.invokeCallFromVariable(fn, ...args);
+                        const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
+                        if (result === "VOID") {
+                            return "VOID";
+                        }
+                        return rt.expectValue(result);
+                        
+                    }
+                    rt.raiseException("Method invocation error: Expected a function")
                 }
             },
             *PostfixExpression_MemberAccess(interp, s: XPostfixExpression_MemberAccess, param: { functionArgs?: MaybeLeft<ObjectType>[] }): ResultOrGen<Variable | FunctionCallInstance> {
@@ -1596,12 +1613,17 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             includes[lib].load(this.rt);
         }
     };
-    *arrayInit2(rt: CRuntime, type: PointerType<ObjectType>, init: XInitializerExpr | XInitializerArray | null): ResultOrGen<InitIndexPointerVariable<Variable>> {
-        debugger;
-        function *arrayInitInner(type: PointerType<ObjectType>, _init: XInitializerExpr | XInitializerArray | null): ResultOrGen<PointerValue<PointeeVariable>> {
+    *arrayInit2(rt: CRuntime, type: PointerType<ObjectType | FunctionType>, init: Variable | null): ResultOrGen<InitIndexPointerVariable<Variable>> {
+        function* arrayInitInner(type: PointerType<ObjectType | FunctionType>, init: Variable | null): ResultOrGen<PointerValue<PointeeVariable>> {
             const arithmeticPointeeType = variables.asArithmeticType(type.pointee);
             if (type.sizeConstraint === null) {
-                rt.raiseException("arrayInit2: not yet implemented");
+                if (init === null) {
+                    rt.raiseException("arrayInit2: not yet implemented");
+                }
+                if (variables.typesEqual(init.t, type)) {
+                    return init.v as PointerValue<PointeeVariable>;
+                }
+                rt.raiseException("arrayInit2: Type error or not yet implemented");
             }
             if (arithmeticPointeeType !== null) {
                 let memoryObject = variables.arrayMemory<ArithmeticVariable>(arithmeticPointeeType, []);
@@ -1614,7 +1636,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             rt.raiseException("arrayInit2: not yet implemented");
         }
         const retv = arrayInitInner(type, init);
-        return { t: type, v: asResult(retv) ?? (yield *(retv as Gen<PointerValue<PointeeVariable>>)) }
+        return { t: type, v: asResult(retv) ?? (yield* (retv as Gen<PointerValue<PointeeVariable>>)) }
     }
 
     *arrayInit(dimensions: number[], init: XInitializerExpr | XInitializerArray | null, type: ObjectType, param: any): ResultOrGen<InitIndexPointerVariable<Variable>> {
@@ -1630,7 +1652,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             })();
             const childType = arrType.pointee;
             if (init) {
-                debugger;
                 if ((init.type === "Initializer_array") && (init.Initializers != null && curDim >= init.Initializers.length)) {
                     const arithmeticType = variables.asArithmeticType(type);
                     // last level, short hand init

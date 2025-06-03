@@ -666,8 +666,7 @@ function toStringSequenceInner(type: AnyType, result: string[], onError: (x: str
             result.push(">");
         },
         "FUNCTION": () => {
-            result.push("FUNCTION");
-            result = result.concat(...(type as FunctionType).fulltype);
+            result.push(...(type as FunctionType).fulltype);
         },
     }
     branch[type.sig as BranchKey]();

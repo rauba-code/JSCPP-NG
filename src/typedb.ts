@@ -15,7 +15,7 @@ function makeString(type: string | string[]): string {
     return type.join(' ');
 }
 
-function abstractFunctionReturnSig(sig: string[]): string[] {
+export function abstractFunctionReturnSig(sig: string[]): string[] {
     let level = 0;
     let returnStarts = -1;
     let returnEnds = -1;
