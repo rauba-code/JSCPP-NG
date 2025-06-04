@@ -1090,7 +1090,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             return "VOID";
                         }
                         return rt.expectValue(result);
-                        
+
                     }
                     rt.raiseException("Method invocation error: Expected a function")
                 }
@@ -1613,7 +1613,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             includes[lib].load(this.rt);
         }
     };
-    *arrayInit2(rt: CRuntime, type: PointerType<ObjectType | FunctionType>, init: Variable | null): ResultOrGen<InitIndexPointerVariable<Variable>> {
+    *arrayInit2(rt: CRuntime, type: PointerType<ObjectType | FunctionType>, init: Variable | null): ResultOrGen<InitIndexPointerVariable<PointeeVariable>> {
         function* arrayInitInner(type: PointerType<ObjectType | FunctionType>, init: Variable | null): ResultOrGen<PointerValue<PointeeVariable>> {
             const arithmeticPointeeType = variables.asArithmeticType(type.pointee);
             if (type.sizeConstraint === null) {
@@ -1626,10 +1626,27 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 rt.raiseException("arrayInit2: Type error or not yet implemented");
             }
             if (arithmeticPointeeType !== null) {
+                if (init !== null) {
+                    rt.raiseException("arrayInit2: not yet implemented");
+                }
                 let memoryObject = variables.arrayMemory<ArithmeticVariable>(arithmeticPointeeType, []);
                 for (let i = 0; i < type.sizeConstraint; i++) {
                     const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: i };
                     memoryObject.values.push(variables.uninitArithmetic(arithmeticPointeeType.sig, lvHolder, false).v);
+                }
+                return variables.indexPointer(memoryObject, 0, true, null, false).v;
+            }
+            const pointerPointeeType = variables.asPointerType(type.pointee);
+            if (pointerPointeeType !== null) {
+                if (init !== null) {
+                    rt.raiseException("arrayInit2: not yet implemented");
+                }
+                let memoryObject = variables.arrayMemory<PointerVariable<PointeeVariable>>(pointerPointeeType, []);
+                for (let i = 0; i < type.sizeConstraint; i++) {
+                    const lvHolder: LValueIndexHolder<PointerVariable<PointeeVariable>> = { array: memoryObject, index: i };
+                    const resultOrGen = arrayInitInner(pointerPointeeType, null);
+                    const result = asResult(resultOrGen) ?? (yield *resultOrGen as Gen<PointerValue<PointeeVariable>>);
+                    memoryObject.values.push({lvHolder, ...result});
                 }
                 return variables.indexPointer(memoryObject, 0, true, null, false).v;
             }
