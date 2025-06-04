@@ -553,7 +553,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             initvar = null;
                         }
                         const arrayYield = interp.arrayInit2(rt, ptrType as PointerType<ObjectType | FunctionType>, initvar);
-                        const arrayInit = asResult(arrayYield) ?? (yield* arrayYield as Gen<InitIndexPointerVariable<Variable>>);
+                        let arrayInit = asResult(arrayYield) ?? (yield* arrayYield as Gen<InitIndexPointerVariable<Variable>>);
+                        if (rhs.length === 1 && rhs[0].type === "DirectDeclarator_modifier_array") {
+                            // if array, set the size constraint
+                            arrayInit = { t: { sizeConstraint: arrayInit.v.pointee.values.length, pointee: arrayInit.t.pointee, sig: arrayInit.t.sig }, v: arrayInit.v };
+                        }
                         delete param.node;
 
                         rt.defVar(name, arrayInit);
@@ -1634,10 +1638,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             }
             let sizeConstraint = type.sizeConstraint ?? initLength;
             if (sizeConstraint === null) {
-                if (init !== null && !(init instanceof Array) && variables.typesEqual(init.t, type)) {
+                let initPtrType : PointerType<ObjectType | FunctionType> | null;
+                if (init !== null && !(init instanceof Array) && (initPtrType = variables.asPointerType(init.t)) !== null && variables.pointerTypesEqual(type, variables.pointerType(initPtrType.pointee, null))) {
                     return init.v as PointerValue<PointeeVariable>;
+                } else {
+                    rt.raiseException("arrayInit2: Type error or not yet implemented");
                 }
-                rt.raiseException("arrayInit2: Type error or not yet implemented");
             }
             if (arithmeticPointeeType !== null) {
                 let memoryObject = variables.arrayMemory<ArithmeticVariable>(arithmeticPointeeType, []);
@@ -1663,14 +1669,16 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 for (let i = 0; i < sizeConstraint; i++) {
                     const lvHolder: LValueIndexHolder<PointerVariable<PointeeVariable>> = { array: memoryObject, index: i };
                     const resultOrGen = arrayInitInner(pointerPointeeType, null);
-                    const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<PointerValue<PointeeVariable>>);
-                    memoryObject.values.push({ lvHolder, ...result });
+                    let result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<PointerValue<PointeeVariable>>);
+                    (result as any).lvHolder = lvHolder;
+                    memoryObject.values.push(result);
                 }
                 return variables.indexPointer(memoryObject, 0, true, null, false).v;
             }
             rt.raiseException("arrayInit2: not yet implemented");
         }
         const retv = arrayInitInner(type, init);
+        debugger;
         return { t: type, v: asResult(retv) ?? (yield* (retv as Gen<PointerValue<PointeeVariable>>)) }
     }
 
