@@ -1629,8 +1629,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         function* arrayInitInner(type: PointerType<ObjectType | FunctionType>, init: Variable | Variable[] | null): ResultOrGen<PointerValue<PointeeVariable>> {
             const arithmeticPointeeType = variables.asArithmeticType(type.pointee);
             let initLength = ((init !== null && init instanceof Array) ? init.length : null);
-            if (type.sizeConstraint !== null && initLength !== null && type.sizeConstraint !== initLength) {
-                rt.raiseException("arrayInit2: Initialiser list length mismatch");
+            if (type.sizeConstraint !== null && initLength !== null && type.sizeConstraint < initLength) {
+                rt.raiseException("arrayInit2: Initialiser list is larger than an array");
             }
             let sizeConstraint = type.sizeConstraint ?? initLength;
             if (sizeConstraint === null) {
@@ -1646,10 +1646,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 for (let i = 0; i < sizeConstraint; i++) {
                     const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: i };
-                    if (init !== null && !variables.asArithmetic(init[i])) {
+                    if (init !== null && i < init.length && !variables.asArithmetic(init[i])) {
                         rt.raiseException("arrayInit2: Expected arithmetic value");
                     }
-                    const value = (init !== null) ? variables.arithmetic(arithmeticPointeeType.sig, rt.arithmeticValue(init[i] as ArithmeticVariable), lvHolder, false) : variables.uninitArithmetic(arithmeticPointeeType.sig, lvHolder, false);
+                    const value = (init !== null && i < init.length) ? variables.arithmetic(arithmeticPointeeType.sig, rt.arithmeticValue(init[i] as ArithmeticVariable), lvHolder, false) : variables.uninitArithmetic(arithmeticPointeeType.sig, lvHolder, false);
                     memoryObject.values.push(value.v);
                 }
                 return variables.indexPointer(memoryObject, 0, true, null, false).v;
