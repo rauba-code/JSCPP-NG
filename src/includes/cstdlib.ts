@@ -21,6 +21,7 @@ interface DivValue extends InitValue<DivVariable> {
 
 export = {
     load(rt: CRuntime) {
+        const RAND_MAX = 32767;
         const rng = {
             m_w: 123456789,
             m_z: 987654321,
@@ -35,7 +36,7 @@ export = {
                 rng.m_z = ((36969 * (rng.m_z & 65535)) + (rng.m_z >> 16)) & rng.mask;
                 rng.m_w = ((18000 * (rng.m_w & 65535)) + (rng.m_w >> 16)) & rng.mask;
                 const result = ((rng.m_z << 16) + rng.m_w) & rng.mask;
-                return (result / 4294967296) + 0.5;
+                return Math.abs(result & RAND_MAX);
             }
         };
         function getWordString(rt: CRuntime, _l: PointerVariable<ArithmeticVariable>): string {
@@ -170,7 +171,24 @@ export = {
                     }, null) as DivVariable
                 }
             },
+            {
+                type: "FUNCTION VOID ( U32 )",
+                op: "srand",
+                default(rt: CRuntime, _l: ArithmeticVariable): "VOID" {
+                    const l = rt.arithmeticValue(_l);
+                    rng.seed(l);
+                    return "VOID";
+                }
+            },
+            {
+                type: "FUNCTION I32 ( )",
+                op: "rand",
+                default(_rt: CRuntime): InitArithmeticVariable {
+                     return variables.arithmetic("I32", rng.random(), null, false);
+                }
+            },
         ]);
+        rt.defVar("RAND_MAX", variables.arithmetic("I32", RAND_MAX, null, true));
 
     }
 }
