@@ -45,8 +45,8 @@ export = {
                     const ascii_c: number = 0x63;
                     const ascii_d: number = 0x64;
                     const ascii_f: number = 0x66;
+                    const ascii_s: number = 0x73;
                     let chr: number;
-                    let state: "NORMAL" | "PERCENT" | "LENGTH" | "PRECISION" = "NORMAL";
                     type FormatOptions = {
                         flagAlternateForm: boolean;
                         flagZeroPad: boolean;
@@ -65,13 +65,13 @@ export = {
                         length: null,
                         precision: null,
                     }
-                    function formatDecimal(options: FormatOptions, value: number): number[] {
+                    function formatNumeric(category: "d" | "f", options: FormatOptions, value: number): number[] {
                         if (options.flagAlternateForm) {
                             rt.raiseException("printf format: Not yet implemented");
                         }
-                        // precision is always null for non-f formats
                         let sign = Math.sign(value);
-                        value = Math.floor(Math.abs(value));
+                        value = Math.abs(value);
+                        let rem = value - Math.floor(value);
                         let output: number[] = [];
                         if (sign === 0) {
                             output.push(ascii_0);
@@ -84,17 +84,30 @@ export = {
                                 output.push(ascii_minusSign);
                             } else if (options.flagAlwaysDisplaySign) {
                                 output.push(ascii_plusSign);
-                            } 
+                            }
                             else if (options.flagSpaceBeforePositive && (options.length === null || output.length >= options.length)) {
                                 output.push(ascii_space);
                             }
                         }
+                        const precision = options.precision ?? 6;
                         if (options.length !== null && !options.flagLeftAdjust) {
-                            while (options.length > output.length) {
+                            const precisionBytes = (category === "f") ? precision + 1 : 0;
+                            while (options.length > output.length + precisionBytes) {
                                 output.push(options.flagZeroPad ? ascii_0 : ascii_space);
                             }
                         }
                         output = output.reverse();
+                        if (category === "f") {
+                            output.push(ascii_fullStop);
+                            let remOutput: number[] = [];
+                            let fraction = Math.round(rem * Math.exp(precision * Math.LN10));
+                            for (let i = 0; i < precision; i++) {
+                                remOutput.push(Math.floor(fraction % 10) + ascii_0);
+                                fraction /= 10;
+                            }
+                            output.push(...remOutput.reverse());
+
+                        }
                         if (options.length !== null && options.flagLeftAdjust) {
                             while (options.length > output.length) {
                                 output.push(ascii_space);
@@ -104,9 +117,79 @@ export = {
                     }
                     let formatOptions: FormatOptions = { ...defaultFormatOptions };
                     let output: number[] = [];
+                    let state: "NORMAL" | "PERCENT" | "FLAGS" | "LENGTH" | "PRECISION" = "NORMAL";
                     for (let i = 0; (chr = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + i))) !== 0; i++) {
                         switch (state) {
                             case "PERCENT":
+                                switch (chr) {
+                                    case ascii_percentSign:
+                                        output.push(ascii_percentSign);
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_space:
+                                        formatOptions.flagSpaceBeforePositive = true;
+                                        state = "FLAGS";
+                                        break;
+                                    case ascii_plusSign:
+                                        formatOptions.flagAlwaysDisplaySign = true;
+                                        state = "FLAGS";
+                                        break;
+                                    case ascii_minusSign:
+                                        formatOptions.flagLeftAdjust = true;
+                                        state = "FLAGS";
+                                        break;
+                                    case ascii_0:
+                                        formatOptions.flagZeroPad = true;
+                                        state = "FLAGS";
+                                        break;
+                                    case ascii_1:
+                                    case ascii_2:
+                                    case ascii_3:
+                                    case ascii_4:
+                                    case ascii_5:
+                                    case ascii_6:
+                                    case ascii_7:
+                                    case ascii_8:
+                                    case ascii_9:
+                                        formatOptions.length = chr - ascii_0;
+                                        state = "LENGTH";
+                                        break;
+                                    case ascii_fullStop:
+                                        state = "PRECISION";
+                                        break;
+                                    case ascii_c:
+                                        const arithmeticVar3 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(Math.floor(rt.arithmeticValue(arithmeticVar3)))
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_s:
+                                        const strVar = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index char pointer");
+                                        let schr: number;
+                                        for (let j = 0; (schr = rt.arithmeticValue(variables.arrayMember(strVar.v.pointee, strVar.v.index + j))) !== 0; j++) {
+                                            output.push(schr);
+                                        }
+                                        args = args.slice(1);
+
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_d:
+                                        const arithmeticVar1 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("d", formatOptions, rt.arithmeticValue(arithmeticVar1)))
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_f:
+                                        const arithmeticVar2 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("f", formatOptions, rt.arithmeticValue(arithmeticVar2)))
+                                        state = "NORMAL";
+                                        break;
+                                    default:
+                                        rt.raiseException("Malformed printf format sequence");
+                                }
+                                break;
+                            case "FLAGS":
                                 switch (chr) {
                                     case ascii_percentSign:
                                         output.push(ascii_percentSign);
@@ -140,9 +223,15 @@ export = {
                                         state = "PRECISION";
                                         break;
                                     case ascii_d:
-                                        const arithmeticVar = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        const arithmeticVar1 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
                                         args = args.slice(1);
-                                        output.push(...formatDecimal(formatOptions, rt.arithmeticValue(arithmeticVar)))
+                                        output.push(...formatNumeric("d", formatOptions, rt.arithmeticValue(arithmeticVar1)))
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_f:
+                                        const arithmeticVar2 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("f", formatOptions, rt.arithmeticValue(arithmeticVar2)))
                                         state = "NORMAL";
                                         break;
                                     default:
@@ -167,9 +256,15 @@ export = {
                                         state = "PRECISION";
                                         break;
                                     case ascii_d:
-                                        const arithmeticVar = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        const arithmeticVar1 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
                                         args = args.slice(1);
-                                        output.push(...formatDecimal(formatOptions, rt.arithmeticValue(arithmeticVar)))
+                                        output.push(...formatNumeric("d", formatOptions, rt.arithmeticValue(arithmeticVar1)))
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_f:
+                                        const arithmeticVar2 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("f", formatOptions, rt.arithmeticValue(arithmeticVar2)))
                                         state = "NORMAL";
                                         break;
                                     default:
@@ -189,6 +284,12 @@ export = {
                                     case ascii_8:
                                     case ascii_9:
                                         formatOptions.precision = ((formatOptions.precision ?? 0) * 10) + (chr - ascii_0);
+                                        break;
+                                    case ascii_f:
+                                        const arithmeticVar2 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("f", formatOptions, rt.arithmeticValue(arithmeticVar2)))
+                                        state = "NORMAL";
                                         break;
                                     default:
                                         rt.raiseException("Malformed printf format sequence");
@@ -210,12 +311,12 @@ export = {
                     if (state !== "NORMAL") {
                         rt.raiseException("Unfinished printf format sequence");
                     }
-                    output.push(0);
+                    //output.push(0);
                     const bytes = new Uint8Array(output);
                     const str = utf8.fromUtf8CharArray(bytes);
                     const stdio = rt.stdio();
                     stdio.write(str);
-                    
+
                     return variables.arithmetic("I32", output.length, null);
                 }
             },
