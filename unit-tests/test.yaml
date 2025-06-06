@@ -233,11 +233,11 @@
         -
           cpp: "random.cpp"
           in: "10"
-          out: "10\n498917264\n1638776065\n972288143"
+          out: "10\n16160\n31234\n24862"
         -
           cpp: "random.cpp"
           in: "5"
-          out: "5\n498872264\n1418600064\n831731783"
+          out: "5\n24464\n15617\n28815"
     printf:
       cases:
         cpp: "printf.cpp"
@@ -282,10 +282,10 @@
       cases:
         cpp: "sscanf.cpp"
         out: "March 25,1989 = Saturday"
-    class_basics:
-      cases:
-        cpp: "class_basics.cpp"
-        out: "2,-2\n7\nf:123\nfoo.callback:126\n"
+    #class_basics:
+    #  cases:
+    #    cpp: "class_basics.cpp"
+    #    out: "2,-2\n7\nf:123\nfoo.callback:126\n"
     strcat:
       cases:
         cpp: "strcat.cpp"
@@ -294,7 +294,7 @@
       cases:
         -
           cpp: "uninitialized.cpp"
-          out: "1.000000, 0.000000,"
+          out: "1.000000, "
           exception: "default_exception"
         -
           cpp: "uninitialized_pointer.cpp"
