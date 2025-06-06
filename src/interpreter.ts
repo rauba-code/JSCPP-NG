@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV, AnyType, PointerVariable, PointerValue, PointeeVariable, ArithmeticValue, FunctionValue } from "./variables";
+import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV, AnyType, PointerVariable, PointerValue, PointeeVariable, ArithmeticValue, FunctionValue, InitPointerVariable } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -1638,7 +1638,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             }
             let sizeConstraint = type.sizeConstraint ?? initLength;
             if (sizeConstraint === null) {
-                let initPtrType : PointerType<ObjectType | FunctionType> | null;
+                let initPtrType: PointerType<ObjectType | FunctionType> | null;
                 if (init !== null && !(init instanceof Array) && (initPtrType = variables.asPointerType(init.t)) !== null && variables.pointerTypesEqual(type, variables.pointerType(initPtrType.pointee, null))) {
                     return init.v as PointerValue<PointeeVariable>;
                 } else {
@@ -1648,7 +1648,28 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             if (arithmeticPointeeType !== null) {
                 let memoryObject = variables.arrayMemory<ArithmeticVariable>(arithmeticPointeeType, []);
                 if (init !== null && !(init instanceof Array)) {
-                    rt.raiseException("arrayInit2: Expected initialiser list");
+                    const arithmeticPointerInit = variables.asInitIndexPointerOfElem(init, variables.uninitArithmetic("I8", null));
+                    if (arithmeticPointerInit !== null) {
+                        let readFromStr = true;
+                        for (let i = 0; i < sizeConstraint; i++) {
+                            const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: i };
+                            let value : ArithmeticVariable;
+                            if (readFromStr) {
+                                const xv = rt.arithmeticValue(variables.arrayMember(arithmeticPointerInit.v.pointee, arithmeticPointerInit.v.index + i) as ArithmeticVariable);
+                                if (xv === 0) {
+                                    readFromStr = false;
+                                }
+                                value = variables.arithmetic("I8", xv, lvHolder, false);
+                            } else {
+                                value = variables.uninitArithmetic("I8", lvHolder, false);
+                            }
+                            memoryObject.values.push(value.v);
+
+                        }
+                        return variables.indexPointer(memoryObject, 0, true, null, false).v;
+                    } else {
+                        rt.raiseException("arrayInit2: Type error")
+                    }
                 }
                 for (let i = 0; i < sizeConstraint; i++) {
                     const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: i };
