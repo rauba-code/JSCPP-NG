@@ -340,7 +340,6 @@ export type InitPointerVariable<VElem extends PointeeVariable> = AbstractVariabl
 export type MaybeUnboundArithmeticVariable = AbstractVariable<ArithmeticType, MaybeUnboundArithmeticValue>;
 export type MaybeUnboundClassVariable = AbstractVariable<ClassType, MaybeUnboundClassValue>;
 export type MaybeUnboundPointerVariable<VElem extends Variable | Function> = AbstractVariable<PointerType<VElem["t"]>, MaybeUnboundPointerValue<VElem>>;
-//export type MaybeUnboundIndexPointerVariable<VElem extends Variable> = AbstractVariable<PointerType<VElem["t"]>, MaybeUnboundIndexPointerValue<VElem>>;
 
 // Equals to 'Object' in typecheck notation
 export type Variable = ArithmeticVariable | ClassVariable | PointerVariable<PointeeVariable>;

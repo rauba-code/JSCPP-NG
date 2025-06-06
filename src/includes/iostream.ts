@@ -1,20 +1,10 @@
 import { CRuntime } from "../rt";
-import { sizeNonSpace, skipSpace } from "../shared/string_utils";
 import * as common from "../shared/common";
 import * as ios_base_impl from "../shared/ios_base_impl";
 import { ArithmeticVariable, Gen, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 import * as utf8 from "../utf8";
 import { IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
-
-/*function *read(rt: CRuntime, fd: InitArithmeticVariable, buf: PointerVariable<PointerVariable<ArithmeticVariable>>): ResultOrGen<ArithmeticVariable> {
-    if (fd.v.value === unixapi.FD_STDIN) {
-
-
-    } else {
-        rt.raiseException("Not yet implemented");
-    }
-}*/
 
 export = {
     load(rt: CRuntime) {
