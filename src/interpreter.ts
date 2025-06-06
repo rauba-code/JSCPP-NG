@@ -204,7 +204,7 @@ type InterpStatement = any;
 
 type ParameterTypeListResult = {
     argTypes: MaybeLeftCV<ObjectType>[],
-    argNames: string[],
+    argNames: (string | null)[],
     optionalArgs: MemberObject[],
 }
 
@@ -323,7 +323,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 }
 
-                debugger;
                 if (s.left.type === "Identifier") {
                     return { type: basetype, name: s.left.Identifier };
                 } else {
@@ -349,7 +348,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             },
             *ParameterTypeList(interp, s: XParameterTypeList, param): Gen<ParameterTypeListResult> {
                 const argTypes: MaybeLeftCV<ObjectType>[] = [];
-                const argNames: string[] = [];
+                const argNames: (string | null)[] = [];
                 const optionalArgs: MemberObject[] = [];
 
                 for (const _param of s.ParameterList) {
@@ -410,10 +409,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             if (_param.Declarator.Declarator.right[0].type === "DirectDeclarator_modifier_ParameterTypeList") {
                                 const dim = _param.Declarator.Declarator.right[0];
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
-                                const { argTypes: _argTypes, argNames: _argNames, optionalArgs: _optionalArgs } = yield* interp.visit(interp, dim.ParameterTypeList, param);
+                                const { argTypes: _argTypes, optionalArgs: _optionalArgs } = (yield* interp.visit(interp, dim.ParameterTypeList, param)) as ParameterTypeListResult;
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
-                                rt.raiseException("Parameter type list error: Not yet implemented");
-                                //_type = variables.pointerType(variables.functionType(_type, _argTypes));
+                                if (_optionalArgs.length !== 0) {
+                                    rt.raiseException("Parameter type list error: function pointer types cannot contain optional parameters");
+                                }
+                                _type = { t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", _basetype, _argTypes).array), null), v: { isConst: false, lvHolder: null } };
                             } else {
                                 for (let j = _param.Declarator.Declarator.right.length - 1; j >= 0; j--) {
                                     const dimObj = _param.Declarator.Declarator.right[j];
@@ -432,7 +433,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                         }
                     }
-                    const name = _name ?? rt.raiseException("Parameter type list error: expected a name");
                     if (_init !== null) {
                         if (_init.type !== "Initializer_expr") {
                             rt.raiseException("Parameter type list error: Type error or not yet implemented");
@@ -440,7 +440,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const initvarYield = interp.visit(interp, _init.Expression) as Gen<Variable>;
                         const initvar = asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>));
                         optionalArgs.push({
-                            name,
+                            name: _name ?? rt.raiseException("Parameter type list error: expected a name"),
                             variable: variables.clone(initvar, null, false, rt.raiseException)
                         });
                     } else {
@@ -448,7 +448,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.raiseException("Parameter type list error: All default arguments must be at the end of arguments list", _param);
                         }
                         argTypes.push(_type);
-                        argNames.push(name);
+                        argNames.push(_name);
                     }
                 };
                 return { argTypes, argNames, optionalArgs };
@@ -486,7 +486,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 const { argTypes, argNames, optionalArgs }: ParameterTypeListResult = yield* interp.visit(interp, ptl, param);
                 const stat = s.CompoundStatement;
-                rt.defFunc(typedScope, name, basetype, argTypes, argNames, optionalArgs, stat, interp);
+                rt.defFunc(typedScope, name, basetype, argTypes, argNames.map(x => x ?? rt.raiseException("Function definition error: expected a named parameter")), optionalArgs, stat, interp);
             },
             *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType>, node?: XInitializerExpr | XInitializerArray | null }): ResultOrGen<void> {
                 const { rt } = interp;
@@ -1653,7 +1653,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         let readFromStr = true;
                         for (let i = 0; i < sizeConstraint; i++) {
                             const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: i };
-                            let value : ArithmeticVariable;
+                            let value: ArithmeticVariable;
                             if (readFromStr) {
                                 const xv = rt.arithmeticValue(variables.arrayMember(arithmeticPointerInit.v.pointee, arithmeticPointerInit.v.index + i) as ArithmeticVariable);
                                 if (xv === 0) {
@@ -1699,7 +1699,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             rt.raiseException("arrayInit2: not yet implemented");
         }
         const retv = arrayInitInner(type, init);
-        debugger;
         return { t: type, v: asResult(retv) ?? (yield* (retv as Gen<PointerValue<PointeeVariable>>)) }
     }
 

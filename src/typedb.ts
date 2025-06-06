@@ -25,7 +25,7 @@ export function abstractFunctionReturnSig(sig: string[]): string[] {
                 returnStarts = i + 1;
             }
             level++;
-        } else if (sig[i] === "(") {
+        } else if (sig[i] === "(" && level === 1) {
             returnEnds = i;
         } else if (sig[i] === ")") {
             level--;

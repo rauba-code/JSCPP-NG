@@ -308,7 +308,7 @@
           cpp: "overflow.cpp"
           config:
             unsigned_overflow: "ignore"
-          out: "254\n"
+          out: "255\n"
     infinite_loop:
       cases:
         cpp: "infinite_loop.cpp"

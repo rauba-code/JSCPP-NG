@@ -363,7 +363,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                     pair.subtype = pair.subtype.slice(1);
                 }
             } else {
-                const delta = (scope === "Function" && innerScope === "FunctionParamOrEnd") ? 1 : 0;
+                const delta = (scope === "Function" && innerScope === "FunctionParamOrEnd") ? 1 : (scope === "Function" && innerScope === "Return") ? 2 : 0;
                 pair.paramDepth += delta;
                 const nestedRetv = parseFunctionMatchInner(parser, innerScope as NonTerm, pair, result);
                 pair.paramDepth -= delta;
