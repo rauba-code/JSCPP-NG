@@ -1,5 +1,6 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
+import { strcmp } from "../shared/string_utils";
 import { ArithmeticVariable, InitArithmeticVariable, InitIndexPointerVariable, PointerVariable, variables } from "../variables";
 
 export = {
@@ -21,20 +22,7 @@ export = {
             default(rt: CRuntime, _a: PointerVariable<ArithmeticVariable>, _b: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
                 const a = variables.asInitIndexPointerOfElem(_a, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                 const b = variables.asInitIndexPointerOfElem(_b, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
-                let cnt = 0;
-                while (true) {
-                    const av = rt.arithmeticValue(variables.arrayMember(a.v.pointee, a.v.index + cnt))
-                    const bv = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index + cnt))
-
-                    if (av < bv) {
-                        return variables.arithmetic("I32", -1, null, false);
-                    } else if (av > bv) {
-                        return variables.arithmetic("I32", 1, null, false);
-                    } else if (av == 0 && av == bv) {
-                        return variables.arithmetic("I32", 0, null, false);
-                    }
-                    cnt++;
-                }
+                return variables.arithmetic("I32", strcmp(rt, a, b), null, false);
             }
         }, {
             type: "FUNCTION PTR I8 ( PTR I8 PTR I8 )",

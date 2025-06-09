@@ -333,7 +333,6 @@ export class CRuntime {
                     return ret;
                 };
             }
-            debugger;
             const fnsig = this.createFunctionTypeSignature(domain, retType, argTypes);
             this.regFunc(f, domain, name, fnsig);
             if (optionalArgs.length === 0) {

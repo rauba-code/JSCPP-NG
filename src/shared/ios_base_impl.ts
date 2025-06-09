@@ -5,6 +5,7 @@ import * as ios_base from "./ios_base";
 import * as unixapi from "../shared/unixapi";
 import * as utf8 from "../utf8";
 import { MemberObject } from "../interpreter";
+import { StringVariable } from "./string_utils";
 
 function pad(rt: CRuntime, s: string, pmode: number, width: number, chr: number): string {
     if (width < 0) {
@@ -71,12 +72,28 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > PTR I8 )`,
         default(rt: CRuntime, l: ios_base.OStreamVariable, r: PointerVariable<ArithmeticVariable>): ios_base.OStreamVariable {
-            const iptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmetic("I8", null));
-            if (iptr === null) {
+            const iptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmetic("I8", null)) ??
                 rt.raiseException("Variable is not an initialised index pointer");
-            }
             if (l.v.members.width.v.value >= 0) {
                 const padded = pad(rt, rt.getStringFromCharArray(iptr), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
+                unixapi.write(rt, l.v.members.fd, rt.getCharArrayFromString(padded));
+                variables.arithmeticAssign(l.v.members.width, -1, rt.raiseException);
+            } else {
+                unixapi.write(rt, l.v.members.fd, iptr);
+            }
+            return l;
+        }
+    },
+    {
+        op: "o(_<<_)",
+        type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > LREF CLASS string < > )`,
+        default(rt: CRuntime, l: ios_base.OStreamVariable, r: StringVariable): ios_base.OStreamVariable {
+            const iptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmetic("I8", null));
+            if (iptr === null) {
+                return l;
+            }
+            if (l.v.members.width.v.value >= 0) {
+                const padded = pad(rt, rt.getStringFromCharArray(iptr, r.v.members._size.v.value), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
                 unixapi.write(rt, l.v.members.fd, rt.getCharArrayFromString(padded));
                 variables.arithmeticAssign(l.v.members.width, -1, rt.raiseException);
             } else {

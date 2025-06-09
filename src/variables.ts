@@ -600,6 +600,7 @@ export const variables = {
             onError(`expected type '${expected}', got '${received}'`)
         }
         lhs.v.state = "INIT";
+        (lhs.v as InitDirectPointerValue<VElem>).subtype = "DIRECT";
         (lhs.v as InitDirectPointerValue<VElem>).pointee = pointee.v;
     },
     indexPointerAssign<VElem extends Variable>(lhs: PointerVariable<VElem>, array: ArrayMemory<VElem>, index: number, onError: (x: string) => never): void {
@@ -610,6 +611,7 @@ export const variables = {
             onError(`expected type '${expected}', got '${received}'`)
         }
         lhs.v.state = "INIT";
+        (lhs.v as InitIndexPointerValue<VElem>).subtype = "INDEX";
         (lhs.v as InitIndexPointerValue<VElem>).pointee = array;
         (lhs.v as InitIndexPointerValue<VElem>).index = index;
     },

@@ -79,31 +79,5 @@ export = {
         memberHandlers.forEach((x) => {
             rt.regFunc(x.default, thisType, x.op, rt.typeSignature(x.type));
         })
-        /*
-
-        const _open = function(_rt: CRuntime, _this: ofStreamObject, right: Variable, mode: Variable) {
-            const _mode = mode?.v ?? ios_base.openmode.out;
-            const fileName = _rt.getStringFromCharArray(right as ArrayVariable);
-            const fileObject: any = fstream.open(_this, fileName);
-
-            if (_mode !== ios_base.openmode.app) {
-                fileObject.clear();
-            }
-            _this.v.members["fileObject"] = fileObject;
-        };
-
-        rt.regFunc(_open, writeStreamType, "open", ["?"], rt.intTypeLiteral);
-
-        rt.regFunc(function(_rt: CRuntime, _this: ofStreamObject) {
-            const fileObject: any = _this.v.members["fileObject"];
-            const is_open = fileObject.is_open() as boolean;
-
-            return _rt.val(_rt.boolTypeLiteral, is_open);
-        }, writeStreamType, "is_open", [], rt.boolTypeLiteral);
-
-        rt.regFunc(function(_rt: CRuntime, _this: ofStreamObject) {
-            const fileObject: any = _this.v.members["fileObject"];
-            fileObject.close();
-        }, writeStreamType, "close", [], rt.intTypeLiteral);*/
     }
 };

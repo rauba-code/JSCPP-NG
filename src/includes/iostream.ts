@@ -194,7 +194,53 @@ export = {
 
                 return l;
             }
-        }]);
+        },
+        {
+            op: "o(_>>_)",
+            type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF CLASS string < > )",
+            *default(rt: CRuntime, l: IStreamVariable, _r: PointerVariable<ArithmeticVariable>): Gen<IStreamVariable> {
+                const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const eofbit = l.v.members.eofbit;
+                const failbit = l.v.members.failbit;
+                const buf = l.v.members.buf;
+                let char: InitArithmeticVariable;
+                while (true) {
+                    char = yield* readChar(rt, l);
+                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
+                        failbit.v.value = 1;
+                        return l;
+                    }
+                    if (!(whitespaceChars.includes(char.v.value))) {
+                        break;
+                    }
+                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                }
+
+                let i = 0;
+                while (!(whitespaceChars.includes(char.v.value))) {
+                    variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticVariable).v, char.v.value, rt.raiseException)
+                    i++;
+                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    char = yield* readChar(rt, l);
+                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
+                        failbit.v.value = 1;
+                        return l;
+                    }
+                }
+                variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticVariable).v, 0, rt.raiseException)
+                if (i === 0) {
+                    failbit.v.value = 1;
+                    return l;
+                }
+                /*const stdio = rt.stdio();
+                if (stdio.isMochaTest) {
+                    stdio.write(wordString + "\n");
+                }*/
+
+                return l;
+            }
+        }
+        ]);
 
         function _getline(rt: CRuntime, l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStreamVariable {
             const stdio = rt.stdio();
