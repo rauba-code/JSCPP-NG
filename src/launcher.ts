@@ -24,13 +24,12 @@ const includes: { [fileName: string]: IncludeModule } = {
     cstdlib: require("./includes/cstdlib"),
     cstdio: require("./includes/cstdio"),
     string: require("./includes/string"),
-    /*sstream: require("./includes/sstream"),
-    cctype: require("./includes/cctype"),
+    sstream: require("./includes/sstream"),
+    /*cctype: require("./includes/cctype"),
     vector: require("./includes/vector"),
     algorithm: require("./includes/algorithm"),
     functional: require("./includes/functional"),
-    _bits__stdcpp: require("./includes/bits/stdcpp"),
-    foo: require("./includes/dummy_class_foo")*/
+    _bits__stdcpp: require("./includes/bits/stdcpp")*/
 };
 
 const headerAlias: { [filename: string]: string } = {

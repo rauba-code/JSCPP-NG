@@ -591,25 +591,34 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         if (initVarOrVoid === "VOID") {
                             rt.raiseException("Declaration error: Expected a non-void value");
                         } else {
-                            let initVar = rt.unbound(initVarOrVoid);
+                            let initVar = initSpec === null ? variables.clone(rt.unbound(initVarOrVoid), "SELF", false, rt.raiseException, true) : rt.unbound(initVarOrVoid);
 
                             if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
                                 initVar = variables.clone(initVar, "SELF", false, rt.raiseException, true);
                             }
 
                             if (!variables.typesEqual(initVar.t, decType.t)) {
-                                const castVar = rt.cast(decType.t, rt.expectValue(initVar));
-                                initVar = rt.expectValue(asResult(castVar) ?? (yield* castVar as Gen<Variable>));
+                                const preDecVarYield = rt.defaultValue(decType.t, "SELF");
+                                const preDecVar = variables.clone(asResult(preDecVarYield) ?? (yield *preDecVarYield as Gen<Variable>), "SELF", false, rt.raiseException, true);
+                                const callInst = rt.getFuncByParams("{global}", "o(_=_)", [preDecVar, initVar]);
+                                const retvYield = rt.invokeCall(callInst, preDecVar, initVar)
+                                const retv = asResult(retvYield) ?? (yield* retvYield as Gen<MaybeUnboundVariable | "VOID">)
+                                if (retv === "VOID") {
+                                    rt.raiseException("Declaration error: expected non-void return value in assignment operator");
+                                } else {
+                                    initVar = rt.expectValue(rt.unbound(retv));
+                                }
                             }
                             if (isConst) {
                                 rt.raiseException("Declaration error: Not yet implemented");
                             }
+                            debugger;
                             rt.defVar(name, initVar);
                         }
                     }
                 }
             },
-            *STLDeclaration(interp, s, param) {
+            *STLDeclaration(interp, s, _param) {
                 ({ rt } = interp);
 
                 const basetype = rt.simpleType(s.DeclarationSpecifiers);

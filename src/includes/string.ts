@@ -95,8 +95,15 @@ export = {
 
         common.regMemberFuncs(rt, "string", [
             {
+                op: "empty",
+                type: "FUNCTION BOOL ( LREF CLASS string < > )",
+                default(_rt: CRuntime, l: StringVariable): InitArithmeticVariable {
+                    return variables.arithmetic("BOOL", l.v.members._size.v.value === 0 ? 1 : 0, null);
+                }
+            },
+            {
                 op: "front",
-                type: "FUNCTION LREF I8 ( LREF CLASS STRING < > )",
+                type: "FUNCTION LREF I8 ( LREF CLASS string < > )",
                 default(rt: CRuntime, l: StringVariable): ArithmeticVariable {
                     if (l.v.members._size.v.value === 0) {
                         return variables.uninitArithmetic("I8", "SELF"); // C++11 behaviour
@@ -107,7 +114,7 @@ export = {
             },
             {
                 op: "back",
-                type: "FUNCTION LREF I8 ( LREF CLASS STRING < > )",
+                type: "FUNCTION LREF I8 ( LREF CLASS string < > )",
                 default(rt: CRuntime, l: StringVariable): ArithmeticVariable {
                     const size = l.v.members._size.v.value;
                     if (size === 0) {
@@ -119,7 +126,7 @@ export = {
             },
             {
                 op: "data",
-                type: "FUNCTION PTR I8 ( LREF CLASS STRING < > )",
+                type: "FUNCTION PTR I8 ( LREF CLASS string < > )",
                 default(rt: CRuntime, l: StringVariable): InitPointerVariable<ArithmeticVariable> {
                     const size = l.v.members._size.v.value;
                     if (size === 0) {
@@ -130,7 +137,7 @@ export = {
             },
             {
                 op: "c_str",
-                type: "FUNCTION PTR I8 ( LREF CLASS STRING < > )",
+                type: "FUNCTION PTR I8 ( LREF CLASS string < > )",
                 default(_rt: CRuntime, l: StringVariable): PointerVariable<ArithmeticVariable> {
                     return l.v.members._ptr;
                 }

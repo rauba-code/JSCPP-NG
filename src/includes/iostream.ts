@@ -5,6 +5,7 @@ import { ArithmeticVariable, Gen, InitArithmeticValue, InitArithmeticVariable, I
 import * as unixapi from "../shared/unixapi";
 import * as utf8 from "../utf8";
 import { IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
+import { StringVariable } from "../shared/string_utils";
 
 export = {
     load(rt: CRuntime) {
@@ -300,6 +301,64 @@ export = {
             })
             return l;
         }
+        function _getlineStr(rt: CRuntime, l: IStreamVariable, s: StringVariable, _delim: ArithmeticVariable): IStreamVariable {
+            const stdio = rt.stdio();
+            stdio.cinStop();
+
+            const inputPromise: Promise<[boolean, IStreamVariable]> = new Promise((resolve) => {
+                let result = l.v.members.buf;
+                // + 1 because of trailing '\0'
+                if (result.v.index + 1 >= result.v.pointee.values.length) {
+                    stdio.getInput().then((result) => {
+                        variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
+                        resolve([false, l]);
+                    });
+                } else {
+                    resolve([true, l]);
+                }
+            });
+            inputPromise.then(([is_raw, l]) => {
+                let b = l.v.members.buf;
+                const delim = rt.arithmeticValue(_delim);
+                const i8type = s.v.members._ptr.t.pointee;
+                const oldiptr = variables.clone(b, "SELF", false, rt.raiseException);
+                if (b.v.index >= b.v.pointee.values.length) {
+                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    return;
+                }
+                let cnt = 0;
+                const memory = variables.arrayMemory<ArithmeticVariable>(i8type, []);
+                while (true) {
+                    const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                    if (bi === delim || bi === 0) {
+                        // consume the delimiter
+                        variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                        break;
+                    }
+                    memory.values.push(variables.arithmetic(i8type.sig, bi, { array: memory, index: cnt }).v);
+                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    cnt++;
+                }
+                memory.values.push(variables.arithmetic(i8type.sig, 0, { array: memory, index: cnt }).v);
+                if (cnt === 0) {
+                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                }
+                variables.indexPointerAssign(s.v.members._ptr, memory, 0, rt.raiseException);
+                s.v.members._size.v.value = cnt;
+
+                if (!is_raw) {
+                    unixapi.write(rt, variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr);
+                }
+
+
+                stdio.cinProceed();
+            }).catch((err) => {
+                //console.log(err);
+                stdio.promiseError(err.message);
+            })
+            return l;
+        }
 
         common.regMemberFuncs(rt, "istream", [
             {
@@ -327,5 +386,25 @@ export = {
                 }
             }
         ]);
+
+        common.regGlobalFuncs(rt, [
+            {
+                op: "getline",
+                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF CLASS string < > I8 )",
+                default(rt: CRuntime, input: IStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
+                    _getlineStr(rt, input, str, delim);
+                    return input;
+                }
+            },
+            {
+                op: "getline",
+                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF CLASS string < > )",
+                default(rt: CRuntime, input: IStreamVariable, str: StringVariable) {
+                    _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
+                    return input;
+                }
+            },
+        ]);
+
     }
 }

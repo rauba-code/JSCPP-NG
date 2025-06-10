@@ -133,7 +133,7 @@ export = {
                     let i = 0;
                     const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
                     while (!(whitespaceChars.includes(char.v.value))) {
-                        memory.values.push(variables.arithmetic("I8", char.v.value, { array: memory, index: i}).v);
+                        memory.values.push(variables.arithmetic("I8", char.v.value, { array: memory, index: i }).v);
                         variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
                         char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
                         i++;
@@ -142,7 +142,7 @@ export = {
                             break;
                         }
                     }
-                    memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: i}).v);
+                    memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: i }).v);
 
                     variables.indexPointerAssign(r.v.members._ptr, memory, 0, rt.raiseException);
                     r.v.members._size.v.value = i + 1;
@@ -203,6 +203,36 @@ export = {
             }
             return l;
         }
+        function _getlineStr(rt: CRuntime, l: IfStreamVariable, s: StringVariable, _delim: ArithmeticVariable): void {
+            let b = l.v.members.buf;
+            const delim = rt.arithmeticValue(_delim);
+            const i8type = s.v.members._ptr.t.pointee;
+            if (b.v.index >= b.v.pointee.values.length) {
+                variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                return;
+            }
+            let cnt = 0;
+            const memory = variables.arrayMemory<ArithmeticVariable>(i8type, []);
+            while (true) {
+                const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                if (bi === delim || bi === 0) {
+                    // consume the delimiter
+                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    //variables.arithmeticAssign(si, 0, rt.raiseException);
+                    break;
+                }
+                memory.values.push(variables.arithmetic(i8type.sig, bi, { array: memory, index: cnt }).v);
+                variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                cnt++;
+            }
+            memory.values.push(variables.arithmetic(i8type.sig, 0, { array: memory, index: cnt }).v);
+            if (cnt === 0) {
+                variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+            }
+            variables.indexPointerAssign(s.v.members._ptr, memory, 0, rt.raiseException);
+            s.v.members._size.v.value = cnt;
+        }
         common.regMemberFuncs(rt, "ifstream", [
             {
                 op: "get",
@@ -257,6 +287,25 @@ export = {
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
                 default(_rt: CRuntime, l: IfStreamVariable): InitArithmeticVariable {
                     return variables.arithmetic("BOOL", l.v.members._is_open.v.value, null);
+                }
+            },
+        ]);
+
+        common.regGlobalFuncs(rt, [
+            {
+                op: "getline",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > LREF CLASS string < > I8 )",
+                default(rt: CRuntime, input: IfStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
+                    _getlineStr(rt, input, str, delim);
+                    return input;
+                }
+            },
+            {
+                op: "getline",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > LREF CLASS string < > )",
+                default(rt: CRuntime, input: IfStreamVariable, str: StringVariable) {
+                    _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
+                    return input;
                 }
             },
         ]);
