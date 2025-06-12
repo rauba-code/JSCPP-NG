@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV, AnyType, PointerVariable, PointerValue, PointeeVariable, ArithmeticValue, FunctionValue, InitPointerVariable } from "./variables";
+import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, ObjectValue, PointerType, Variable, variables, LValueIndexHolder, MaybeUnboundVariable, InitIndexPointerVariable, ArrayMemory, FunctionType, ResultOrGen, Gen, MaybeLeftCV, PointerVariable, PointerValue, PointeeVariable, FunctionValue, ArithmeticSig } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -599,7 +599,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                             if (!variables.typesEqual(initVar.t, decType.t)) {
                                 const preDecVarYield = rt.defaultValue(decType.t, "SELF");
-                                const preDecVar = variables.clone(asResult(preDecVarYield) ?? (yield *preDecVarYield as Gen<Variable>), "SELF", false, rt.raiseException, true);
+                                const preDecVar = variables.clone(asResult(preDecVarYield) ?? (yield* preDecVarYield as Gen<Variable>), "SELF", false, rt.raiseException, true);
                                 const callInst = rt.getFuncByParams("{global}", "o(_=_)", [preDecVar, initVar]);
                                 const retvYield = rt.invokeCall(callInst, preDecVar, initVar)
                                 const retv = asResult(retvYield) ?? (yield* retvYield as Gen<MaybeUnboundVariable | "VOID">)
@@ -1481,60 +1481,68 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const num = parseInt(s.value, 10);
-                const intProps = variables.arithmeticProperties["I32"];
-                const uintProps = variables.arithmeticProperties["U32"];
-                if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    rt.raiseException(`Decimal constant error: Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                if (Number.isNaN(num)) {
+                    rt.raiseException(`Decimal constant error: '${s.value}' is not a valid decimal constant`);
                 }
-                if (num > intProps.maxv) {
-                    return variables.arithmetic("U32", (uintProps.maxv + 1) - num, null);
+                const sigPriority : ArithmeticSig[] = ["I32", "I64"];
+                for (const sig of sigPriority) {
+                    const props = variables.arithmeticProperties[sig];
+                    if (num >= props.minv && num <= props.maxv) {
+                        return variables.arithmetic(sig, num, null);
+                    }
                 }
-                return variables.arithmetic("I32", num, null);
+                rt.raiseException(`Decimal constant error: '${num}' is off the limits`);
             },
             HexConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
                 const num = parseInt(s.value, 16);
-                const intProps = variables.arithmeticProperties["I32"];
-                const uintProps = variables.arithmeticProperties["U32"];
-                if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    rt.raiseException(`Hexadecimal constant error: Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                if (Number.isNaN(num)) {
+                    rt.raiseException(`Hexadecimal constant error: '${s.value}' is not a valid hexadecimal constant`);
                 }
-                if (num > intProps.maxv) {
-                    return variables.arithmetic("U32", num, null);
+                const sigPriority : ArithmeticSig[] = ["I32", "U32", "I64", "U64"];
+                for (const sig of sigPriority) {
+                    const props = variables.arithmeticProperties[sig];
+                    if (num >= props.minv && num <= props.maxv) {
+                        return variables.arithmetic(sig, num, null);
+                    }
                 }
-                return variables.arithmetic("I32", num, null);
+                rt.raiseException(`Hexadecimal constant error: '${num}' is off the limits`);
             },
             BinaryConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
                 const num = parseInt(s.value, 2);
-                const intProps = variables.arithmeticProperties["I32"];
-                const uintProps = variables.arithmeticProperties["U32"];
-                if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    rt.raiseException(`Binary constant error: Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                if (Number.isNaN(num)) {
+                    rt.raiseException(`Binary constant error: '${s.value}' is not a valid binary constant`);
                 }
-                if (num > intProps.maxv) {
-                    return variables.arithmetic("U32", num, null);
+                const sigPriority : ArithmeticSig[] = ["I32", "U32", "I64", "U64"];
+                for (const sig of sigPriority) {
+                    const props = variables.arithmeticProperties[sig];
+                    if (num >= props.minv && num <= props.maxv) {
+                        return variables.arithmetic(sig, num, null);
+                    }
                 }
-                return variables.arithmetic("I32", num, null);
+                rt.raiseException(`Binary constant error: '${num}' is off the limits`);
             },
             OctalConstant(interp, s, _param) {
                 ({
                     rt
                 } = interp);
                 const num = parseInt(s.value, 8);
-                const intProps = variables.arithmeticProperties["I32"];
-                const uintProps = variables.arithmeticProperties["U32"];
-                if (Number.isNaN(num) || num > uintProps.maxv || num < intProps.minv) {
-                    rt.raiseException(`Octal constant error: Constant integer expression '${num}' is not in a signed 32-bit integer range`);
+                if (Number.isNaN(num)) {
+                    rt.raiseException(`Octal constant error: '${s.value}' is not a valid octal constant`);
                 }
-                if (num > intProps.maxv) {
-                    return variables.arithmetic("U32", num, null);
+                const sigPriority : ArithmeticSig[] = ["I32", "U32", "I64", "U64"];
+                for (const sig of sigPriority) {
+                    const props = variables.arithmeticProperties[sig];
+                    if (num >= props.minv && num <= props.maxv) {
+                        return variables.arithmetic(sig, num, null);
+                    }
                 }
-                return variables.arithmetic("I32", num, null);
+                rt.raiseException(`Octal constant error: '${num}' is off the limits`);
             },
             NamespaceDefinition(interp, _s, _param) {
                 ({

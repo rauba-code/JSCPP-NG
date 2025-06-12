@@ -1,3 +1,4 @@
+import { initializerListInit } from "./initializer_list";
 import { CRuntime, OpSignature } from "./rt";
 import { ArithmeticVariable, PointerVariable, Variable, Function, variables, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable, PointeeVariable, InitDirectPointerVariable } from "./variables";
 
@@ -498,6 +499,8 @@ const defaultOpHandler: OpHandler[] = [
 ];
 
 export function addDefaultOperations(rt: CRuntime): void {
+    initializerListInit(rt);
+
     defaultOpHandler.forEach((x: OpHandler) => {
         rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type));
     })
