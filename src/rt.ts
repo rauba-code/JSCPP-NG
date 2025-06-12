@@ -1039,7 +1039,6 @@ export class CRuntime {
         }
     };
 
-
     defineStruct(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObject[]) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
@@ -1056,83 +1055,11 @@ export class CRuntime {
         }, classType, "o(_stub)", stubCtorTypeSig);
     };
 
-    /*defineClass(classname: string, members: Member[]) {
-        const clsType: ClassType = {
-            type: "class",
-            name: classname
-        };
-        const sig = this.getTypeSignature(clsType);
-        if (sig in this.types) {
-            this.raiseException(this.makeTypeString(clsType) + " is already defined");
-        }
-
-        this.types[sig] = {
-            father: classname,
-            cConstructor(rt, _this, args = []) {
-                const v = _this.v as ObjectValue;
-                v.members = {};
-                let i = 0;
-                while (i < members.length) {
-                    const member = members[i];
-                    v.members[member.name] = (member.initialize != null) ? member.initialize(rt, _this) : rt.defaultValue(member.type, true);
-                    i++;
-                }
-                rt.types[sig].handlers["o(())"]?.default(rt, _this, ...args);
-            },
-            members,
-            handlers: {},
-        };
-
-        return clsType;
-    };*/
-
-    /*getStringFromCharArray(element: ArrayVariable) {
-        if (this.isStringType(element.t)) {
-            const {
-                target
-            } = element.v;
-            let result = "";
-            let i = 0;
-            while (i < target.length) {
-                const charVal = target[i];
-                if (charVal.v === 0) {
-                    break;
-                }
-                result += String.fromCharCode(charVal.v as number);
-                i++;
-            }
-            return result;
-        } else {
-            this.raiseException("target is not a string");
-        }
-    };
-
-    makeCharArrayFromString(str: string, typename?: CBasicType): ArrayVariable {
-        // if (!typename) { typename = this.detectWideCharacters(str) ? "wchar_t" : "char"; }
-        if (!typename) { typename = "char"; }
-        const charType = this.primitiveType(typename);
-        const type = this.arrayPointerType(charType, str.length + 1);
-        const trailingZero = this.val(charType, 0);
-        return {
-            t: type,
-            v: {
-                target: str.split("").map(c => this.val(charType, c.charCodeAt(0))).concat([trailingZero]),
-                position: 0,
-            }
-        };
-    };*/
-
     detectWideCharacters(str: string): boolean {
         const wideCharacterRange = /[\u0100-\uffff]/;
 
         return wideCharacterRange.test(str);
     }
-
-    /*callConstructor(type: ClassType, args: Variable[], left = false): Variable {
-        const ret = this.val(type, { members: {} }, left);
-        this.types[this.getTypeSignature(type)].cConstructor(this, ret, args);
-        return ret;
-    };*/
 
     /** Safely accesses values.
       * Panics if value is uninitalised. */
@@ -1178,7 +1105,49 @@ export class CRuntime {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
-            return variables.uninitPointer(pointerType.pointee, pointerType.sizeConstraint, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);
+            if (pointerType.sizeConstraint === null) {
+                return variables.uninitPointer(pointerType.pointee, null, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);
+            } else {
+
+            }
+        }
+        this.raiseException("Not yet implemented");
+    };
+
+    *defaultValue2(type: ObjectType, lvHolder: LValueHolder<Variable>): ResultOrGen<Variable> {
+        let classType: ClassType | null;
+        let pointerType: PointerType<ObjectType | FunctionType> | null;
+        if (type.sig in variables.arithmeticSig) {
+            return variables.uninitArithmetic(type.sig as ArithmeticSig, lvHolder as LValueHolder<ArithmeticVariable>, false);
+        } else if ((classType = variables.asClassType(type)) !== null) {
+            const domainName = classType.identifier;
+            if (!(domainName in this.typeMap)) {
+                this.raiseException(`Could not resolve a class named '${domainName}'`)
+            }
+            const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
+            if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
+                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this) as ResultOrGen<InitClassVariable>;
+            } else {
+                this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
+            }
+        } else if ((pointerType = variables.asPointerType(type)) !== null) {
+            if (pointerType.sizeConstraint === null) {
+                return variables.uninitPointer(pointerType.pointee, null, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);
+            } else if (pointerType.sizeConstraint < 0) {
+                // negative sizeConstraint value is reserved for occasions when the variable is a sized array but array size expression is not given.
+                // e.g.: int a[] = { 3, 4, 5 };
+                this.raiseException("Array size or a brace-enclosed list initialiser must be provided at the point of declaration of a static array");
+            } else {
+                if (pointerType.pointee.sig === "FUNCTION") {
+                    this.raiseException("Cannot declare an array of functions (perhaps you meant an array of function pointers?)")
+                }
+                const memory = variables.arrayMemory<Variable>(pointerType.pointee as ObjectType, []);
+                for (let i = 0; i < pointerType.sizeConstraint; i++) {
+                    const defaultValueYield = this.defaultValue2(pointerType.pointee as ObjectType, { array: memory, index: i });
+                    memory.values.push((interp.asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>))).v);
+                }
+                return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>);
+            }
         }
         this.raiseException("Not yet implemented");
     };
