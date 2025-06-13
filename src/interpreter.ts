@@ -573,7 +573,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const initVar: Variable | null = (yield* interp.visit(interp, initSpec, param)) as Variable;
                             param.typeHint = _typeHint;
                             rt.defVar(name, initVar);
-                            rt.raiseException("Declaration error: Not yet implemented");
+                            //rt.raiseException("Declaration error: Not yet implemented");
                         } else {
                             const initVarYield = (initSpec === null) ? rt.defaultValue2(type.t, "SELF") : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">;
                             const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
@@ -673,12 +673,63 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 return yield* interp.visit(interp, s.Expression, param);
             },
-            *Initializer_array(interp, s: XInitializerArray, param: { typeHint?: ObjectType }): ResultOrGen<Variable[]> {
+            *Initializer_array(interp, s: XInitializerArray, param: { typeHint?: ObjectType }): Gen<Variable> {
                 ({
                     rt
                 } = interp);
                 const typeHint = param.typeHint ?? null;
-                rt.raiseException("Initialiser list error: not yet implemented")
+                const ptrTypeHint = typeHint !== null ? variables.asPointerType(typeHint) : null;
+                if (ptrTypeHint !== null && ptrTypeHint.pointee.sig === "FUNCTION") {
+                    rt.raiseException("Initialiser list error: Cannot declare array of functions (perhaps you meant array of function pointers?)");
+                }
+                const childTypeHint = (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) ? ptrTypeHint.pointee as ObjectType : null;
+                if (s.Initializers.length === 0) {
+                    if (typeHint === null) {
+                        rt.raiseException("Initialiser list error: Type must be known for an empty initialiser list ('{ }') expression");
+                    }
+                    rt.raiseException("Initialiser list error: Not yet implemented");
+                } else if (typeHint !== null) {
+                    if (childTypeHint === null) {
+                        rt.raiseException("Initialiser list error: Not yet implemented");
+                    }
+                    let initList: Variable[] = [];
+                    for (const item of s.Initializers) {
+                        const _typeHint = param.typeHint;
+                        param.typeHint = childTypeHint;
+                        const rawVariable = yield* interp.visit(interp, item, param);
+                        param.typeHint = _typeHint;
+                        if (!variables.typesEqual(rawVariable.t, childTypeHint)) {
+                            rt.raiseException("Initialiser list error: Not yet implemented");
+                        }
+                        initList.push(rawVariable);
+                    }
+                    if (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) {
+                        if (ptrTypeHint.sizeConstraint >= 0 && initList.length > ptrTypeHint.sizeConstraint) {
+                            rt.raiseException(`Initialiser list error: expected at most ${ptrTypeHint.sizeConstraint} elements, got ${initList.length};`)
+                        }
+                        const size = (ptrTypeHint.sizeConstraint >= 0) ? ptrTypeHint.sizeConstraint : initList.length;
+                        const memory = variables.arrayMemory<Variable>(childTypeHint, []);
+                        let i = 0;
+                        for (const item of initList) {
+                            memory.values.push(variables.clone(item, { array: memory, index: i }, false, rt.raiseException, true).v);
+                            i++;
+                        }
+                        if (i < size) {
+                            while (i < size) {
+                                // do not put defaultValue outside the for-loop
+                                const defaultValueYield = rt.defaultValue2(childTypeHint, null);
+                                const defaultValue = asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
+                                memory.values.push(variables.clone(defaultValue, { array: memory, index: i }, false, rt.raiseException, true).v);
+                                i++;
+                            }
+                        }
+                        return variables.indexPointer(memory, 0, true, null);
+                    } else {
+                        rt.raiseException("Initialiser list error: Not yet implemented");
+                    }
+                } else {
+                    rt.raiseException("Initialiser list error: Not yet implemented");
+                }
             },
             *Label_case(interp, s, param) {
                 ({
@@ -686,7 +737,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 const ce = yield* interp.visit(interp, s.ConstantExpression);
                 if (param["switch"] === undefined) {
-                    rt.raiseException("Label 'case' error: you cannot use case outside switch block");
+                    rt.raiseException("Label 'case' error: Cannot use 'case' keyword outside the 'switch' block");
                 }
                 if (param.scope === "SelectionStatement_switch_cs") {
                     return [

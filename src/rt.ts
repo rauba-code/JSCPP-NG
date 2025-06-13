@@ -1143,8 +1143,10 @@ export class CRuntime {
                 }
                 const memory = variables.arrayMemory<Variable>(pointerType.pointee as ObjectType, []);
                 for (let i = 0; i < pointerType.sizeConstraint; i++) {
-                    const defaultValueYield = this.defaultValue2(pointerType.pointee as ObjectType, { array: memory, index: i });
-                    memory.values.push((interp.asResult(defaultValueYield) ?? (yield* (defaultValueYield as Gen<Variable>))).v);
+                    // variables.clone() is a shallow clone, do not put defaultVal outside the for-loop
+                    const defaultValueYield = this.defaultValue2(pointerType.pointee as ObjectType, null);
+                    const defaultVal = interp.asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
+                    memory.values.push(variables.clone(defaultVal, { array: memory, index: i }, false, this.raiseException, true).v);
                 }
                 return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>);
             }
