@@ -618,7 +618,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     }
                                 }
                                 if (isConst) {
-                                    rt.raiseException("Declaration error: Not yet implemented");
+                                    (initVar.v as any).isConst = true;
+                                    //rt.raiseException("Declaration error: Not yet implemented");
                                 }
                                 debugger;
                                 rt.defVar(name, initVar);

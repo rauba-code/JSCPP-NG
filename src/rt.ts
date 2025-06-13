@@ -304,7 +304,8 @@ export class CRuntime {
                         if (args[i].v.isConst && !argTypes[i].v.isConst) {
                             rt.raiseException("Cannot pass a const-value where a volatile value is required")
                         } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
-                            args[i] = variables.clone(args[i], args[i].v.lvHolder, true, rt.raiseException);
+                            args[i] = variables.clone(args[i], args[i].v.lvHolder, false, rt.raiseException);
+                            (args[i].v as any).isConst = true;
                         }
                         rt.defVar(argName, args[i]);
                     });
@@ -582,7 +583,11 @@ export class CRuntime {
     simpleType(_type: string | (string | { Identifier: string })[]): MaybeLeft<ObjectType> | "VOID" {
         if (_type instanceof Array) {
             _type.forEach((x) => { if (typeof (x) !== "string") { this.raiseException("Not yet implemented"); } });
-            const typeStr = (_type as string[]).join(" ");
+            let typeStrArr = _type as string[];
+            if (typeStrArr.length > 0 && typeStrArr[0] === "const") {
+                typeStrArr = typeStrArr.slice(1);
+            }
+            const typeStr = typeStrArr.join(" ");
             if (typeStr in variables.defaultArithmeticResolutionMap) {
                 return { t: { sig: variables.defaultArithmeticResolutionMap[typeStr] }, v: { lvHolder: null } };
             }
