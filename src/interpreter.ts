@@ -144,7 +144,7 @@ export interface XConstantExpression extends StatementMeta {
 }
 export interface XInitializerExpr extends StatementMeta {
     type: "Initializer_expr",
-    Expression: XConstantExpression,
+    Expression: XConstantExpression | XStringLiteralExpression,
     shorthand?: InitArithmeticVariable,
 }
 export interface XInitializerArray extends StatementMeta {
@@ -567,35 +567,54 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (rhs.length > 0 && rhs[0].type as string === "DirectDeclarator_modifier_Constructor") {
                     } else {
                         if (initSpec !== null && initSpec.type === "Initializer_array") {
-                            const ptrType: PointerType<ObjectType | FunctionType> | null = variables.asPointerType(type.t);
                             const _typeHint = param.typeHint;
-                            param.typeHint = type.t;
+                            param.typeHint = decType.t;
                             const initVar: Variable | null = (yield* interp.visit(interp, initSpec, param)) as Variable;
                             param.typeHint = _typeHint;
                             rt.defVar(name, initVar);
-                            //rt.raiseException("Declaration error: Not yet implemented");
                         } else {
-                            const initVarYield = (initSpec === null) ? rt.defaultValue2(type.t, "SELF") : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">;
+                            const initVarYield = (initSpec === null) ? rt.defaultValue2(decType.t, "SELF") : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">;
                             const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
                             if (initVarOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
                             } else {
                                 let initVar = initSpec === null ? variables.clone(rt.unbound(initVarOrVoid), "SELF", false, rt.raiseException, true) : rt.unbound(initVarOrVoid);
-
                                 if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
                                     initVar = variables.clone(initVar, "SELF", false, rt.raiseException, true);
                                 }
-
                                 if (!variables.typesEqual(initVar.t, decType.t)) {
-                                    const preDecVarYield = rt.defaultValue2(decType.t, "SELF");
-                                    const preDecVar = variables.clone(asResult(preDecVarYield) ?? (yield* preDecVarYield as Gen<Variable>), "SELF", false, rt.raiseException, true);
-                                    const callInst = rt.getFuncByParams("{global}", "o(_=_)", [preDecVar, initVar]);
-                                    const retvYield = rt.invokeCall(callInst, preDecVar, initVar)
-                                    const retv = asResult(retvYield) ?? (yield* retvYield as Gen<MaybeUnboundVariable | "VOID">)
-                                    if (retv === "VOID") {
-                                        rt.raiseException("Declaration error: expected non-void return value in assignment operator");
+                                    const ptrDecType = variables.asPointerType(decType.t);
+                                    const ptrInitVar = variables.asPointer(initVar);
+                                    if (ptrDecType !== null && ptrInitVar !== null && variables.typesEqual(ptrDecType.pointee, ptrInitVar.t.pointee)) {
+                                        const decSize = ptrDecType.sizeConstraint;
+                                        const initSize = ptrInitVar.t.sizeConstraint;
+                                        
+                                        if (decSize === null) {
+                                            initVar = { t: variables.pointerType(ptrInitVar.t.pointee, null), v: ptrInitVar.v };
+                                        } else if (decSize < 1 && initSize !== null && initSize >= 0) {
+                                            // pass
+                                        } else if (initSpec !== null && initSpec.Expression.type === "StringLiteralExpression" && initSize !== null && initSize <= decSize) {
+                                            const decArithmeticPointee = variables.asArithmeticType(ptrDecType.pointee) ?? rt.raiseException("Declaration error: Expected a pointer to a char values");
+                                            const iptr = variables.asInitIndexPointerOfElem(ptrInitVar, variables.uninitArithmetic(decArithmeticPointee.sig, null)) ?? rt.raiseException("Declaration error: Expected an initialiser to be an initialised arithmetic pointer");
+                                            const memory = iptr.v.pointee;
+                                            debugger;
+                                            for (let i = memory.values.length - iptr.v.index; i < decSize; i++) {
+                                                memory.values.push(variables.uninitArithmetic(decArithmeticPointee.sig, {array: memory, index: iptr.v.index + i}).v);
+                                            }
+                                        } else {
+                                            rt.raiseException("Declaration error: Array size mismatch");
+                                        }
                                     } else {
-                                        initVar = rt.expectValue(rt.unbound(retv));
+                                        const preDecVarYield = rt.defaultValue2(decType.t, "SELF");
+                                        const preDecVar = variables.clone(asResult(preDecVarYield) ?? (yield* preDecVarYield as Gen<Variable>), "SELF", false, rt.raiseException, true);
+                                        const callInst = rt.getFuncByParams("{global}", "o(_=_)", [preDecVar, initVar]);
+                                        const retvYield = rt.invokeCall(callInst, preDecVar, initVar)
+                                        const retv = asResult(retvYield) ?? (yield* retvYield as Gen<MaybeUnboundVariable | "VOID">)
+                                        if (retv === "VOID") {
+                                            rt.raiseException("Declaration error: expected non-void return value in assignment operator");
+                                        } else {
+                                            initVar = rt.expectValue(rt.unbound(retv));
+                                        }
                                     }
                                 }
                                 if (isConst) {
