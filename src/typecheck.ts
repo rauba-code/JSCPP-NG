@@ -88,7 +88,8 @@ export type SpecTerm = keyof (typeof specTerm);
 
 export type LexSym = Term | NonTerm | SpecTerm;
 
-export type LLParser = { [symbol: string]: { [startsWith: string]: NonTerm | SpecTerm | null }[] }
+export type LLParser = { [symbol: string]: LLParserEntry[] }
+export type LLParserEntry = { [startsWith: string]: NonTerm | SpecTerm | null };
 
 /** Creates an LL(1) parser for type language from the given Backus-Naur form (BNF).
  */
@@ -274,6 +275,14 @@ export function arrayValuesEqual(a: string[], b: string[]): boolean {
     return true;
 }
 
+export type CastAction = {
+    type: "ARITHMETIC",
+    targetSig: ArithmeticSig,
+} & {
+    type: "CTOR"
+    fnsig: string[],
+};
+
 export interface ParseFunctionMatchResult {
     valueActions: ("CLONE" | "BORROW" | "CAST")[],
     castActions: { index: number, targetSig: ArithmeticSig }[],
@@ -308,89 +317,86 @@ export function parseFunctionMatch(parser: LLParser, subtype: string[], supertyp
     return (retv && pair.subtype.length === 0 && pair.supertype.length === 0) ? result : null;
 }
 
+function matchNontermOrWildcard(parser: LLParser, scope: NonTerm, argument: LLParserEntry, pair: FunctionMatchSigPair, supertop: string, result: ParseFunctionMatchResult): boolean | null {
+    const innerScope: NonTerm | null = argument[supertop] as NonTerm | null;
+    if (innerScope === null) {
+        if (supertop === scope) {
+            // wildcard management
+            pair.supertype = pair.supertype.slice(1);
+            const subtype0 = pair.subtype;
+            let r = parseInner(parser, scope, pair.subtype);
+            if (r !== null) {
+                const wcInstance = subtype0.slice(0, subtype0.length - r.length);
+                let subresult: number | string[];
+                if (wcInstance.length === 1 && wcInstance[0] in nonTerm) {
+                    // subset is also a wildcard
+                    subresult = pair.subwc[0];
+                    pair.subwc = pair.subwc.slice(1);
+                } else {
+                    subresult = wcInstance;
+                }
+                const superwc: number | string[] = pair.wildcards[pair.superwc[0]];
+                if (superwc === undefined) {
+                    pair.wildcards[pair.superwc[0]] = subresult;
+                } else if (typeof superwc === "number") {
+                    if (superwc !== subresult) {
+                        return false;
+                    }
+                } else {
+                    // superwc is an array
+                    if (typeof subresult === "number" || !arrayValuesEqual(superwc, subresult)) {
+                        return false;
+                    }
+                }
+            }
+            if (r !== null) {
+                pair.subtype = r;
+                pair.superwc = pair.superwc.slice(1);
+            }
+            return r !== null;
+        } else {
+            if (!(pair.subtype.length > 0 && pair.subtype[0] === supertop)) {
+                return false;
+            }
+            pair.supertype = pair.supertype.slice(1);
+            pair.subtype = pair.subtype.slice(1);
+        }
+    } else {
+        const delta = (scope === "Function" && innerScope === "FunctionParamOrEnd") ? 1 : (scope === "Function" && innerScope === "Return") ? 2 : 0;
+        pair.paramDepth += delta;
+        const nestedRetv = parseFunctionMatchInner(parser, innerScope as NonTerm, pair, result);
+        pair.paramDepth -= delta;
+        if (!nestedRetv) {
+            return false;
+        }
+    }
+    return null;
+}
+
+function tryImplicitCast(pair: FunctionMatchSigPair, subtype: string[], supertype: string[]): { index: number, targetSig: ArithmeticSig } | null {
+    if (supertype[0] in arithmeticSig && subtype[0] in arithmeticSig) {
+        // implicit arithmetic conversions
+        return { index: pair.firstLevelParamBreadth, targetSig: supertype[0] as ArithmeticSig };
+    } else if (supertype[0] === "Arithmetic" && subtype[0] in arithmeticSig) {
+        // implicit arithmetic conversions with inferred wildcard type
+        const superwc: number | string[] = pair.wildcards[pair.superwc[0]];
+        if (superwc === undefined || typeof superwc === "number") {
+            throw new TypeParseError("Cannot infer a function parameter in a given implicit arithmetic conversion (not yet implemented)");
+        } else if (superwc.length === 1 && superwc[0] in arithmeticSig) {
+            return { index: pair.firstLevelParamBreadth, targetSig: superwc[0] as ArithmeticSig };
+        } else {
+            return null;
+        }
+    } else {
+        return null;
+    }
+}
+
 function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: FunctionMatchSigPair, result: ParseFunctionMatchResult): boolean {
     let retv: boolean | null = null;
     parser[scope].forEach((argument) => {
         if (retv !== null) {
             return;
-        }
-        function matchNontermOrWildcard(supertop: string): void {
-            const innerScope: NonTerm | null = argument[supertop] as NonTerm | null;
-            if (innerScope === null) {
-                if (supertop === scope) {
-                    // wildcard management
-                    pair.supertype = pair.supertype.slice(1);
-                    const subtype0 = pair.subtype;
-                    let r = parseInner(parser, scope, pair.subtype);
-                    if (r !== null) {
-                        const wcInstance = subtype0.slice(0, subtype0.length - r.length);
-                        let subresult: number | string[];
-                        if (wcInstance.length === 1 && wcInstance[0] in nonTerm) {
-                            // subset is also a wildcard
-                            subresult = pair.subwc[0];
-                            pair.subwc = pair.subwc.slice(1);
-                        } else {
-                            subresult = wcInstance;
-                        }
-                        const superwc: number | string[] = pair.wildcards[pair.superwc[0]];
-                        if (superwc === undefined) {
-                            pair.wildcards[pair.superwc[0]] = subresult;
-                        } else if (typeof superwc === "number") {
-                            if (superwc !== subresult) {
-                                retv = false;
-                            }
-                        } else {
-                            // superwc is an array
-                            if (typeof subresult === "number" || !arrayValuesEqual(superwc, subresult)) {
-                                retv = false;
-                            }
-                        }
-                    }
-                    if (retv === null) {
-                        retv = r !== null;
-                    }
-                    if (retv === true && r !== null) {
-                        pair.subtype = r;
-                        pair.superwc = pair.superwc.slice(1);
-                    }
-                    return;
-                } else {
-                    if (!(pair.subtype.length > 0 && pair.subtype[0] === supertop)) {
-                        retv = false;
-                        return;
-                    }
-                    pair.supertype = pair.supertype.slice(1);
-                    pair.subtype = pair.subtype.slice(1);
-                }
-            } else {
-                const delta = (scope === "Function" && innerScope === "FunctionParamOrEnd") ? 1 : (scope === "Function" && innerScope === "Return") ? 2 : 0;
-                pair.paramDepth += delta;
-                const nestedRetv = parseFunctionMatchInner(parser, innerScope as NonTerm, pair, result);
-                pair.paramDepth -= delta;
-                if (!nestedRetv) {
-                    retv = false;
-                    return;
-                }
-            }
-
-        }
-        function tryImplicitCast(subtype: string[], supertype: string[]): { index: number, targetSig: ArithmeticSig } | null {
-            if (supertype[0] in arithmeticSig && subtype[0] in arithmeticSig) {
-                // implicit arithmetic conversions
-                return { index: pair.firstLevelParamBreadth, targetSig: supertype[0] as ArithmeticSig };
-            } else if (supertype[0] === "Arithmetic" && subtype[0] in arithmeticSig) {
-                // implicit arithmetic conversions with inferred wildcard type
-                const superwc: number | string[] = pair.wildcards[pair.superwc[0]];
-                if (superwc === undefined || typeof superwc === "number") {
-                    throw new TypeParseError("Cannot infer a function parameter in a given implicit arithmetic conversion (not yet implemented)");
-                } else if (superwc.length === 1 && superwc[0] in arithmeticSig) {
-                    return { index: pair.firstLevelParamBreadth, targetSig: superwc[0] as ArithmeticSig };
-                } else {
-                    return null;
-                }
-            } else {
-                return null;
-            }
         }
         if (pair.supertype.length > 0 && pair.supertype[0] in argument) {
             if (pair.paramDepth === 1 && scope === "Parametric") {
@@ -398,15 +404,15 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                 if (pair.subtype.length > 0 && pair.subtype[0] === "LREF") {
                     if (pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef") {
                         valueAction = "BORROW";
-                        matchNontermOrWildcard(pair.supertype[0]);
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
                     } else {
                         // implicit lvalue arithmetic conversion
                         pair.subtype = pair.subtype.slice(1);
                         const subtype = pair.subtype;
                         const supertype = pair.supertype;
-                        matchNontermOrWildcard(pair.supertype[0]);
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
                         if (retv === false) {
-                            const implicitCast = tryImplicitCast(subtype, supertype);
+                            const implicitCast = tryImplicitCast(pair, subtype, supertype);
                             if (implicitCast !== null) {
                                 retv = null;
                                 valueAction = "CAST";
@@ -424,9 +430,9 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                     // implicit non-lvalue arithmetic conversion
                     const subtype = pair.subtype;
                     const supertype = pair.supertype;
-                    matchNontermOrWildcard(pair.supertype[0]);
+                    retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
                     if (retv === false) {
-                        const implicitCast = tryImplicitCast(subtype, supertype);
+                        const implicitCast = tryImplicitCast(pair, subtype, supertype);
                         if (implicitCast !== null) {
                             retv = null;
                             valueAction = "CAST";
@@ -440,12 +446,12 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                         valueAction = "CLONE";
                     }
                 } else {
-                    matchNontermOrWildcard(pair.supertype[0]);
+                    retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
                 }
                 pair.firstLevelParamBreadth++;
                 result.valueActions.push(valueAction);
             } else {
-                matchNontermOrWildcard(pair.supertype[0]);
+                retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
             }
         } else if (pair.supertype.length > 0 && "identifier" in argument) {
             if (!(pair.subtype.length > 0 && pair.subtype[0] === pair.supertype[0])) {
