@@ -2,6 +2,7 @@ import { CRuntime } from "../rt";
 import { FunHandler, OpHandler } from "../shared/common";
 import * as ios_base from "../shared/ios_base";
 import * as ios_base_impl from "../shared/ios_base_impl"
+import { StringVariable } from "../shared/string_utils";
 import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 
 type OfstreamValue = ios_base.OStreamValue & {
@@ -23,7 +24,7 @@ export = {
 
         const thisType = (rt.simpleType(["ofstream"]) as MaybeLeft<ClassType>).t;
 
-        const ctorHandler: OpHandler = {
+        const ctorHandlers: OpHandler[] = [{
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( PTR I8 )",
             default(_rt: CRuntime, _path: PointerVariable<ArithmeticVariable>): OfStreamVariable {
@@ -33,9 +34,23 @@ export = {
                 _open(_rt, result, pathPtr);
                 return result;
             }
-        };
+        },
+        {
+            op: "o(_ctor)",
+            type: "FUNCTION CLASS ofstream < > ( LREF CLASS string < > )",
+            default(_rt: CRuntime, _path: StringVariable): OfStreamVariable {
+                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
-        rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
+                _open(_rt, result, pathPtr);
+                return result;
+            }
+        },
+        ];
+
+        for (const ctorHandler of ctorHandlers) {
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
+        }
 
         const _open = function(_rt: CRuntime, _this: OfStreamVariable, right: InitIndexPointerVariable<ArithmeticVariable>): void {
             const fd = _rt.openFile(right);

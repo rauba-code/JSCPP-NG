@@ -727,7 +727,7 @@ export class CRuntime {
             },
         }
         const where = (type.sig in variables.arithmeticSig) ? "ARITHMETIC" : type.sig;
-        return [isConst ? "const " : "", branch[where](), isLValue === null ? "&" : ""].join("");
+        return [isConst ? "const " : "", branch[where](), isLValue ? "&" : ""].join("");
     }
 
     /** For integers, performs a two's-complement integer overflow on demand.

@@ -159,19 +159,34 @@ export = {
 
         const thisType = (rt.simpleType(["ifstream"]) as MaybeLeft<ClassType>).t;
 
-        const ctorHandler: common.OpHandler = {
-            op: "o(_ctor)",
-            type: "FUNCTION CLASS ifstream < > ( PTR I8 )",
-            default(_rt: CRuntime, _path: PointerVariable<ArithmeticVariable>): IfStreamVariable {
-                const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
-                const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
+        const ctorHandlers: common.OpHandler[] = [
+            {
+                op: "o(_ctor)",
+                type: "FUNCTION CLASS ifstream < > ( PTR I8 )",
+                default(_rt: CRuntime, _path: PointerVariable<ArithmeticVariable>): IfStreamVariable {
+                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
-                variables.arithmeticAssign(result.v.members.fd, _open(_rt, result, pathPtr), rt.raiseException);
-                return result;
-            }
-        };
+                    variables.arithmeticAssign(result.v.members.fd, _open(_rt, result, pathPtr), rt.raiseException);
+                    return result;
+                }
+            },
+            {
+                op: "o(_ctor)",
+                type: "FUNCTION CLASS ifstream < > ( LREF CLASS string < > )",
+                default(_rt: CRuntime, _path: StringVariable): IfStreamVariable {
+                    const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
-        rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
+                    variables.arithmeticAssign(result.v.members.fd, _open(_rt, result, pathPtr), rt.raiseException);
+                    return result;
+                }
+            },
+        ];
+
+        for (const ctorHandler of ctorHandlers) {
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
+        }
 
         function _getline(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
             let b = l.v.members.buf;
