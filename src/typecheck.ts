@@ -29,9 +29,9 @@ const term = {
     "VOID": Object,
     "NULLPTR": Object,
     "LREF": Object,
+    "CLREF": Object,
     "ARRAY": Object,
     "CLASS": Object,
-    "MEMBER": Object,
     "PTR": Object,
     "I8": Object,
     "U8": Object,
@@ -60,13 +60,13 @@ const nonTerm = {
     "TemplateParamOrEnd": Object,
     "FunctionParamPlus": Object,
     "FunctionParamOrEnd": Object,
-    "Member": Object,
     "Function": Object,
     "Type": Object,
     "Object": Object,
     "ParamObject": Object,
     "Parametric": Object,
     "LRef": Object,
+    "CLRef": Object,
     "LValue": Object,
     "Pointer": Object,
     "Pointee": Object,
@@ -97,10 +97,10 @@ export function constructTypeParser(): LLParser {
     const typeBNF: { [symbol: string]: LexSym[][] } = {
         "Type": [["Object", "VOID", "Function", "LRef"]],
         "Object": [["ParamObject", "Array"]],
-        "ParamObject": [["Class", "Arithmetic", "NULLPTR", "Pointer", "Member"]],
-        "Parametric": [["ParamObject", "LRef"]],
-        "Member": [["MEMBER"], ["Class"], ["Class"]],
+        "ParamObject": [["Class", "Arithmetic", "NULLPTR", "Pointer"]],
+        "Parametric": [["ParamObject", "LRef", "CLRef"]],
         "LRef": [["LREF"], ["LValue"]],
+        "CLRef": [["CLREF"], ["LValue"]],
         "LValue": [["Object", "Function"]],
         "Pointee": [["LValue", "VOID"]],
         "Pointer": [["PTR"], ["Pointee"]],
@@ -400,11 +400,21 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
         }
         if (pair.supertype.length > 0 && pair.supertype[0] in argument) {
             if (pair.paramDepth === 1 && scope === "Parametric") {
+                if (pair.subtype.length === 0) {
+                    retv = false;
+                    return;
+                }
                 let valueAction: "BORROW" | "CLONE" | "CAST" = "CLONE";
-                if (pair.subtype.length > 0 && pair.subtype[0] === "LREF") {
-                    if (pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef") {
+                //const superRefType: "LREF" | "CLREF" | "OTHER" = (pair.supertype.length > 0) ? ((pair.supertype[0] === "LREF" || pair.supertype[0] === "LRef") ? "LREF" : ((pair.supertype[0] === "CLREF" || pair.supertype[0] === "CLRef") ? "CLREF" : "OTHER")) : "OTHER";
+                if (pair.subtype[0] === "LREF" || pair.subtype[0] === "CLREF") {
+                    if ((pair.supertype[0] === "LREF" && pair.subtype[0] === "LREF") || pair.supertype[0] === "CLREF") {
+                        // cannot provide const T& to function that accepts only T&, but it is permitted vice-versa.
+                        pair.subtype[0] = "LREF";
+                        pair.supertype[0] = "LREF";
                         valueAction = "BORROW";
                         retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                    } else if (pair.supertype[0] === "LRef" || pair.supertype[0] === "CLRef") {
+                        throw new Error("Typecheck: Not yet implemented");
                     } else {
                         // implicit lvalue arithmetic conversion
                         pair.subtype = pair.subtype.slice(1);
@@ -426,27 +436,36 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                             valueAction = "CLONE";
                         }
                     }
-                } else if (pair.subtype.length > 0 && pair.subtype[0] in arithmeticSig) {
-                    // implicit non-lvalue arithmetic conversion
-                    const subtype = pair.subtype;
-                    const supertype = pair.supertype;
-                    retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
-                    if (retv === false) {
-                        const implicitCast = tryImplicitCast(pair, subtype, supertype);
-                        if (implicitCast !== null) {
-                            retv = null;
-                            valueAction = "CAST";
-                            pair.subtype = subtype.slice(1);
-                            pair.supertype = supertype.slice(1);
-                            result.castActions.push(implicitCast);
+                } else {
+                    // temporary
+                    if (pair.supertype[0] === "CLREF") {
+                        valueAction = "BORROW";
+                        pair.supertype = pair.supertype.slice(1);
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                    } else if (pair.supertype[0] === "CLRef") {
+                        throw new Error("Typecheck: Not yet implemented");
+                    } else if (pair.subtype[0] in arithmeticSig) {
+                        // implicit non-lvalue arithmetic conversion
+                        const subtype = pair.subtype;
+                        const supertype = pair.supertype;
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                        if (retv === false) {
+                            const implicitCast = tryImplicitCast(pair, subtype, supertype);
+                            if (implicitCast !== null) {
+                                retv = null;
+                                valueAction = "CAST";
+                                pair.subtype = subtype.slice(1);
+                                pair.supertype = supertype.slice(1);
+                                result.castActions.push(implicitCast);
+                            } else {
+                                return false;
+                            }
                         } else {
-                            return false;
+                            valueAction = "CLONE";
                         }
                     } else {
-                        valueAction = "CLONE";
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
                     }
-                } else {
-                    retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
                 }
                 pair.firstLevelParamBreadth++;
                 result.valueActions.push(valueAction);

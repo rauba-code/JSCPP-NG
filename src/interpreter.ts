@@ -410,6 +410,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 const dim = _param.Declarator.Declarator.right[0];
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
                                 const { argTypes: _argTypes, optionalArgs: _optionalArgs } = (yield* interp.visit(interp, dim.ParameterTypeList, param)) as ParameterTypeListResult;
+                                debugger;
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
                                 if (_optionalArgs.length !== 0) {
                                     rt.raiseException("Parameter type list error: function pointer types cannot contain optional parameters");
@@ -485,6 +486,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Function definition error: unacceptable argument list", s.Declarator.right);
                 }
                 const { argTypes, argNames, optionalArgs }: ParameterTypeListResult = yield* interp.visit(interp, ptl, param);
+                debugger;
                 const stat = s.CompoundStatement;
                 rt.defFunc(typedScope, name, basetype, argTypes, argNames.map(x => x ?? rt.raiseException("Function definition error: expected a named parameter")), optionalArgs, stat, interp);
             },
@@ -537,7 +539,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 }
                             }
                             decType = variables.uninitPointer(decType.t, arraySize, decType.v.lvHolder);
-                            debugger;
                         } else if (modifier.type as string === "DirectDeclarator_modifier_Constructor") {
                             if (rhs.length !== 1) {
                                 rt.raiseException("Declaration error: Too many modifiers or not yet implemented");
@@ -597,7 +598,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                             const decArithmeticPointee = variables.asArithmeticType(ptrDecType.pointee) ?? rt.raiseException("Declaration error: Expected a pointer to a char values");
                                             const iptr = variables.asInitIndexPointerOfElem(ptrInitVar, variables.uninitArithmetic(decArithmeticPointee.sig, null)) ?? rt.raiseException("Declaration error: Expected an initialiser to be an initialised arithmetic pointer");
                                             const memory = iptr.v.pointee;
-                                            debugger;
                                             for (let i = memory.values.length - iptr.v.index; i < decSize; i++) {
                                                 memory.values.push(variables.uninitArithmetic(decArithmeticPointee.sig, {array: memory, index: iptr.v.index + i}).v);
                                             }
@@ -621,7 +621,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     (initVar.v as any).isConst = true;
                                     //rt.raiseException("Declaration error: Not yet implemented");
                                 }
-                                debugger;
                                 rt.defVar(name, initVar);
                             }
                         }
@@ -1087,7 +1086,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return ["return"];
             },
-            IdentifierExpression(interp, s, param: { functionArgs?: MaybeLeft<ObjectType>[] }) {
+            IdentifierExpression(interp, s, param: { functionArgs?: MaybeLeftCV<ObjectType>[] }) {
                 ({ rt } = interp);
 
                 const globalScope = rt.scope.find((scope) => scope.$name === "{global}");
@@ -1188,7 +1187,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Method invocation error: Expected a function")
                 }
             },
-            *PostfixExpression_MemberAccess(interp, s: XPostfixExpression_MemberAccess, param: { functionArgs?: MaybeLeft<ObjectType>[] }): ResultOrGen<Variable | FunctionCallInstance> {
+            *PostfixExpression_MemberAccess(interp, s: XPostfixExpression_MemberAccess, param: { functionArgs?: MaybeLeftCV<ObjectType>[] }): ResultOrGen<Variable | FunctionCallInstance> {
                 ({
                     rt
                 } = interp);

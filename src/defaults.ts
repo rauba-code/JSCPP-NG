@@ -447,7 +447,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(&_)",
-        type: "!Function FUNCTION PTR ?0 ( LREF ?0 )",
+        type: "!Function FUNCTION PTR ?0 ( CLREF ?0 )",
         default(_rt: CRuntime, l: Function): InitDirectPointerVariable<Function> {
             return variables.directPointer(l, null);
         }

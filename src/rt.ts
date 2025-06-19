@@ -279,9 +279,9 @@ export class CRuntime {
 
     /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeDB-associated functions */
     createFunctionTypeSignature(domain: ClassType | "{global}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], noThis = false): TypeSignature {
-        const thisSig: string[] = (domain === "{global}" || noThis) ? [] : variables.toStringSequence(domain, true, this.raiseException);
-        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.v.lvHolder !== null, this.raiseException);
-        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
+        const thisSig: string[] = (domain === "{global}" || noThis) ? [] : variables.toStringSequence(domain, true, false, this.raiseException);
+        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.v.lvHolder !== null, false, this.raiseException);
+        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat(2);
         return this.arrayTypeSignature(result);
     }
@@ -346,15 +346,15 @@ export class CRuntime {
     };
 
     /** Convenience function for static type checking of operators */
-    getOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionCallInstance {
+    getOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance {
         return this.getFuncByParams(domain, identifier, params);
     }
 
-    tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
+    tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance | null {
         return this.tryGetFuncByParams(domain, identifier, params);
     }
 
-    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance {
+    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance {
         const fn = this.tryGetFuncByParams(domain, identifier, params);
         if (fn === null) {
             const domainSig: string = this.domainString(domain);
@@ -362,7 +362,7 @@ export class CRuntime {
                 this.raiseException(`domain '${domainSig}' is unknown`);
             }
             const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-            const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, false)).join(", ") + ")";
+            const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, x.v.isConst)).join(", ") + ")";
             const overloads = domainMap.functionDB.functions[identifier];
             const overloadsMsg = (overloads !== undefined)
                 ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.type.join(" ")}`).join("\n")
@@ -372,12 +372,12 @@ export class CRuntime {
         return fn;
     };
 
-    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeft<ObjectType>[]): FunctionCallInstance | null {
+    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance | null {
         const domainSig: string = this.domainString(domain);
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
         }
-        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
+        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
@@ -389,7 +389,7 @@ export class CRuntime {
 
 
     *invokeCallFromVariable(funvar: Function, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
-        const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, this.raiseException));
+        const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
         //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
         const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype));

@@ -26,7 +26,7 @@ export interface ArithmeticProperties {
 
 const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
     "I8": {
-        name: "signed char",
+        name: "char",
         isSigned: true,
         isFloat: false,
         bytes: 1,
@@ -44,7 +44,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         asSigned: "I8",
     },
     "I16": {
-        name: "short int",
+        name: "short",
         isSigned: true,
         isFloat: false,
         bytes: 2,
@@ -53,7 +53,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         asSigned: "I16",
     },
     "U16": {
-        name: "unsigned short int",
+        name: "unsigned short",
         isSigned: false,
         isFloat: false,
         bytes: 2,
@@ -62,7 +62,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         asSigned: "I16",
     },
     "I32": {
-        name: "long int",
+        name: "int",
         isSigned: true,
         isFloat: false,
         bytes: 4,
@@ -71,7 +71,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         asSigned: "I32",
     },
     "U32": {
-        name: "unsigned long int",
+        name: "unsigned int",
         isSigned: false,
         isFloat: false,
         bytes: 4,
@@ -80,7 +80,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         asSigned: "I32",
     },
     "I64": {
-        name: "long long int",
+        name: "long long",
         isSigned: true,
         isFloat: false,
         bytes: 8,
@@ -89,7 +89,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         asSigned: "I64",
     },
     "U64": {
-        name: "unsigned long long int",
+        name: "unsigned long long",
         isSigned: false,
         isFloat: false,
         bytes: 8,
@@ -595,8 +595,8 @@ export const variables = {
     directPointerAssign<VElem extends PointeeVariable>(lhs: PointerVariable<PointeeVariable>, pointee: VElem, onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
         if (!variables.typesEqual(lhs.t.pointee, pointee.t)) {
-            const expected = variables.toStringSequence(lhs.t.pointee, false, onError).join(" ");
-            const received = variables.toStringSequence(pointee.t, false, onError).join(" ");
+            const expected = variables.toStringSequence(lhs.t.pointee, false, false, onError).join(" ");
+            const received = variables.toStringSequence(pointee.t, false, false, onError).join(" ");
             onError(`expected type '${expected}', got '${received}'`)
         }
         lhs.v.state = "INIT";
@@ -606,8 +606,8 @@ export const variables = {
     indexPointerAssign<VElem extends Variable>(lhs: PointerVariable<VElem>, array: ArrayMemory<VElem>, index: number, onError: (x: string) => never): void {
         checkAssignable(lhs.v, onError);
         if (!variables.typesEqual(lhs.t.pointee, array.objectType)) {
-            const expected = variables.toStringSequence(lhs.t.pointee, false, onError).join(" ");
-            const received = variables.toStringSequence(array.objectType, false, onError).join(" ");
+            const expected = variables.toStringSequence(lhs.t.pointee, false, false, onError).join(" ");
+            const received = variables.toStringSequence(array.objectType, false, false, onError).join(" ");
             onError(`expected type '${expected}', got '${received}'`)
         }
         lhs.v.state = "INIT";
@@ -619,10 +619,10 @@ export const variables = {
         checkAssignable(lhs.v, onError);
         lhs.v.index = index;
     },
-    toStringSequence(type: AnyType, left: boolean, onError: (x: string) => never): string[] {
+    toStringSequence(type: AnyType, left: boolean, isConst: boolean, onError: (x: string) => never): string[] {
         let result = new Array<string>();
         if (left) {
-            result.push("LREF");
+            result.push(isConst ? "CLREF" : "LREF");
         }
         toStringSequenceInner(type, result, onError);
         return result;
