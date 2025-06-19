@@ -410,7 +410,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 const dim = _param.Declarator.Declarator.right[0];
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
                                 const { argTypes: _argTypes, optionalArgs: _optionalArgs } = (yield* interp.visit(interp, dim.ParameterTypeList, param)) as ParameterTypeListResult;
-                                debugger;
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
                                 if (_optionalArgs.length !== 0) {
                                     rt.raiseException("Parameter type list error: function pointer types cannot contain optional parameters");
@@ -486,7 +485,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Function definition error: unacceptable argument list", s.Declarator.right);
                 }
                 const { argTypes, argNames, optionalArgs }: ParameterTypeListResult = yield* interp.visit(interp, ptl, param);
-                debugger;
                 const stat = s.CompoundStatement;
                 rt.defFunc(typedScope, name, basetype, argTypes, argNames.map(x => x ?? rt.raiseException("Function definition error: expected a named parameter")), optionalArgs, stat, interp);
             },
