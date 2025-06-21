@@ -353,12 +353,15 @@ export class CRuntime {
             const overloadsMsg = (overloads !== undefined)
                 ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.type.join(" ")}`).join("\n")
                 : "No available overloads";
-            this.raiseException(`No matching function '${domainSig}::${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
+            this.raiseException(`No matching function '${domainSig === "{global}" ? "" : `${domainSig}::`}${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
         }
         return fn;
     };
 
     tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance | null {
+        if (identifier.startsWith("std::")) {
+            identifier = identifier.substr(5);
+        }
         const domainSig: string = this.domainString(domain);
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
@@ -497,7 +500,7 @@ export class CRuntime {
                 const srcArgStart = fnsig.inline.indexOf("(") + 2;
                 const srcTypeInline = fnsig.inline.substr(srcArgStart, fnsig.inline.length - srcArgStart - 2);
                 const abstractSig = abstractFunctionReturnSig(fnsig.array).join(" ");
-                this.ictable[dstTypeInline][srcTypeInline] = { fnsig: abstractSig, domain: domainInlineSig } ;
+                this.ictable[dstTypeInline][srcTypeInline] = { fnsig: abstractSig, domain: domainInlineSig };
             }
         }
     };
