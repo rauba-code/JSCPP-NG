@@ -45,8 +45,10 @@ export = {
 
         rt.addToNamespace("std", "cout", cout);
 
-        const endl = rt.getCharArrayFromString("\n");
-        rt.addToNamespace("std", "endl", endl);
+        if (!rt.varAlreadyDefined("endl")) {
+            const endl = rt.getCharArrayFromString("\n");
+            rt.addToNamespace("std", "endl", endl);
+        }
 
         function readChar(rt: CRuntime, l: IStreamVariable): Gen<InitArithmeticVariable> {
             const stdio = rt.stdio();

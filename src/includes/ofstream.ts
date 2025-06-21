@@ -14,6 +14,10 @@ type OfStreamVariable = AbstractVariable<ios_base.OStreamType, OfstreamValue>;
 
 export = {
     load(rt: CRuntime) {
+        if (!rt.varAlreadyDefined("endl")) {
+            const endl = rt.getCharArrayFromString("\n");
+            rt.addToNamespace("std", "endl", endl);
+        }
 
         ios_base_impl.defineOstream(rt, "ofstream", [
             {

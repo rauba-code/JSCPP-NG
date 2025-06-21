@@ -14,6 +14,10 @@ type IfStreamVariable = AbstractVariable<ios_base.OStreamType, IfstreamValue>;
 
 export = {
     load(rt: CRuntime) {
+        if (!rt.varAlreadyDefined("endl")) {
+            const endl = rt.getCharArrayFromString("\n");
+            rt.addToNamespace("std", "endl", endl);
+        }
 
         const charType = variables.arithmeticType("I8");
         rt.defineStruct("{global}", "ifstream", [
@@ -89,16 +93,16 @@ export = {
                         if (!(whitespaceChars.includes(char))) {
                             break;
                         }
-                        variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                        buf.v.index++;
                     }
                     if (r.t.sig === "I8") {
                         variables.arithmeticAssign(r, char, rt.raiseException);
-                        variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                        buf.v.index++;
                     } else {
                         let wordValues: number[] = [];
                         while (!(whitespaceChars.includes(char))) {
                             wordValues.push(char);
-                            variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                            buf.v.index++;
                             if (buf.v.pointee.values.length <= buf.v.index) {
                                 eofbit.v.value = 1;
                                 break;
@@ -142,14 +146,14 @@ export = {
                         if (!(whitespaceChars.includes(char.v.value))) {
                             break;
                         }
-                        variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                        buf.v.index++;
                     }
 
                     let i = 0;
                     const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
                     while (!(whitespaceChars.includes(char.v.value))) {
                         memory.values.push(variables.arithmetic("I8", char.v.value, { array: memory, index: i }).v);
-                        variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                        buf.v.index++;
                         char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
                         i++;
                         if (char.v.value === 0) {
@@ -220,16 +224,16 @@ export = {
                 const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
                 if (bi === delim || bi === 0) {
                     // consume the delimiter
-                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    b.v.index++;
                     variables.arithmeticAssign(si, 0, rt.raiseException);
                     break;
                 }
                 variables.arithmeticAssign(si, bi, rt.raiseException);
-                variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                b.v.index++;
                 cnt++;
             }
             if (cnt === 0) {
-                variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                l.v.members.failbit.v.value = 1;
             }
             return l;
         }
@@ -238,8 +242,8 @@ export = {
             const delim = rt.arithmeticValue(_delim);
             const i8type = s.v.members._ptr.t.pointee;
             if (b.v.index >= b.v.pointee.values.length) {
-                variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                l.v.members.eofbit.v.value = 1;
+                l.v.members.failbit.v.value = 1;
                 return;
             }
             let cnt = 0;
@@ -248,12 +252,15 @@ export = {
                 const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
                 if (bi === delim || bi === 0) {
                     // consume the delimiter
-                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    b.v.index++;
+                    if (bi !== 0) { 
+                        cnt++;
+                    }
                     //variables.arithmeticAssign(si, 0, rt.raiseException);
                     break;
                 }
                 memory.values.push(variables.arithmetic(i8type.sig, bi, { array: memory, index: cnt }).v);
-                variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                b.v.index++;
                 cnt++;
             }
             memory.values.push(variables.arithmetic(i8type.sig, 0, { array: memory, index: cnt }).v);

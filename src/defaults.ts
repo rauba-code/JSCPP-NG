@@ -482,6 +482,24 @@ const defaultOpHandler: OpHandler[] = [
         }
     },
     {
+        op: "o(_+_)",
+        type: "!Pointer FUNCTION ?0 ( ?0 Arithmetic )",
+        default(rt: CRuntime, _l: PointerVariable<PointeeVariable>, index: ArithmeticVariable): PointerVariable<PointeeVariable> {
+            if (variables.asFunctionType(_l.t.pointee) !== null) {
+                rt.raiseException("Cannot move out of function pointer index");
+            }
+            const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
+            const i = rt.arithmeticValue(index);
+            if (i === 0) {
+                return variables.clone(l, null, false, rt.raiseException);
+            }
+            if (l.v.subtype === "INDEX") {
+                return variables.indexPointer(l.v.pointee, l.v.index + i, false, null, false);
+            }
+            rt.raiseException("Not yet implemented");
+        }
+    },
+    {
         op: "o(_||_)",
         type: "FUNCTION BOOL ( BOOL BOOL )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {

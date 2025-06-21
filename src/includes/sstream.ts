@@ -2,13 +2,17 @@ import { CRuntime } from "../rt";
 import { sizeNonSpace, skipSpace, StringVariable } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
 import * as common from "../shared/common";
-import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, variables } from "../variables";
 
 type IStringStreamValue = ios_base.IStreamValue;
 type IStringStreamVariable = AbstractVariable<ios_base.OStreamType, IStringStreamValue>;
 
 export = {
     load(rt: CRuntime) {
+        if (!rt.varAlreadyDefined("endl")) {
+            const endl = rt.getCharArrayFromString("\n");
+            rt.addToNamespace("std", "endl", endl);
+        }
 
         for (const structName of ["istringstream", "stringstream"]) {
             const charType = variables.arithmeticType("I8");
