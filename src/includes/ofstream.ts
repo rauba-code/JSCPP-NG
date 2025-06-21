@@ -37,7 +37,7 @@ export = {
         },
         {
             op: "o(_ctor)",
-            type: "FUNCTION CLASS ofstream < > ( LREF CLASS string < > )",
+            type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > )",
             default(_rt: CRuntime, _path: StringVariable): OfStreamVariable {
                 const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;

@@ -122,7 +122,7 @@ export interface XDirectDeclarator_modifier_IdentifierList extends StatementMeta
 }
 export interface XDeclaration extends StatementMeta {
     type: "Declaration",
-    DeclarationSpecifiers: string[],
+    DeclarationSpecifiers: (string | XScopedIdentifier)[],
     InitDeclaratorList: XInitDeclarator[],
 }
 export interface XTypedefDeclaration extends StatementMeta {
@@ -194,6 +194,11 @@ export interface XCastExpression extends StatementMeta {
 export interface XUnaryExpression_Sizeof_Type extends StatementMeta {
     type: "UnaryExpression_Sizeof_Type",
     TypeName: XTypeName,
+}
+export interface XScopedIdentifier extends StatementMeta {
+    type: "ScopedIdentifier",
+    scope: XScopedIdentifier | null,
+    Identifier: string,
 }
 export interface XUnknown {
     type: "<stub>"
@@ -667,7 +672,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                             structMemberList.push({
                                 name,
-                                variable: variables.clone(initvar, "SELF", false, rt.raiseException)
+                                variable: variables.clone(initvar, "SELF", false, rt.raiseException, true)
                             });
                         }
                     }

@@ -37,7 +37,7 @@ export function abstractFunctionReturnSig(sig: string[]): string[] {
 export interface FunctionMatchResult extends typecheck.ParseFunctionMatchResult {
     fnid: number,
     valueActions: ("CLONE" | "BORROW" | "CAST")[],
-    castActions: { index: number, targetSig: typecheck.ArithmeticSig }[],
+    castActions: { index: number, cast: typecheck.CastAction }[],
 }
 
 export class TypeDB {
@@ -70,8 +70,8 @@ export class TypeDB {
         return typecheck.parseSubset(this.parser, makeStringArr(subtype), makeStringArr(supertype), this.scope, this.strict_order, allow_lvalue_substitution);
     };
 
-    matchFunction(subtype: string | string[], supertype: string | string[]): typecheck.ParseFunctionMatchResult | null {
-        return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), this.strict_order);
+    matchFunction(subtype: string | string[], supertype: string | string[], ictable: typecheck.ImplicitConversionTable): typecheck.ParseFunctionMatchResult | null {
+        return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), ictable, this.strict_order);
     };
 
     addFunctionOverload(identifier: string, function_type: string | string[], function_id: number, onError: (x: string) => void): void {
@@ -102,7 +102,7 @@ export class TypeDB {
         return fnobj.overloads[0].fnid;
     };
 
-    matchFunctionByParams(identifier: string, params: (string | string[])[], onError: (x: string) => void): FunctionMatchResult | null {
+    matchFunctionByParams(identifier: string, params: (string | string[])[], ictable: typecheck.ImplicitConversionTable, onError: (x: string) => void): FunctionMatchResult | null {
         if (!(identifier in this.functions)) {
             return null;
         }
@@ -114,7 +114,7 @@ export class TypeDB {
             return sa;
         });
         const target: string[] = ["FUNCTION", "Return", "("].concat(...targetParams).concat(")");
-        return this.matchOverload(identifier, target, onError);
+        return this.matchOverload(identifier, target, ictable, onError);
     };
 
     /** Used for matching function definitions and implementations;
@@ -132,7 +132,7 @@ export class TypeDB {
         return -1;
     };
 
-    matchOverload(identifier: string, target: string[], onError: (x: string) => void): FunctionMatchResult | null {
+    matchOverload(identifier: string, target: string[], ictable: typecheck.ImplicitConversionTable, onError: (x: string) => void): FunctionMatchResult | null {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
             return null;
@@ -144,7 +144,7 @@ export class TypeDB {
         let bestCandidate: FunctionMatchResult | null = null;
         let candidateIndices: number[] = [];
         for (let i = 0; i < fnobj.overloads.length; i++) {
-            let match = this.matchFunction(target, fnobj.overloads[i].type);
+            let match = this.matchFunction(target, fnobj.overloads[i].type, ictable);
             if (match !== null) {
                 if (bestCandidate !== null) {
                     if (bestCandidate.castActions.length > match.castActions.length) {

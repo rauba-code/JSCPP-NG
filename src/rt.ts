@@ -88,25 +88,9 @@ export interface FunctionSymbol {
 }
 
 export interface TypeHandlerMap {
-    //name: string,
     functionDB: TypeDB;
     functionsByID: FunctionSymbol[];
-    //parent: Domain | null,
-    //children: { [domain: string]: Domain },
 }
-
-//export interface NamespaceDomain extends DomainLike {
-//    type: "NAMESPACE"
-//}
-//
-//export interface ClassDomain extends DomainLike {
-//    type: "CLASS",
-//    objectType: ClassType,
-//    /** Empty constructor. Overloadable */
-//    ctor: ResultOrGen<(rt: CRuntime) => ClassVariable>,
-//}
-
-//export type Domain = NamespaceDomain | ClassDomain;
 
 export interface TypeSignature {
     inline: string,
@@ -140,6 +124,7 @@ export class CRuntime {
     typedefs: { [name: string]: MaybeLeft<ObjectType> };
     interp: interp.BaseInterpreter<any>;
     fileio: FileManager;
+    ictable: typecheck.ImplicitConversionTable;
 
     constructor(config: JSCPPConfig) {
         this.parser = constructTypeParser();
@@ -151,6 +136,7 @@ export class CRuntime {
         this.scope = [{ "$name": "{global}", variables: {} }];
         this.namespace = {};
         this.typedefs = {};
+        this.ictable = {};
     }
 
     openFile(path: InitIndexPointerVariable<ArithmeticVariable>): number {
@@ -380,7 +366,7 @@ export class CRuntime {
         const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.raiseException);
+        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.ictable, this.raiseException);
         if (fn === null) {
             return null;
         }
@@ -392,7 +378,7 @@ export class CRuntime {
         const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
         //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
-        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype));
+        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ictable);
         if (funmatch === null) {
             this.raiseException("Invalid arguments"); // TODO: make message more comprehensive
         }
@@ -401,8 +387,12 @@ export class CRuntime {
         }
         if (funmatch.valueActions.length !== 0) {
             for (const castAction of funmatch.castActions) {
-                const castYield = this.cast(variables.arithmeticType(castAction.targetSig), this.expectValue(args[castAction.index]));
-                args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                if (castAction.cast.type === "ARITHMETIC") {
+                    const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
+                    args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                } else {
+                    this.raiseException("Implicit cast via constructor: not yet implemented");
+                }
             }
             funmatch.valueActions.forEach((action, i) => {
                 if (action === "CLONE") {
@@ -421,8 +411,25 @@ export class CRuntime {
         }
         if (callInst.actions.valueActions.length !== 0) {
             for (const castAction of callInst.actions.castActions) {
-                const castYield = this.cast(variables.arithmeticType(castAction.targetSig), this.expectValue(args[castAction.index]));
-                args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                if (castAction.cast.type === "ARITHMETIC") {
+                    const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
+                    args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                } else {
+                    const fnid = this.typeMap[castAction.cast.domain].functionDB.matchExactOverload("o(_ctor)", castAction.cast.fnsig);
+                    if (fnid === -1) {
+                        this.raiseException("Implicit cast via constructor: failed to cast (expected a match)");
+                    }
+                    const fncall = this.typeMap[castAction.cast.domain].functionsByID[fnid];
+                    if (fncall.target === null) {
+                        this.raiseException("Implicit cast via constructor: constructor is defined but no implementation is found");
+                    }
+                    const castYield = fncall.target(this, args[castAction.index]);
+                    const castResult = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                    if (castResult === "VOID") {
+                        this.raiseException("Implicit cast via constructor: expected a non-void result");
+                    }
+                    args[castAction.index] = this.unbound(castResult);
+                }
             }
             callInst.actions.valueActions.forEach((action, i) => {
                 if (action === "CLONE") {
@@ -482,6 +489,16 @@ export class CRuntime {
             }
             domainMap.functionDB.addFunctionOverload(name, fnsig.array, domainMap.functionsByID.length, this.raiseException);
             domainMap.functionsByID.push({ type: fnsig.array, target: f });
+            if (name === "o(_ctor)" && domain !== "{global}") {
+                const dstTypeInline = variables.toStringSequence(domain, false, false, this.raiseException).join(" ");
+                if (!(dstTypeInline in this.ictable)) {
+                    this.ictable[dstTypeInline] = {};
+                }
+                const srcArgStart = fnsig.inline.indexOf("(") + 2;
+                const srcTypeInline = fnsig.inline.substr(srcArgStart, fnsig.inline.length - srcArgStart - 2);
+                const abstractSig = abstractFunctionReturnSig(fnsig.array).join(" ");
+                this.ictable[dstTypeInline][srcTypeInline] = { fnsig: abstractSig, domain: domainInlineSig } ;
+            }
         }
     };
 
@@ -580,13 +597,9 @@ export class CRuntime {
         return false;
     };
 
-    simpleType(_type: string | (string | { Identifier: string })[]): MaybeLeft<ObjectType> | "VOID" {
+    simpleType(_type: (string | interp.XScopedIdentifier)[]): MaybeLeft<ObjectType> | "VOID" {
         if (_type instanceof Array) {
-            _type.forEach((x) => { if (typeof (x) !== "string") { this.raiseException("Not yet implemented"); } });
-            let typeStrArr = _type as string[];
-            if (typeStrArr.length > 0 && typeStrArr[0] === "const") {
-                typeStrArr = typeStrArr.slice(1);
-            }
+            const typeStrArr = _type.map(x => ((typeof x === "string") ? x : x.Identifier)).filter(x => !["auto", "const"].includes(x));
             const typeStr = typeStrArr.join(" ");
             if (typeStr in variables.defaultArithmeticResolutionMap) {
                 return { t: { sig: variables.defaultArithmeticResolutionMap[typeStr] }, v: { lvHolder: null } };

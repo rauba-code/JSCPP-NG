@@ -198,7 +198,7 @@ export = {
         },
         {
             op: "o(_>>_)",
-            type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF CLASS string < > )",
+            type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
             *default(rt: CRuntime, l: IStreamVariable, _r: PointerVariable<ArithmeticVariable>): Gen<IStreamVariable> {
                 const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const eofbit = l.v.members.eofbit;
@@ -390,7 +390,7 @@ export = {
         common.regGlobalFuncs(rt, [
             {
                 op: "getline",
-                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF CLASS string < > I8 )",
+                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > I8 )",
                 default(rt: CRuntime, input: IStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
                     _getlineStr(rt, input, str, delim);
                     return input;
@@ -398,7 +398,7 @@ export = {
             },
             {
                 op: "getline",
-                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF CLASS string < > )",
+                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
                 default(rt: CRuntime, input: IStreamVariable, str: StringVariable) {
                     _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
                     return input;

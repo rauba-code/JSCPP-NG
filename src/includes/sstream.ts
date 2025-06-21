@@ -103,7 +103,7 @@ export = {
                 },
                 {
                     op: "o(_>>_)",
-                    type: `FUNCTION LREF CLASS istream < > ( LREF CLASS ${structName} < > LREF CLASS string < > )`,
+                    type: `FUNCTION LREF CLASS istream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > )`,
                     default(rt: CRuntime, l: IStringStreamVariable, r: StringVariable): IStringStreamVariable {
                         const eofbit = l.v.members.eofbit;
                         const failbit = l.v.members.failbit;
@@ -153,7 +153,7 @@ export = {
 
             const ctorHandler: common.OpHandler = {
                 op: "o(_ctor)",
-                type: `FUNCTION CLASS ${structName} < > ( LREF CLASS string < > )`,
+                type: `FUNCTION CLASS ${structName} < > ( CLREF CLASS string < > )`,
                 default(_rt: CRuntime, s: StringVariable): IStringStreamVariable {
                     const result = rt.defaultValue(thisType, "SELF") as IStringStreamVariable;
                     const sbuf = variables.asInitIndexPointer(s.v.members._ptr) as InitIndexPointerVariable<ArithmeticVariable> | null;
@@ -264,7 +264,7 @@ export = {
             common.regGlobalFuncs(rt, [
                 {
                     op: "getline",
-                    type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > LREF CLASS string < > I8 )`,
+                    type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > I8 )`,
                     default(rt: CRuntime, input: IStringStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
                         _getlineStr(rt, input, str, delim);
                         return input;
@@ -272,7 +272,7 @@ export = {
                 },
                 {
                     op: "getline",
-                    type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > LREF CLASS string < > )`,
+                    type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > )`,
                     default(rt: CRuntime, input: IStringStreamVariable, str: StringVariable) {
                         _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
                         return input;

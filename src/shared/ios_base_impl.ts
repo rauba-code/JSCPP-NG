@@ -86,7 +86,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
     },
     {
         op: "o(_<<_)",
-        type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > LREF CLASS string < > )`,
+        type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > CLREF CLASS string < > )`,
         default(rt: CRuntime, l: ios_base.OStreamVariable, r: StringVariable): ios_base.OStreamVariable {
             const iptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmetic("I8", null));
             if (iptr === null) {

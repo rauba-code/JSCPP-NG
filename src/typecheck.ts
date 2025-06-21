@@ -278,14 +278,21 @@ export function arrayValuesEqual(a: string[], b: string[]): boolean {
 export type CastAction = {
     type: "ARITHMETIC",
     targetSig: ArithmeticSig,
-} & {
+} | {
     type: "CTOR"
-    fnsig: string[],
+    fnsig: string,
+    domain: string,
 };
+
+/** For every destination, stored as an inline type signature, an array of viable source types, stored as inline type signatures, is given.
+ **/
+export type ImplicitConversionTable = { [dst: string]: { [src: string]: ImplicitConversionResult } };
+export type ImplicitConversionResult = { fnsig: string, domain: string };
+
 
 export interface ParseFunctionMatchResult {
     valueActions: ("CLONE" | "BORROW" | "CAST")[],
-    castActions: { index: number, targetSig: ArithmeticSig }[],
+    castActions: { index: number, cast: CastAction }[],
 };
 
 /** Tests if `subtype` function is a valid match for `supertype`, provides preparatory actions for argument conversion.
@@ -297,7 +304,7 @@ export interface ParseFunctionMatchResult {
  *  @remarks It is assumed that `parse(parser, subtype)` and `parse(parser, supertype)` return `true` (i.e., `subtype` and `supertype` are always valid). This function does NOT check if given sentences are valid.
  *  @throws TypeParseError on preparsing errors (see: `strict_order`).
  **/
-export function parseFunctionMatch(parser: LLParser, subtype: string[], supertype: string[], strict_order = true): ParseFunctionMatchResult | null {
+export function parseFunctionMatch(parser: LLParser, subtype: string[], supertype: string[], ictable: ImplicitConversionTable, strict_order = true): ParseFunctionMatchResult | null {
     let subData = preparse(subtype, strict_order);
     let superData = preparse(supertype, strict_order);
     const pair: FunctionMatchSigPair = {
@@ -313,11 +320,11 @@ export function parseFunctionMatch(parser: LLParser, subtype: string[], supertyp
         valueActions: new Array(),
         castActions: new Array(),
     };
-    const retv = parseFunctionMatchInner(parser, 'Function', pair, result);
+    const retv = parseFunctionMatchInner(parser, 'Function', pair, ictable, result);
     return (retv && pair.subtype.length === 0 && pair.supertype.length === 0) ? result : null;
 }
 
-function matchNontermOrWildcard(parser: LLParser, scope: NonTerm, argument: LLParserEntry, pair: FunctionMatchSigPair, supertop: string, result: ParseFunctionMatchResult): boolean | null {
+function matchNontermOrWildcard(parser: LLParser, scope: NonTerm, argument: LLParserEntry, pair: FunctionMatchSigPair, supertop: string, ictable: ImplicitConversionTable, result: ParseFunctionMatchResult): boolean | null {
     const innerScope: NonTerm | null = argument[supertop] as NonTerm | null;
     if (innerScope === null) {
         if (supertop === scope) {
@@ -364,7 +371,7 @@ function matchNontermOrWildcard(parser: LLParser, scope: NonTerm, argument: LLPa
     } else {
         const delta = (scope === "Function" && innerScope === "FunctionParamOrEnd") ? 1 : (scope === "Function" && innerScope === "Return") ? 2 : 0;
         pair.paramDepth += delta;
-        const nestedRetv = parseFunctionMatchInner(parser, innerScope as NonTerm, pair, result);
+        const nestedRetv = parseFunctionMatchInner(parser, innerScope as NonTerm, pair, ictable, result);
         pair.paramDepth -= delta;
         if (!nestedRetv) {
             return false;
@@ -373,17 +380,17 @@ function matchNontermOrWildcard(parser: LLParser, scope: NonTerm, argument: LLPa
     return null;
 }
 
-function tryImplicitCast(pair: FunctionMatchSigPair, subtype: string[], supertype: string[]): { index: number, targetSig: ArithmeticSig } | null {
+function tryImplicitCast(pair: FunctionMatchSigPair, subtype: string[], supertype: string[]): CastAction | null {
     if (supertype[0] in arithmeticSig && subtype[0] in arithmeticSig) {
         // implicit arithmetic conversions
-        return { index: pair.firstLevelParamBreadth, targetSig: supertype[0] as ArithmeticSig };
+        return { type: "ARITHMETIC", targetSig: supertype[0] as ArithmeticSig };
     } else if (supertype[0] === "Arithmetic" && subtype[0] in arithmeticSig) {
         // implicit arithmetic conversions with inferred wildcard type
         const superwc: number | string[] = pair.wildcards[pair.superwc[0]];
         if (superwc === undefined || typeof superwc === "number") {
             throw new TypeParseError("Cannot infer a function parameter in a given implicit arithmetic conversion (not yet implemented)");
         } else if (superwc.length === 1 && superwc[0] in arithmeticSig) {
-            return { index: pair.firstLevelParamBreadth, targetSig: superwc[0] as ArithmeticSig };
+            return { type: "ARITHMETIC", targetSig: superwc[0] as ArithmeticSig };
         } else {
             return null;
         }
@@ -392,7 +399,7 @@ function tryImplicitCast(pair: FunctionMatchSigPair, subtype: string[], supertyp
     }
 }
 
-function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: FunctionMatchSigPair, result: ParseFunctionMatchResult): boolean {
+function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: FunctionMatchSigPair, ictable: ImplicitConversionTable, result: ParseFunctionMatchResult): boolean {
     let retv: boolean | null = null;
     parser[scope].forEach((argument) => {
         if (retv !== null) {
@@ -413,13 +420,13 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                         // cannot provide const T& to function that accepts only T&, but it is permitted vice-versa.
                         pair.subtype[0] = pair.supertype[0];
                         valueAction = "BORROW";
-                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], ictable, result);
                     } else if (pair.supertype[0] === "LRef" || pair.supertype[0] === "CLRef") {
                         throw new Error("Typecheck: Not yet implemented (avoid using LRef and CLRef non-terms, replace them with LREF LValue or CLREF LValue)");
                     } else {
                         // implicit lvalue arithmetic conversion
                         pair.subtype = pair.subtype.slice(1);
-                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], ictable, result);
                         if (retv !== false) {
                             valueAction = "CLONE";
                         }
@@ -433,18 +440,23 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                         }
                         const subParamArray = tmpSub.slice(tmpSub[0] === "CLREF" || tmpSub[0] === "LREF" ? 1 : 0, tmpSub.length - tmpSubRadical.length);
                         const superParamArray = tmpSuper.slice(tmpSuper[0] === "CLREF" ? 1 : 0, tmpSuper.length - tmpSuperRadical.length);
-                        let implicitCast : { index: number, targetSig: ArithmeticSig } | null;
-                        if ((implicitCast = tryImplicitCast(pair, subParamArray, superParamArray)) !== null) {
+                        let cast: CastAction | null;
+                        if ((cast = tryImplicitCast(pair, subParamArray, superParamArray)) !== null) {
                             retv = null;
                             valueAction = "CAST";
-                            result.castActions.push(implicitCast);
+                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast });
                             pair.subtype = tmpSubRadical;
                             pair.supertype = tmpSuperRadical;
                         } else {
-                            //const subParamInline = subParamArray.join(" ");
-                            //const superParamInline = superParamArray.join(" ");
-                            debugger; // TBD
-                            return;
+                            const subParamInline = subParamArray.join(" ");
+                            const superParamInline = superParamArray.join(" ");
+                            if (superParamInline in ictable && subParamInline in ictable[superParamInline]) {
+                                retv = null;
+                                valueAction = "CAST";
+                                result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "CTOR", ...ictable[superParamInline][subParamInline] } });
+                                pair.subtype = tmpSubRadical;
+                                pair.supertype = tmpSuperRadical;
+                            }
                         }
                     }
                 } else {
@@ -452,17 +464,17 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                     if (pair.supertype[0] === "CLREF") {
                         valueAction = "BORROW";
                         pair.supertype = pair.supertype.slice(1);
-                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], ictable, result);
                     } else if (pair.supertype[0] === "CLRef") {
                         throw new Error("Typecheck: Not yet implemented");
                     } else if (pair.subtype[0] in arithmeticSig) {
                         // implicit non-lvalue arithmetic conversion
-                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], ictable, result);
                         if (retv !== false) {
                             valueAction = "CLONE";
                         }
                     } else {
-                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                        retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], ictable, result);
                     }
                     if (retv === false && pair.supertype[0] !== "LREF") {
                         const tmpSubRadical = parseInner(parser, scope, tmpSub);
@@ -473,25 +485,30 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                         }
                         const subParamArray = tmpSub.slice(tmpSub[0] === "CLREF" ? 1 : 0, tmpSub.length - tmpSubRadical.length);
                         const superParamArray = tmpSuper.slice(tmpSuper[0] === "CLREF" ? 1 : 0, tmpSuper.length - tmpSuperRadical.length);
-                        let implicitCast : { index: number, targetSig: ArithmeticSig } | null;
-                        if ((implicitCast = tryImplicitCast(pair, subParamArray, superParamArray)) !== null) {
+                        let cast: CastAction | null;
+                        if ((cast = tryImplicitCast(pair, subParamArray, superParamArray)) !== null) {
                             retv = null;
                             valueAction = "CAST";
-                            result.castActions.push(implicitCast);
+                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast });
                             pair.subtype = tmpSubRadical;
                             pair.supertype = tmpSuperRadical;
                         } else {
-                            //const subParamInline = subParamArray.join(" ");
-                            //const superParamInline = superParamArray.join(" ");
-                            debugger; // TBD
-                            return;
+                            const subParamInline = subParamArray.join(" ");
+                            const superParamInline = superParamArray.join(" ");
+                            if (superParamInline in ictable && subParamInline in ictable[superParamInline]) {
+                                retv = null;
+                                valueAction = "CAST";
+                                result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "CTOR", ...ictable[superParamInline][subParamInline] } });
+                                pair.subtype = tmpSubRadical;
+                                pair.supertype = tmpSuperRadical;
+                            }
                         }
                     }
                 }
                 pair.firstLevelParamBreadth++;
                 result.valueActions.push(valueAction);
             } else {
-                retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], result);
+                retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], ictable, result);
             }
         } else if (pair.supertype.length > 0 && "identifier" in argument) {
             if (!(pair.subtype.length > 0 && pair.subtype[0] === pair.supertype[0])) {

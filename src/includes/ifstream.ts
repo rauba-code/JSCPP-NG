@@ -111,7 +111,7 @@ export = {
             },
             {
                 op: "o(_>>_)",
-                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS ifstream < > LREF CLASS string < > )",
+                type: "FUNCTION LREF CLASS istream < > ( LREF CLASS ifstream < > CLREF CLASS string < > )",
                 default(rt: CRuntime, l: IfStreamVariable, r: StringVariable): IfStreamVariable {
                     const eofbit = l.v.members.eofbit;
                     const failbit = l.v.members.failbit;
@@ -173,7 +173,7 @@ export = {
             },
             {
                 op: "o(_ctor)",
-                type: "FUNCTION CLASS ifstream < > ( LREF CLASS string < > )",
+                type: "FUNCTION CLASS ifstream < > ( CLREF CLASS string < > )",
                 default(_rt: CRuntime, _path: StringVariable): IfStreamVariable {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
@@ -309,7 +309,7 @@ export = {
         common.regGlobalFuncs(rt, [
             {
                 op: "getline",
-                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > LREF CLASS string < > I8 )",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > CLREF CLASS string < > I8 )",
                 default(rt: CRuntime, input: IfStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
                     _getlineStr(rt, input, str, delim);
                     return input;
@@ -317,7 +317,7 @@ export = {
             },
             {
                 op: "getline",
-                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > LREF CLASS string < > )",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > CLREF CLASS string < > )",
                 default(rt: CRuntime, input: IfStreamVariable, str: StringVariable) {
                     _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
                     return input;
