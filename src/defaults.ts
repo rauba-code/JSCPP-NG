@@ -84,7 +84,7 @@ function binaryArithmeticCmp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticV
 
 const defaultOpHandler: OpHandler[] = [
     {
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         op: "o(_*_)",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticOp(rt, l, r, (x, y) => x * y);
@@ -92,196 +92,196 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(_/_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticOp(rt, l, r, (x, y) => ((y === 0) ? rt.raiseException("Attempted division by zero") : x / y));
         }
     },
     {
         op: "o(_%_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerOp(rt, l, r, (x, y) => ((y === 0) ? rt.raiseException("Attempted modulo zero") : x % y), "%");
         }
     },
     {
         op: "o(_+_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticOp(rt, l, r, (x, y) => x + y);
         }
     },
     {
         op: "o(_-_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticOp(rt, l, r, (x, y) => x - y);
         }
     },
     {
         op: "o(-_)",
-        type: "FUNCTION Arithmetic ( Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable): InitArithmeticVariable {
             return unaryArithmeticOp(rt, l, (x) => -x);
         }
     },
     {
         op: "o(+_)",
-        type: "FUNCTION Arithmetic ( Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable): InitArithmeticVariable {
             return unaryArithmeticOp(rt, l, (x) => x);
         }
     },
     {
         op: "o(_<<_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerOp(rt, l, r, (x, y) => x << y, "<<");
         }
     },
     {
         op: "o(_>>_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerOp(rt, l, r, (x, y) => x >> y, ">>");
         }
     },
     {
         op: "o(_<_)",
-        type: "FUNCTION BOOL ( Arithmetic Arithmetic )",
+        type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x < y);
         }
     },
     {
         op: "o(_<=_)",
-        type: "FUNCTION BOOL ( Arithmetic Arithmetic )",
+        type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x <= y);
         }
     },
     {
         op: "o(_>_)",
-        type: "FUNCTION BOOL ( Arithmetic Arithmetic )",
+        type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x > y);
         }
     },
     {
         op: "o(_>=_)",
-        type: "FUNCTION BOOL ( Arithmetic Arithmetic )",
+        type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x >= y);
         }
     },
     {
         op: "o(_==_)",
-        type: "FUNCTION BOOL ( Arithmetic Arithmetic )",
+        type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x == y);
         }
     },
     {
         op: "o(_!=_)",
-        type: "FUNCTION BOOL ( Arithmetic Arithmetic )",
+        type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x != y);
         }
     },
     {
         op: "o(_&_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerOp(rt, l, r, (x, y) => x & y, "&");
         }
     },
     {
         op: "o(_^_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerOp(rt, l, r, (x, y) => x ^ y, "^");
         }
     },
     {
         op: "o(_|_)",
-        type: "FUNCTION Arithmetic ( Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerOp(rt, l, r, (x, y) => x | y, "|");
         }
     },
     {
         op: "o(_=_)",
-        type: "!Arithmetic FUNCTION ?0 ( LREF ?0 ?0 )",
+        type: "!Arithmetic FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticDirectAssign(rt, l, r);
         }
     },
     {
         op: "o(_+=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticAssign(rt, l, r, (x, y) => x + y);
         }
     },
     {
         op: "o(_-=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticAssign(rt, l, r, (x, y) => x - y);
         }
     },
     {
         op: "o(_*=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticAssign(rt, l, r, (x, y) => x * y);
         }
     },
     {
         op: "o(_/=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticAssign(rt, l, r, (x, y) => ((y === 0) ? rt.raiseException("Attempted division by zero") : x / y));
         }
     },
     {
         op: "o(_%=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerAssign(rt, l, r, (x, y) => ((y === 0) ? rt.raiseException("Attempted modulo zero") : x % y), "%");
         }
     },
     {
         op: "o(_<<=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerAssign(rt, l, r, (x, y) => x << y, "<<");
         }
     },
     {
         op: "o(_>>=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerAssign(rt, l, r, (x, y) => x >> y, ">>");
         }
     },
     {
         op: "o(_&=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerAssign(rt, l, r, (x, y) => x >> y, "&");
         }
     },
     {
         op: "o(_^=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerAssign(rt, l, r, (x, y) => x >> y, "^");
         }
     },
     {
         op: "o(_|=_)",
-        type: "FUNCTION Arithmetic ( LREF Arithmetic Arithmetic )",
+        type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
         default(rt, l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryIntegerAssign(rt, l, r, (x, y) => x >> y, "|");
         }
@@ -356,9 +356,8 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(~_)",
-        type: "FUNCTION Arithmetic ( Arithmetic )",
+        type: "FUNCTION Arithmetic ( CLREF Arithmetic )",
         default(rt: CRuntime, l: ArithmeticVariable): InitArithmeticVariable {
-            checkLeftAssign(rt, l);
             const ret = variables.arithmetic(l.t.sig, ~rt.arithmeticValue(l), null);
             rt.adjustArithmeticValue(ret);
             return ret;
@@ -366,14 +365,14 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(!_)",
-        type: "FUNCTION BOOL ( Arithmetic )",
+        type: "FUNCTION BOOL ( CLREF Arithmetic )",
         default(rt: CRuntime, l: ArithmeticVariable): InitArithmeticVariable {
             return variables.arithmetic("BOOL", rt.arithmeticValue(l) ? 0 : 1, null);
         }
     },
     {
         op: "o(_bool)",
-        type: "FUNCTION BOOL ( Arithmetic )",
+        type: "FUNCTION BOOL ( CLREF Arithmetic )",
         default(rt: CRuntime, l: ArithmeticVariable): InitArithmeticVariable {
             return variables.arithmetic("BOOL", rt.arithmeticValue(l) ? 1 : 0, null);
         }

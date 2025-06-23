@@ -25,9 +25,9 @@ const includes: { [fileName: string]: IncludeModule } = {
     cstdio: require("./includes/cstdio"),
     string: require("./includes/string"),
     sstream: require("./includes/sstream"),
+    algorithm: require("./includes/algorithm"),
     /*cctype: require("./includes/cctype"),
     vector: require("./includes/vector"),
-    algorithm: require("./includes/algorithm"),
     functional: require("./includes/functional"),
     _bits__stdcpp: require("./includes/bits/stdcpp")*/
 };
