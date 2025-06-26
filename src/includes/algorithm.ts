@@ -1,7 +1,7 @@
 import { asResult } from "../interpreter";
-import { CRuntime } from "../rt";
+import { CRuntime, FunctionCallInstance } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType } from "../variables";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -95,7 +95,7 @@ export = {
             rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
         }
 
-        function sort_inner2(rt: CRuntime, _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): "VOID" {
+        function sort_inner2(rt: CRuntime, _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>, _cmp: PointerVariable<Function> | null = null): "VOID" {
             if (_l.t.pointee.sig === "FUNCTION" || _r.t.pointee.sig === "FUNCTION") {
                 rt.raiseException("sort: invalid argument")
             }
@@ -114,14 +114,15 @@ export = {
                 indexRegion.push(i);
             }
             const clref_t : MaybeLeftCV<ObjectType> = { t: l.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
-            const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t]);
+            const cmpFun = (_cmp !== null) ? (variables.asInitDirectPointer(_cmp) as InitDirectPointerVariable<Function> ?? rt.raiseException("sort: Parameter 'cmp' does not point to a function")) : null;
+            const ltFun = (cmpFun === null) ? rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t]) : null;
             function sortCmp(li: number, ri: number): number {
                 // JavaScript specifically wants a symmetrical comparator, so we compare both sides
                 // these return 0.0 or 1.0
                 const lhs = region[li];
                 const rhs = region[ri];
-                const a_lt_b = yieldBlocking(rt.invokeCall(ltFun, lhs, rhs)).v.value;
-                const b_lt_a = yieldBlocking(rt.invokeCall(ltFun, rhs, lhs)).v.value;
+                const a_lt_b = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, lhs, rhs) : rt.invokeCall(ltFun as FunctionCallInstance, lhs, rhs)).v.value;
+                const b_lt_a = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, rhs, lhs) : rt.invokeCall(ltFun as FunctionCallInstance, rhs, lhs)).v.value;
                 // return -2.0, 0.0, or 2.0
                 return b_lt_a - a_lt_b;
 
@@ -153,7 +154,22 @@ export = {
             {
                 op: "sort",
                 type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 )",
-                default: sort_inner2
+                default(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
+            },
+            {
+                op: "sort",
+                type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                default(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
+            },
+            {
+                op: "stable_sort",
+                type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 )",
+                default(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
+            },
+            {
+                op: "stable_sort",
+                type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                default(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
             }
         ]);
         // InputIt is just like RandomIt but not necessarilly ValueSwappable
