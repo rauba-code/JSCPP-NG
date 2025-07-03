@@ -211,12 +211,14 @@ type ParameterTypeListResult = {
     argTypes: MaybeLeftCV<ObjectType>[],
     argNames: (string | null)[],
     optionalArgs: MemberObject[],
-}
+};
 
-export interface MemberObject {
+export type MemberObject = {
     name: string,
     variable: Variable
-}
+};
+
+export type MemberObjectListCreator = { numArgs: number, factory: (...templateArgs: ObjectType[]) => MemberObject[] };
 
 type DirectDeclaratorResult = {
     type: MaybeLeft<ObjectType>,
