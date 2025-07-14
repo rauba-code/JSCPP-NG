@@ -277,7 +277,10 @@ export class CRuntime {
             let f: CFunction | null = null;
             const _optionalArgs = [...optionalArgs]; // cloned array passed to a closure
             if (stmts != null) {
-                f = function*(rt: CRuntime, ...args: Variable[]) {
+                f = function*(rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) {
+                    if (templateArgs.length > 1) {
+                        rt.raiseException("Not yet implemented");
+                    }
                     // logger.warn("calling function: %j", name);
                     rt.enterScope("function " + name);
                     if (args.length + _optionalArgs.length !== argTypes.length) {
@@ -403,12 +406,13 @@ export class CRuntime {
                 }
             })
         }
-        const returnYield = funvar.v.target(this, ...args);
+        // function pointers can only point to a single untemplated instance
+        const returnYield = funvar.v.target(this, [], ...args);
         return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
 
     }
 
-    *invokeCall(callInst: FunctionCallInstance, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
+    *invokeCall(callInst: FunctionCallInstance, templateArgs: ObjectType[], ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
         if (callInst.target.target === null) {
             this.raiseException("Function is defined but no implementation is found");
         }
@@ -426,7 +430,10 @@ export class CRuntime {
                     if (fncall.target === null) {
                         this.raiseException("Implicit cast via constructor: constructor is defined but no implementation is found");
                     }
-                    const castYield = fncall.target(this, args[castAction.index]);
+                    if (templateArgs.length > 0) {
+                        this.raiseException("Implicit cast via constructor: not yet implemented")
+                    }
+                    const castYield = fncall.target(this, [], args[castAction.index]);
                     const castResult = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
                     if (castResult === "VOID") {
                         this.raiseException("Implicit cast via constructor: expected a non-void result");
@@ -440,7 +447,7 @@ export class CRuntime {
                 }
             })
         }
-        const returnYield = callInst.target.target(this, ...args);
+        const returnYield = callInst.target.target(this, templateArgs, ...args);
         return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
     }
 
@@ -903,7 +910,7 @@ export class CRuntime {
         }
         else if (arithmeticTarget?.sig === "BOOL") {
             const boolSym = this.getOpByParams("{global}", "o(_bool)", [v]);
-            return this.invokeCall(boolSym, v) as ResultOrGen<InitArithmeticVariable>;
+            return this.invokeCall(boolSym, [], v) as ResultOrGen<InitArithmeticVariable>;
         }
         const pointerTarget = variables.asPointerType(target);
         const iptrVar = variables.asInitIndexPointer(v);
@@ -1069,9 +1076,24 @@ export class CRuntime {
         memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable })
         const stubClass = variables.class(classType, members, null);
 
-        //const domainMap = this.typeMap[domainInline];
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
+            return variables.clone(stubClass, null, false, rt.raiseException);
+        }, classType, "o(_stub)", stubCtorTypeSig);
+    };
+
+    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObjectListCreator) {
+        const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
+        const domainInline = this.domainString(classType);
+        this.addTypeDomain(domainInline);
+
+        const members: { [name: string]: Variable } = {};
+        memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable })
+        const stubClass = variables.class(classType, members, null);
+
+        const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
+        this.regFunc(function(rt: CRuntime): InitClassVariable {
+            const members: { [name: string]: Variable } = {};
             return variables.clone(stubClass, null, false, rt.raiseException);
         }, classType, "o(_stub)", stubCtorTypeSig);
     };

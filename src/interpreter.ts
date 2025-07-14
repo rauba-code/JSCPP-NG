@@ -218,8 +218,11 @@ export type MemberObject = {
     variable: Variable
 };
 
-export type MemberObjectListCreator = { numArgs: number, factory: (...templateArgs: ObjectType[]) => MemberObject[] };
-
+export type MemberObjectListCreator = { 
+    numTemplateArgs: number, 
+    factory: (...templateArgs: ObjectType[]) => MemberObject[]
+};
+    
 type DirectDeclaratorResult = {
     type: MaybeLeft<ObjectType>,
     name: string

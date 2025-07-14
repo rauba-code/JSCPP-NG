@@ -348,8 +348,8 @@ export type MaybeUnboundVariable = MaybeUnboundArithmeticVariable | MaybeUnbound
 
 export type Gen<T> = Generator<unknown, T, unknown>;
 export type ResultOrGen<T> = T | Gen<T>;
-export type CFunction = (rt: CRuntime, ...args: Variable[]) => ResultOrGen<MaybeUnboundVariable | "VOID">;
-export type CFunctionBool = (rt: CRuntime, ...args: Variable[]) => ResultOrGen<InitArithmeticVariable>;
+export type CFunction = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<MaybeUnboundVariable | "VOID">;
+export type CFunctionBool = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<InitArithmeticVariable>;
 
 export const variables = {
     voidType(): VoidType {
