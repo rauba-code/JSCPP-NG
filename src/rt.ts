@@ -92,10 +92,10 @@ export interface TypeHandlerMap {
     functionsByID: FunctionSymbol[];
 }
 
-export interface TypeSignature {
+export type TypeSignature = {
     inline: string,
     array: string[],
-}
+};
 
 export type FileInstance = {
     name: string;
@@ -324,7 +324,7 @@ export class CRuntime {
                 };
             }
             const fnsig = this.createFunctionTypeSignature(domain, retType, argTypes);
-            this.regFunc(f, domain, name, fnsig);
+            this.regFunc(f, domain, name, fnsig, []);
             if (optionalArgs.length === 0) {
                 return;
             }
@@ -335,16 +335,16 @@ export class CRuntime {
     };
 
     /** Convenience function for static type checking of operators */
-    getOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance {
-        return this.getFuncByParams(domain, identifier, params);
+    getOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeftCV<ObjectType>[], templateTypes: (string | string[])[]): FunctionCallInstance {
+        return this.getFuncByParams(domain, identifier, params, templateTypes);
     }
 
-    tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance | null {
-        return this.tryGetFuncByParams(domain, identifier, params);
+    tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeftCV<ObjectType>[], templateTypes: (string | string[])[]): FunctionCallInstance | null {
+        return this.tryGetFuncByParams(domain, identifier, params, templateTypes);
     }
 
-    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance {
-        const fn = this.tryGetFuncByParams(domain, identifier, params);
+    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[], templateTypes: (string | string[])[]): FunctionCallInstance {
+        const fn = this.tryGetFuncByParams(domain, identifier, params, templateTypes);
         if (fn === null) {
             const domainSig: string = this.domainString(domain);
             if (!(domainSig in this.typeMap)) {
@@ -361,7 +361,7 @@ export class CRuntime {
         return fn;
     };
 
-    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[]): FunctionCallInstance | null {
+    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[], templateTypes: (string | string[])[]): FunctionCallInstance | null {
         if (identifier.startsWith("std::")) {
             identifier = identifier.substr(5);
         }
@@ -372,7 +372,7 @@ export class CRuntime {
         const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, this.ictable, this.raiseException);
+        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, templateTypes, this.ictable, this.raiseException);
         if (fn === null) {
             return null;
         }
@@ -384,7 +384,7 @@ export class CRuntime {
         const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
         //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
-        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ictable);
+        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ictable, []);
         if (funmatch === null) {
             this.raiseException("Invalid arguments"); // TODO: make message more comprehensive
         }
@@ -468,7 +468,7 @@ export class CRuntime {
         return seq.reverse().join(".");
     }
 
-    regFunc(f: CFunction | null, domain: ClassType | "{global}", name: string, fnsig: TypeSignature): void {
+    regFunc(f: CFunction | null, domain: ClassType | "{global}", name: string, fnsig: TypeSignature, templateTypes: number[]): void {
         const domainInlineSig: string = this.domainString(domain);
         if (!(domainInlineSig in this.typeMap)) {
             this.raiseException(`type '${fnsig.inline}' is unknown`);
@@ -497,7 +497,7 @@ export class CRuntime {
                     }
                 }
             }
-            domainMap.functionDB.addFunctionOverload(name, fnsig.array, domainMap.functionsByID.length, this.raiseException);
+            domainMap.functionDB.addFunctionOverload(name, fnsig.array, templateTypes, domainMap.functionsByID.length, this.raiseException);
             domainMap.functionsByID.push({ type: fnsig.array, target: f });
             if (name === "o(_ctor)" && domain !== "{global}") {
                 const dstTypeInline = variables.toStringSequence(domain, false, false, this.raiseException).join(" ");
@@ -909,7 +909,7 @@ export class CRuntime {
             }
         }
         else if (arithmeticTarget?.sig === "BOOL") {
-            const boolSym = this.getOpByParams("{global}", "o(_bool)", [v]);
+            const boolSym = this.getOpByParams("{global}", "o(_bool)", [v], []);
             return this.invokeCall(boolSym, [], v) as ResultOrGen<InitArithmeticVariable>;
         }
         const pointerTarget = variables.asPointerType(target);
@@ -1079,7 +1079,7 @@ export class CRuntime {
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
             return variables.clone(stubClass, null, false, rt.raiseException);
-        }, classType, "o(_stub)", stubCtorTypeSig);
+        }, classType, "o(_stub)", stubCtorTypeSig, []);
     };
 
     defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObjectListCreator) {
@@ -1087,15 +1087,13 @@ export class CRuntime {
         const domainInline = this.domainString(classType);
         this.addTypeDomain(domainInline);
 
-        const members: { [name: string]: Variable } = {};
-        memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable })
-        const stubClass = variables.class(classType, members, null);
-
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
-        this.regFunc(function(rt: CRuntime): InitClassVariable {
+        this.regFunc(function(_rt: CRuntime, templateArgs: ObjectType[]): InitClassVariable {
             const members: { [name: string]: Variable } = {};
-            return variables.clone(stubClass, null, false, rt.raiseException);
-        }, classType, "o(_stub)", stubCtorTypeSig);
+            const memList: interp.MemberObject[] = memberList.factory(...templateArgs);
+            memList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable });
+            return variables.class(variables.classType(identifier, templateArgs, domain === "{global}" ? null : domain), members, null);
+        }, classType, "o(_stub)", stubCtorTypeSig, new Array<number>(memberList.numTemplateArgs).fill(-1));
     };
 
     detectWideCharacters(str: string): boolean {
@@ -1143,7 +1141,7 @@ export class CRuntime {
             }
             const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
             if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
-                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this) as ResultOrGen<InitClassVariable>;
+                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }
@@ -1169,7 +1167,7 @@ export class CRuntime {
             }
             const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
             if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
-                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this) as ResultOrGen<InitClassVariable>;
+                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }

@@ -290,9 +290,13 @@ export type ImplicitConversionTable = { [dst: string]: { [src: string]: Implicit
 export type ImplicitConversionResult = { fnsig: string, domain: string };
 
 
-export interface ParseFunctionMatchResult {
+export interface ParseFunctionMatchInnerResult {
     valueActions: ("CLONE" | "BORROW" | "CAST")[],
     castActions: { index: number, cast: CastAction }[],
+};
+
+export interface ParseFunctionMatchResult extends ParseFunctionMatchInnerResult {
+    templateTypes: string[][],
 };
 
 /** Tests if `subtype` function is a valid match for `supertype`, provides preparatory actions for argument conversion.
@@ -304,7 +308,7 @@ export interface ParseFunctionMatchResult {
  *  @remarks It is assumed that `parse(parser, subtype)` and `parse(parser, supertype)` return `true` (i.e., `subtype` and `supertype` are always valid). This function does NOT check if given sentences are valid.
  *  @throws TypeParseError on preparsing errors (see: `strict_order`).
  **/
-export function parseFunctionMatch(parser: LLParser, subtype: string[], supertype: string[], ictable: ImplicitConversionTable, strict_order = true): ParseFunctionMatchResult | null {
+export function parseFunctionMatch(parser: LLParser, subtype: string[], supertype: string[], ictable: ImplicitConversionTable, templateTypes: string[][], strict_order = true): ParseFunctionMatchResult | null {
     let subData = preparse(subtype, strict_order);
     let superData = preparse(supertype, strict_order);
     const pair: FunctionMatchSigPair = {
@@ -316,15 +320,37 @@ export function parseFunctionMatch(parser: LLParser, subtype: string[], supertyp
         paramDepth: 0,
         firstLevelParamBreadth: 0,
     }
-    const result: ParseFunctionMatchResult = {
+    const result = {
         valueActions: new Array(),
         castActions: new Array(),
     };
     const retv = parseFunctionMatchInner(parser, 'Function', pair, ictable, result);
-    return (retv && pair.subtype.length === 0 && pair.supertype.length === 0) ? result : null;
+    if (retv && pair.subtype.length === 0 && pair.supertype.length === 0) {
+        const templateTypeResults: string[][] = templateTypes.map((x) => x.flatMap(((y) => {
+            if (y.startsWith(wildcardSpecifier)) {
+                const wildcardId: number = parseInt(y.slice(1));
+                const wildcard = pair.wildcards[wildcardId];
+                if (wildcard === undefined) {
+                    throw new TypeParseError(`Function match parser (template type substitution): Wildcard ${y} is undefined`);
+                }
+                if (typeof wildcard === "number") {
+                    throw new TypeParseError(`Function match parser (template type substitution): Unable to detertmine the exact type of wildcard ${y}`);
+                }
+                return wildcard;
+            } else if (y.startsWith(wildcardDeclarator)) {
+                throw new TypeParseError("Function match parser (template type substitution): Unexpected wildcard declarator in function template specifier");
+            } else {
+                return y;
+            }
+        })))
+        return { templateTypes: templateTypeResults, ...result };
+
+    } else {
+        return null;
+    }
 }
 
-function matchNontermOrWildcard(parser: LLParser, scope: NonTerm, argument: LLParserEntry, pair: FunctionMatchSigPair, supertop: string, ictable: ImplicitConversionTable, result: ParseFunctionMatchResult): boolean | null {
+function matchNontermOrWildcard(parser: LLParser, scope: NonTerm, argument: LLParserEntry, pair: FunctionMatchSigPair, supertop: string, ictable: ImplicitConversionTable, result: ParseFunctionMatchInnerResult): boolean | null {
     const innerScope: NonTerm | null = argument[supertop] as NonTerm | null;
     if (innerScope === null) {
         if (supertop === scope) {
@@ -399,7 +425,7 @@ function tryImplicitCast(pair: FunctionMatchSigPair, subtype: string[], supertyp
     }
 }
 
-function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: FunctionMatchSigPair, ictable: ImplicitConversionTable, result: ParseFunctionMatchResult): boolean {
+function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: FunctionMatchSigPair, ictable: ImplicitConversionTable, result: ParseFunctionMatchInnerResult): boolean {
     let retv: boolean | null = null;
     parser[scope].forEach((argument) => {
         if (retv !== null) {

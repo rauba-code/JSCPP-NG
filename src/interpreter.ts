@@ -250,12 +250,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Direct declarator error: Type error or not yet implemented");
                 }
                 if (s.right.length === 1) {
-                    let varargs;
+                    //let varargs: boolean | null = null;
                     const right = s.right[0];
-                    let ptl = null;
+                    let ptl: XParameterTypeList | null = null;
                     if (right.type === "DirectDeclarator_modifier_ParameterTypeList") {
                         ptl = right.ParameterTypeList;
-                        ({ varargs } = ptl);
+                        //({ varargs } = ptl);
                     } else if ((right.type === "DirectDeclarator_modifier_IdentifierList") && (right.IdentifierList === null)) {
                         rt.raiseException("Direct declarator error: Type error or not yet implemented");
                         //ptl = right.ParameterTypeList;
@@ -564,7 +564,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
 
                             //const initClass = variables.class(classType, {}, "SELF");
-                            const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs), ...constructorArgs);
+                            const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs, []), [], ...constructorArgs);
                             const xinitOrVoid = asResult(xinitYield) ?? (yield* (xinitYield as Gen<MaybeUnboundVariable | "VOID">))
                             if (xinitOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
@@ -615,8 +615,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     } else {
                                         const preDecVarYield = rt.defaultValue2(decType.t, "SELF");
                                         const preDecVar = variables.clone(asResult(preDecVarYield) ?? (yield* preDecVarYield as Gen<Variable>), "SELF", false, rt.raiseException, true);
-                                        const callInst = rt.getFuncByParams("{global}", "o(_=_)", [preDecVar, initVar]);
-                                        const retvYield = rt.invokeCall(callInst, preDecVar, initVar)
+                                        const callInst = rt.getFuncByParams("{global}", "o(_=_)", [preDecVar, initVar], []);
+                                        const retvYield = rt.invokeCall(callInst, [], preDecVar, initVar)
                                         const retv = asResult(retvYield) ?? (yield* retvYield as Gen<MaybeUnboundVariable | "VOID">)
                                         if (retv === "VOID") {
                                             rt.raiseException("Declaration error: expected non-void return value in assignment operator");
@@ -635,10 +635,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 }
             },
-            *STLDeclaration(interp, s, _param) {
+            *STLDeclaration(interp, _s, _param) {
                 ({ rt } = interp);
 
-                const basetype = rt.simpleType(s.DeclarationSpecifiers);
+                //const basetype = rt.simpleType(s.DeclarationSpecifiers);
                 rt.raiseException("Template declaration error: Not yet implemented");
                 /*if (!rt.isVectorClass(basetype))
                     rt.raiseException("Template declaration error: Only vectors are currently supported for STL Declaration!");
@@ -958,9 +958,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 return return_val;
             },
             *IterationStatement_foreach(interp, s, param) {
-                let return_val;
+                //let return_val;
                 ({ rt } = interp);
-                const scope_bak = param.scope;
+                //const scope_bak = param.scope;
                 param.scope = "IterationStatement_foreach";
                 rt.enterScope(param.scope);
 
@@ -972,14 +972,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     yield* interp.visit(interp, s.Initializer, param);
                 }
 
-                const variable = rt.readVarOrFunc(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
-                let iterator = null;
+                rt.raiseException("For-each iteration statement error: not yet implemented");
+                /*const _variable = rt.readVarOrFunc(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
+                rt.raiseException("")
                 try {
-                    const sym = rt.getFuncByParams(iterable.t, "__iterator", []);
+                    //const sym = rt.getFuncByParams(iterable.t, "__iterator", []);
                     iterator = rt.invokeCall(sym, iterable);
                 } catch (ex) {
                     // ???
-                    rt.raiseException("For-each iteration statement error: not yet implemented");
                     //if (variables.asArrayType !== null) {
                     //    iterator = iterable.v.target[Symbol.iterator]();
                     //}
@@ -987,9 +987,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                 if (!iterator) {
                     rt.raiseException(`For-each iteration statement error: Variable '${s.Expression.Identifier}' is not iterator type.`);
-                }
-
-                rt.raiseException("For-each iteration statement error: not yet implemented");
+                }*/
 
                 /*for (const element of iterator) {
                     variable.v = element.v;
@@ -1094,7 +1092,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return ["return"];
             },
-            IdentifierExpression(interp, s, param: { functionArgs?: MaybeLeftCV<ObjectType>[] }) {
+            IdentifierExpression(interp, s: XIdentifierExpression, param: { functionArgs?: MaybeLeftCV<ObjectType>[] }) {
                 ({ rt } = interp);
 
                 const globalScope = rt.scope.find((scope) => scope.$name === "{global}");
@@ -1109,8 +1107,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     if (funvar !== null) {
                         return funvar;
                     }
-                    const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs);
-                    return funsym
+                    const funsym = rt.getFuncByParams("{global}", varname, param.functionArgs, []);
+                    return funsym;
                 }
             },
             *ParenthesesExpression(interp, s, param) {
@@ -1131,8 +1129,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const index = variables.asArithmetic(yield* interp.visit(interp, s.index, param)) ?? rt.raiseException("Array access statement error: Expected an arithmetic value");
 
                 param.structType = ret.t;
-                const funsym = rt.getOpByParams("{global}", "o(_[_])", [ret, index]);
-                const r = rt.invokeCall(funsym, ret, index);
+                const funsym = rt.getOpByParams("{global}", "o(_[_])", [ret, index], []);
+                const r = rt.invokeCall(funsym, [], ret, index);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1165,7 +1163,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const ret: Variable | FunctionCallInstance = yield* interp.visit(interp, s.Expression, { functionArgs: args });
 
                 if ("actions" in ret) {
-                    const resultOrGen = rt.invokeCall(ret, ...args);
+                    const resultOrGen = rt.invokeCall(ret, [], ...args);
                     const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
                     if (result === "VOID") {
                         return "VOID";
@@ -1213,7 +1211,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (param.functionArgs === undefined) {
                     return rt.getMember(rclass, s.member);
                 } else {
-                    return rt.getFuncByParams(rclass.t, s.member, param.functionArgs)
+                    return rt.getFuncByParams(rclass.t, s.member, param.functionArgs, [])
                 }
             },
             *PostfixExpression_MemberPointerAccess(interp, s, param) {
@@ -1228,7 +1226,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const maybePtrType = variables.asPointerType(ret.t);
                 if (maybePtrType !== null && variables.asFunctionType(maybePtrType.pointee) === null) {
                     const { member } = s;
-                    const target = rt.invokeCall(rt.getOpByParams("{global}", "o(_->_)", [retc]), retc) as Generator;
+                    const target = rt.invokeCall(rt.getOpByParams("{global}", "o(_->_)", [retc], []), [], retc) as Generator;
                     if (isGenerator(ret)) {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
@@ -1239,7 +1237,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         type: "IdentifierExpression",
                         Identifier: s.member
                     }, param);
-                    const target = rt.invokeCall(rt.getOpByParams("{global}", "o(_->_)", [retc]), retc) as Generator;
+                    const target = rt.invokeCall(rt.getOpByParams("{global}", "o(_->_)", [retc], []), [], retc) as Generator;
                     if (isGenerator(ret)) {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
@@ -1252,7 +1250,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(_++)", [ret]), ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(_++)", [ret], []), [], ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1264,7 +1262,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(_--)", [ret]), ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(_--)", [ret], []), [], ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1276,7 +1274,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(++_)", [ret]), ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(++_)", [ret], []), [], ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1288,7 +1286,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(--_)", [ret]), ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", "o(--_)", [ret], []), [], ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1300,7 +1298,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                const r = rt.invokeCall(rt.getOpByParams("{global}", `o(${s.op}_)` as OpSignature, [ret]), ret);
+                const r = rt.invokeCall(rt.getOpByParams("{global}", `o(${s.op}_)` as OpSignature, [ret], []), [], ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;
                 } else {
@@ -1376,7 +1374,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     const right = rt.unbound(_right);
 
-                    const r = rt.invokeCall(rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right]), left, right);
+                    const r = rt.invokeCall(rt.getFuncByParams("{global}", rt.makeBinaryOperatorFuncName(op), [left, right], []), [], left, right);
                     if (isGenerator(r)) {
                         return yield* r as Generator;
                     } else {
