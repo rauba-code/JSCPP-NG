@@ -122,7 +122,7 @@ export interface XDirectDeclarator_modifier_IdentifierList extends StatementMeta
 }
 export interface XDeclaration extends StatementMeta {
     type: "Declaration",
-    DeclarationSpecifiers: (string | XScopedIdentifier)[],
+    DeclarationSpecifiers: (string | XScopedIdentifier | XScopedMaybeTemplatedIdentifier)[],
     InitDeclaratorList: XInitDeclarator[],
 }
 export interface XTypedefDeclaration extends StatementMeta {
@@ -199,6 +199,11 @@ export interface XScopedIdentifier extends StatementMeta {
     type: "ScopedIdentifier",
     scope: XScopedIdentifier | null,
     Identifier: string,
+}
+export interface XScopedMaybeTemplatedIdentifier extends StatementMeta {
+    type: "ScopedMaybeTemplatedIdentifier",
+    ScopedIdentifier: string | XScopedIdentifier,
+    TemplateType: (string | XScopedIdentifier)[] | null,
 }
 export interface XUnknown {
     type: "<stub>"
@@ -382,7 +387,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         _init = _param.Declarator.Initializers;
 
                         const _declarationSpecifiers = _param.DeclarationSpecifiers.flatMap((specifier: string | { DeclarationSpecifiers: string[] }) => (typeof specifier === "string") ? specifier : specifier.DeclarationSpecifiers);
-                        const _basetype = rt.simpleType(_declarationSpecifiers);
+                        const _basetype = rt.simpleType(_param.DeclarationSpecifiers);
                         if (_basetype === "VOID") {
                             rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }

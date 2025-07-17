@@ -607,9 +607,20 @@ export class CRuntime {
         return false;
     };
 
-    simpleType(_type: (string | interp.XScopedIdentifier)[]): MaybeLeft<ObjectType> | "VOID" {
+    simpleType(_type: (string | interp.XScopedIdentifier | interp.XScopedMaybeTemplatedIdentifier)[]): MaybeLeft<ObjectType> | "VOID" {
+        // this is a big mess that needs to be redone
         if (_type instanceof Array) {
-            const typeStrArr = _type.map(x => ((typeof x === "string") ? x : x.Identifier)).filter(x => !["auto", "const"].includes(x));
+            const typeStrArr = _type.map(x => {
+                if (typeof x === "string") { 
+                    return x; 
+                } else if (x.type === "ScopedIdentifier") { 
+                    return x.Identifier; 
+                } else if (x.TemplateType !== null && x.TemplateType.length !== 0) {
+                    this.raiseException("Type lookup: not yet implemented (template specifiers)");
+                } else {
+                    return (typeof x.ScopedIdentifier === "string") ? x.ScopedIdentifier : x.ScopedIdentifier.Identifier;
+                }
+            }).filter(x => !["auto", "const"].includes(x));
             const typeStr = typeStrArr.join(" ");
             if (typeStr in variables.defaultArithmeticResolutionMap) {
                 return { t: { sig: variables.defaultArithmeticResolutionMap[typeStr] }, v: { lvHolder: null } };
@@ -623,35 +634,14 @@ export class CRuntime {
                 if (fn !== null) {
                     return { t: variables.classType(typeStr, [], null), v: { lvHolder: null } }
                 } else {
-                    this.raiseException("No constructor for the specified structure");
+                    this.raiseException("Type lookup: No constructor for the specified structure");
                 }
             }
             if (typeStr in this.typedefs) {
                 return this.typedefs[typeStr];
             }
         }
-        this.raiseException("Type error or not yet implemented");
-        /*if (Array.isArray(type)) {
-            if (type.length > 1) {
-                const typeStr = type.map((t) => (t as { Identifier: string }).Identifier ?? t)
-                    .filter(t => {
-                        return !this.config.specifiers.includes(t as Specifier);
-                    }).join(" ");
-                return this.simpleType(typeStr);
-            } else {
-                return this.typedefs[type[0] as string] || this.simpleType(type[0] as string);
-            }
-        } else {
-            if (this.isPrimitiveType(type)) {
-                return this.primitiveType(type);
-            } else if (this.isStructType(type)) {
-                return this.simpleStructType(type);
-            } else if (this.isNamespaceType(type)) {
-                return this.simpleType(resolveIdentifier(type).split("::").pop());
-            } else {
-                return this.simpleClassType(type);
-            }
-        }*/
+        this.raiseException("Type lookup: Type error");
     };
 
     defVar(varname: string, object: Variable) {

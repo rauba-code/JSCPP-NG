@@ -350,7 +350,7 @@ const defaultOpHandler: OpHandler[] = [
         // I don't know what is this but let's keep it
         op: "o(_,_)",
         type: "FUNCTION ParamObject ( ParamObject ParamObject )",
-        default(_rt, _l, r) {
+        default(_rt, _templateType: [], _l, r) {
             return r as InitVariable;
         }
     },
