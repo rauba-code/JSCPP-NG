@@ -62,7 +62,7 @@ export = {
                     stdio.getInput().then((result) => {
                         variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
                         if (!stdio.isMochaTest) {
-                            unixapi.write(rt, variables.arithmetic("I32", unixapi.FD_STDOUT, null), l.v.members.buf);
+                            unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), l.v.members.buf);
                         }
                         resolve([false, l, retv]);
                     });
@@ -98,7 +98,7 @@ export = {
         common.regOps(rt, [{
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
-            *default(rt: CRuntime, l: IStreamVariable, r: ArithmeticVariable): Gen<IStreamVariable> {
+            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: ArithmeticVariable): Gen<IStreamVariable> {
                 const eofbit = l.v.members.eofbit;
                 const failbit = l.v.members.failbit;
                 const buf = l.v.members.buf;
@@ -156,7 +156,7 @@ export = {
         {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 )",
-            *default(rt: CRuntime, l: IStreamVariable, _r: PointerVariable<ArithmeticVariable>): Gen<IStreamVariable> {
+            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: PointerVariable<ArithmeticVariable>): Gen<IStreamVariable> {
                 const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const eofbit = l.v.members.eofbit;
                 const failbit = l.v.members.failbit;
@@ -201,7 +201,7 @@ export = {
         {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
-            *default(rt: CRuntime, l: IStreamVariable, _r: PointerVariable<ArithmeticVariable>): Gen<IStreamVariable> {
+            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: PointerVariable<ArithmeticVariable>): Gen<IStreamVariable> {
                 const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const eofbit = l.v.members.eofbit;
                 const failbit = l.v.members.failbit;
@@ -292,7 +292,7 @@ export = {
                 }
 
                 if (!is_raw) {
-                    unixapi.write(rt, variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr);
+                    unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr);
                 }
 
 
@@ -350,7 +350,7 @@ export = {
                 s.v.members._size.v.value = cnt;
 
                 if (!is_raw) {
-                    unixapi.write(rt, variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr);
+                    unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr);
                 }
 
 
@@ -366,7 +366,7 @@ export = {
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS istream < > )",
-                *default(rt: CRuntime, l: IStreamVariable): Gen<ArithmeticVariable> {
+                *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable): Gen<ArithmeticVariable> {
                     const retv = yield* readChar(rt, l);
                     const buf = l.v.members.buf;
                     variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
@@ -376,14 +376,14 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 I32 I8 )",
-                default(rt: CRuntime, l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStreamVariable {
                     return _getline(rt, l, _s, _count, _delim);
                 }
             },
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 I32 )",
-                default(rt: CRuntime, l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IStreamVariable {
                     return _getline(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"));
                 }
             }
@@ -393,7 +393,7 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > I8 )",
-                default(rt: CRuntime, input: IStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
+                default(rt: CRuntime, _templateTypes: [], input: IStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
                     _getlineStr(rt, input, str, delim);
                     return input;
                 }
@@ -401,7 +401,7 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
-                default(rt: CRuntime, input: IStreamVariable, str: StringVariable) {
+                default(rt: CRuntime, _templateTypes: [], input: IStreamVariable, str: StringVariable) {
                     _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
                     return input;
                 }

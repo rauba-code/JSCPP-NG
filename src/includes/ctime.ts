@@ -7,7 +7,7 @@ export = {
         common.regGlobalFuncs(rt, [{
             type: "FUNCTION I64 ( I64 )",
             op: "time",
-            default(rt: CRuntime, l: ArithmeticVariable): InitArithmeticVariable {
+            default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): InitArithmeticVariable {
                 if (rt.arithmeticValue(l) !== 0) {
                     rt.raiseException("time(): non-zero/non-nullptr argument is unsupported")
                 }

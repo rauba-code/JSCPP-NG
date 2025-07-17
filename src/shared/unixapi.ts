@@ -6,7 +6,7 @@ export const FD_STDIN: number = 0;
 export const FD_STDOUT: number = 1;
 export const FD_STDERR: number = 2;
 
-export function write(rt: CRuntime, fd: InitArithmeticVariable, sz: InitIndexPointerVariable<ArithmeticVariable>): "VOID" {
+export function write(rt: CRuntime, _templateTypes: [], fd: InitArithmeticVariable, sz: InitIndexPointerVariable<ArithmeticVariable>): "VOID" {
     if (fd.v.value === FD_STDOUT) {
         const stdio = rt.stdio();
         stdio.write(rt.getStringFromCharArray(sz, sizeUntil(rt, sz, variables.arithmetic("I8", 0, null))));

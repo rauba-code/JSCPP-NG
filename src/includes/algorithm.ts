@@ -115,14 +115,14 @@ export = {
             }
             const clref_t : MaybeLeftCV<ObjectType> = { t: l.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
             const cmpFun = (_cmp !== null) ? (variables.asInitDirectPointer(_cmp) as InitDirectPointerVariable<Function> ?? rt.raiseException("sort: Parameter 'cmp' does not point to a function")) : null;
-            const ltFun = (cmpFun === null) ? rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t]) : null;
+            const ltFun = (cmpFun === null) ? rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []) : null;
             function sortCmp(li: number, ri: number): number {
                 // JavaScript specifically wants a symmetrical comparator, so we compare both sides
                 // these return 0.0 or 1.0
                 const lhs = region[li];
                 const rhs = region[ri];
-                const a_lt_b = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, lhs, rhs) : rt.invokeCall(ltFun as FunctionCallInstance, lhs, rhs)).v.value;
-                const b_lt_a = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, rhs, lhs) : rt.invokeCall(ltFun as FunctionCallInstance, rhs, lhs)).v.value;
+                const a_lt_b = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, lhs, rhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], lhs, rhs)).v.value;
+                const b_lt_a = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, rhs, lhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], rhs, lhs)).v.value;
                 // return -2.0, 0.0, or 2.0
                 return b_lt_a - a_lt_b;
 
@@ -154,22 +154,22 @@ export = {
             {
                 op: "sort",
                 type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
             },
             {
                 op: "sort",
                 type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
-                default(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
             },
             {
                 op: "stable_sort",
                 type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
             },
             {
                 op: "stable_sort",
                 type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
-                default(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
             }
         ]);
         // InputIt is just like RandomIt but not necessarilly ValueSwappable

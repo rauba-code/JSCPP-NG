@@ -55,7 +55,7 @@ export = {
             return utf8.fromUtf8CharArray(new Uint8Array(wordValues));
 
         }
-        function abs(rt: CRuntime, _l: ArithmeticVariable): InitArithmeticVariable {
+        function abs(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable): InitArithmeticVariable {
             const l = rt.arithmeticValue(_l);
             const retv = variables.arithmetic(_l.t.sig, Math.abs(l), null);
             rt.adjustArithmeticValue(retv);
@@ -95,7 +95,7 @@ export = {
             {
                 type: "FUNCTION F64 ( PTR I8 )",
                 op: "atof",
-                default(rt: CRuntime, l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
                     const num = Number.parseFloat(getWordString(rt, l));
                     return variables.arithmetic("F64", num, null);
                 }
@@ -103,7 +103,7 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 )",
                 op: "atoi",
-                default(rt: CRuntime, l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
                     const num = Number.parseInt(getWordString(rt, l));
                     return variables.arithmetic("I32", num, null);
                 }
@@ -111,7 +111,7 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 )",
                 op: "atol",
-                default(rt: CRuntime, l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
                     const num = Number.parseInt(getWordString(rt, l));
                     return variables.arithmetic("I32", num, null);
                 }
@@ -123,7 +123,7 @@ export = {
             {
                 type: "FUNCTION CLASS div_t < > ( I32 I32 )",
                 op: "div",
-                default(rt: CRuntime, _l: ArithmeticVariable, _r: ArithmeticVariable): DivVariable {
+                default(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable, _r: ArithmeticVariable): DivVariable {
                     const l = rt.arithmeticValue(_l);
                     const r = rt.arithmeticValue(_r);
                     if (r === 0) {
@@ -140,7 +140,7 @@ export = {
             {
                 type: "FUNCTION CLASS ldiv_t < > ( I32 I32 )",
                 op: "ldiv",
-                default(rt: CRuntime, _l: ArithmeticVariable, _r: ArithmeticVariable): DivVariable {
+                default(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable, _r: ArithmeticVariable): DivVariable {
                     const l = rt.arithmeticValue(_l);
                     const r = rt.arithmeticValue(_r);
                     if (r === 0) {
@@ -157,7 +157,7 @@ export = {
             {
                 type: "FUNCTION CLASS lldiv_t < > ( I64 I64 )",
                 op: "lldiv",
-                default(rt: CRuntime, _l: ArithmeticVariable, _r: ArithmeticVariable): DivVariable {
+                default(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable, _r: ArithmeticVariable): DivVariable {
                     const l = rt.arithmeticValue(_l);
                     const r = rt.arithmeticValue(_r);
                     if (r === 0) {
@@ -174,7 +174,7 @@ export = {
             {
                 type: "FUNCTION VOID ( U32 )",
                 op: "srand",
-                default(rt: CRuntime, _l: ArithmeticVariable): "VOID" {
+                default(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable): "VOID" {
                     const l = rt.arithmeticValue(_l);
                     rng.seed(l);
                     return "VOID";
@@ -183,7 +183,7 @@ export = {
             {
                 type: "FUNCTION I32 ( )",
                 op: "rand",
-                default(_rt: CRuntime): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: []): InitArithmeticVariable {
                      return variables.arithmetic("I32", rng.random(), null, false);
                 }
             },

@@ -45,7 +45,7 @@ export = {
                 {
                     op: "o(!_)",
                     type: `FUNCTION BOOL ( LREF CLASS ${structName} < > )`,
-                    default(_rt: CRuntime, _this: IStringStreamVariable) {
+                    default(_rt: CRuntime, _templateTypes: [], _this: IStringStreamVariable) {
                         const failbit = _this.v.members.failbit.v.value;
                         const badbit = _this.v.members.badbit.v.value;
                         return variables.arithmetic("BOOL", failbit | badbit, null);
@@ -54,7 +54,7 @@ export = {
                 {
                     op: "o(_bool)",
                     type: `FUNCTION BOOL ( LREF CLASS ${structName} < > )`,
-                    default(_rt: CRuntime, _this: IStringStreamVariable): ArithmeticVariable {
+                    default(_rt: CRuntime, _templateTypes: [], _this: IStringStreamVariable): ArithmeticVariable {
                         const failbit = _this.v.members.failbit.v.value;
                         const badbit = _this.v.members.badbit.v.value;
                         return variables.arithmetic("BOOL", (failbit !== 0 || badbit !== 0) ? 0 : 1, null);
@@ -63,7 +63,7 @@ export = {
                 {
                     op: "o(_>>_)",
                     type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > LREF Arithmetic )`,
-                    default(_rt: CRuntime, l: IStringStreamVariable, r: ArithmeticVariable): IStringStreamVariable {
+                    default(_rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, r: ArithmeticVariable): IStringStreamVariable {
                         // TODO: this and istream functions share equal code. Merge into a single shared function
                         const buf = l.v.members.buf;
                         const eofbit = l.v.members.eofbit;
@@ -108,7 +108,7 @@ export = {
                 {
                     op: "o(_>>_)",
                     type: `FUNCTION LREF CLASS istream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > )`,
-                    default(rt: CRuntime, l: IStringStreamVariable, r: StringVariable): IStringStreamVariable {
+                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, r: StringVariable): IStringStreamVariable {
                         const eofbit = l.v.members.eofbit;
                         const failbit = l.v.members.failbit;
                         const buf = l.v.members.buf;
@@ -158,7 +158,7 @@ export = {
             const ctorHandler: common.OpHandler = {
                 op: "o(_ctor)",
                 type: `FUNCTION CLASS ${structName} < > ( CLREF CLASS string < > )`,
-                default(_rt: CRuntime, s: StringVariable): IStringStreamVariable {
+                default(_rt: CRuntime, _templateTypes: [], s: StringVariable): IStringStreamVariable {
                     const result = rt.defaultValue(thisType, "SELF") as IStringStreamVariable;
                     const sbuf = variables.asInitIndexPointer(s.v.members._ptr) as InitIndexPointerVariable<ArithmeticVariable> | null;
                     if (sbuf !== null) {
@@ -169,7 +169,7 @@ export = {
                 }
             };
 
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
 
             function _getline(rt: CRuntime, l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStringStreamVariable {
                 let b = l.v.members.buf;
@@ -235,7 +235,7 @@ export = {
                 {
                     op: "get",
                     type: `FUNCTION I32 ( LREF CLASS ${structName} < > )`,
-                    default(rt: CRuntime, l: IStringStreamVariable): InitArithmeticVariable {
+                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable): InitArithmeticVariable {
                         let b = l.v.members.buf;
                         if (b.v.pointee.values.length <= b.v.index) {
                             variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
@@ -252,14 +252,14 @@ export = {
                 {
                     op: "getline",
                     type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > PTR I8 I32 I8 )`,
-                    default(rt: CRuntime, l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStringStreamVariable {
+                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStringStreamVariable {
                         return _getline(rt, l, _s, _count, _delim);
                     }
                 },
                 {
                     op: "getline",
                     type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > PTR I8 I32 )`,
-                    default(rt: CRuntime, l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IStringStreamVariable {
+                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IStringStreamVariable {
                         return _getline(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"));
                     }
                 },
@@ -269,7 +269,7 @@ export = {
                 {
                     op: "getline",
                     type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > I8 )`,
-                    default(rt: CRuntime, input: IStringStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
+                    default(rt: CRuntime, _templateTypes: [], input: IStringStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
                         _getlineStr(rt, input, str, delim);
                         return input;
                     }
@@ -277,7 +277,7 @@ export = {
                 {
                     op: "getline",
                     type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > )`,
-                    default(rt: CRuntime, input: IStringStreamVariable, str: StringVariable) {
+                    default(rt: CRuntime, _templateTypes: [], input: IStringStreamVariable, str: StringVariable) {
                         _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
                         return input;
                     }

@@ -8,7 +8,7 @@ export = {
         common.regGlobalFuncs(rt, [{
             type: "FUNCTION I64 ( PTR I8 )",
             op: "strlen",
-            default(rt: CRuntime, _ptr: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+            default(rt: CRuntime, _templateTypes: [], _ptr: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
                 const ptr = variables.asInitIndexPointerOfElem(_ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 let cnt = 0;
                 while (rt.arithmeticValue(variables.arrayMember(ptr.v.pointee, ptr.v.index + cnt)) !== 0) {
@@ -19,7 +19,7 @@ export = {
         }, {
             type: "FUNCTION I32 ( PTR I8 PTR I8 )",
             op: "strcmp",
-            default(rt: CRuntime, _a: PointerVariable<ArithmeticVariable>, _b: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+            default(rt: CRuntime, _templateTypes: [], _a: PointerVariable<ArithmeticVariable>, _b: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
                 const a = variables.asInitIndexPointerOfElem(_a, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                 const b = variables.asInitIndexPointerOfElem(_b, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
                 return variables.arithmetic("I32", strcmp(rt, a, b), null, false);
@@ -27,7 +27,7 @@ export = {
         }, {
             type: "FUNCTION PTR I8 ( PTR I8 PTR I8 )",
             op: "strcat",
-            default(rt: CRuntime, _a: PointerVariable<ArithmeticVariable>, _b: PointerVariable<ArithmeticVariable>): InitIndexPointerVariable<ArithmeticVariable> {
+            default(rt: CRuntime, _templateTypes: [], _a: PointerVariable<ArithmeticVariable>, _b: PointerVariable<ArithmeticVariable>): InitIndexPointerVariable<ArithmeticVariable> {
                 const a = variables.asInitIndexPointerOfElem(_a, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                 const b = variables.asInitIndexPointerOfElem(_b, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
                 let ai = 0;

@@ -31,7 +31,7 @@ export = {
         const ctorHandlers: OpHandler[] = [{
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( PTR I8 )",
-            default(_rt: CRuntime, _path: PointerVariable<ArithmeticVariable>): OfStreamVariable {
+            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticVariable>): OfStreamVariable {
                 const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
@@ -42,7 +42,7 @@ export = {
         {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > )",
-            default(_rt: CRuntime, _path: StringVariable): OfStreamVariable {
+            default(_rt: CRuntime, _templateTypes: [], _path: StringVariable): OfStreamVariable {
                 const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
@@ -53,7 +53,7 @@ export = {
         ];
 
         for (const ctorHandler of ctorHandlers) {
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
         }
 
         const _open = function(_rt: CRuntime, _this: OfStreamVariable, right: InitIndexPointerVariable<ArithmeticVariable>): void {
@@ -72,7 +72,7 @@ export = {
             {
                 op: "close",
                 type: "FUNCTION VOID ( LREF CLASS ofstream < > )",
-                default(rt: CRuntime, l: OfStreamVariable): "VOID" {
+                default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable): "VOID" {
                     rt.fileClose(l.v.members.fd);
                     l.v.members._is_open.v.value = 0;
                     return "VOID";
@@ -81,7 +81,7 @@ export = {
             {
                 op: "open",
                 type: "FUNCTION VOID ( LREF CLASS ofstream < > PTR I8 )",
-                default(rt: CRuntime, l: OfStreamVariable, _path: PointerVariable<ArithmeticVariable>): "VOID" {
+                default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable, _path: PointerVariable<ArithmeticVariable>): "VOID" {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     _open(rt, l, pathPtr);
                     return "VOID";
@@ -90,13 +90,13 @@ export = {
             {
                 op: "is_open",
                 type: "FUNCTION BOOL ( LREF CLASS ofstream < > )",
-                default(_rt: CRuntime, l: OfStreamVariable): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], l: OfStreamVariable): InitArithmeticVariable {
                     return variables.arithmetic("BOOL", l.v.members._is_open.v.value, null);
                 }
             },
         ];
         memberHandlers.forEach((x) => {
-            rt.regFunc(x.default, thisType, x.op, rt.typeSignature(x.type));
+            rt.regFunc(x.default, thisType, x.op, rt.typeSignature(x.type), []);
         })
     }
 };

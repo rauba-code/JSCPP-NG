@@ -1,8 +1,7 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { AbstractVariable, ArithmeticVariable, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, InitValue, MaybeUnboundVariable, PointerVariable, ResultOrGen, Variable, variables } from "../variables";
+import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, InitValue, MaybeUnboundVariable, PointerVariable, Variable, variables } from "../variables";
 import * as utf8 from "../utf8";
-import * as unixapi from "../shared/unixapi";
 
 interface DivType {
     readonly sig: "CLASS",
@@ -47,7 +46,7 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 FunctionParamOrEnd",
                 op: "printf",
-                default(rt: CRuntime, _l: PointerVariable<ArithmeticVariable>, ...args: Variable[]): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>, ...args: Variable[]): InitArithmeticVariable {
                     const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     let chr: number;
                     type FormatOptions = {
@@ -326,7 +325,7 @@ export = {
             {
                 type: "FUNCTION I32 ( I32 )",
                 op: "putchar",
-                default(rt: CRuntime, l: ArithmeticVariable): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): InitArithmeticVariable {
                     const chr = rt.arithmeticValue(l);
                     const bytes = new Uint8Array([chr]);
                     const str = utf8.fromUtf8CharArray(bytes);
@@ -340,7 +339,7 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 )",
                 op: "puts",
-                default(rt: CRuntime, _l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
                     const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     const str = rt.getStringFromCharArray(l);
                     const stdio = rt.stdio();
@@ -352,7 +351,7 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 PTR I8 FunctionParamOrEnd",
                 op: "sscanf",
-                default(rt: CRuntime, _l: PointerVariable<ArithmeticVariable>, _fmt: PointerVariable<ArithmeticVariable>, ...args: Variable[]): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>, _fmt: PointerVariable<ArithmeticVariable>, ...args: Variable[]): InitArithmeticVariable {
                     const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     const fmt = variables.asInitIndexPointerOfElem(_fmt, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     let li = 0;

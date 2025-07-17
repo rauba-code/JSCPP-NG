@@ -21,7 +21,7 @@ export = {
             return [{
                 op,
                 type: "FUNCTION BOOL ( CLREF CLASS string < > CLREF CLASS string < > )",
-                default(rt: CRuntime, l: StringVariable, r: StringVariable): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): InitArithmeticVariable {
                     const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const rptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     return variables.arithmetic("BOOL", fn(strncmp(rt, lptr, rptr, l.v.members._size.v.value)) ? 1 : 0, null);
@@ -30,7 +30,7 @@ export = {
             {
                 op,
                 type: "FUNCTION BOOL ( CLREF CLASS string < > PTR I8 )",
-                default(rt: CRuntime, l: StringVariable, r: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
                     const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const rptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     return variables.arithmetic("BOOL", fn(strcmp(rt, lptr, rptr)) ? 1 : 0, null);
@@ -39,7 +39,7 @@ export = {
             {
                 op,
                 type: "FUNCTION BOOL ( PTR I8 CLREF CLASS string < > )",
-                default(rt: CRuntime, l: PointerVariable<ArithmeticVariable>, r: StringVariable): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticVariable>, r: StringVariable): InitArithmeticVariable {
                     const lptr = variables.asInitIndexPointerOfElem(l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const rptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     return variables.arithmetic("BOOL", fn(strcmp(rt, lptr, rptr)) ? 1 : 0, null);
@@ -51,7 +51,7 @@ export = {
             {
                 op: "o(_=_)",
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > PTR I8 )",
-                default(rt: CRuntime, l: StringVariable, _r: PointerVariable<ArithmeticVariable>): StringVariable {
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable, _r: PointerVariable<ArithmeticVariable>): StringVariable {
                     const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     let i: number = 0;
                     while (rt.arithmeticValue(variables.arrayMember(r.v.pointee, r.v.index + i)) !== 0) {
@@ -66,7 +66,7 @@ export = {
             {
                 op: "o(_=_)",
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > CLREF CLASS string < > )",
-                default(rt: CRuntime, l: StringVariable, r: StringVariable): StringVariable {
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): StringVariable {
                     const rptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     variables.arithmeticAssign(l.v.members._size, r.v.members._size.v.value, rt.raiseException);
                     variables.indexPointerAssign(l.v.members._ptr, rptr.v.pointee, rptr.v.index, rt.raiseException);
@@ -83,7 +83,7 @@ export = {
             {
                 op: "o(_[_])",
                 type: "FUNCTION LREF I8 ( LREF CLASS string < > I64 )",
-                default(rt: CRuntime, l: StringVariable, _idx: ArithmeticVariable): ArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable, _idx: ArithmeticVariable): ArithmeticVariable {
                     const idx = rt.arithmeticValue(_idx);
                     if (idx < 0 || idx >= l.v.members._size.v.value) {
                         return variables.uninitArithmetic("I8", "SELF"); // C++11 behaviour
@@ -98,7 +98,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS string < > ( PTR I8 )",
-                *default(rt: CRuntime, _r: PointerVariable<ArithmeticVariable>): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes: [], _r: PointerVariable<ArithmeticVariable>): Gen<StringVariable> {
                     const lYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
                     const l = asResult(lYield) ?? (yield *lYield as Gen<StringVariable>);
                     const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
@@ -114,21 +114,21 @@ export = {
             }
         ];
         for (const ctorHandler of ctorHandlers) {
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
         }
 
         common.regMemberFuncs(rt, "string", [
             {
                 op: "empty",
                 type: "FUNCTION BOOL ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, l: StringVariable): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
                     return variables.arithmetic("BOOL", l.v.members._size.v.value === 0 ? 1 : 0, null);
                 }
             },
             {
                 op: "front",
                 type: "FUNCTION LREF I8 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, l: StringVariable): ArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): ArithmeticVariable {
                     if (l.v.members._size.v.value === 0) {
                         return variables.uninitArithmetic("I8", "SELF"); // C++11 behaviour
                     }
@@ -139,7 +139,7 @@ export = {
             {
                 op: "back",
                 type: "FUNCTION LREF I8 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, l: StringVariable): ArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): ArithmeticVariable {
                     const size = l.v.members._size.v.value;
                     if (size === 0) {
                         return variables.uninitArithmetic("I8", "SELF"); // C++11 behaviour
@@ -151,7 +151,7 @@ export = {
             {
                 op: "data",
                 type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, l: StringVariable): InitPointerVariable<ArithmeticVariable> {
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitPointerVariable<ArithmeticVariable> {
                     const size = l.v.members._size.v.value;
                     if (size === 0) {
                         return variables.directPointer(variables.uninitArithmetic("I8", "SELF"), null); // C++11 behaviour
@@ -162,7 +162,7 @@ export = {
             {
                 op: "c_str",
                 type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, l: StringVariable): PointerVariable<ArithmeticVariable> {
+                default(_rt: CRuntime, _templateTypes: [], l: StringVariable): PointerVariable<ArithmeticVariable> {
                     return l.v.members._ptr;
                 }
             },

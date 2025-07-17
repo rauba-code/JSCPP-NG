@@ -53,7 +53,7 @@ export = {
             {
                 op: "o(!_)",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, _this: IfStreamVariable) {
+                default(_rt: CRuntime, _templateTypes: [], _this: IfStreamVariable) {
                     const failbit = _this.v.members.failbit.v.value;
                     const badbit = _this.v.members.badbit.v.value;
                     return variables.arithmetic("BOOL", failbit | badbit, null);
@@ -62,7 +62,7 @@ export = {
             {
                 op: "o(_bool)",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, _this: IfStreamVariable): ArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], _this: IfStreamVariable): ArithmeticVariable {
                     const failbit = _this.v.members.failbit.v.value;
                     const badbit = _this.v.members.badbit.v.value;
                     return variables.arithmetic("BOOL", (failbit !== 0 || badbit !== 0) ? 0 : 1, null);
@@ -71,7 +71,7 @@ export = {
             {
                 op: "o(_>>_)",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > LREF Arithmetic )",
-                default(rt: CRuntime, l: IfStreamVariable, r: ArithmeticVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, r: ArithmeticVariable): IfStreamVariable {
                     // TODO: this and istream functions share equal code. Merge into a single shared function
                     const buf = l.v.members.buf;
                     //const fd = l.v.members.fd;
@@ -131,7 +131,7 @@ export = {
             {
                 op: "o(_>>_)",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS ifstream < > CLREF CLASS string < > )",
-                default(rt: CRuntime, l: IfStreamVariable, r: StringVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, r: StringVariable): IfStreamVariable {
                     const eofbit = l.v.members.eofbit;
                     const failbit = l.v.members.failbit;
                     const buf = l.v.members.buf;
@@ -182,7 +182,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS ifstream < > ( PTR I8 )",
-                default(_rt: CRuntime, _path: PointerVariable<ArithmeticVariable>): IfStreamVariable {
+                default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticVariable>): IfStreamVariable {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
@@ -193,7 +193,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS ifstream < > ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, _path: StringVariable): IfStreamVariable {
+                default(_rt: CRuntime, _templateTypes: [], _path: StringVariable): IfStreamVariable {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
@@ -204,7 +204,7 @@ export = {
         ];
 
         for (const ctorHandler of ctorHandlers) {
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type));
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
         }
 
         function _getline(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
@@ -274,7 +274,7 @@ export = {
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS ifstream < > )",
-                default(rt: CRuntime, l: IfStreamVariable): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
                     let b = l.v.members.buf;
                     if (b.v.pointee.values.length <= b.v.index) {
                         variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
@@ -291,21 +291,21 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 I8 )",
-                default(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
                     return _getline(rt, l, _s, _count, _delim);
                 }
             },
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 )",
-                default(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IfStreamVariable {
                     return _getline(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"));
                 }
             },
             {
                 op: "close",
                 type: "FUNCTION VOID ( LREF CLASS ifstream < > )",
-                default(rt: CRuntime, l: IfStreamVariable): "VOID" {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): "VOID" {
                     rt.fileClose(l.v.members.fd);
                     return "VOID"
                 }
@@ -313,7 +313,7 @@ export = {
             {
                 op: "open",
                 type: "FUNCTION VOID ( LREF CLASS ifstream < > PTR I8 )",
-                default(rt: CRuntime, l: IfStreamVariable, _path: PointerVariable<ArithmeticVariable>): "VOID" {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _path: PointerVariable<ArithmeticVariable>): "VOID" {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     _open(rt, l, pathPtr);
                     return "VOID";
@@ -322,7 +322,7 @@ export = {
             {
                 op: "is_open",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, l: IfStreamVariable): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
                     return variables.arithmetic("BOOL", l.v.members._is_open.v.value, null);
                 }
             },
@@ -332,7 +332,7 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > CLREF CLASS string < > I8 )",
-                default(rt: CRuntime, input: IfStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
+                default(rt: CRuntime, _templateTypes: [], input: IfStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
                     _getlineStr(rt, input, str, delim);
                     return input;
                 }
@@ -340,7 +340,7 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > CLREF CLASS string < > )",
-                default(rt: CRuntime, input: IfStreamVariable, str: StringVariable) {
+                default(rt: CRuntime, _templateTypes: [], input: IfStreamVariable, str: StringVariable) {
                     _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
                     return input;
                 }

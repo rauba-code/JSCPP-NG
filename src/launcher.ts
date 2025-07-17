@@ -206,7 +206,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         step = defGen.next();
         if (step.done) { break; }
     }
-    const mainGen = rt.invokeCall(rt.getFuncByParams("{global}", "main", [])) as Generator;
+    const mainGen = rt.invokeCall(rt.getFuncByParams("{global}", "main", [], []), []) as Generator;
     if (_config.debug) {
         mydebugger.start(rt, mainGen);
         return mydebugger;

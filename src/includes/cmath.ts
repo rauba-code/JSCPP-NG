@@ -6,16 +6,16 @@ export = {
     load(rt: CRuntime) {
         rt.defVar("INFINITY", variables.arithmetic("F32", Number.POSITIVE_INFINITY, null, true));
         rt.defVar("NAN", variables.arithmetic("F32", Number.NaN, null, true));
-        function commonUnary(fn: (l: number) => number, sig: ArithmeticSig | null): (rt: CRuntime, l: ArithmeticVariable) => InitArithmeticVariable {
-            return function(rt: CRuntime, _l: ArithmeticVariable): InitArithmeticVariable {
+        function commonUnary(fn: (l: number) => number, sig: ArithmeticSig | null): (rt: CRuntime, _templateTypes: [], l: ArithmeticVariable) => InitArithmeticVariable {
+            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable): InitArithmeticVariable {
                 const l = rt.arithmeticValue(_l);
                 const retv = variables.arithmetic(sig ?? _l.t.sig, fn(l), null, false);
                 rt.adjustArithmeticValue(retv);
                 return retv;
             }
         }
-        function commonBinary(fn: (l: number, r: number) => number, sig: ArithmeticSig): (rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable) => InitArithmeticVariable {
-            return function(rt: CRuntime, _l: ArithmeticVariable, _r: ArithmeticVariable): InitArithmeticVariable {
+        function commonBinary(fn: (l: number, r: number) => number, sig: ArithmeticSig): (rt: CRuntime, _templateTypes: [], l: ArithmeticVariable, r: ArithmeticVariable) => InitArithmeticVariable {
+            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable, _r: ArithmeticVariable): InitArithmeticVariable {
                 const l = rt.arithmeticValue(_l);
                 const r = rt.arithmeticValue(_r);
                 const retv = variables.arithmetic(sig, fn(l, r), null, false);
