@@ -153,22 +153,22 @@ export = {
         common.regGlobalFuncs(rt, [
             {
                 op: "sort",
-                type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 )",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
             },
             {
                 op: "sort",
-                type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
             },
             {
                 op: "stable_sort",
-                type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 )",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
             },
             {
                 op: "stable_sort",
-                type: "!Pointee FUNCTION VOID ( PTR ?0 PTR ?0 FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
             }
         ]);

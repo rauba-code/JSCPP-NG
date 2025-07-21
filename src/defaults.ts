@@ -1,6 +1,6 @@
 import { initializerListInit } from "./initializer_list";
 import { CRuntime, OpSignature } from "./rt";
-import { ArithmeticVariable, PointerVariable, Variable, Function, variables, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable, PointeeVariable, InitDirectPointerVariable, ObjectType } from "./variables";
+import { ArithmeticVariable, PointerVariable, Variable, Function, variables, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable, PointeeVariable, InitDirectPointerVariable, ObjectType, ClassVariable } from "./variables";
 
 function raiseSupportException(rt: CRuntime, l: Variable, r: Variable, op: string): never {
     rt.raiseException(`${rt.makeTypeStringOfVar(l)} does not support ${op} on ${rt.makeTypeStringOfVar(r)}`);
@@ -425,6 +425,14 @@ const defaultOpHandler: OpHandler[] = [
             } else if (r.v.subtype === "DIRECT") {
                 variables.directPointerAssign(l, r, rt.raiseException);
             }
+            return l;
+        }
+    },
+    {
+        op: "o(_=_)",
+        type: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
+        default(rt, _templateType: [], l: ClassVariable, r: ClassVariable): ClassVariable {
+            Object.entries(r.v.members).map(([k, v]) => l.v.members[k] = variables.clone(v, "SELF", false, rt.raiseException, true));
             return l;
         }
     },
