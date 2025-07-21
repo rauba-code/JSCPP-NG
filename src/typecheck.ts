@@ -282,6 +282,8 @@ export type CastAction = {
     type: "CTOR"
     fnsig: string,
     domain: string,
+} | {
+    type: "FNPTR"
 };
 
 /** For every destination, stored as an inline type signature, an array of viable source types, stored as inline type signatures, is given.
@@ -458,30 +460,41 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                         }
                     }
                     if (retv === false && pair.supertype[0] !== "LREF") {
-                        const tmpSubRadical = parseInner(parser, scope, tmpSub);
-                        const tmpSuperRadical = parseInner(parser, scope, tmpSuper);
-                        if (tmpSubRadical === null || tmpSuperRadical === null) {
-                            // parameter size misalignment
-                            return;
+                        if (tmpSub.length > 1 && tmpSub[1] === "FUNCTION" && tmpSuper[0] === "PTR") {
+                            pair.subtype = ["PTR", ...tmpSub.slice(1)];
+                            //pair.supertype = [...tmpSuper];
+                            retv = matchNontermOrWildcard(parser, scope, argument, pair, pair.supertype[0], ictable, result);
+                            if (retv === null) {
+                                valueAction = "CAST";
+                                result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "FNPTR" } });
+                            }
                         }
-                        const subParamArray = tmpSub.slice(tmpSub[0] === "CLREF" || tmpSub[0] === "LREF" ? 1 : 0, tmpSub.length - tmpSubRadical.length);
-                        const superParamArray = tmpSuper.slice(tmpSuper[0] === "CLREF" ? 1 : 0, tmpSuper.length - tmpSuperRadical.length);
-                        let cast: CastAction | null;
-                        if ((cast = tryImplicitCast(pair, subParamArray, superParamArray)) !== null) {
-                            retv = null;
-                            valueAction = "CAST";
-                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast });
-                            pair.subtype = tmpSubRadical;
-                            pair.supertype = tmpSuperRadical;
-                        } else {
-                            const subParamInline = subParamArray.join(" ");
-                            const superParamInline = superParamArray.join(" ");
-                            if (superParamInline in ictable && subParamInline in ictable[superParamInline]) {
+                        if (retv === false) {
+                            const tmpSubRadical = parseInner(parser, scope, tmpSub);
+                            const tmpSuperRadical = parseInner(parser, scope, tmpSuper);
+                            if (tmpSubRadical === null || tmpSuperRadical === null) {
+                                // parameter size misalignment
+                                return;
+                            }
+                            const subParamArray = tmpSub.slice(tmpSub[0] === "CLREF" || tmpSub[0] === "LREF" ? 1 : 0, tmpSub.length - tmpSubRadical.length);
+                            const superParamArray = tmpSuper.slice(tmpSuper[0] === "CLREF" ? 1 : 0, tmpSuper.length - tmpSuperRadical.length);
+                            let cast: CastAction | null;
+                            if ((cast = tryImplicitCast(pair, subParamArray, superParamArray)) !== null) {
                                 retv = null;
                                 valueAction = "CAST";
-                                result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "CTOR", ...ictable[superParamInline][subParamInline] } });
+                                result.castActions.push({ index: pair.firstLevelParamBreadth, cast });
                                 pair.subtype = tmpSubRadical;
                                 pair.supertype = tmpSuperRadical;
+                            } else {
+                                const subParamInline = subParamArray.join(" ");
+                                const superParamInline = superParamArray.join(" ");
+                                if (superParamInline in ictable && subParamInline in ictable[superParamInline]) {
+                                    retv = null;
+                                    valueAction = "CAST";
+                                    result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "CTOR", ...ictable[superParamInline][subParamInline] } });
+                                    pair.subtype = tmpSubRadical;
+                                    pair.supertype = tmpSuperRadical;
+                                }
                             }
                         }
                     }

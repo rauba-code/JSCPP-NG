@@ -421,7 +421,7 @@ export class CRuntime {
                 if (castAction.cast.type === "ARITHMETIC") {
                     const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
                     args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
-                } else {
+                } else if (castAction.cast.type === "CTOR") {
                     const fnid = this.typeMap[castAction.cast.domain].functionDB.matchExactOverload("o(_ctor)", castAction.cast.fnsig);
                     if (fnid === -1) {
                         this.raiseException("Implicit cast via constructor: failed to cast (expected a match)");
@@ -439,6 +439,8 @@ export class CRuntime {
                         this.raiseException("Implicit cast via constructor: expected a non-void result");
                     }
                     args[castAction.index] = this.unbound(castResult);
+                } else {
+                    args[castAction.index] = variables.directPointer(args[castAction.index], "SELF", false);
                 }
             }
             callInst.actions.valueActions.forEach((action, i) => {
