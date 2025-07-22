@@ -203,7 +203,7 @@ export interface XScopedIdentifier extends StatementMeta {
 export interface XScopedMaybeTemplatedIdentifier extends StatementMeta {
     type: "ScopedMaybeTemplatedIdentifier",
     ScopedIdentifier: string | XScopedIdentifier,
-    TemplateType: (string | XScopedIdentifier)[] | null,
+    TemplateType: ((string | XScopedIdentifier | XScopedMaybeTemplatedIdentifier)[])[] | null,
 }
 export interface XUnknown {
     type: "<stub>"

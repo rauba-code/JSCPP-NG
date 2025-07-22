@@ -100,7 +100,7 @@ export = {
                 type: "FUNCTION CLASS string < > ( PTR I8 )",
                 *default(rt: CRuntime, _templateTypes: [], _r: PointerVariable<ArithmeticVariable>): Gen<StringVariable> {
                     const lYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
-                    const l = asResult(lYield) ?? (yield *lYield as Gen<StringVariable>);
+                    const l = asResult(lYield) ?? (yield* lYield as Gen<StringVariable>);
                     const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     let i: number = 0;
                     while (rt.arithmeticValue(variables.arrayMember(r.v.pointee, r.v.index + i)) !== 0) {
@@ -166,6 +166,133 @@ export = {
                     return l.v.members._ptr;
                 }
             },
+        ]);
+
+        const whitespaceChars = [9, 10, 32];
+        const ascii_plusSign: number = 0x2B;
+        const ascii_minusSign: number = 0x2D;
+        const ascii_0: number = 0x30;
+        const ascii_9: number = 0x39;
+        const ascii_fullStop: number = 0x2E;
+        const ascii_e: number = 0x65;
+
+        function stox(rt: CRuntime, l: StringVariable, mode: "I32" | "I64" | "F32" | "F64"): InitArithmeticVariable | null {
+            const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+            const limits = variables.arithmeticProperties[mode];
+            let chr: number;
+            let ci: number = -1;
+            while ((chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci))) !== 0) {
+                if (!whitespaceChars.includes(chr)) {
+                    break;
+                }
+            }
+            if (chr === 0) {
+                return null;
+            }
+            let mult: number = 1;
+            switch (chr) {
+                case ascii_plusSign:
+                    chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                    mult = 1;
+                    break;
+                case ascii_minusSign:
+                    chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                    mult = -1;
+                    break;
+                case 0:
+                    return null;
+            }
+            let x: number = 0;
+            while (chr >= ascii_0 && chr <= ascii_9) {
+                x *= 10;
+                x += chr - ascii_0;
+                chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+            }
+            if (limits.isFloat && chr === ascii_fullStop) {
+                chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                let q = 0.1;
+                while (chr >= ascii_0 && chr <= ascii_9) {
+                    x += q * (chr - ascii_0);
+                    q *= 0.1;
+                    chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                }
+            }
+            debugger;
+            if (limits.isFloat && chr === ascii_e) {
+                let emul = 1;
+                chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                switch (chr) {
+                    case ascii_plusSign:
+                        chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                        emul = 1;
+                        break;
+                    case ascii_minusSign:
+                        chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                        emul = -1;
+                        break;
+                    case 0:
+                        return null;
+                }
+                let ex = 0;
+                while (chr >= ascii_0 && chr <= ascii_9) {
+                    ex *= 10;
+                    ex += chr - ascii_0;
+                    chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                }
+                if (ex === 0) {
+                    return null;
+                }
+                x *= Math.pow(10, ex * emul);
+            }
+            x *= mult;
+            if (x >= limits.minv && x <= limits.maxv) {
+                return variables.arithmetic(mode, x, null);
+            } else {
+                rt.raiseException("stoi/stof/stod: The number is out of range.")
+            }
+        }
+
+        common.regGlobalFuncs(rt, [
+            {
+                op: "stoi",
+                type: "FUNCTION I32 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
+                    return stox(rt, l, "I32") ?? rt.raiseException("stoi: Invalid argument (expected a string containing a number)");
+
+                }
+            },
+            {
+                op: "stol",
+                type: "FUNCTION I32 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
+                    return stox(rt, l, "I32") ?? rt.raiseException("stol: Invalid argument (expected a string containing a number)");
+
+                }
+            },
+            {
+                op: "stoll",
+                type: "FUNCTION I64 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
+                    return stox(rt, l, "I64") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
+
+                }
+            },
+            {
+                op: "stof",
+                type: "FUNCTION F32 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
+                    return stox(rt, l, "F32") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
+
+                }
+            },
+            {
+                op: "stod",
+                type: "FUNCTION F64 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
+                    return stox(rt, l, "F64") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
+
+                }
+            }
         ])
 
     }

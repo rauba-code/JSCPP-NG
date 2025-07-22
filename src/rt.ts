@@ -610,40 +610,66 @@ export class CRuntime {
     };
 
     simpleType(_type: (string | interp.XScopedIdentifier | interp.XScopedMaybeTemplatedIdentifier)[]): MaybeLeft<ObjectType> | "VOID" {
-        // this is a big mess that needs to be redone
-        if (_type instanceof Array) {
-            const typeStrArr = _type.map(x => {
-                if (typeof x === "string") { 
-                    return x; 
-                } else if (x.type === "ScopedIdentifier") { 
-                    return x.Identifier; 
-                } else if (x.TemplateType !== null && x.TemplateType.length !== 0) {
-                    this.raiseException("Type lookup: not yet implemented (template specifiers)");
+        type SimpleTypeNode = {
+            name: string,
+            templateSpec: SimpleTypeNode[][] | null;
+        };
+        function makeSimplifiedTypeNotation(type: (string | interp.XScopedIdentifier | interp.XScopedMaybeTemplatedIdentifier)[]): SimpleTypeNode[] {
+            return type.flatMap<SimpleTypeNode>(x => {
+                if (typeof x === "string") {
+                    return (["const", "auto"].includes(x)) ? [] : { name: x, templateSpec: null };
+                } else if (x.type === "ScopedIdentifier") {
+                    return { name: x.Identifier, templateSpec: null }
                 } else {
-                    return (typeof x.ScopedIdentifier === "string") ? x.ScopedIdentifier : x.ScopedIdentifier.Identifier;
+                    return {
+                        name: (typeof x.ScopedIdentifier === "string") ? x.ScopedIdentifier : x.ScopedIdentifier.Identifier,
+                        templateSpec: x.TemplateType !== null ? x.TemplateType.map(makeSimplifiedTypeNotation) : null
+                    };
                 }
-            }).filter(x => !["auto", "const"].includes(x));
-            const typeStr = typeStrArr.join(" ");
-            if (typeStr in variables.defaultArithmeticResolutionMap) {
-                return { t: { sig: variables.defaultArithmeticResolutionMap[typeStr] }, v: { lvHolder: null } };
-            }
-            if (typeStr === "void") {
-                return "VOID";
-            }
-            if (typeStr in this.typeMap) {
-                const fn = this.typeMap[typeStr].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
-
-                if (fn !== null) {
-                    return { t: variables.classType(typeStr, [], null), v: { lvHolder: null } }
-                } else {
-                    this.raiseException("Type lookup: No constructor for the specified structure");
-                }
-            }
-            if (typeStr in this.typedefs) {
-                return this.typedefs[typeStr];
-            }
+            });
         }
-        this.raiseException("Type lookup: Type error");
+        function printTypeSpec(type: SimpleTypeNode[]): string {
+            return type.map(x => x.name + (x.templateSpec === null ? "" : ("<" + x.templateSpec.map(printTypeSpec).join(", ") + ">"))).join(" ");
+        }
+        function makeSimpleType(rt: CRuntime, typeArr: SimpleTypeNode[]): MaybeLeft<ObjectType> | "VOID" {
+            if (typeArr.every(x => x.templateSpec === null)) {
+                let typeStr = typeArr.map(x => x.name).join(" ");
+                if (typeStr in variables.defaultArithmeticResolutionMap) {
+                    return { t: { sig: variables.defaultArithmeticResolutionMap[typeStr] }, v: { lvHolder: null } };
+                }
+                if (typeStr === "void") {
+                    return "VOID";
+                }
+            }
+            if (typeArr.length === 1) {
+                const type = typeArr[0];
+                if (type.name in rt.typeMap) {
+                    const fn = rt.typeMap[type.name].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
+
+                    if (fn !== null) {
+                        const templateSpec = type.templateSpec === null ? [] : type.templateSpec.map(x => {
+                            debugger;
+                            let a = makeSimpleType(rt, x);
+                            if (a === "VOID") {
+                                rt.raiseException("Type lookup: void types inside template specifiers are not supported");
+                            }
+                            return a.t;
+                        });
+                        return { t: variables.classType(type.name, templateSpec, null), v: { lvHolder: null } }
+                    } else {
+                        rt.raiseException("Type lookup: No constructor for the specified structure");
+                    }
+                }
+                if (type.name in rt.typedefs) {
+                    return rt.typedefs[type.name];
+                }
+            }
+            rt.raiseException(`Type lookup: Unknown type '${printTypeSpec(typeArr)}'`);
+        }
+        if (_type instanceof Array) {
+            return makeSimpleType(this, makeSimplifiedTypeNotation(_type));
+        }
+        this.raiseException("Type lookup: Invalid argument (internal erro)");
     };
 
     defVar(varname: string, object: Variable) {
