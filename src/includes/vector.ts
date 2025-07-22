@@ -1,7 +1,7 @@
 import { asResult } from "../interpreter";
 import { CRuntime, FunctionCallInstance } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ClassType, InitValue, AbstractVariable, AbstractTemplatedClassType, InitClassVariable, ClassValue } from "../variables";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ClassType, InitValue, AbstractVariable, AbstractTemplatedClassType, InitClassVariable, ClassValue, ArithmeticVariable } from "../variables";
 
 interface VectorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "vector",
@@ -20,11 +20,11 @@ interface VectorValue<T extends Variable> extends InitValue<VectorVariable<T>> {
 export = {
     load(rt: CRuntime) {
         rt.defineStruct2("{global}", "vector", {
-            numTemplateArgs: 1, factory: (dataItem: ObjectType) => {
+            numTemplateArgs: 1, factory: (dataItem: VectorType<ObjectType>) => {
                 return [
                     {
                         name: "_ptr",
-                        variable: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem, []), 0, false, "SELF")
+                        variable: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF")
                     },
                     {
                         name: "_sz",
@@ -61,17 +61,30 @@ export = {
             vec.v.members._sz.v.value += amount;
 
         }
+        common.regOps(rt, [
+            {
+                op: "o(_[_])",
+                type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > I32 )",
+                default(rt: CRuntime, _templateTypes: [], l: VectorVariable<Variable>, _idx: ArithmeticVariable): Variable {
+                    const idx = rt.arithmeticValue(_idx);
+                    if (idx < 0 || idx >= l.v.members._sz.v.value) {
+                        rt.raiseException("vector operator[]: index out of range error");
+                    }
+                    return variables.arrayMember(l.v.members._ptr.v.pointee, l.v.members._ptr.v.index + idx) as ArithmeticVariable;
+                }
+            },
+        ]);
         common.regMemberFuncs(rt, "vector", [
             {
                 op: "begin",
-                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > )",
+                type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS vector < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitIndexPointerVariable<Variable> {
                     return variables.indexPointer(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index, false, null, false);
                 }
             },
             {
                 op: "end",
-                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > )",
+                type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS vector < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitIndexPointerVariable<Variable> {
                     return variables.indexPointer(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index + vec.v.members._sz.v.value, false, null, false);
                 }
@@ -81,7 +94,8 @@ export = {
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, tail: Variable): Gen<"VOID"> {
                     yield* _grow(rt, vec, 1);
-                    vec.v.members._ptr.v.pointee.values[vec.v.members._ptr.v.index + vec.v.members._sz.v.value] = tail.v;
+                    const index = vec.v.members._ptr.v.index + vec.v.members._sz.v.value - 1;
+                    vec.v.members._ptr.v.pointee.values[index] = variables.clone(tail, { index, array: vec.v.members._ptr.v.pointee }, false, rt.raiseException, true).v;
                     return "VOID";
                 }
             },
@@ -94,6 +108,13 @@ export = {
                     }
                     vec.v.members._sz.v.value--;
                     return "VOID";
+                }
+            },
+            {
+                op: "size",
+                type: "!ParamObject FUNCTION I32 ( CLREF CLASS vector < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitArithmeticVariable {
+                    return variables.arithmetic("I32", vec.v.members._sz.v.value, null, false);
                 }
             },
         ])

@@ -1105,11 +1105,11 @@ export class CRuntime {
         this.addTypeDomain(domainInline);
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
-        this.regFunc(function(_rt: CRuntime, templateArgs: ObjectType[]): InitClassVariable {
+        this.regFunc(function(_rt: CRuntime, templateArgs: [ClassType]): InitClassVariable {
             const members: { [name: string]: Variable } = {};
             const memList: interp.MemberObject[] = memberList.factory(...templateArgs);
             memList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable });
-            return variables.class(variables.classType(identifier, templateArgs, domain === "{global}" ? null : domain), members, null);
+            return variables.class(variables.classType(identifier, templateArgs[0].templateSpec, domain === "{global}" ? null : domain), members, null);
         }, classType, "o(_stub)", stubCtorTypeSig, new Array<number>(memberList.numTemplateArgs).fill(-1));
     };
 

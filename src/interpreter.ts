@@ -1121,11 +1121,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                const _ret = (yield* interp.visit(interp, s.Expression, param)) as PointerVariable<Variable | Function>;
-                if (variables.asFunctionType(_ret.t.pointee) !== null) {
-                    rt.raiseException("Array access statement error: Function pointer is not an array");
-                }
-                const ret = _ret as PointerVariable<Variable>;
+                const ret = (yield* interp.visit(interp, s.Expression, param)) as Variable;
                 const index = variables.asArithmetic(yield* interp.visit(interp, s.index, param)) ?? rt.raiseException("Array access statement error: Expected an arithmetic value");
 
                 param.structType = ret.t;

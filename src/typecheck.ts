@@ -397,7 +397,7 @@ function matchNontermOrWildcard(parser: LLParser, scope: NonTerm, argument: LLPa
             pair.subtype = pair.subtype.slice(1);
         }
     } else {
-        const delta = (scope === "Function" && innerScope === "FunctionParamOrEnd") ? 1 : (scope === "Function" && innerScope === "Return") ? 2 : 0;
+        const delta = (scope === "Function" && innerScope === "FunctionParamOrEnd") ? 1 : (scope === "Function" && innerScope === "Return") ? 2 : (scope === "Class" && innerScope === "TemplateParamOrEnd") ? 2 : 0;
         pair.paramDepth += delta;
         const nestedRetv = parseFunctionMatchInner(parser, innerScope as NonTerm, pair, ictable, result);
         pair.paramDepth -= delta;
@@ -438,6 +438,9 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                 if (pair.subtype.length === 0) {
                     retv = false;
                     return;
+                }
+                if (pair.subtype.includes("vector")) {
+                    debugger;
                 }
                 let valueAction: "BORROW" | "CLONE" | "CAST" = "CLONE";
                 const tmpSub = pair.subtype;
