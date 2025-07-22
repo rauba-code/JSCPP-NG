@@ -648,7 +648,6 @@ export class CRuntime {
 
                     if (fn !== null) {
                         const templateSpec = type.templateSpec === null ? [] : type.templateSpec.map(x => {
-                            debugger;
                             let a = makeSimpleType(rt, x);
                             if (a === "VOID") {
                                 rt.raiseException("Type lookup: void types inside template specifiers are not supported");

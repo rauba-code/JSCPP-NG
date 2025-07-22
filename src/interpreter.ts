@@ -223,11 +223,11 @@ export type MemberObject = {
     variable: Variable
 };
 
-export type MemberObjectListCreator = { 
-    numTemplateArgs: number, 
+export type MemberObjectListCreator = {
+    numTemplateArgs: number,
     factory: (...templateArgs: ObjectType[]) => MemberObject[]
 };
-    
+
 type DirectDeclaratorResult = {
     type: MaybeLeft<ObjectType>,
     name: string
@@ -251,12 +251,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({ rt } = interp);
                 let { basetype } = param;
                 basetype = interp.buildRecursivePointerType(rt, s.Pointer, basetype, 0) as MaybeLeft<ObjectType>;
-                if (!(s.right instanceof Array)) {
-                    rt.raiseException("Direct declarator error: Type error or not yet implemented");
-                }
-                if (s.right.length === 1) {
+                const right = (!(s.right instanceof Array)) ? s.right : ((s.right.length === 1) ? s.right[0] : null);
+                if (right !== null) {
                     //let varargs: boolean | null = null;
-                    const right = s.right[0];
                     let ptl: XParameterTypeList | null = null;
                     if (right.type === "DirectDeclarator_modifier_ParameterTypeList") {
                         ptl = right.ParameterTypeList;
@@ -314,7 +311,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                     }
                 }
-                if ((s.right.length > 0) && (s.right[0].type === "DirectDeclarator_modifier_array")) {
+                if ((s.right instanceof Array) && (s.right.length > 0) && (s.right[0].type === "DirectDeclarator_modifier_array")) {
                     const dimensions = [];
                     for (let j = 0; j < s.right.length; j++) {
                         const Xdim = s.right[j];
@@ -417,12 +414,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                             _name = _param.Declarator.Declarator.left.Identifier;
                         }
-                        if (!(_param.Declarator.Declarator.right instanceof Array)) {
-                            rt.raiseException("Parameter type list error: Type error or not yet implemented");
-                        }
-                        if (_param.Declarator.Declarator.right.length > 0) {
-                            if (_param.Declarator.Declarator.right[0].type === "DirectDeclarator_modifier_ParameterTypeList") {
-                                const dim = _param.Declarator.Declarator.right[0];
+                        const right: DirectDeclaratorModifier[] = (_param.Declarator.Declarator.right instanceof Array) ? _param.Declarator.Declarator.right : [_param.Declarator.Declarator.right];
+                        if (right.length > 0) {
+                            if (right[0].type === "DirectDeclarator_modifier_ParameterTypeList") {
+                                const dim = right[0];
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = true;
                                 const { argTypes: _argTypes, optionalArgs: _optionalArgs } = (yield* interp.visit(interp, dim.ParameterTypeList, param)) as ParameterTypeListResult;
                                 param.insideDirectDeclarator_modifier_ParameterTypeList = false;
@@ -431,8 +426,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 }
                                 _type = { t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", _basetype, _argTypes).array), null), v: { isConst: false, lvHolder: null } };
                             } else {
-                                for (let j = _param.Declarator.Declarator.right.length - 1; j >= 0; j--) {
-                                    const dimObj = _param.Declarator.Declarator.right[j];
+                                for (let j = right.length - 1; j >= 0; j--) {
+                                    const dimObj = right[j];
                                     if (dimObj.type !== "DirectDeclarator_modifier_array") {
                                         rt.raiseException("Parameter type list error: Unacceptable array initialization", dimObj);
                                     }
@@ -602,7 +597,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     if (ptrDecType !== null && ptrInitVar !== null && variables.typesEqual(ptrDecType.pointee, ptrInitVar.t.pointee)) {
                                         const decSize = ptrDecType.sizeConstraint;
                                         const initSize = ptrInitVar.t.sizeConstraint;
-                                        
+
                                         if (decSize === null) {
                                             initVar = { t: variables.pointerType(ptrInitVar.t.pointee, null), v: ptrInitVar.v };
                                         } else if (decSize < 1 && initSize !== null && initSize >= 0) {
@@ -612,7 +607,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                             const iptr = variables.asInitIndexPointerOfElem(ptrInitVar, variables.uninitArithmetic(decArithmeticPointee.sig, null)) ?? rt.raiseException("Declaration error: Expected an initialiser to be an initialised arithmetic pointer");
                                             const memory = iptr.v.pointee;
                                             for (let i = memory.values.length - iptr.v.index; i < decSize; i++) {
-                                                memory.values.push(variables.uninitArithmetic(decArithmeticPointee.sig, {array: memory, index: iptr.v.index + i}).v);
+                                                memory.values.push(variables.uninitArithmetic(decArithmeticPointee.sig, { array: memory, index: iptr.v.index + i }).v);
                                             }
                                         } else {
                                             rt.raiseException("Declaration error: Array size mismatch");

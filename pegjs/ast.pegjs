@@ -98,7 +98,7 @@ Label
     / DEFAULT COLON {return addPositionInfo({type: 'Label_default'});}
 
 CompoundStatement
-    = LWING a:(UsingDirective / Statement / Declaration)* RWING {
+    = LWING a:(UsingDirective / Declaration / Statement)* RWING {
         return addPositionInfo({type: 'CompoundStatement', Statements: a});
       }
     ;
@@ -293,7 +293,7 @@ ScopedMaybeTemplatedIdentifier =
 	;
 
 DirectDeclarator
-    = a:( a:Identifier { return addPositionInfo({type:'Identifier', Identifier:a}); } / LPAR a:Declarator RPAR { return a; } )
+    = (a:( a:Identifier { return addPositionInfo({type:'Identifier', Identifier:a}); } )
       b:( 
         LBRK ac:TypeQualifier* b:AssignmentExpression? RBRK {
           return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ac || [], Expression: b});
@@ -318,7 +318,14 @@ DirectDeclarator
         }
       )* {
         return addPositionInfo({ type:'DirectDeclarator', left: a, right: b });
-      }
+      }) / (
+      	a:(LPAR a:Declarator RPAR { return a; })
+        b:(LPAR ac:ParameterTypeList RPAR {
+          return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList: ac});
+        }) {
+        	return addPositionInfo({ type:'DirectDeclarator', left: a, right: b });
+      	}
+      )
     ;
 
 Pointer
