@@ -42,6 +42,20 @@ export = {
                 variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + ai)) as ArithmeticVariable).v, 0, rt.raiseException);
                 return b;
             }
+        }, {
+            type: "FUNCTION PTR I8 ( PTR I8 PTR I8 )",
+            op: "strcpy",
+            default(rt: CRuntime, _templateTypes: [], _a: PointerVariable<ArithmeticVariable>, _b: PointerVariable<ArithmeticVariable>): InitIndexPointerVariable<ArithmeticVariable> {
+                const a = variables.asInitIndexPointerOfElem(_a, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                const b = variables.asInitIndexPointerOfElem(_b, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
+                let bv : number;
+                let i : number;
+                for (i = 0; (bv = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index + i))) !== 0; i++) {
+                    variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + i)) as ArithmeticVariable).v, bv, rt.raiseException);
+                }
+                variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + i)) as ArithmeticVariable).v, 0, rt.raiseException);
+                return variables.indexPointer(a.v.pointee, a.v.index + i, false, null);
+            }
         }]);
 
     }
