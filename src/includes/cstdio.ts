@@ -22,7 +22,7 @@ interface DivValue extends InitValue<DivVariable> {
 export = {
     load(rt: CRuntime) {
         const ascii_tab: number = 0x7;
-        const ascii_newline: number = 0x10;
+        const ascii_newline: number = 0x0A;
         const ascii_space: number = 0x20;
         const ascii_percentSign: number = 0x25;
         const ascii_plusSign: number = 0x2B;
