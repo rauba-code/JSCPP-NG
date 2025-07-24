@@ -166,6 +166,20 @@ export = {
                     return l.v.members._ptr;
                 }
             },
+            {
+                op: "length",
+                type: "FUNCTION I64 ( CLREF CLASS string < > )",
+                default(_rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
+                    return variables.arithmetic("I64", l.v.members._size.v.value, null);
+                }
+            },
+            {
+                op: "size",
+                type: "FUNCTION I64 ( CLREF CLASS string < > )",
+                default(_rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
+                    return variables.arithmetic("I64", l.v.members._size.v.value, null);
+                }
+            },
         ]);
 
         const whitespaceChars = [9, 10, 32];
