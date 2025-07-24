@@ -201,8 +201,8 @@ export = {
         {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
-            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: PointerVariable<ArithmeticVariable>): Gen<IStreamVariable> {
-                const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: StringVariable): Gen<IStreamVariable> {
+                const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
                 const eofbit = l.v.members.eofbit;
                 const failbit = l.v.members.failbit;
                 const buf = l.v.members.buf;
@@ -221,7 +221,7 @@ export = {
 
                 let i = 0;
                 while (!(whitespaceChars.includes(char.v.value))) {
-                    variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticVariable).v, char.v.value, rt.raiseException)
+                    memory.values.push(variables.arithmetic("I8", char.v.value, { array: memory, index: memory.values.length }).v);
                     i++;
                     variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
                     char = yield* readChar(rt, l);
@@ -230,7 +230,9 @@ export = {
                         return l;
                     }
                 }
-                variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticVariable).v, 0, rt.raiseException)
+                memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: memory.values.length }).v);
+                r.v.members._ptr = variables.indexPointer(memory, 0, false, "SELF");
+                r.v.members._size.v.value = memory.values.length - 1;
                 if (i === 0) {
                     failbit.v.value = 1;
                     return l;

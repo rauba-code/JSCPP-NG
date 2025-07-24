@@ -1,5 +1,5 @@
 import { CRuntime } from "../rt";
-import { sizeNonSpace, skipSpace, StringVariable } from "../shared/string_utils";
+import { StringVariable } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
 import * as common from "../shared/common";
 import * as utf8 from "../utf8";
@@ -164,7 +164,7 @@ export = {
                     memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: i }).v);
 
                     variables.indexPointerAssign(r.v.members._ptr, memory, 0, rt.raiseException);
-                    r.v.members._size.v.value = i + 1;
+                    r.v.members._size.v.value = i;
 
                     if (i === 0) {
                         failbit.v.value = 1;
