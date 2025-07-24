@@ -64,6 +64,10 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             name: "position_mode",
             variable: variables.arithmetic("I8", ios_base.iomanip_token_mode.right, "SELF"),
         },
+        {
+            name: "boolalpha",
+            variable: variables.arithmetic("BOOL", 0, "SELF"),
+        },
         ...moreMembers
     ]);
 
@@ -110,6 +114,9 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             function numstr(rt: CRuntime, l: ios_base.OStreamVariable, num: number, numProperties: ArithmeticProperties): string {
                 if (r.t.sig === "I8") {
                     return rt.getStringFromCharArray(variables.indexPointer(variables.arrayMemory(r.t, [r.v]), 0, false, null));
+                }
+                if (r.t.sig === "BOOL" && l.v.members.boolalpha.v.value === 1) {
+                    return num !== 0 ? "true" : "false";
                 }
                 if (numProperties.isFloat) {
                     const prec = l.v.members.precision.v.value;

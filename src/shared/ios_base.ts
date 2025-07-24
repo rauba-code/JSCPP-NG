@@ -100,6 +100,10 @@ export interface OStreamValue extends InitValue<OStreamVariable> {
           * One of `iomanip_token_mode.(left | right | internal)`
           * (default = `iomanip_token_mode.defaultfloat`) */
         "position_mode": InitArithmeticVariable,
+        /** The boolalpha status flag. 
+          * If false, outputs the values of booleans as 0 or 1;
+          * If true, outputs the values of booleans as true or false. */
+        "boolalpha": InitArithmeticVariable,
     },
 }
 
@@ -154,4 +158,10 @@ export const iomanip_token_mode = {
 
     /** Set the positioning of a field to internal. */
     internal: 22,
+
+    /** Set the positioning of a field to noboolalpha. */
+    noboolalpha: 30,
+
+    /** Set the positioning of a field to noboolalpha. */
+    boolalpha: 31,
 } as const;
