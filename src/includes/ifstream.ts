@@ -348,7 +348,7 @@ export = {
         ]);
 
         const _open = function(_rt: CRuntime, _this: IfStreamVariable, right: InitIndexPointerVariable<ArithmeticVariable>): number {
-            const fd = _rt.openFile(right);
+            const fd = _rt.openFile(right, ios_base.openmode.in);
 
             if (fd !== -1) {
                 variables.arithmeticAssign(_this.v.members.fd, fd, rt.raiseException);

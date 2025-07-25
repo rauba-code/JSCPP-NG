@@ -6,6 +6,7 @@ import { TypeDB, FunctionMatchResult, abstractFunctionReturnSig } from "./typedb
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
 import * as typecheck from './typecheck';
+import * as ios_base from './shared/ios_base';
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 
 export interface IncludeModule {
@@ -139,13 +140,16 @@ export class CRuntime {
         this.ictable = {};
     }
 
-    openFile(path: InitIndexPointerVariable<ArithmeticVariable>): number {
+    openFile(path: InitIndexPointerVariable<ArithmeticVariable>, mode: number): number {
         const { fstream } = this.config;
         if (fstream === undefined) {
             this.raiseException("[CRuntime].config.fstream is undefined");
         }
         const fileName = this.getStringFromCharArray(path);
         const fileInst = fstream.open({ t: { name: "ofstream" } }, fileName);
+        if (((mode & ios_base.openmode.out) !== 0 && (mode & ios_base.openmode.app) === 0) || (mode & ios_base.openmode.trunc) !== 0) {
+            fileInst.clear();
+        }
         this.fileio.files[this.fileio.freefd] = fileInst;
         return fileInst.is_open() ? this.fileio.freefd++ : -1;
     }
