@@ -231,7 +231,6 @@ export = {
                     chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
                 }
             }
-            debugger;
             if (limits.isFloat && chr === ascii_e) {
                 let emul = 1;
                 chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
@@ -264,6 +263,34 @@ export = {
             } else {
                 rt.raiseException("stoi/stof/stod: The number is out of range.")
             }
+        }
+
+        function* integer_to_string(rt: CRuntime, l: ArithmeticVariable): Gen<StringVariable> {
+            const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
+            let x = rt.arithmeticValue(l);
+            if (x < 0) {
+                memory.values.push(variables.arithmetic("I8", ascii_minusSign, { array: memory, index: memory.values.length }).v);
+                x = -x;
+            }
+            if (x === 0) {
+                memory.values.push(variables.arithmetic("I8", ascii_0, { array: memory, index: memory.values.length }).v);
+            } else {
+                let digits = new Array<number>();
+                while (x > 0) {
+                    digits.push(x % 10);
+                    x = Math.floor(x / 10);
+                }
+                for (const d of digits.reverse()) {
+                    memory.values.push(variables.arithmetic("I8", ascii_0 + d, { array: memory, index: memory.values.length }).v);
+                }
+            }
+            memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: memory.values.length }).v);
+            const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
+            const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
+            str.v.members._ptr = variables.indexPointer(memory, 0, false, "SELF");
+            str.v.members._size.v.value = memory.values.length - 1;
+            return str;
+
         }
 
         common.regGlobalFuncs(rt, [
@@ -305,6 +332,34 @@ export = {
                 default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticVariable {
                     return stox(rt, l, "F64") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
 
+                }
+            },
+            {
+                op: "to_string",
+                type: "FUNCTION CLASS string < > ( I32 )",
+                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): Gen<StringVariable> {
+                    return yield *integer_to_string(rt, l);
+                }
+            },
+            {
+                op: "to_string",
+                type: "FUNCTION CLASS string < > ( U32 )",
+                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): Gen<StringVariable> {
+                    return yield *integer_to_string(rt, l);
+                }
+            },
+            {
+                op: "to_string",
+                type: "FUNCTION CLASS string < > ( I64 )",
+                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): Gen<StringVariable> {
+                    return yield *integer_to_string(rt, l);
+                }
+            },
+            {
+                op: "to_string",
+                type: "FUNCTION CLASS string < > ( U64 )",
+                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): Gen<StringVariable> {
+                    return yield *integer_to_string(rt, l);
                 }
             }
         ])
