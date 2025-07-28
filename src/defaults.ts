@@ -508,7 +508,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(_++)",
-        type: "!Pointer FUNCTION ?0 ( ?0 )",
+        type: "!Pointer FUNCTION ?0 ( LREF ?0 )",
         default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): PointerVariable<PointeeVariable> {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot move out of function pointer index");
@@ -522,7 +522,7 @@ const defaultOpHandler: OpHandler[] = [
     },
     {
         op: "o(++_)",
-        type: "!Pointer FUNCTION ?0 ( ?0 )",
+        type: "!Pointer FUNCTION ?0 ( LREF ?0 )",
         default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): PointerVariable<PointeeVariable> {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot move out of function pointer index");
