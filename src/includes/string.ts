@@ -92,6 +92,31 @@ export = {
                     return variables.arrayMember(lptr.v.pointee, lptr.v.index + idx) as ArithmeticVariable;
                 }
             },
+            {
+                op: "o(_+_)",
+                type: "FUNCTION CLASS string < > ( CLREF CLASS string < > CLREF CLASS string < > )",
+                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): Gen<StringVariable> {
+                    const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const lsz = l.v.members._size.v.value;
+                    const rptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const rsz = r.v.members._size.v.value;
+                    const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
+                    for (let i = 0; i < lsz; i++) {
+                        const chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + i));
+                        memory.values.push(variables.arithmetic("I8", chr, { array: memory, index: memory.values.length }).v);
+                    }
+                    for (let i = 0; i < rsz; i++) {
+                        const chr = rt.arithmeticValue(variables.arrayMember(rptr.v.pointee, rptr.v.index + i));
+                        memory.values.push(variables.arithmetic("I8", chr, { array: memory, index: memory.values.length }).v);
+                    }
+                    memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: memory.values.length }).v);
+                    const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
+                    const str = asResult(strYield) ?? (yield * strYield as Gen<StringVariable>);
+                    str.v.members._ptr = variables.indexPointer(memory, 0, false, "SELF");
+                    str.v.members._size.v.value = memory.values.length - 1;
+                    return str;
+                }
+            },
         ]);
         const thisType = (rt.simpleType(["string"]) as MaybeLeft<StringType>).t;
         const ctorHandlers: common.OpHandler[] = [
@@ -338,28 +363,28 @@ export = {
                 op: "to_string",
                 type: "FUNCTION CLASS string < > ( I32 )",
                 *default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): Gen<StringVariable> {
-                    return yield *integer_to_string(rt, l);
+                    return yield* integer_to_string(rt, l);
                 }
             },
             {
                 op: "to_string",
                 type: "FUNCTION CLASS string < > ( U32 )",
                 *default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): Gen<StringVariable> {
-                    return yield *integer_to_string(rt, l);
+                    return yield* integer_to_string(rt, l);
                 }
             },
             {
                 op: "to_string",
                 type: "FUNCTION CLASS string < > ( I64 )",
                 *default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): Gen<StringVariable> {
-                    return yield *integer_to_string(rt, l);
+                    return yield* integer_to_string(rt, l);
                 }
             },
             {
                 op: "to_string",
                 type: "FUNCTION CLASS string < > ( U64 )",
                 *default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): Gen<StringVariable> {
-                    return yield *integer_to_string(rt, l);
+                    return yield* integer_to_string(rt, l);
                 }
             }
         ])

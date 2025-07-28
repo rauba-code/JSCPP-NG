@@ -207,7 +207,7 @@ export = {
             rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
         }
 
-        function _getline(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+        function _get(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable, consumeDelimiter: boolean): IfStreamVariable {
             let b = l.v.members.buf;
             const count = rt.arithmeticValue(_count);
             const delim = rt.arithmeticValue(_delim);
@@ -219,12 +219,17 @@ export = {
                 variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
             }
             let cnt = 0;
-            while (cnt < count - 1) {
+            while (cnt < count) {
                 const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticVariable;
+                if (cnt + 1 === count) {
+                    variables.arithmeticAssign(si, 0, rt.raiseException);
+                    break;
+                }
                 const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
                 if (bi === delim || bi === 0) {
-                    // consume the delimiter
-                    b.v.index++;
+                    if (consumeDelimiter) {
+                        b.v.index++;
+                    }
                     variables.arithmeticAssign(si, 0, rt.raiseException);
                     break;
                 }
@@ -253,7 +258,7 @@ export = {
                 if (bi === delim || bi === 0) {
                     // consume the delimiter
                     b.v.index++;
-                    if (bi !== 0) { 
+                    if (bi !== 0) {
                         cnt++;
                     }
                     //variables.arithmeticAssign(si, 0, rt.raiseException);
@@ -289,17 +294,48 @@ export = {
                 }
             },
             {
+                op: "get",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 I8 )",
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+                    return _get(rt, l, _s, _count, _delim, false);
+                }
+            },
+            {
+                op: "get",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 )",
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IfStreamVariable {
+                    return _get(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"), false);
+                }
+            },
+            {
+                op: "get",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > LREF I8 )",
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, ch: ArithmeticVariable): IfStreamVariable {
+                    let b = l.v.members.buf;
+                    if (b.v.pointee.values.length <= b.v.index) {
+                        variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                        variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    } else {
+                        const top = variables.arrayMember(b.v.pointee, b.v.index);
+                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
+                        variables.arithmeticAssign(ch, rt.arithmeticValue(top), rt.raiseException);
+                        rt.adjustArithmeticValue(ch as InitArithmeticVariable);
+                    }
+                    return l;
+                }
+            },
+            {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 I8 )",
                 default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
-                    return _getline(rt, l, _s, _count, _delim);
+                    return _get(rt, l, _s, _count, _delim, true);
                 }
             },
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 )",
                 default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IfStreamVariable {
-                    return _getline(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"));
+                    return _get(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"), true);
                 }
             },
             {
