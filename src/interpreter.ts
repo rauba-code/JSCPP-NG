@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, Function, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, PointerVariable, FunctionValue, ArithmeticSig } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, FunctionValue, ArithmeticSig } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -723,12 +723,36 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     for (const item of s.Initializers) {
                         const _typeHint = param.typeHint;
                         param.typeHint = childTypeHint;
-                        const rawVariable = yield* interp.visit(interp, item, param);
+                        const _rawVariable = yield* interp.visit(interp, item, param);
+                        if (!("t" in _rawVariable && "sig" in _rawVariable.t)) {
+                            if (_rawVariable === "VOID") {
+                                rt.raiseException("Initialiser list error: Expected a variable, got void");
+                            }
+                            rt.raiseException("Initialiser list error: Expected a variable");
+                        }
+                        if (_rawVariable.t.sig === "FUNCTION") {
+                            rt.raiseException("Initialiser list error: Expected a variable, got function (perhaps you meant a function pointer?)");
+                        }
+                        const rawVariable = _rawVariable as Variable;
                         param.typeHint = _typeHint;
                         if (!variables.typesEqual(rawVariable.t, childTypeHint)) {
-                            rt.raiseException("Initialiser list error: Not yet implemented");
+                            const targetStr = variables.toStringSequence(childTypeHint, false, false, rt.raiseException).join(" ");
+                            const sourceStr = variables.toStringSequence(rawVariable.t, false, false, rt.raiseException).join(" ");
+                            if (targetStr in rt.ictable && sourceStr in rt.ictable[targetStr]) {
+                                const func = rt.getFuncByParams(variables.asClassType(childTypeHint) ?? rt.raiseException("Initialiser list error: not yet implemented"), "o(_ctor)", [rawVariable], []);
+                                const callYield = rt.invokeCall(func, [], rawVariable);
+                                const callResult = asResult(callYield) ?? (yield *callYield as Gen<MaybeUnboundVariable | "VOID">);
+                                if (callResult === "VOID") {
+                                    rt.raiseException("Initialiser list error: Expected a variable, got void")
+                                }
+                                debugger;
+                                initList.push(rt.unbound(callResult));
+                            } else {
+                                rt.raiseException(`Initialiser list error: cannot implicitly convert from '${rt.makeTypeStringOfVar(rawVariable)}' to '${rt.makeTypeString(childTypeHint)}'`);
+                            }
+                        } else {
+                            initList.push(rawVariable);
                         }
-                        initList.push(rawVariable);
                     }
                     if (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) {
                         if (ptrTypeHint.sizeConstraint >= 0 && initList.length > ptrTypeHint.sizeConstraint) {
