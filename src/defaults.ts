@@ -507,6 +507,34 @@ const defaultOpHandler: OpHandler[] = [
         }
     },
     {
+        op: "o(_++)",
+        type: "!Pointer FUNCTION ?0 ( ?0 )",
+        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): PointerVariable<PointeeVariable> {
+            if (variables.asFunctionType(_l.t.pointee) !== null) {
+                rt.raiseException("Cannot move out of function pointer index");
+            }
+            const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
+            if (l.v.subtype === "INDEX") {
+                return variables.indexPointer(l.v.pointee, l.v.index++, false, null, false);
+            }
+            rt.raiseException("Not yet implemented");
+        }
+    },
+    {
+        op: "o(++_)",
+        type: "!Pointer FUNCTION ?0 ( ?0 )",
+        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): PointerVariable<PointeeVariable> {
+            if (variables.asFunctionType(_l.t.pointee) !== null) {
+                rt.raiseException("Cannot move out of function pointer index");
+            }
+            const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
+            if (l.v.subtype === "INDEX") {
+                return variables.indexPointer(l.v.pointee, ++l.v.index, false, null, false);
+            }
+            rt.raiseException("Not yet implemented");
+        }
+    },
+    {
         op: "o(_||_)",
         type: "FUNCTION BOOL ( BOOL BOOL )",
         default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {

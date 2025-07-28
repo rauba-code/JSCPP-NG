@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, FunctionValue, ArithmeticSig } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig } from "./variables";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -207,6 +207,12 @@ export interface XScopedMaybeTemplatedIdentifier extends StatementMeta {
 }
 export interface XUnknown {
     type: "<stub>"
+}
+export interface XIterationStatement_foreach extends StatementMeta {
+    type: "IterationStatement_foreach"
+    Expression: XIdentifierExpression,
+    Initializer?: XDeclaration,
+    XStatement: XCompoundStatement,
 }
 type DeclaratorYield = { name: string, type: MaybeLeft<ObjectType> };
 
@@ -635,26 +641,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 }
             },
-            *STLDeclaration(interp, _s, _param) {
-                ({ rt } = interp);
-
-                //const basetype = rt.simpleType(s.DeclarationSpecifiers);
-                rt.raiseException("Template declaration error: Not yet implemented");
-                /*if (!rt.isVectorClass(basetype))
-                    rt.raiseException("Template declaration error: Only vectors are currently supported for STL Declaration!");
-
-                const vectorClass: any = rt.defaultValue2(basetype, true);
-
-                const STLType = rt.simpleType(s.Type);
-                if (s.Initializer != null) {
-                    const initializer: any = yield* interp.arrayInit([s.Initializer.Initializers.length], s.Initializer, STLType, param);
-                    vectorClass.v.members.element_container.elements = initializer.v.target;
-                }
-
-                vectorClass.dataType = vectorClass.v.members.element_container.dataType = STLType;
-                vectorClass.readonly = false;
-                rt.defVar(s.Identifier, basetype, vectorClass);*/
-            },
             *StructDeclaration(interp, s: XStructDeclaration, param) {
                 ({ rt } = interp);
 
@@ -741,11 +727,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             if (targetStr in rt.ictable && sourceStr in rt.ictable[targetStr]) {
                                 const func = rt.getFuncByParams(variables.asClassType(childTypeHint) ?? rt.raiseException("Initialiser list error: not yet implemented"), "o(_ctor)", [rawVariable], []);
                                 const callYield = rt.invokeCall(func, [], rawVariable);
-                                const callResult = asResult(callYield) ?? (yield *callYield as Gen<MaybeUnboundVariable | "VOID">);
+                                const callResult = asResult(callYield) ?? (yield* callYield as Gen<MaybeUnboundVariable | "VOID">);
                                 if (callResult === "VOID") {
                                     rt.raiseException("Initialiser list error: Expected a variable, got void")
                                 }
-                                debugger;
                                 initList.push(rt.unbound(callResult));
                             } else {
                                 rt.raiseException(`Initialiser list error: cannot implicitly convert from '${rt.makeTypeStringOfVar(rawVariable)}' to '${rt.makeTypeString(childTypeHint)}'`);
@@ -981,25 +966,90 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 param.scope = scope_bak;
                 return return_val;
             },
-            *IterationStatement_foreach(interp, s, param) {
+            *IterationStatement_foreach(interp, s: XIterationStatement_foreach, param) {
                 //let return_val;
                 ({ rt } = interp);
                 //const scope_bak = param.scope;
                 param.scope = "IterationStatement_foreach";
                 rt.enterScope(param.scope);
 
-                const iterable = yield* interp.visit(interp, s.Expression, param);
-
-                if (s.Initializer) {
-                    param.deducedType = iterable.dataType ?? iterable.t;
-
-                    yield* interp.visit(interp, s.Initializer, param);
+                const _iterable: MaybeUnboundVariable | Function | "VOID" = yield* interp.visit(interp, s.Expression, param);
+                if (_iterable === "VOID") {
+                    rt.raiseException("For-each iteration statement error: Expected iterable expression, got void");
+                }
+                if (variables.asFunctionType(_iterable.t)) {
+                    rt.raiseException("For-each iteration statement error: Expected iterable expression, got function");
+                }
+                const iterable = _iterable as Variable;
+                function printTypes(): string {
+                    const iteratorType = rt.makeTypeStringOfVar(iterable);
+                    if (beginVar) {
+                        const elementHandlerType = rt.makeTypeStringOfVar(beginVar);
+                        if (derefTestVar) {
+                            const elementType = derefTestVar === "VOID" ? "void" : rt.makeTypeStringOfVar(derefTestVar);
+                            return `\nDiagnostic information: [\n  IteratorType = ${iteratorType},\n  ElementHandlerType = ${elementHandlerType},\n  ElementType = ${elementType}\n]`;
+                        }
+                        return `\nDiagnostic information: [\n  IteratorType = ${iteratorType},\n  ElementHandlerType = ${elementHandlerType}\n]`;
+                    }
+                    return `\nDiagnostic information: [\n  IteratorType = ${iteratorType}\n]`;
                 }
 
-                rt.raiseException("For-each iteration statement error: not yet implemented");
-                /*const _variable = rt.readVarOrFunc(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier);
-                rt.raiseException("")
-                try {
+                let beginVar: Variable;
+                let endVar: Variable;
+                if (iterable.t.sig === "PTR" && iterable.t.sizeConstraint !== null) {
+                    const arrayIterable = iterable as InitIndexPointerVariable<Variable>;
+                    beginVar = variables.indexPointer(arrayIterable.v.pointee, arrayIterable.v.index, false, null);
+                    endVar = variables.indexPointer(arrayIterable.v.pointee, arrayIterable.v.index + (arrayIterable.t.sizeConstraint as number), false, null);
+                } else {
+                    rt.raiseException("For-each iteration statement error: Expression is not iterable\n" + printTypes());
+                }
+                if (!variables.typesEqual(beginVar.t, endVar.t)) {
+                    rt.raiseException(`For-each iteration statement error: Incompatible types between begin-expression '${rt.makeTypeStringOfVar(beginVar)}' and end-expression '${rt.makeTypeStringOfVar(endVar)}'${printTypes()}`);
+                }
+                const derefInst = rt.getOpByParams("{global}", "o(*_)", [beginVar], []);
+                const derefTestYield = rt.invokeCall(derefInst, [], beginVar);
+                const derefTestVar = asResult(derefTestYield) ?? (yield *derefTestYield as Gen<MaybeUnboundVariable | "VOID">);
+                if (derefTestVar === "VOID") {
+                    rt.raiseException("For-each iteration statement error: Expected *x (given x of type ElementHandlerType) to be a variable, got void" + printTypes());
+                }
+                const ppInst = rt.getOpByParams("{global}", "o(++_)", [beginVar], []);
+                const ppTestYield = rt.invokeCall(ppInst, [], beginVar);
+                const ppTestVar = asResult(ppTestYield) ?? (yield *ppTestYield as Gen<MaybeUnboundVariable | "VOID">);
+                if (ppTestVar === "VOID") {
+                    rt.raiseException("For-each iteration statement error: Expected ++x, (given x of type ElementHandlerType) to be a variable, got void" + printTypes());
+                }
+                if (!variables.typesEqual(ppTestVar.t, beginVar.t)) {
+                    rt.raiseException(`For-each iteration statement error: Expected ++x, (given x of type ElementHandlerType) to have the same type, got '${ppTestVar}'${printTypes()}`);
+                }
+
+                let initVar: Variable;
+                if (s.Initializer) {
+                    param.deducedType = beginVar;
+                    if (s.Initializer.InitDeclaratorList.length !== 1) {
+                        rt.raiseException("For-each iteration statement error: Expected at most one variable to be declared" + printTypes());
+                    }
+                    if (s.Initializer.InitDeclaratorList[0].Declarator.left.type !== "Identifier") {
+                        rt.raiseException("For-each iteration statement error: Not yet implemented" + printTypes());
+                    }
+
+                    yield* interp.visit(interp, s.Initializer, param);
+                    const initVarOrFunc = rt.readVarOrFunc(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier)
+                    if (variables.asFunction(initVarOrFunc)) {
+                        rt.raiseException("For-each iteration statement error: Expected the declared variable, got function" + printTypes());
+                    }
+                    initVar = initVarOrFunc as Variable;
+                    if (!variables.typesEqual(initVar.t, derefTestVar.t)) {
+                        rt.raiseException(`For-each iteration statement error: Expected the declared variable to have the same type as ElementHandlerType, got '${rt.makeTypeStringOfVar(initVar)}'` + printTypes());
+                    }
+                    const callInst = rt.getOpByParams("{global}", "o(_=_)", [initVar, derefTestVar], []);
+                    const opYield = rt.invokeCall(callInst, [], initVar, rt.unbound(derefTestVar));
+                    asResult(opYield) ?? (yield *opYield as Gen<"VOID">);
+                } else {
+                    initVar = beginVar;
+                }
+
+                rt.raiseException("For-each iteration statement error: Not yet implemented" + printTypes());
+                /*try {
                     //const sym = rt.getFuncByParams(iterable.t, "__iterator", []);
                     iterator = rt.invokeCall(sym, iterable);
                 } catch (ex) {
