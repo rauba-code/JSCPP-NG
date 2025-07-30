@@ -1,7 +1,8 @@
 import { CRuntime } from "../rt";
-import { sizeNonSpace, skipSpace, StringVariable } from "../shared/string_utils";
+import { StringVariable } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
 import * as common from "../shared/common";
+import * as utf8 from "../utf8";
 import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, variables } from "../variables";
 
 type IStringStreamValue = ios_base.IStreamValue;
@@ -73,35 +74,49 @@ export = {
                             failbit.v.value = 1;
                             return l;
                         }
-                        const oldptr = variables.clone(buf, "SELF", false, rt.raiseException);
-                        if (buf.v.pointee.values.length <= buf.v.index) {
-                            variables.arithmeticAssign(eofbit, 1, rt.raiseException);
+                        let char: number;
+                        while (true) {
+                            if (buf.v.pointee.values.length <= buf.v.index) {
+                                failbit.v.value = 1;
+                                eofbit.v.value = 1;
+                                return l;
+                            }
+                            char = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
+                            if (!(whitespaceChars.includes(char))) {
+                                break;
+                            }
+                            buf.v.index++;
                         }
-                        skipSpace(rt, buf);
-                        const len = sizeNonSpace(rt, buf);
-                        const strseq = rt.getStringFromCharArray(buf, len);
-                        const num = Number.parseFloat(strseq);
-                        if (Number.isNaN(num)) {
-                            variables.arithmeticAssign(failbit, 1, rt.raiseException);
-                            return l;
-                        }
-                        variables.arithmeticAssign(r, num, rt.raiseException);
-                        rt.adjustArithmeticValue((r as InitArithmeticVariable));
-                        variables.arithmeticAssign(l.v.members.failbit, (len === 0) ? 1 : 0, rt.raiseException);
-                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + len, rt.raiseException);
-
-                        const readlen = buf.v.index - oldptr.v.index;
-                        if (readlen === 0) {
-                            failbit.v.value = 1;
+                        if (r.t.sig === "I8") {
+                            variables.arithmeticAssign(r, char, rt.raiseException);
+                            buf.v.index++;
                         } else {
-                            variables.indexPointerAssignIndex(buf, buf.v.index + readlen, rt.raiseException);
+                            let wordValues: number[] = [];
+                            while (!(whitespaceChars.includes(char))) {
+                                wordValues.push(char);
+                                buf.v.index++;
+                                if (buf.v.pointee.values.length <= buf.v.index) {
+                                    eofbit.v.value = 1;
+                                    break;
+                                }
+                                char = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
+                                if (failbit.v.value === 1) {
+                                    return l;
+                                }
+                            }
+                            if (wordValues.length === 0) {
+                                failbit.v.value = 1;
+                                return l;
+                            }
+                            const wordString = utf8.fromUtf8CharArray(new Uint8Array(wordValues));
+                            const num = Number.parseFloat(wordString);
+                            if (Number.isNaN(num)) {
+                                failbit.v.value = 1;
+                                return l;
+                            }
+                            variables.arithmeticAssign(r, num, rt.raiseException);
                         }
-                        const buflen = buf.v.pointee.values.length - buf.v.index;
-
-                        if (buflen === 0) {
-                            eofbit.v.value = 1;
-                        }
-
+                        rt.adjustArithmeticValue((r as InitArithmeticVariable));
                         return l;
                     },
                 },
