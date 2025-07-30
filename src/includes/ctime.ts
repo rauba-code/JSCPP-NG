@@ -1,15 +1,21 @@
-/* eslint-disable no-shadow */
-import { CRuntime, IntVariable, Variable } from "../rt";
+import { CRuntime } from "../rt";
+import * as common from "../shared/common";
+import { ArithmeticVariable, InitArithmeticVariable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
-
-        const _time = function (rt: CRuntime, _this: Variable, i: IntVariable) {
-            const val = Math.floor(Date.now() / 1000);
-            return rt.val(rt.intTypeLiteral, val);
-        };
-        // TODO: implement correct return for non-0 argument
-
-        return rt.regFunc(_time, "global", "time", [rt.longTypeLiteral], rt.longTypeLiteral);
+        common.regGlobalFuncs(rt, [{
+            type: "FUNCTION I64 ( I64 )",
+            op: "time",
+            default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): InitArithmeticVariable {
+                if (rt.arithmeticValue(l) !== 0) {
+                    rt.raiseException("time(): non-zero/non-nullptr argument is unsupported")
+                }
+                const unixTime = Math.floor(Date.now() / 1000);
+                return variables.arithmetic("I64", unixTime, null, false);
+            }
+        }]);
     }
-};
+}
+
+

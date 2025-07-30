@@ -1,542 +1,434 @@
-/* eslint-disable no-shadow */
-import { ArrayType, ArrayVariable, CRuntime, IntVariable, NormalPointerVariable, PointerType, PointerValue, Variable, VariableType } from "../rt";
+import { CRuntime } from "../rt";
+import * as common from "../shared/common";
+import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, InitValue, MaybeUnboundVariable, PointerVariable, Variable, variables } from "../variables";
+import * as utf8 from "../utf8";
 
-const printf = require("printf");
-const EOF = 0;
-const NULL = -1;
+interface DivType {
+    readonly sig: "CLASS",
+    readonly identifier: "div_t" | "ldiv_t" | "lldiv_t",
+    readonly templateSpec: [],
+    readonly memberOf: null,
+};
 
-const format_type_map = function (rt: CRuntime, ctrl: string): VariableType {
-    switch (ctrl) {
-        case "d": case "i":
-            return rt.intTypeLiteral;
-        case "u": case "o": case "x": case "X":
-            return rt.unsignedintTypeLiteral;
-        case "f": case "F":
-            return rt.floatTypeLiteral;
-        case "e": case "E": case "g": case "G": case "a": case "A":
-            return rt.doubleTypeLiteral;
-        case "c":
-            return rt.charTypeLiteral;
-        case "s":
-            return rt.normalPointerType(rt.charTypeLiteral);
-        case "p":
-            return rt.normalPointerType(rt.voidTypeLiteral);
-        case "n":
-            rt.raiseException("%n is not supported");
+type DivVariable = AbstractVariable<DivType, DivValue>;
+
+interface DivValue extends InitValue<DivVariable> {
+    members: {
+        "quot": InitArithmeticVariable,
+        "rem": InitArithmeticVariable,
     }
-};
-
-
-const validate_format = function (rt: CRuntime, format: string, ...params: Variable[]) {
-    let i = 0;
-    const re = /%(?:[-+ #0])?(?:[0-9]+|\*)?(?:\.(?:[0-9]+|\*))?([diuoxXfFeEgGaAcspn])/g;
-    return (() => {
-        let ctrl;
-        const result = [];
-        while ((ctrl = re.exec(format)) != null) {
-            const type = format_type_map(rt, ctrl[1]) as ArrayType;
-            if (params.length <= i) {
-                rt.raiseException(`insufficient arguments (at least ${i + 1} is required)`);
-            }
-            const target = params[i++];
-            const casted = rt.cast(type, target);
-            if (rt.isStringType(casted)) {
-                result.push(rt.getStringFromCharArray(casted));
-            } else {
-                if (casted.v == null || (typeof (casted.v) === "number" && isNaN(casted.v))) {
-                    rt.raiseException("uninitialized value when using printf");
-                }
-                result.push(casted.v);
-            }
-        }
-        return result;
-    })();
-};
-
-
+}
 
 export = {
     load(rt: CRuntime) {
-        const char_pointer = rt.normalPointerType(rt.charTypeLiteral);
-        const {
-            stdio
-        } = rt.config;
-
-        //console.log("drain 1");
-        let input_stream = stdio.drain();
-
-        const _consume_next_char = function () {
-            let char_return = "";
-            if (input_stream.length > 0) {
-                char_return = input_stream[0];
-                input_stream = input_stream.substr(1);
-                return char_return;
-            } else {
-                throw new Error("EOF");
-            }
-        };
-
-        const _consume_next_line = function () {
-            let retval;
-            const next_line_break = input_stream.indexOf('\n');
-
-            if (next_line_break > -1) {
-                retval = input_stream.substr(0, next_line_break);
-                input_stream = input_stream.replace(`${retval}\n`, '');
-            } else {
-                retval = input_stream;
-                input_stream = "";
-            }
-
-            return retval;
-        };
-
-
-        const _strcpy = require("./shared/cstring_strcpy");
-
-        const __printf = function (format: ArrayVariable, ...params: Variable[]): ArrayVariable {
-            if (rt.isStringType(format.t)) {
-                const formatStr = rt.getStringFromCharArray(format);
-                const parsed_params = validate_format(rt, formatStr, ...params);
-                const retval: string = printf(formatStr, ...parsed_params);
-                return rt.makeCharArrayFromString(retval);
-            } else {
-                rt.raiseException("format must be a string");
-            }
-        };
-
-        const _sprintf = function (rt: CRuntime, _this: Variable, target: Variable, format: ArrayVariable, ...params: Variable[]) {
-            const retval = __printf(format, ...params);
-            _strcpy(rt, null, target, retval);
-            return rt.val(rt.intTypeLiteral, retval.v.target.length);
-        };
-
-        rt.regFunc(_sprintf, "global", "sprintf", [char_pointer, char_pointer, "?"], rt.intTypeLiteral);
-
-        const _printf = function (rt: CRuntime, _this: Variable, format: ArrayVariable, ...params: Variable[]) {
-            const retval = __printf(format, ...params);
-            const retvalStr = rt.getStringFromCharArray(retval);
-            stdio.write(retvalStr);
-            return rt.val(rt.intTypeLiteral, retval.v.target.length);
-        };
-
-        rt.regFunc(_printf, "global", "printf", [char_pointer, "?"], rt.intTypeLiteral);
-
-        const _getchar = function (rt: CRuntime, _this: Variable) {
-            try {
-                const char = _consume_next_char();
-                return rt.val(rt.intTypeLiteral, char.charCodeAt(0));
-            } catch (error) {
-                return rt.val(rt.intTypeLiteral, EOF);
-            }
-        };
-
-        rt.regFunc(_getchar, "global", "getchar", [], rt.intTypeLiteral);
-
-        const _gets = function (rt: CRuntime, _this: Variable, charPtr: ArrayVariable) {
-
-            const return_value = _consume_next_line();
-            const destArray = charPtr.v.target;
-
-            for (let i = 0, end = return_value.length, asc = 0 <= end; asc ? i <= end : i >= end; asc ? i++ : i--) {
-                try {
-                    destArray[i] = rt.val(rt.charTypeLiteral, return_value.charCodeAt(i));
-                } catch (error) {
-                    destArray[i] = rt.val(rt.charTypeLiteral, 0);
-                }
-            }
-
-            destArray[return_value.length] = rt.val(rt.charTypeLiteral, 0);
-
-            return rt.val(char_pointer, charPtr.v);
-        };
-
-
-        rt.regFunc(_gets, "global", "gets", [char_pointer], char_pointer);
-
-        // #DEPENDENT ON PRINTF##
-        // #these implementations is dependent on printf implementation
-        // #but on the original c this behavior is not present
-        // #for general purposes the result will be the same
-        // #but maybe could be a good idea to make this implementation
-        // #indenpendent
-        const _putchar = function (rt: CRuntime, _this: Variable, char: IntVariable) {
-            const print_mask = rt.makeCharArrayFromString("%c");
-            _printf(rt, null, print_mask, char);
-            return char;
-        };
-
-        rt.regFunc(_putchar, "global", "putchar", [rt.charTypeLiteral], rt.intTypeLiteral);
-
-        const _puts = function (rt: CRuntime, _this: Variable, charPtr: ArrayVariable) {
-            const print_mask = rt.makeCharArrayFromString("%s");
-            _printf(rt, null, print_mask, charPtr);
-            return rt.val(rt.intTypeLiteral, 1);
-        };
-
-        rt.regFunc(_puts, "global", "puts", [char_pointer], rt.intTypeLiteral);
-        // #DEPENDENT ON PRINTF##
-
-        // ####################HELPER FUNCTION TO SCANF ###############################
-
-        const _ASCII = {
-            a: 'a'.charCodeAt(0),
-            f: 'f'.charCodeAt(0),
-            A: 'A'.charCodeAt(0),
-            F: 'F'.charCodeAt(0),
-            0: '0'.charCodeAt(0),
-            8: '8'.charCodeAt(0),
-            9: '9'.charCodeAt(0)
-        };
-
-
-        const _hex2int = function (str: string) {
-            let ret = 0;
-            let digit = 0;
-            str = str.replace(/^[0O][Xx]/, '');
-
-            for (let i = str.length - 1; i >= 0; i--) {
-                const num = _int_at_hex(str[i], digit++);
-                if (num !== null) {
-                    ret += num;
-                } else {
-                    throw new Error('invalid hex ' + str);
-                }
-            }
-
-            function _int_at_hex(c: string, digit: number) {
-                let ret;
-                const ascii = c.charCodeAt(0);
-
-                if ((_ASCII.a <= ascii) && (ascii <= _ASCII.f)) {
-                    ret = ascii - _ASCII.a + 10;
-                } else if ((_ASCII.A <= ascii) && (ascii <= _ASCII.F)) {
-                    ret = ascii - _ASCII.a + 10;
-                } else if ((_ASCII[0] < ascii) && (ascii <= _ASCII[9])) {
-                    ret = ascii - _ASCII[0];
-
-                } else {
-                    throw new Error(`Invalid ascii [${c}]`);
-                }
-
-                ret *= Math.pow(16, digit);
-
-                return ret;
-            };
-            return ret;
-        };
-
-        const _octal2int = function (str: string) {
-            str = str.replace(/^0/, '');
-            let ret = 0;
-            let digit = 0;
-
-            for (let i = str.length - 1; i >= 0; i--) {
-                const num = _int_at_octal(str[i], digit++);
-                if (num !== null) {
-                    ret += num;
-                } else {
-                    throw new Error(`invalid octal ${str}`);
-                }
-            }
-
-            function _int_at_octal(c: string, digit: number) {
-                let num = null;
-                const ascii = c.charCodeAt(0);
-                if ((ascii >= _ASCII[0]) && (ascii <= _ASCII[8])) {
-                    num = ascii - _ASCII[0];
-                } else {
-                    throw new Error(`invalid char at [${c}]`);
-                }
-
-                num *= Math.pow(8, digit);
-
-                return num;
-            };
-            return ret;
-        };
-
-
-        const _regslashs = (pre: string) => pre.replace(/\[/g, '\\[').replace(/\]/g, '\\]').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/\|/g, '\\|');
-
-
-        const _strip_slashes = (str: string) => str.replace(/\\([\sA-Za-z\\]|[0-7]{1,3})/g, function (str, c) {
-            switch (c) {
-                case "\\":
-                    return "\\";
-                case "0":
-                    return "\u0000";
-                default:
-                    if (/^\w$/.test(c)) {
-                        return _get_special_char(c);
-                    } else if (/^\s$/.test(c)) {
-                        return c;
-                    } else if (/([0-7]{1,3})/.test(c)) {
-                        return _get_ASCII_char(c);
+        const ascii_tab: number = 0x7;
+        const ascii_newline: number = 0x0A;
+        const ascii_space: number = 0x20;
+        const ascii_percentSign: number = 0x25;
+        const ascii_plusSign: number = 0x2B;
+        const ascii_minusSign: number = 0x2D;
+        const ascii_fullStop: number = 0x2E;
+        const ascii_0: number = 0x30;
+        const ascii_1: number = 0x31;
+        const ascii_2: number = 0x32;
+        const ascii_3: number = 0x33;
+        const ascii_4: number = 0x34;
+        const ascii_5: number = 0x35;
+        const ascii_6: number = 0x36;
+        const ascii_7: number = 0x37;
+        const ascii_8: number = 0x38;
+        const ascii_9: number = 0x39;
+        const ascii_c: number = 0x63;
+        const ascii_d: number = 0x64;
+        const ascii_f: number = 0x66;
+        const ascii_s: number = 0x73;
+        common.regGlobalFuncs(rt, [
+            {
+                type: "FUNCTION I32 ( PTR I8 FunctionParamOrEnd",
+                op: "printf",
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>, ...args: Variable[]): InitArithmeticVariable {
+                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    let chr: number;
+                    type FormatOptions = {
+                        flagAlternateForm: boolean;
+                        flagZeroPad: boolean;
+                        flagLeftAdjust: boolean;
+                        flagSpaceBeforePositive: boolean;
+                        flagAlwaysDisplaySign: boolean;
+                        length: number | null;
+                        precision: number | null;
                     }
-                    return str;
-            }
-        });
-
-        function _get_ASCII_char(str: string) {
-            const num = _octal2int(str);
-            return String.fromCharCode(num);
-        };
-
-        function _get_special_char(letter: string) {
-            switch (letter.toLowerCase()) {
-                case "b":
-                    return "\b";
-                case "f":
-                    return "\f";
-                case "n":
-                    return "\n";
-                case "r":
-                    return "\r";
-                case "t":
-                    return "\t";
-                case "v":
-                    return "\v";
-                default:
-                    return letter;
-            }
-        };
-
-
-        // ####################HELPER FUNCTION TO SCANF ###############################
-
-        // ############################SCANF IMPL######################################
-
-
-        const _get_input = function (pre: string, next: string, match: string, type?: string) {
-
-            let tmp = input_stream;
-
-            let replace = `(${match})`;
-
-
-            if ((type === 'STR') && (next.trim().length > 0)) {
-                const before_match = _regslashs(pre);
-                const after_match = _regslashs(next) + '[\\w\\W]*';
-
-                if (before_match.length) {
-                    tmp = tmp.replace(new RegExp(before_match), '');
-                }
-
-                tmp = tmp.replace(new RegExp(after_match), '');
-            } else {
-                replace = _regslashs(pre) + replace;
-            }
-
-            const m = tmp.match(new RegExp(replace));
-
-            if (!m) {
-                // TODO strip match
-                return null;
-            }
-
-            const result = m[1];
-
-            input_stream = input_stream.substr(input_stream.indexOf(result)).replace(result, '').replace(next, '');
-
-            // returing result
-            return result;
-        };
-
-
-        const _get_integer = function (pre: string, next: string) {
-
-            const text = _get_input(pre, next, '[-]?[A-Za-z0-9]+');
-
-            if (!text) {
-                return null;
-            } else if (text[0] === '0') {
-                if ((text[1] === 'x') || (text[1] === 'X')) {
-                    return _hex2int(text);
-                } else {
-                    return _octal2int(text);
-                }
-            } else {
-                return parseInt(text, 10);
-            }
-        };
-
-        const _get_float = function (pre: string, next: string) {
-            const text = _get_input(pre, next, '[-]?[0-9]+[\.]?[0-9]*');
-            return parseFloat(text);
-        };
-
-        const _get_hex = function (pre: string, next: string) {
-            const text = _get_input(pre, next, '[A-Za-z0-9]+');
-            return _hex2int(text);
-        };
-
-        const _get_octal = function (pre: string, next: string) {
-            const text = _get_input(pre, next, '[A-Za-z0-9]+');
-            return _octal2int(text);
-        };
-
-        const _get_string = function (pre: string, next: string) {
-            let text = _get_input(pre, next, '([\\w\\]=-]|\\S[^\\][^\\ ])+(\\\\[\\w\\ ][\\w\\:]*)*', 'STR');
-            if (/\\/.test(text)) {
-                text = _strip_slashes(text);
-            }
-            return text;
-        };
-
-        const _get_char = function (pre: string, next: string) {
-            let text = _get_input(pre, next, '.', 'STR');
-            if (/\\/.test(text)) {
-                text = _strip_slashes(text);
-            }
-            return text;
-        };
-
-        const _get_line = function (pre: string, next: string) {
-            let text = _get_input(pre, next, '[^\n\r]*');
-            if (/\\/.test(text)) {
-                text = _strip_slashes(text);
-            }
-            return text;
-        };
-
-        const _deal_type = function (format: string) {
-            const res = format.match(/%[A-Za-z]+/);
-            const res2 = format.match(/[^%]*/);
-
-            if (!res) {
-                return null;
-            }
-
-            const type = res[0];
-
-            let pre;
-            if (!!res2) {
-                pre = res2[0];
-            } else {
-                pre = null;
-            }
-
-            const next = format.substr(format.indexOf(type) + type.length);
-
-            let ret;
-            switch (type) {
-                case "%d": case "%ld": case "%llu": case "%lu": case "%u":
-                    ret = _get_integer(pre, next);
-                    break;
-                case "%c":
-                    ret = _get_char(pre, next);
-                    break;
-                case "%s":
-                    ret = _get_string(pre, next);
-                    break;
-                case "%S":
-                    ret = _get_line(pre, next);
-                    break;
-                case '%x': case '%X':
-                    ret = _get_hex(pre, next);
-                    break;
-                case '%o': case '%O':
-                    ret = _get_octal(pre, next);
-                    break;
-                case '%f':
-                    ret = _get_float(pre, next);
-                    break;
-                default:
-                    throw new Error('Unknown type "' + type + '"');
-            }
-
-            return ret;
-        };
-
-        const _set_pointer_value = function (pointer: NormalPointerVariable | ArrayVariable, value: string | number) {
-            try {
-                let new_value;
-                if (rt.isNormalPointerType(pointer)) {
-                    if (rt.isNumericType(pointer.t.targetType)) {
-                        new_value = rt.val(pointer.t.targetType, value as number, true);
-                        return pointer.v.target.v = new_value.v;
-                    } else {
-                        new_value = rt.val(pointer.t.targetType, (value as string).charCodeAt(0), true);
-                        return pointer.v.target.v = new_value.v;
+                    const defaultFormatOptions: FormatOptions = {
+                        flagAlternateForm: false, //       '#'
+                        flagZeroPad: false, //             '0'
+                        flagLeftAdjust: false, //          '-'
+                        flagSpaceBeforePositive: false, // ' '
+                        flagAlwaysDisplaySign: false, //   '+'
+                        length: null,
+                        precision: null,
                     }
-                } else if (rt.isArrayType(pointer)) {
-                    const src_array = rt.makeCharArrayFromString(value as string);
-                    if (src_array.v.target.length > pointer.v.target.length) {
-                        return rt.raiseException("Not enough memory on pointer");
-                    } else {
-                        return __range__(0, src_array.v.target.length, true).map((i) =>
-                            (() => {
-                                try {
-                                    return pointer.v.target[i] = src_array.v.target[i];
-                                } catch (error) {
-                                    return rt.raiseException("Not enough memory on pointer");
+                    function formatNumeric(category: "d" | "f", options: FormatOptions, value: number): number[] {
+                        if (options.flagAlternateForm) {
+                            rt.raiseException("printf format: Not yet implemented");
+                        }
+                        let sign = Math.sign(value);
+                        value = Math.abs(value);
+                        let rem = value - Math.floor(value);
+                        let output: number[] = [];
+                        if (sign === 0) {
+                            output.push(ascii_0);
+                        } else {
+                            while (value !== 0) {
+                                output.push((value % 10) + ascii_0);
+                                value = Math.floor(value / 10);
+                            }
+                            if (sign < 0) {
+                                output.push(ascii_minusSign);
+                            } else if (options.flagAlwaysDisplaySign) {
+                                output.push(ascii_plusSign);
+                            }
+                            else if (options.flagSpaceBeforePositive && (options.length === null || output.length >= options.length)) {
+                                output.push(ascii_space);
+                            }
+                        }
+                        const precision = options.precision ?? 6;
+                        if (options.length !== null && !options.flagLeftAdjust) {
+                            const precisionBytes = (category === "f") ? precision + 1 : 0;
+                            while (options.length > output.length + precisionBytes) {
+                                output.push(options.flagZeroPad ? ascii_0 : ascii_space);
+                            }
+                        }
+                        output = output.reverse();
+                        if (category === "f") {
+                            output.push(ascii_fullStop);
+                            let remOutput: number[] = [];
+                            let fraction = Math.round(rem * Math.exp(precision * Math.LN10));
+                            for (let i = 0; i < precision; i++) {
+                                remOutput.push(Math.floor(fraction % 10) + ascii_0);
+                                fraction /= 10;
+                            }
+                            output.push(...remOutput.reverse());
+
+                        }
+                        if (options.length !== null && options.flagLeftAdjust) {
+                            while (options.length > output.length) {
+                                output.push(ascii_space);
+                            }
+                        }
+                        return output;
+                    }
+                    let formatOptions: FormatOptions = { ...defaultFormatOptions };
+                    let output: number[] = [];
+                    let state: "NORMAL" | "PERCENT" | "FLAGS" | "LENGTH" | "PRECISION" = "NORMAL";
+                    for (let i = 0; (chr = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + i))) !== 0; i++) {
+                        switch (state) {
+                            case "PERCENT":
+                                switch (chr) {
+                                    case ascii_percentSign:
+                                        output.push(ascii_percentSign);
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_space:
+                                        formatOptions.flagSpaceBeforePositive = true;
+                                        state = "FLAGS";
+                                        break;
+                                    case ascii_plusSign:
+                                        formatOptions.flagAlwaysDisplaySign = true;
+                                        state = "FLAGS";
+                                        break;
+                                    case ascii_minusSign:
+                                        formatOptions.flagLeftAdjust = true;
+                                        state = "FLAGS";
+                                        break;
+                                    case ascii_0:
+                                        formatOptions.flagZeroPad = true;
+                                        state = "FLAGS";
+                                        break;
+                                    case ascii_1:
+                                    case ascii_2:
+                                    case ascii_3:
+                                    case ascii_4:
+                                    case ascii_5:
+                                    case ascii_6:
+                                    case ascii_7:
+                                    case ascii_8:
+                                    case ascii_9:
+                                        formatOptions.length = chr - ascii_0;
+                                        state = "LENGTH";
+                                        break;
+                                    case ascii_fullStop:
+                                        state = "PRECISION";
+                                        break;
+                                    case ascii_c:
+                                        const arithmeticVar3 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(Math.floor(rt.arithmeticValue(arithmeticVar3)))
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_s:
+                                        const strVar = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index char pointer");
+                                        let schr: number;
+                                        for (let j = 0; (schr = rt.arithmeticValue(variables.arrayMember(strVar.v.pointee, strVar.v.index + j))) !== 0; j++) {
+                                            output.push(schr);
+                                        }
+                                        args = args.slice(1);
+
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_d:
+                                        const arithmeticVar1 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("d", formatOptions, rt.arithmeticValue(arithmeticVar1)))
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_f:
+                                        const arithmeticVar2 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("f", formatOptions, rt.arithmeticValue(arithmeticVar2)))
+                                        state = "NORMAL";
+                                        break;
+                                    default:
+                                        rt.raiseException("Malformed printf format sequence");
                                 }
-                            })());
+                                break;
+                            case "FLAGS":
+                                switch (chr) {
+                                    case ascii_percentSign:
+                                        output.push(ascii_percentSign);
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_space:
+                                        formatOptions.flagSpaceBeforePositive = true;
+                                        break;
+                                    case ascii_plusSign:
+                                        formatOptions.flagAlwaysDisplaySign = true;
+                                        break;
+                                    case ascii_minusSign:
+                                        formatOptions.flagLeftAdjust = true;
+                                        break;
+                                    case ascii_0:
+                                        formatOptions.flagZeroPad = true;
+                                        break;
+                                    case ascii_1:
+                                    case ascii_2:
+                                    case ascii_3:
+                                    case ascii_4:
+                                    case ascii_5:
+                                    case ascii_6:
+                                    case ascii_7:
+                                    case ascii_8:
+                                    case ascii_9:
+                                        formatOptions.length = chr - ascii_0;
+                                        state = "LENGTH";
+                                        break;
+                                    case ascii_fullStop:
+                                        state = "PRECISION";
+                                        break;
+                                    case ascii_d:
+                                        const arithmeticVar1 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("d", formatOptions, rt.arithmeticValue(arithmeticVar1)))
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_f:
+                                        const arithmeticVar2 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("f", formatOptions, rt.arithmeticValue(arithmeticVar2)))
+                                        state = "NORMAL";
+                                        break;
+                                    default:
+                                        rt.raiseException("Malformed printf format sequence");
+                                }
+                                break;
+                            case "LENGTH":
+                                switch (chr) {
+                                    case ascii_0:
+                                    case ascii_1:
+                                    case ascii_2:
+                                    case ascii_3:
+                                    case ascii_4:
+                                    case ascii_5:
+                                    case ascii_6:
+                                    case ascii_7:
+                                    case ascii_8:
+                                    case ascii_9:
+                                        formatOptions.length = ((formatOptions.length ?? 0) * 10) + (chr - ascii_0);
+                                        break;
+                                    case ascii_fullStop:
+                                        state = "PRECISION";
+                                        break;
+                                    case ascii_d:
+                                        const arithmeticVar1 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("d", formatOptions, rt.arithmeticValue(arithmeticVar1)))
+                                        state = "NORMAL";
+                                        break;
+                                    case ascii_f:
+                                        const arithmeticVar2 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("f", formatOptions, rt.arithmeticValue(arithmeticVar2)))
+                                        state = "NORMAL";
+                                        break;
+                                    default:
+                                        rt.raiseException("Malformed printf format sequence");
+                                }
+                                break;
+                            case "PRECISION":
+                                switch (chr) {
+                                    case ascii_0:
+                                    case ascii_1:
+                                    case ascii_2:
+                                    case ascii_3:
+                                    case ascii_4:
+                                    case ascii_5:
+                                    case ascii_6:
+                                    case ascii_7:
+                                    case ascii_8:
+                                    case ascii_9:
+                                        formatOptions.precision = ((formatOptions.precision ?? 0) * 10) + (chr - ascii_0);
+                                        break;
+                                    case ascii_f:
+                                        const arithmeticVar2 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        args = args.slice(1);
+                                        output.push(...formatNumeric("f", formatOptions, rt.arithmeticValue(arithmeticVar2)))
+                                        state = "NORMAL";
+                                        break;
+                                    default:
+                                        rt.raiseException("Malformed printf format sequence");
+                                }
+                                break;
+                            case "NORMAL":
+                                switch (chr) {
+                                    case ascii_percentSign:
+                                        state = "PERCENT";
+                                        formatOptions = { ...defaultFormatOptions };
+                                        break;
+                                    default:
+                                        output.push(chr);
+                                        break;
+                                }
+                                break;
+                        }
                     }
-                } else {
-                    return rt.raiseException("Invalid Pointer Type");
+                    if (state !== "NORMAL") {
+                        rt.raiseException("Unfinished printf format sequence");
+                    }
+                    //output.push(0);
+                    const bytes = new Uint8Array(output);
+                    const str = utf8.fromUtf8CharArray(bytes);
+                    const stdio = rt.stdio();
+                    stdio.write(str);
+
+                    return variables.arithmetic("I32", output.length, null);
                 }
-            } catch (error1) {
-                return rt.raiseException("Memory overflow");
+            },
+            {
+                type: "FUNCTION I32 ( I32 )",
+                op: "putchar",
+                default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): InitArithmeticVariable {
+                    const chr = rt.arithmeticValue(l);
+                    const bytes = new Uint8Array([chr]);
+                    const str = utf8.fromUtf8CharArray(bytes);
+                    const stdio = rt.stdio();
+                    stdio.write(str);
+                    return variables.arithmetic(l.t.sig, chr, null);
+
+                }
+
+            },
+            {
+                type: "FUNCTION I32 ( PTR I8 )",
+                op: "puts",
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    const str = rt.getStringFromCharArray(l);
+                    const stdio = rt.stdio();
+                    stdio.write(str);
+                    return variables.arithmetic("I32", 0, null);
+                }
+
+            },
+            {
+                type: "FUNCTION I32 ( PTR I8 PTR I8 FunctionParamOrEnd",
+                op: "sscanf",
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>, _fmt: PointerVariable<ArithmeticVariable>, ...args: Variable[]): InitArithmeticVariable {
+                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    const fmt = variables.asInitIndexPointerOfElem(_fmt, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    let li = 0;
+                    let lc: number = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                    let fc: number;
+                    let state: "NORMAL" | "PERCENT" = "NORMAL";
+                    const whitespace = [ascii_space, ascii_newline, ascii_tab];
+                    for (let fi = 0; (fc = rt.arithmeticValue(variables.arrayMember(fmt.v.pointee, fmt.v.index + fi))) !== 0; fi++) {
+                        if (lc === 0) {
+                            rt.raiseException("sscanf: not yet implemented (bad input)");
+                        }
+                        if (state === "NORMAL") {
+                            if (whitespace.includes(fc)) {
+                                while (whitespace.includes(lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)))) {
+                                    li++;
+                                }
+                            } else if (fc === ascii_percentSign) {
+                                state = "PERCENT";
+                            } else {
+                                if (lc !== fc) {
+                                    rt.raiseException("sscanf: not yet implemented (bad input)");
+                                } else {
+                                    li++;
+                                    lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                                }
+                            }
+                        } else { // state === "PERCENT"
+                            switch (fc) {
+                                case ascii_percentSign:
+                                    if (lc !== ascii_percentSign) {
+                                        rt.raiseException("sscanf: not yet implemented (bad input)");
+                                    } else {
+                                        li++;
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                                    }
+                                    break;
+                                case ascii_s:
+                                    const vstr = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                                    let vi = 0;
+                                    args = args.slice(1);
+                                    while (!whitespace.includes(lc) && lc !== 0) {
+                                        variables.arithmeticAssign(rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticVariable, lc, rt.raiseException);
+                                        vi++;
+                                        li++;
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                                    }
+                                    variables.arithmeticAssign(rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticVariable, 0, rt.raiseException);
+                                    break
+                                case ascii_d:
+                                    let vtnum = 0;
+                                    while (lc >= ascii_0 && lc <= ascii_9) {
+                                        vtnum *= 10;
+                                        vtnum += lc - ascii_0;
+                                        li++;
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                                    }
+                                    const vptr = variables.asInitPointer(args[0]) ?? rt.raiseException("sscanf: Variable a is not an initialised index pointer");
+                                    args = args.slice(1);
+                                    if (vptr.t.pointee.sig === "FUNCTION") {
+                                        rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
+                                    }
+                                    const vpointee = variables.asArithmetic(rt.unbound(variables.deref(vptr as InitPointerVariable<Variable>) as MaybeUnboundVariable)) ?? rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
+                                    variables.arithmeticAssign(vpointee, vtnum, rt.raiseException);
+                                    break
+                                default:
+                                    rt.raiseException("sscanf: invalid format");
+                            }
+                            state = "NORMAL";
+                        }
+                    }
+
+                    return variables.arithmetic("I32", 0, null);
+                }
             }
-        };
+        ]);
 
-
-        const __scanf = function (format: string) {
-            const re = new RegExp('[^%]*%[A-Za-z][^%]*', 'g');
-            const selectors = format.match(re);
-            return Array.from(selectors).map((val) => _deal_type(val));
-        };
-        // ############################SCANF IMPL#####################################
-
-        const _scanf = function (rt: CRuntime, _this: Variable, pchar: ArrayVariable, ...args: (NormalPointerVariable | ArrayVariable)[]) {
-
-            let val;
-            const format = rt.getStringFromCharArray(pchar);
-            const matched_values = __scanf(format);
-
-            for (let i = 0; i < matched_values.length; i++) {
-                val = matched_values[i];
-                _set_pointer_value(args[i], val);
-            }
-
-            return rt.val(rt.intTypeLiteral, matched_values.length);
-        };
-
-
-        rt.regFunc(_scanf, "global", "scanf", [char_pointer, "?"], rt.intTypeLiteral);
-
-        // TODO change this function to pass the string to __scanf instead of playing with current stream
-        const _sscanf = function (rt: CRuntime, _this: Variable, original_string_pointer: ArrayVariable, format_pointer: ArrayVariable, ...args: (NormalPointerVariable | ArrayVariable)[]) {
-
-            let val;
-            const format = rt.getStringFromCharArray(format_pointer);
-            const original_string = rt.getStringFromCharArray(original_string_pointer);
-            const original_input_stream = input_stream;
-            input_stream = original_string;
-            const matched_values = __scanf(format);
-
-            for (let i = 0; i < matched_values.length; i++) {
-                val = matched_values[i];
-                _set_pointer_value(args[i], val);
-            }
-
-            input_stream = original_input_stream;
-            return rt.val(rt.intTypeLiteral, matched_values.length);
-        };
-
-        return rt.regFunc(_sscanf, "global", "sscanf", [char_pointer, char_pointer, "?"], rt.intTypeLiteral);
     }
-};
-
-
-function __range__(left: number, right: number, inclusive: boolean) {
-    const range = [];
-    const ascending = left < right;
-    const end = !inclusive ? right : ascending ? right + 1 : right - 1;
-    for (let i = left; ascending ? i < end : i > end; ascending ? i++ : i--) {
-        range.push(i);
-    }
-    return range;
 }
+
+

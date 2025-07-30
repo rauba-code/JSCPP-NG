@@ -1,30 +1,19 @@
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
+import { StatementMeta } from "./interpreter";
+import { CRuntime } from "./rt";
+import { ArithmeticVariable, MaybeLeft, MaybeLeftCV, ObjectType, variables } from "./variables";
 
-import { CRuntime, IntVariable } from "./rt";
-
-interface AstNode {
+interface AstNode extends StatementMeta {
     type: string;
-    eLine: number;
-    eColumn: number;
-    eOffset: number;
-    sLine: number;
-    sColumn: number;
-    sOffset: number;
 }
 
 type PromiseOrNot<T> = PromiseLike<T> | T;
 
-type BreakpointConditionPredicate = (prevNode: AstNode, newStmt: AstNode) => PromiseOrNot<boolean>;
+type BreakpointConditionPredicate = (prevNode: AstNode | null, newStmt: AstNode | null) => PromiseOrNot<boolean | null>;
 
 export default class Debugger {
     src: string;
     srcByLines: string[];
-    prevNode: AstNode;
+    prevNode: AstNode | null;
     done: boolean;
     conditions: {
         [condition: string]: BreakpointConditionPredicate;
@@ -33,15 +22,15 @@ export default class Debugger {
         [condition: string]: boolean;
     };
     rt: CRuntime;
-    gen: Generator<any, IntVariable | false, any>;
+    gen: Generator<any, ArithmeticVariable | false, any>;
     constructor(src?: string, oldSrc?: string) {
         this.src = src || "";
         this.srcByLines = (oldSrc || src || "").split("\n");
         this.prevNode = null;
         this.done = false;
         this.conditions = {
-            isStatement(prevNode: AstNode, newStmt: AstNode) {
-                return (newStmt != null ? newStmt.type.indexOf("Statement") >= 0 : undefined);
+            isStatement(_prevNode: AstNode, newStmt: AstNode | null) {
+                return (newStmt != null ? newStmt.type.indexOf("Statement") >= 0 : null);
             },
             positionChanged(prevNode: AstNode, newStmt: AstNode) {
                 return ((prevNode != null ? prevNode.eOffset : undefined) !== newStmt.eOffset) || ((prevNode != null ? prevNode.sOffset : undefined) !== newStmt.sOffset);
@@ -53,7 +42,7 @@ export default class Debugger {
 
         this.stopConditions = {
             isStatement: false,
-            positionChanged: false,
+            positionChangIntVariableed: false,
             lineChanged: true
         };
     }
@@ -79,14 +68,14 @@ export default class Debugger {
         return this.src;
     }
 
-    start(rt: CRuntime, gen: Generator<any, IntVariable | false, any>) {
+    start(rt: CRuntime, gen: Generator<any, ArithmeticVariable | false, any>) {
         this.rt = rt;
         return this.gen = gen;
     }
 
     async wait() {
-        while(!this.rt.config.stdio.cinState()) {
-           await new Promise((resolve) => setImmediate(resolve));
+        while (!this.rt.config.stdio?.cinState()) {
+            await new Promise((resolve) => setImmediate(resolve));
         }
     }
 
@@ -127,17 +116,9 @@ export default class Debugger {
         return s ? this.src.slice(s.sOffset, s.eOffset).trim() : "";
     }
 
-    nextNode(): AstNode {
+    nextNode(): AstNode | null {
         if (this.done) {
-            return {
-                type: null,
-                sOffset: -1,
-                sLine: -1,
-                sColumn: -1,
-                eOffset: -1,
-                eLine: -1,
-                eColumn: -1
-            };
+            return null;
         } else {
             return this.rt.interp.currentNode;
         }
@@ -145,9 +126,16 @@ export default class Debugger {
 
     variable(name?: string) {
         if (name) {
-            const v = this.rt.readVar(name);
+            const v = this.rt.readVarOrFunc(name);
+            const vf = variables.asFunction(v);
+            if (vf !== null) {
+                return {
+                    type: vf.t.fulltype.join(" "),
+                    value: vf.v
+                }
+            }
             return {
-                type: this.rt.makeTypeString(v?.t),
+                type: this.rt.makeTypeStringOfVar(v as MaybeLeftCV<ObjectType>),
                 value: v.v
             };
         } else {
@@ -161,7 +149,7 @@ export default class Debugger {
                             usedName.add(name);
                             ret.push({
                                 name,
-                                type: this.rt.makeTypeString(val?.t),
+                                type: this.rt.makeTypeStringOfVar(val),
                                 value: this.rt.makeValueString(val)
                             });
                         }

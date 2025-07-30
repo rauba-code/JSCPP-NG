@@ -1,98 +1,122 @@
-import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, VariableType } from "../rt";
-import { IomanipConfig } from "./shared/iomanip_types";
-import { ios_base } from "./shared/ios_base";
+import { CRuntime } from "../rt";
+import { FunHandler, OpHandler } from "../shared/common";
+import * as ios_base from "../shared/ios_base";
+import * as ios_base_impl from "../shared/ios_base_impl"
+import { StringVariable } from "../shared/string_utils";
+import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+
+type OfstreamValue = ios_base.OStreamValue & {
+    members: {
+        _is_open: InitArithmeticVariable
+    }
+};
+type OfStreamVariable = AbstractVariable<ios_base.OStreamType, OfstreamValue>;
 
 export = {
     load(rt: CRuntime) {
-        const { fstream } = rt.config;
+        if (!rt.varAlreadyDefined("endl")) {
+            const endl = rt.getCharArrayFromString("\n");
+            rt.addToNamespace("std", "endl", endl);
+        }
 
-        interface ofStreamObject extends ObjectVariable {
-            v: ObjectValue,
-            manipulators?: {
-                config: IomanipConfig;
-                active: { [iomanipName: string]: (config: IomanipConfig) => void };
-                use(o: Variable): Variable;
+        ios_base_impl.defineOstream(rt, "ofstream", [
+            {
+                name: "_is_open",
+                variable: variables.arithmetic("BOOL", 0, "SELF"),
+            }
+        ]);
+
+        const thisType = (rt.simpleType(["ofstream"]) as MaybeLeft<ClassType>).t;
+        
+        const ctorHandlers: OpHandler[] = [{
+            op: "o(_ctor)",
+            type: "FUNCTION CLASS ofstream < > ( PTR I8 )",
+            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticVariable>): OfStreamVariable {
+                const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
+
+                _open(_rt, result, pathPtr, ios_base.openmode.out);
+                return result;
+            }
+        },
+        {
+            op: "o(_ctor)",
+            type: "FUNCTION CLASS ofstream < > ( PTR I8 I32 )",
+            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticVariable>, mode: ArithmeticVariable): OfStreamVariable {
+                const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
+
+                _open(_rt, result, pathPtr, rt.arithmeticValue(mode));
+                return result;
+            }
+        },
+        {
+            op: "o(_ctor)",
+            type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > )",
+            default(_rt: CRuntime, _templateTypes: [], _path: StringVariable): OfStreamVariable {
+                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
+
+                _open(_rt, result, pathPtr, ios_base.openmode.out);
+                return result;
+            }
+        },
+        {
+            op: "o(_ctor)",
+            type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > I32 )",
+            default(_rt: CRuntime, _templateTypes: [], _path: StringVariable, mode: ArithmeticVariable): OfStreamVariable {
+                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
+
+                _open(_rt, result, pathPtr, rt.arithmeticValue(mode));
+                return result;
+            }
+        },
+        ];
+
+        for (const ctorHandler of ctorHandlers) {
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
+        }
+
+        const _open = function(_rt: CRuntime, _this: OfStreamVariable, right: InitIndexPointerVariable<ArithmeticVariable>, mode: number): void {
+            const fd = _rt.openFile(right, mode);
+            if (fd !== -1) {
+                variables.arithmeticAssign(_this.v.members.fd, fd, rt.raiseException);
+                _this.v.members._is_open.v.value = 1;
+            } else {
+                _this.v.members.failbit.v.value = 1;
+                _this.v.members._is_open.v.value = 0;
             }
         };
-
-        const writeStreamType: ClassType = rt.newClass("ofstream", [{
-            name: "fileObject",
-            type: {} as VariableType,
-            initialize(_rt, _this) {
-                return {} as ObjectVariable;
-            }
-        }]);
-        rt.addToNamespace("std", "ofstream", writeStreamType);
-
-        const writeStreamTypeSig = rt.getTypeSignature(writeStreamType);
-        rt.types[writeStreamTypeSig].handlers = {
-            "o(!)": {
-                default(_rt: CRuntime, _this: ofStreamObject) {
-                    const fileObject: any = _this.v.members["fileObject"];
-                    return _rt.val(_rt.boolTypeLiteral, !fileObject.is_open());
+        const memberHandlers: FunHandler[] = [
+            {
+                op: "close",
+                type: "FUNCTION VOID ( LREF CLASS ofstream < > )",
+                default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable): "VOID" {
+                    rt.fileClose(l.v.members.fd);
+                    l.v.members._is_open.v.value = 0;
+                    return "VOID";
                 }
             },
-            "o(())": {
-                default(_rt: CRuntime, _this: ofStreamObject, filename: Variable, mode: Variable) {
-                    _open(_rt, _this, filename, mode);
+            {
+                op: "open",
+                type: "FUNCTION VOID ( LREF CLASS ofstream < > PTR I8 )",
+                default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable, _path: PointerVariable<ArithmeticVariable>): "VOID" {
+                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    _open(rt, l, pathPtr, ios_base.openmode.out);
+                    return "VOID";
                 }
             },
-            "o(<<)": {
-                default(_rt: CRuntime, _this: ofStreamObject, t: any) {
-                    const fileObject: any = _this.v.members["fileObject"];
-                    // if (!fileObject.is_open()) {
-                    //     return _rt.raiseException(`<< operator in ofstream could not open - ${fileObject.name}`);
-                    // }
-
-                    let result;
-                    if (_this.manipulators != null) {
-                        t = _this.manipulators.use(t);
-                    }
-
-                    if (_rt.isPrimitiveType(t.t)) {
-                        if (t.t.name.indexOf("char") >= 0) {
-                            result = String.fromCharCode(t.v as number);
-                        } else if (t.t.name === "bool") {
-                            result = t.v ? "1" : "0";
-                        } else {
-                            result = t.v.toString();
-                        }
-                    } else if (_rt.isStringType(t)) {
-                        result = _rt.getStringFromCharArray(t);
-                    } else {
-                        _rt.raiseException("<< operator in ofstream cannot accept " + _rt.makeTypeString(t?.t));
-                    }
-
-                    fileObject.write(result);
-
-                    return _this;
-                },
-            }
-        };
-
-        const _open = function(_rt: CRuntime, _this: ofStreamObject, right: Variable, mode: Variable) {
-            const _mode = mode?.v ?? ios_base.openmode.out;
-            const fileName = _rt.getStringFromCharArray(right as ArrayVariable);
-            const fileObject: any = fstream.open(_this, fileName);
-
-            if (_mode !== ios_base.openmode.app) {
-                fileObject.clear();
-            }
-            _this.v.members["fileObject"] = fileObject;
-        };
-
-        rt.regFunc(_open, writeStreamType, "open", ["?"], rt.intTypeLiteral);
-
-        rt.regFunc(function(_rt: CRuntime, _this: ofStreamObject) {
-            const fileObject: any = _this.v.members["fileObject"];
-            const is_open = fileObject.is_open() as boolean;
-
-            return _rt.val(_rt.boolTypeLiteral, is_open);
-        }, writeStreamType, "is_open", [], rt.boolTypeLiteral);
-
-        rt.regFunc(function(_rt: CRuntime, _this: ofStreamObject) {
-            const fileObject: any = _this.v.members["fileObject"];
-            fileObject.close();
-        }, writeStreamType, "close", [], rt.intTypeLiteral);
+            {
+                op: "is_open",
+                type: "FUNCTION BOOL ( LREF CLASS ofstream < > )",
+                default(_rt: CRuntime, _templateTypes: [], l: OfStreamVariable): InitArithmeticVariable {
+                    return variables.arithmetic("BOOL", l.v.members._is_open.v.value, null);
+                }
+            },
+        ];
+        memberHandlers.forEach((x) => {
+            rt.regFunc(x.default, thisType, x.op, rt.typeSignature(x.type), []);
+        })
     }
 };

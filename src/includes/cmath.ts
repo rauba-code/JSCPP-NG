@@ -1,38 +1,109 @@
-/* eslint-disable no-shadow */
-import { CRuntime, DummyVariable, FloatVariable, OptionalArg, Variable, VariableType } from "../rt";
+import { CRuntime } from "../rt";
+import * as common from "../shared/common";
+import { ArithmeticSig, ArithmeticVariable, InitArithmeticVariable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
-        const tDouble = rt.doubleTypeLiteral;
-        const g = "global";
+        rt.defVar("INFINITY", variables.arithmetic("F32", Number.POSITIVE_INFINITY, null, true));
+        rt.defVar("NAN", variables.arithmetic("F32", Number.NaN, null, true));
+        function commonUnary(fn: (l: number) => number, sig: ArithmeticSig | null): (rt: CRuntime, _templateTypes: [], l: ArithmeticVariable) => InitArithmeticVariable {
+            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable): InitArithmeticVariable {
+                const l = rt.arithmeticValue(_l);
+                const retv = variables.arithmetic(sig ?? _l.t.sig, fn(l), null, false);
+                rt.adjustArithmeticValue(retv);
+                return retv;
+            }
+        }
+        function commonBinary(fn: (l: number, r: number) => number, sig: ArithmeticSig): (rt: CRuntime, _templateTypes: [], l: ArithmeticVariable, r: ArithmeticVariable) => InitArithmeticVariable {
+            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable, _r: ArithmeticVariable): InitArithmeticVariable {
+                const l = rt.arithmeticValue(_l);
+                const r = rt.arithmeticValue(_r);
+                const retv = variables.arithmetic(sig, fn(l, r), null, false);
+                rt.adjustArithmeticValue(retv);
+                return retv;
+            }
+        }
+        function commonUnaryOverloads(name: string, fn: (l: number) => number): common.FunHandler[] {
+            return Object.entries(variables.arithmeticProperties)
+                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} )`, op: name, default: commonUnary(fn, v.isFloat ? k as ArithmeticSig : "F64") }));
+        }
+        function commonBinaryOverloads(name: string, fn: (l: number, r: number) => number): common.FunHandler[] {
+            return Object.entries(variables.arithmeticProperties)
+                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} ${k} )`, op: name, default: commonBinary(fn, v.isFloat ? k as ArithmeticSig : "F64") }));
+        }
+        common.regGlobalFuncs(rt, [
+            [
+                { type: "FUNCTION F32 ( F32 )", op: "abs", default: commonUnary(Math.abs, null) },
+                { type: "FUNCTION F64 ( F64 )", op: "abs", default: commonUnary(Math.abs, null) },
+            ],
+            commonUnaryOverloads("fabs", Math.abs),
+            commonBinaryOverloads("fmod", (l, r) => l % r),
+            commonUnaryOverloads("exp", Math.exp),
+            commonUnaryOverloads("exp2", (l) => Math.exp(l * Math.LN2)),
+            commonUnaryOverloads("expm1", Math.expm1),
+            commonUnaryOverloads("log", Math.log),
+            commonUnaryOverloads("log10", Math.log10),
+            commonUnaryOverloads("log2", Math.log2),
+            commonUnaryOverloads("log1p", Math.log1p),
+            [
+                { type: "FUNCTION F64 ( F64 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( F64 I64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( F64 I32 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( F64 I16 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( F64 I8 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( F64 U64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( F64 U32 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( F64 U16 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( F64 U8 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( I64 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( I32 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( I16 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( I8 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( U64 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( U32 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( U16 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F64 ( U8 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F32 ( F32 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( F32 I64 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( F32 I32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( F32 I16 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( F32 I8 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( F32 U64 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( F32 U32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( F32 U16 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( F32 U8 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( I64 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( I32 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( I16 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( I8 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( U64 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( U32 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( U16 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+                { type: "FUNCTION F32 ( U8 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
+            ],
+            commonUnaryOverloads("sqrt", Math.sqrt),
+            commonUnaryOverloads("cbrt", Math.cbrt),
+            commonUnaryOverloads("hypot", Math.hypot),
+            commonUnaryOverloads("sin", Math.sin),
+            commonUnaryOverloads("cos", Math.cos),
+            commonUnaryOverloads("tan", Math.tan),
+            commonUnaryOverloads("asin", Math.asin),
+            commonUnaryOverloads("acos", Math.acos),
+            commonUnaryOverloads("atan", Math.atan),
+            commonBinaryOverloads("atan2", Math.atan2),
+            commonUnaryOverloads("sinh", Math.sinh),
+            commonUnaryOverloads("cosh", Math.cosh),
+            commonUnaryOverloads("tanh", Math.tanh),
+            commonUnaryOverloads("asinh", Math.asinh),
+            commonUnaryOverloads("acosh", Math.acosh),
+            commonUnaryOverloads("atanh", Math.atanh),
+            commonUnaryOverloads("ceil", Math.ceil),
+            commonUnaryOverloads("floor", Math.floor),
+            commonUnaryOverloads("trunc", Math.trunc),
+            commonUnaryOverloads("round", Math.round),
+        ].flat());
 
-        const regFunc = function(f: (rt: CRuntime, _this: Variable, ...args: (Variable | DummyVariable)[]) => any, lt: VariableType | "global", name: string, args: (VariableType | "?")[], retType: VariableType, optionalArgs?: OptionalArg[]) {
-            rt.regFunc(f, lt, name, args, retType, optionalArgs);
-            rt.addToNamespace("std", name, rt.readVar(name));
-        };
-
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.cos(x.v))), g, "cos", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.sin(x.v))), g, "sin", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.tan(x.v))), g, "tan", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.acos(x.v))), g, "acos", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.asin(x.v))), g, "asin", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.atan(x.v))), g, "atan", [tDouble], tDouble);
-        regFunc(((rt, _this, y: FloatVariable, x: FloatVariable) => rt.val(tDouble, Math.atan(y.v / x.v))), g, "atan2", [tDouble, tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.cosh(x.v))), g, "cosh", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.sinh(x.v))), g, "sinh", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.tanh(x.v))), g, "tanh", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.acosh(x.v))), g, "acosh", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.asinh(x.v))), g, "asinh", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.atanh(x.v))), g, "atanh", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.exp(x.v))), g, "exp", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.log(x.v))), g, "log", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.log10(x.v))), g, "log10", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable, y: FloatVariable) => rt.val(tDouble, Math.pow(x.v, y.v))), g, "pow", [tDouble, tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.sqrt(x.v))), g, "sqrt", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.ceil(x.v))), g, "ceil", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.floor(x.v))), g, "floor", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.abs(x.v))), g, "fabs", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.abs(x.v))), g, "abs", [tDouble], tDouble);
-        regFunc(((rt, _this, x: FloatVariable) => rt.val(tDouble, Math.round(x.v))), g, "round", [tDouble], tDouble);
     }
-};
+}
+
+

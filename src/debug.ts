@@ -1,14 +1,17 @@
 import JSCPP from "./launcher";
 import * as yaml from "js-yaml";
 import * as fs from "fs";
-import { IntVariable, JSCPPConfig } from "./rt";
+import { JSCPPConfig } from "./rt";
 import * as readline from "readline";
 import Debugger from "./debugger";
+import { ArithmeticVariable } from "./variables";
 
 function startDebug() {
     const argv = require("minimist")(process.argv.slice(2));
 
-    const config: JSCPPConfig = {};
+    const config: JSCPPConfig = {
+        loadedLibraries: [],
+    };
 
     if (process.argv.length > 2) {
         let testName = argv._[0];
@@ -101,10 +104,8 @@ function startDebug() {
                 return this.slice(s.length) === s;
             };
 
-            const lastOutputPos = 0;
-
             rl.on("line", function (line) {
-                let done: false | IntVariable = false;
+                let done: false | ArithmeticVariable = false;
                 try {
                     const cmds = line.trim().split(" ");
                     switch (cmds[0]) {
@@ -116,7 +117,9 @@ function startDebug() {
                             break;
                         case "c": case "current": case "pos":
                             const s = mydebugger.nextNode();
-                            console.log(`${s.sLine}:${s.sColumn}(${s.sOffset}) - ${s.eLine}:${s.eColumn}(${s.eOffset})`);
+                            if (s !== null) {
+                                console.log(`${s.sLine}:${s.sColumn}(${s.sOffset}) - ${s.eLine}:${s.eColumn}(${s.eOffset})`);
+                            }
                             break;
                     }
                 } catch (e) {

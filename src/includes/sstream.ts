@@ -1,256 +1,304 @@
-/* eslint-disable no-shadow */
-import { ArrayVariable, CRuntime, ClassType, ObjectValue, ObjectVariable, Variable, IntVariable, VariableType } from "../rt";
-import { ios_base, getBit } from "./shared/ios_base";
-import { read, skipSpace } from "./shared/string_utils";
+import { CRuntime } from "../rt";
+import { StringVariable } from "../shared/string_utils";
+import * as ios_base from "../shared/ios_base";
+import * as common from "../shared/common";
+import * as utf8 from "../utf8";
+import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, variables } from "../variables";
 
-interface stringStreamObject extends ObjectVariable {
-    v: ObjectValue
-};
-
-const getString = function(rt: CRuntime, _this: stringStreamObject) {
-    const buffer: string = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
-    const inserted_buffer: string = (_this.v.members["inserted_buffer"] as any).join("");
-
-    return rt.makeCharArrayFromString(inserted_buffer + buffer.substring(inserted_buffer.length));
-};
-
-function _load(rt: CRuntime, class_name: string) {
-    const stringStreamType: ClassType = rt.newClass(class_name, [{
-        name: "buffer",
-        type: rt.arrayPointerType(rt.charTypeLiteral, 0),
-        initialize(rt, _this) {
-            return rt.makeCharArrayFromString("");
-        }
-    }, {
-        name: "extracted_buffer",
-        type: rt.arrayPointerType(rt.charTypeLiteral, 0),
-        initialize(rt, _this) {
-            return null;
-        }
-    }, {
-        name: "inserted_buffer",
-        type: [] as any,
-        initialize(rt, _this) {
-            return [] as any;
-        }
-    }, {
-        name: "state",
-        type: rt.intTypeLiteral,
-        initialize(rt, _this) {
-            return rt.val(rt.intTypeLiteral, ios_base.iostate.goodbit);
-        }
-    }]);
-
-
-    rt.addToNamespace("std", class_name, stringStreamType);
-
-    const stringStreamTypeSig = rt.getTypeSignature(stringStreamType);
-    rt.types[stringStreamTypeSig].handlers = {
-        "o(())": {
-            default(rt: CRuntime, _this: stringStreamObject, ...args: Variable[]) {
-                const [_string] = args;
-
-                _this.v.members["buffer"] = rt.clone(_string);
-                (_this.v.members["inserted_buffer"] as any) = [];
-            }
-        },
-        "o(bool)": {
-            functions: {
-                [''](rt: CRuntime, _this: stringStreamObject) {
-                    const state: any = _this.v.members["state"].v as number;
-                    const endOfString: boolean = getBit(state, ios_base.iostate.eofbit);
-                    if (endOfString)
-                        return false;
-
-                    return _this;
-                }
-            },
-        }
-    };
-
-    const getString = function(rt: CRuntime, _this: stringStreamObject) {
-        const buffer: string = rt.getStringFromCharArray(_this.v.members["buffer"] as ArrayVariable);
-        const inserted_buffer: string = (_this.v.members["inserted_buffer"] as any).join("");
-
-        return rt.makeCharArrayFromString(inserted_buffer + buffer.substring(inserted_buffer.length));
-    };
-
-    function setBitTrue(_this: ObjectVariable, bit: number) {
-        _this.v.members["state"].v = (_this.v.members["state"].v as number) | bit;
-    }
-
-
-    rt.regFunc(getString, stringStreamType, "str", [], rt.charTypeLiteral);
-
-
-    function _panic(_rt: CRuntime, fnname: string, description: string): void {
-        _rt.raiseException(fnname + "(): " + description);
-    }
-
-    function _memcpy_chr(_rt: CRuntime, dst: ArrayVariable, src: ArrayVariable, cnt: number): void {
-        let chrType = _rt.charTypeLiteral;
-        if (!(_rt.isTypeEqualTo(src.t.eleType, dst.t.eleType) && _rt.isTypeEqualTo(src.t.eleType, chrType))) {
-            _panic(_rt, "<_memcpy_chr (inner)>", "arguments do not have a char[] type");
-        }
-        for (let i = 0; i < cnt; i++) {
-            dst.v.target[dst.v.position + i].v = src.v.target[src.v.position + i].v;
-        }
-    }
-
-    // 1) int std::sstream::get();
-    //    FUNCTION I32 ( LPTR CLASS std::sstream < > )
-    //
-    // 2) std::sstream& std::sstream::get(char &ch);
-    //    FUNCTION LPTR CLASS std::sstream < > ( LPTR CLASS std::sstream < > LPTR I8 )
-    //
-    // 3) std::sstream& std::sstream::get(char *s, int count);
-    //    FUNCTION LPTR CLASS std::sstream < > ( LPTR CLASS std::sstream < > PTR I8 )
-    //
-    // 4) std::sstream& std::sstream::get(char *s, int count, char delim);
-    //    FUNCTION LPTR CLASS std::sstream < > ( LPTR CLASS std::sstream < > PTR I8 I8 )
-    rt.regFunc(function(_rt: CRuntime, _this: ObjectVariable, _charPtr: Variable, streamSize: IntVariable, delim: IntVariable) {
-        if (_this?.t === undefined) {
-            _panic(_rt, "get", "parameter 'this' is undefined");
-        }
-        if (_charPtr?.t === undefined) {
-            if (!(streamSize?.t === undefined || delim?.t === undefined)) {
-                _panic(_rt, "get", "internal error: invalid trailing arguments");
-            }
-            _panic(_rt, "get", "not yet implemented");
-        } else if (streamSize?.t === undefined) {
-            if (!(delim?.t === undefined)) {
-                _panic(_rt, "get", "internal error: invalid trailing arguments");
-            }
-            if (!((_charPtr.left ?? false) && _rt.isTypeEqualTo(_charPtr.t, _rt.charTypeLiteral))) {
-                _panic(_rt, "get", "expected argument 1 to be of 'char&' type");
-            }
-            _panic(_rt, "get", "not yet implemented");
-        } else {
-            if (!_rt.isTypeEqualTo(_charPtr.t, _rt.normalPointerType(_rt.charTypeLiteral))) {
-                _panic(_rt, "get", "expected argument 1 to be of 'char*' type");
-            }
-            if (!_rt.isNumericType(streamSize.t)) {
-                _panic(_rt, "get", "expected argument 2 to be of 'int' type");
-            }
-            if (delim?.t === undefined) {
-                delim = _rt.val(rt.charTypeLiteral, "\n".codePointAt(0));
-            } else if (!_rt.isTypeEqualTo(delim.t, _rt.charTypeLiteral)) {
-                _panic(_rt, "get", "expected argument 3 to be of 'char' type");
-            }
-
-            if (getBit(_this.v.members['state'].v as number, ios_base.iostate.eofbit)) {
-                setBitTrue(_this, ios_base.iostate.failbit);
-                return _this;
-            }
-            const buffer = _this.v.members["buffer"] as ArrayVariable;
-            const charPtr = _charPtr as ArrayVariable;
-            let cnt = 0;
-            while (buffer.v.position + cnt < buffer.v.target.length &&
-                cnt < streamSize.v) {
-                if (buffer.v.target[buffer.v.position + cnt].v === delim.v) {
-                    break;
-                }
-                cnt++;
-            }
-            _memcpy_chr(_rt, charPtr, buffer, cnt);
-            charPtr.v.target[charPtr.v.position + cnt].v = 0;
-            buffer.v.target = buffer.v.target.slice(buffer.v.position + cnt);
-            buffer.v.position = 0;
-            if (buffer.v.target.length === 0) {
-                setBitTrue(_this, ios_base.iostate.eofbit);
-            }
-            if (cnt === 0) {
-                setBitTrue(_this, ios_base.iostate.failbit);
-            }
-            return _this;
-        }
-    }, stringStreamType, "get", ["?"], "?" as unknown as VariableType);
-
-
-    return stringStreamType;
-}
+type IStringStreamValue = ios_base.IStreamValue;
+type IStringStreamVariable = AbstractVariable<ios_base.OStreamType, IStringStreamValue>;
 
 export = {
     load(rt: CRuntime) {
-        const iStringStreamType = _load(rt, "istringstream");
-        const stringStreamType = _load(rt, "stringstream");
-        const stringStreamTypeSig = rt.getTypeSignature(stringStreamType);
-        const iStringStreamTypeSig = rt.getTypeSignature(iStringStreamType);
-
-        function setBitTrue(_this: stringStreamObject, bit: number) {
-            _this.v.members["state"].v = (_this.v.members["state"].v as number) | bit;
+        if (!rt.varAlreadyDefined("endl")) {
+            const endl = rt.getCharArrayFromString("\n");
+            rt.addToNamespace("std", "endl", endl);
         }
 
-        const operatorGtGt = {
-            default(rt: CRuntime, _this: stringStreamObject, t: any) {
-                const state: any = _this.v.members["state"].v as number;
-                const endOfString: boolean = getBit(state, ios_base.iostate.eofbit);
-                if (endOfString)
-                    return _this;
+        for (const structName of ["istringstream", "stringstream"]) {
+            const charType = variables.arithmeticType("I8");
+            rt.defineStruct("{global}", structName, [
+                {
+                    name: "buf",
+                    variable: variables.indexPointer<ArithmeticVariable>(variables.arrayMemory(charType, []), 0, false, "SELF")
+                },
+                {
+                    name: "fd",
+                    variable: variables.uninitArithmetic("I32", "SELF"),
+                },
+                {
+                    name: "eofbit",
+                    variable: variables.arithmetic("BOOL", 0, "SELF"),
+                },
+                {
+                    name: "badbit",
+                    variable: variables.arithmetic("BOOL", 0, "SELF"),
+                },
+                {
+                    name: "failbit",
+                    variable: variables.arithmetic("BOOL", 0, "SELF"),
+                },
+            ]);
 
-                const extracted_buffer = (_this.v.members["extracted_buffer"] || (_this.v.members["extracted_buffer"] = getString(rt, _this))) as ArrayVariable;
-                const buffer = rt.getStringFromCharArray(extracted_buffer);
+            const whitespaceChars = [0, 9, 10, 32];
 
-                let r;
-                let v;
-                let b = buffer;
-                switch (t.t.name) {
-                    case "string":
-                        b = skipSpace(b);
-                        r = b.length === 0 ? ([""]) : read(rt, /^[^\s]+/, b, t.t);
-                        v = rt.makeCharArrayFromString(r[0]).v;
-                        break;
-                    case "char": case "signed char": case "unsigned char":
-                        b = skipSpace(b);
-                        r = b.length === 0 ? ([""]) : read(rt, /^(?:.|\s)/, b, t.t);
-                        v = r[0].charCodeAt(0);
-                        break;
-                    case "short": case "short int": case "signed short": case "signed short int": case "unsigned short": case "unsigned short int": case "int": case "signed int": case "unsigned": case "unsigned int": case "long": case "long int": case "signed long": case "signed long int": case "unsigned long": case "unsigned long int": case "long long": case "long long int": case "signed long long": case "signed long long int": case "unsigned long long": case "unsigned long long int":
-                        b = skipSpace(b);
-                        r = read(rt, /^[-+]?(?:([0-9]*)([eE]\+?[0-9]+)?)|0/, b, t.t);
-                        v = parseInt(r[0], 10);
-                        break;
-                    case "float": case "double":
-                        b = skipSpace(b);
-                        r = b.length === 0 ? ([""]) : read(rt, /^[-+]?(?:[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/, b, t.t);  // fixed to allow floats such as 0
-                        v = parseFloat(r[0]);
-                        break;
-                    case "bool":
-                        b = skipSpace(b);
-                        r = b.length === 0 ? ([""]) : read(rt, /^(true|false)/, b, t.t);
-                        v = r[0] === "true";
-                        break;
-                    default:
-                        rt.raiseException(">> operator in stringstream cannot accept " + rt.makeTypeString(t?.t));
+            common.regOps(rt, [
+                {
+                    op: "o(!_)",
+                    type: `FUNCTION BOOL ( LREF CLASS ${structName} < > )`,
+                    default(_rt: CRuntime, _templateTypes: [], _this: IStringStreamVariable) {
+                        const failbit = _this.v.members.failbit.v.value;
+                        const badbit = _this.v.members.badbit.v.value;
+                        return variables.arithmetic("BOOL", failbit | badbit, null);
+                    }
+                },
+                {
+                    op: "o(_bool)",
+                    type: `FUNCTION BOOL ( LREF CLASS ${structName} < > )`,
+                    default(_rt: CRuntime, _templateTypes: [], _this: IStringStreamVariable): ArithmeticVariable {
+                        const failbit = _this.v.members.failbit.v.value;
+                        const badbit = _this.v.members.badbit.v.value;
+                        return variables.arithmetic("BOOL", (failbit !== 0 || badbit !== 0) ? 0 : 1, null);
+                    }
+                },
+                {
+                    op: "o(_>>_)",
+                    type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > LREF Arithmetic )`,
+                    default(_rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, r: ArithmeticVariable): IStringStreamVariable {
+                        // TODO: this and istream functions share equal code. Merge into a single shared function
+                        const buf = l.v.members.buf;
+                        const eofbit = l.v.members.eofbit;
+                        const failbit = l.v.members.failbit;
+                        //const badbit = l.v.members.badbit;
+                        if (eofbit.v.value) {
+                            failbit.v.value = 1;
+                            return l;
+                        }
+                        let char: number;
+                        while (true) {
+                            if (buf.v.pointee.values.length <= buf.v.index) {
+                                failbit.v.value = 1;
+                                eofbit.v.value = 1;
+                                return l;
+                            }
+                            char = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
+                            if (!(whitespaceChars.includes(char))) {
+                                break;
+                            }
+                            buf.v.index++;
+                        }
+                        if (r.t.sig === "I8") {
+                            variables.arithmeticAssign(r, char, rt.raiseException);
+                            buf.v.index++;
+                        } else {
+                            let wordValues: number[] = [];
+                            while (!(whitespaceChars.includes(char))) {
+                                wordValues.push(char);
+                                buf.v.index++;
+                                if (buf.v.pointee.values.length <= buf.v.index) {
+                                    eofbit.v.value = 1;
+                                    break;
+                                }
+                                char = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
+                                if (failbit.v.value === 1) {
+                                    return l;
+                                }
+                            }
+                            if (wordValues.length === 0) {
+                                failbit.v.value = 1;
+                                return l;
+                            }
+                            const wordString = utf8.fromUtf8CharArray(new Uint8Array(wordValues));
+                            const num = Number.parseFloat(wordString);
+                            if (Number.isNaN(num)) {
+                                failbit.v.value = 1;
+                                return l;
+                            }
+                            variables.arithmeticAssign(r, num, rt.raiseException);
+                        }
+                        rt.adjustArithmeticValue((r as InitArithmeticVariable));
+                        return l;
+                    },
+                },
+                {
+                    op: "o(_>>_)",
+                    type: `FUNCTION LREF CLASS istream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > )`,
+                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, r: StringVariable): IStringStreamVariable {
+                        const eofbit = l.v.members.eofbit;
+                        const failbit = l.v.members.failbit;
+                        const buf = l.v.members.buf;
+                        let char: InitArithmeticVariable;
+                        while (true) {
+                            char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
+                            if (char.v.value === 0) {
+                                eofbit.v.value = 1;
+                                failbit.v.value = 1;
+                                return l;
+                            }
+                            if (!(whitespaceChars.includes(char.v.value))) {
+                                break;
+                            }
+                            variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                        }
+
+                        let i = 0;
+                        const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
+                        while (!(whitespaceChars.includes(char.v.value))) {
+                            memory.values.push(variables.arithmetic("I8", char.v.value, { array: memory, index: i }).v);
+                            variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                            char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
+                            i++;
+                            if (char.v.value === 0) {
+                                eofbit.v.value = 1;
+                                break;
+                            }
+                        }
+                        memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: i }).v);
+
+                        variables.indexPointerAssign(r.v.members._ptr, memory, 0, rt.raiseException);
+                        r.v.members._size.v.value = i;
+
+                        if (i === 0) {
+                            failbit.v.value = 1;
+                            return l;
+                        }
+
+                        return l;
+                    }
                 }
+            ]);
 
-                const len = r[0].length;
-                if (len === 0) {
-                    setBitTrue(this, ios_base.iostate.eofbit);
+            const thisType = (rt.simpleType([`${structName}`]) as MaybeLeft<ClassType>).t;
+
+            const ctorHandler: common.OpHandler = {
+                op: "o(_ctor)",
+                type: `FUNCTION CLASS ${structName} < > ( CLREF CLASS string < > )`,
+                default(_rt: CRuntime, _templateTypes: [], s: StringVariable): IStringStreamVariable {
+                    const result = rt.defaultValue(thisType, "SELF") as IStringStreamVariable;
+                    const sbuf = variables.asInitIndexPointer(s.v.members._ptr) as InitIndexPointerVariable<ArithmeticVariable> | null;
+                    if (sbuf !== null) {
+                        variables.indexPointerAssign(result.v.members.buf, sbuf.v.pointee, sbuf.v.index, rt.raiseException);
+                    }
+
+                    return result;
                 }
+            };
 
-                if (len !== 0) {
-                    t.v = rt.val(t.t, v).v;
-                    _this.v.members["extracted_buffer"].v = rt.makeCharArrayFromString(b.substring(len)).v;
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
+
+            function _getline(rt: CRuntime, l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStringStreamVariable {
+                let b = l.v.members.buf;
+                const count = rt.arithmeticValue(_count);
+                const delim = rt.arithmeticValue(_delim);
+                const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmetic("I8", null));
+                if (s === null) {
+                    rt.raiseException("Not an index pointer");
                 }
+                if (b.v.index >= b.v.pointee.values.length) {
+                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                }
+                let cnt = 0;
+                while (cnt < count - 1) {
+                    const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticVariable;
+                    const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                    if (bi === delim || bi === 0) {
+                        // consume the delimiter
+                        variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                        variables.arithmeticAssign(si, 0, rt.raiseException);
+                        break;
+                    }
+                    variables.arithmeticAssign(si, bi, rt.raiseException);
+                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    cnt++;
+                }
+                if (cnt === 0) {
+                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                }
+                return l;
+            }
+            function _getlineStr(rt: CRuntime, l: IStringStreamVariable, s: StringVariable, _delim: ArithmeticVariable): void {
+                let b = l.v.members.buf;
+                const delim = rt.arithmeticValue(_delim);
+                const i8type = s.v.members._ptr.t.pointee;
+                if (b.v.index >= b.v.pointee.values.length) {
+                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    return;
+                }
+                let cnt = 0;
+                const memory = variables.arrayMemory<ArithmeticVariable>(i8type, []);
+                while (true) {
+                    const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                    if (bi === delim || bi === 0) {
+                        // consume the delimiter
+                        variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                        //variables.arithmeticAssign(si, 0, rt.raiseException);
+                        break;
+                    }
+                    memory.values.push(variables.arithmetic(i8type.sig, bi, { array: memory, index: cnt }).v);
+                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    cnt++;
+                }
+                memory.values.push(variables.arithmetic(i8type.sig, 0, { array: memory, index: cnt }).v);
+                if (cnt === 0) {
+                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                }
+                variables.indexPointerAssign(s.v.members._ptr, memory, 0, rt.raiseException);
+                s.v.members._size.v.value = cnt;
+            }
+            common.regMemberFuncs(rt, `${structName}`, [
+                {
+                    op: "get",
+                    type: `FUNCTION I32 ( LREF CLASS ${structName} < > )`,
+                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable): InitArithmeticVariable {
+                        let b = l.v.members.buf;
+                        if (b.v.pointee.values.length <= b.v.index) {
+                            variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                            variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                            return variables.arithmetic("I32", -1, null);
+                        }
+                        const top = variables.arrayMember(b.v.pointee, b.v.index);
+                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
+                        const retv = variables.arithmetic("I32", rt.arithmeticValue(top), null, false);
+                        rt.adjustArithmeticValue(retv);
+                        return retv;
+                    }
+                },
+                {
+                    op: "getline",
+                    type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > PTR I8 I32 I8 )`,
+                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStringStreamVariable {
+                        return _getline(rt, l, _s, _count, _delim);
+                    }
+                },
+                {
+                    op: "getline",
+                    type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > PTR I8 I32 )`,
+                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IStringStreamVariable {
+                        return _getline(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"));
+                    }
+                },
+            ]);
 
-                return _this;
-            },
-        };
-        const operatorLtLt = {
-            default(rt: CRuntime, _this: stringStreamObject, t: any) {
-                const inserted_buffer: any = _this.v.members["inserted_buffer"];
-                const inputValue = rt.isArrayType(t) ? rt.getStringFromCharArray(t as any) : t.v;
-
-                inserted_buffer.push(inputValue);
-
-                return _this;
-            },
-        };
-
-        rt.types[iStringStreamTypeSig].handlers["o(>>)"] = operatorGtGt;
-
-        rt.types[stringStreamTypeSig].handlers["o(>>)"] = operatorGtGt;
-        rt.types[stringStreamTypeSig].handlers["o(<<)"] = operatorLtLt;
+            common.regGlobalFuncs(rt, [
+                {
+                    op: "getline",
+                    type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > I8 )`,
+                    default(rt: CRuntime, _templateTypes: [], input: IStringStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
+                        _getlineStr(rt, input, str, delim);
+                        return input;
+                    }
+                },
+                {
+                    op: "getline",
+                    type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > )`,
+                    default(rt: CRuntime, _templateTypes: [], input: IStringStreamVariable, str: StringVariable) {
+                        _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
+                        return input;
+                    }
+                },
+            ]);
+        }
     }
 };
+

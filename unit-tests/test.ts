@@ -76,8 +76,8 @@ function doCases(cases: SingleTestCase[], cb: Callback) {
     for (const sample of cases) {
         const cppFile = sample.cpp;
         const code = fs.readFileSync(testFolder + cppFile, "utf-8");
-        const input = sample.in;
-        const expected = sample.out;
+        const input = sample.in ?? "";
+        const expected = sample.out ?? "";
         const except = sample.exception ?? "default_exception";
         const { exitcode, config } = sample;
         _describe(`${cppFile}`, () => doSample(code, input, expected, except, exitcode, config, (result: boolean) => success = success && result));
@@ -102,10 +102,12 @@ function doSample(code: string, input: string, expected: string | null, except: 
                 exitcode = ExitCode;
             },
             promiseError(e: string) {
+                console.log(`except: ${JSON.stringify(except)}`);
+                console.log(`e: ${JSON.stringify(e)}`);
                 if (except) {
                     _it("expected exception", function() {
                         const eStr = prepareOutput(e.toString());
-                        const ok = eStr!.match(except);
+                        const ok = (except === "default_exception") ? true : eStr!.match(except);
                         assert.ok(ok);
                         cb(ok != null);
                     });

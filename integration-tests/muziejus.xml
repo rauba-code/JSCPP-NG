@@ -27,6 +27,9 @@ int main() {
     std::ofstream rezultatai("Rezultatai.txt");
 
     int visitorCounts[INTERVALS];
+    for (int i = 0; i < INTERVALS; i++) {
+        visitorCounts[i] = 0;
+    }
     int maxVisitors = 0, maxVisitorsInterval = 0;
 
     int arriveHour, arriveMinute, leaveHour, leaveMinute;

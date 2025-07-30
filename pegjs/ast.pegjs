@@ -98,7 +98,7 @@ Label
     / DEFAULT COLON {return addPositionInfo({type: 'Label_default'});}
 
 CompoundStatement
-    = LWING a:(UsingDirective / STLDeclaration / Statement / Declaration)* RWING {
+    = LWING a:(UsingDirective / Declaration / Statement)* RWING {
         return addPositionInfo({type: 'CompoundStatement', Statements: a});
       }
     ;
@@ -146,15 +146,13 @@ JumpStatement
 //-------------------------------------------------------------------------
 
 DeclarationFOREACH
-    = STLDeclaration 
-    / a:DeclarationSpecifiers b:InitDeclaratorList? {
+    = a:DeclarationSpecifiers b:InitDeclaratorList? {
       return addPositionInfo({type: 'Declaration', DeclarationSpecifiers:a, InitDeclaratorList:b});
     }
     ;
 
 Declaration
-    = STLDeclaration 
-    / a:DeclarationSpecifiers b:InitDeclaratorList? SEMI {
+    = a:DeclarationSpecifiers b:InitDeclaratorList? SEMI {
       return addPositionInfo({type: 'Declaration', DeclarationSpecifiers:a, InitDeclaratorList:b});
     }
     ;
@@ -169,14 +167,14 @@ StructDeclaration
     } 
 
 StructMemberDeclaration
-  = a:TypeScopedIdentifier b:InitDeclaratorList SEMI {
+  = a:DeclarationSpecifiers b:InitDeclaratorList SEMI {
     return addPositionInfo({type: 'StructMember', MemberType: a, Declarators: b });
   };
 
 DeclarationSpecifiers
     = a:(
        a:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )*
-       b:( ScopedIdentifier / TypedefName )
+       b:( ScopedMaybeTemplatedIdentifier / TypedefName )
        c:( StorageClassSpecifier / TypeQualifier / FunctionSpecifier )* {
         return a.concat([b]).concat(c);
        }
@@ -215,7 +213,6 @@ TypeSpecifier
     = a: (VOID
     / AUTO
     / CHAR
-    / STRING
     / SHORT
     / INT
     / LONG
@@ -287,22 +284,16 @@ Declarator
     } )
     ;
 
-TypeScopedIdentifier = TypeSpecifier / ScopedIdentifier;
+TypeScopedMaybeTemplatedIdentifier = TypeSpecifier / ScopedMaybeTemplatedIdentifier;
 
-STLIdentifier =
-	a:DeclarationSpecifiers LT b:TypeScopedIdentifier GT c:InitDeclarator {
-    	return addPositionInfo({type:'STLIdentifier', DeclarationSpecifiers: a, Type: b, Declarator: c });
-    }
-	;
-
-STLDeclaration = 
-	a:STLIdentifier d:(EQU? d:Initializer { return d; })? SEMI {
-    	return addPositionInfo({type:'STLDeclaration', Identifier: a.Identifier ?? a.Declarator.Declarator.left.Identifier, DeclarationSpecifiers: a.DeclarationSpecifiers, Type: a.Type, Initializer: d ?? a.Declarator.Initializers });
+ScopedMaybeTemplatedIdentifier =
+	a:ScopedIdentifier b:( LT h:DeclarationSpecifiers t:( COMMA x:DeclarationSpecifiers { return x; })* GT { return [h].concat(t); } )? {
+    	return addPositionInfo({type:'ScopedMaybeTemplatedIdentifier', ScopedIdentifier: a, TemplateType: b });
     }
 	;
 
 DirectDeclarator
-    = a:( a:Identifier { return addPositionInfo({type:'Identifier', Identifier:a}); } / LPAR a:Declarator RPAR { return a; } )
+    = (a:( a:Identifier { return addPositionInfo({type:'Identifier', Identifier:a}); } )
       b:( 
         LBRK ac:TypeQualifier* b:AssignmentExpression? RBRK {
           return addPositionInfo({type:'DirectDeclarator_modifier_array', Modifier: ac || [], Expression: b});
@@ -327,7 +318,14 @@ DirectDeclarator
         }
       )* {
         return addPositionInfo({ type:'DirectDeclarator', left: a, right: b });
-      }
+      }) / (
+      	a:(LPAR a:Declarator RPAR { return a; })
+        b:(LPAR ac:ParameterTypeList RPAR {
+          return addPositionInfo({type:'DirectDeclarator_modifier_ParameterTypeList', ParameterTypeList: ac});
+        }) {
+        	return addPositionInfo({ type:'DirectDeclarator', left: a, right: b });
+      	}
+      )
     ;
 
 Pointer
@@ -362,7 +360,7 @@ ParameterList
     ;
 
 ParameterDeclaration
-    = a:( a:STLIdentifier { return [a]; } / DeclarationSpecifiers )
+    = a:( DeclarationSpecifiers )
       b:( InitDeclarator / AbstractDeclarator )? {
         return addPositionInfo({type:'ParameterDeclaration', DeclarationSpecifiers: a, Declarator: b || a[0].Declarator });
       }
@@ -663,7 +661,6 @@ REGISTER  = a:"register"      !IdChar Spacing {return a;};
 RESTRICT  = a:"restrict"      !IdChar Spacing {return a;};
 RETURN    = a:"return"        !IdChar Spacing {return a;};
 SHORT     = a:"short"         !IdChar Spacing {return a;};
-STRING    = a:"string"        !IdChar Spacing {return a;};
 SIGNED    = a:"signed"        !IdChar Spacing {return a;};
 SIZEOF    = a:"sizeof"        !IdChar Spacing {return a;};
 STATIC    = a:"static"        !IdChar Spacing {return a;};
@@ -990,3 +987,5 @@ SCOPEOP    =  a:"::"        Spacing {return a;};
 EOT        =  !_    ;
 
 _          =  . ;
+
+

@@ -1,61 +1,12 @@
-import _ = require("lodash");
-import { CRuntime, FunctionVariable, NormalPointerVariable, ArrayVariable, Variable, VariableType, VariableValue, DummyVariable } from "../rt";
+import { asResult } from "../interpreter";
+import { CRuntime, FunctionCallInstance } from "../rt";
+import * as common from "../shared/common";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable } from "../variables";
 
 export = {
     load(rt: CRuntime) {
-        rt.include("utility");
-
-        interface AlgorithmIterator {
-            pointee_type: VariableType,
-            first_pos: number,
-            last_pos: number,
-            array: any[]
-        };
-        function _panic(_rt: CRuntime, fnname: string, description: string): void {
-            _rt.raiseException(fnname + "(): " + description);
-        }
-        type AlgorithmIterable = Variable | NormalPointerVariable | ArrayVariable;
-        function createAlgorithmIterator(_rt: CRuntime, _first: AlgorithmIterable, _last: AlgorithmIterable, fnname: string): AlgorithmIterator {
-            function checkForIterTargets(__rt: CRuntime, lhs: any, rhs: any, _fnname: string): void {
-                if (lhs !== rhs) {
-                    _panic(__rt, _fnname, "undefined behaviour caused by pointers 'first' and 'last' pointing to different arrays");
-                }
-            }
-            if (_first?.t === undefined) {
-                _panic(_rt, fnname, "parameter 'first' is undefined");
-            }
-            if (_last?.t === undefined) {
-                _panic(_rt, fnname, "parameter 'last' is undefined");
-            }
-            if (!(_.isEqual(_first.t, _last.t))) {
-                _panic(_rt, fnname, "parameters 'first' and 'last' have different types");
-            }
-            if (rt.isArrayType(_first) && rt.isArrayType(_last)) {
-                const first = _first as ArrayVariable;
-                const last = _last as ArrayVariable;
-                checkForIterTargets(_rt, first.v.target, last.v.target, fnname);
-                return {
-                    pointee_type: first.t.eleType,
-                    first_pos: first.v.position,
-                    last_pos: last.v.position,
-                    array: first.v.target,
-                }
-            } else if ((_first as any).scope !== undefined && (_last as any).scope !== undefined) {
-                const first = _first as any;
-                const last = _last as any;
-                checkForIterTargets(_rt, first.iterables, last.iterables, fnname);
-                return {
-                    pointee_type: first.t,
-                    first_pos: first.index,
-                    last_pos: last.index,
-                    array: first.iterables
-                }
-            } else {
-                _panic(_rt, fnname, "erroneous types of the parameters 'first' and/or 'last'");
-            }
-        }
         // this may be useful for using functions with parameters
-        function invoke_arbitrary_function(_rt: CRuntime, fun: FunctionVariable, ...args: (Variable | DummyVariable)[]): VariableValue {
+        /*function invoke_arbitrary_function(_rt: CRuntime, fun: Function, ...args: Variable[]): Variable {
             let invocation = fun?.v?.target(_rt, fun, ...args);
             if (invocation === undefined) {
                 _panic(_rt, "<internal>", "failed to invoke a given function (function is unknown)");
@@ -67,8 +18,8 @@ export = {
                 }
             }
             _panic(_rt, "<internal>", "failed to invoke a given function (runtime limit exceeded)");
-        }
-        function sort_inner(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable, _comp: any): void {
+        }*/
+        /*function sort_inner(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable, _comp: any): void {
             const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "sort");
             if (_comp !== undefined) {
                 if (_comp.t?.type !== "function") {
@@ -121,6 +72,66 @@ export = {
             for (let i = it.first_pos; i < it.last_pos; i++) {
                 it.array[i] = value_array[i - it.first_pos];
             }
+        }*/
+
+        function yieldBlocking(x: ResultOrGen<MaybeUnboundVariable | "VOID">): InitArithmeticVariable {
+            if (asResult(x)) {
+                if (x === "VOID") {
+                    rt.raiseException("sort: expected arithmetic result, got VOID");
+                }
+                return variables.asInitArithmetic(rt.unbound(x as MaybeUnboundVariable)) ?? rt.raiseException("sort: expected arithmetic result");
+            } else {
+                const call = x as Gen<MaybeUnboundVariable | "VOID">;
+                for (let i: number = 0; i < 100_000; i++) {
+                    const _retv = call.next();
+                    if (_retv.done === true) {
+                        if (_retv.value === "VOID") {
+                            rt.raiseException("sort: expected arithmetic result, got VOID");
+                        }
+                        return variables.asInitArithmetic(rt.unbound(_retv.value)) ?? rt.raiseException("sort: expected arithmetic result");
+                    }
+                }
+            }
+            rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
+        }
+
+        function sort_inner2(rt: CRuntime, _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>, _cmp: PointerVariable<Function> | null = null): "VOID" {
+            if (_l.t.pointee.sig === "FUNCTION" || _r.t.pointee.sig === "FUNCTION") {
+                rt.raiseException("sort: invalid argument")
+            }
+            const l: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(_l) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
+            const r: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(_r) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
+            if (l.v.pointee !== r.v.pointee) {
+                rt.raiseException("sort: expected parameters 'first' and 'last' to point to a same memory region");
+            }
+            // alt. variant: variables.arrayMember(...)
+            const region = l.v.pointee.values.slice(l.v.index, r.v.index - l.v.index).map(v => ({ t: l.v.pointee.objectType, v })) as Variable[];
+            if (region.length === 0) {
+                return "VOID";
+            }
+            let indexRegion: number[] = [];
+            for (let i = 0; i < region.length; i++) {
+                indexRegion.push(i);
+            }
+            const clref_t : MaybeLeftCV<ObjectType> = { t: l.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
+            const cmpFun = (_cmp !== null) ? (variables.asInitDirectPointer(_cmp) as InitDirectPointerVariable<Function> ?? rt.raiseException("sort: Parameter 'cmp' does not point to a function")) : null;
+            const ltFun = (cmpFun === null) ? rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []) : null;
+            function sortCmp(li: number, ri: number): number {
+                // JavaScript specifically wants a symmetrical comparator, so we compare both sides
+                // these return 0.0 or 1.0
+                const lhs = region[li];
+                const rhs = region[ri];
+                const a_lt_b = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, lhs, rhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], lhs, rhs)).v.value;
+                const b_lt_a = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, rhs, lhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], rhs, lhs)).v.value;
+                // return -2.0, 0.0, or 2.0
+                return b_lt_a - a_lt_b;
+
+            }
+            indexRegion.sort(sortCmp);
+            indexRegion.forEach((ri, ci) => {
+                l.v.pointee.values[l.v.index + ci] = region[ri].v;
+            });
+            return "VOID";
         }
 
         // template<typename RandomIt> void sort(RandomIt first, RandomIt last)
@@ -136,13 +147,34 @@ export = {
         // 8) (*RandomIt) is MoveAssignable
         // 9 unwritten) Exists (*val1 < *val2).
         // 10 unwritten) Exists (val1 - val2).
-        rt.regFunc(sort_inner, "global", "sort", ["?"], rt.voidTypeLiteral);
+        //rt.regFunc(sort_inner, "global", "sort", ["?"], rt.voidTypeLiteral);
         // JavaScript Array.sort() is always stable
-        rt.regFunc(sort_inner, "global", "stable_sort", ["?"], rt.voidTypeLiteral);
-
+        //rt.regFunc(sort_inner, "global", "stable_sort", ["?"], rt.voidTypeLiteral);
+        common.regGlobalFuncs(rt, [
+            {
+                op: "sort",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
+            },
+            {
+                op: "sort",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
+            },
+            {
+                op: "stable_sort",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner2(rt, lhs, rhs); }
+            },
+            {
+                op: "stable_sort",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
+            }
+        ]);
         // InputIt is just like RandomIt but not necessarilly ValueSwappable
         // template<typename InputIt, typename T> InputIt find(InputIt first, InputIt last, const T &value);
-        rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable, _value: NormalPointerVariable | ArrayVariable) {
+        /*rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable, _value: NormalPointerVariable | ArrayVariable) {
             if (_value?.t === undefined) {
                 _panic(_rt, "find", "parameter 'value' is undefined");
             }
@@ -163,6 +195,6 @@ export = {
                 it.array[p] = t;
             }
         }, "global", "reverse", ["?"], rt.voidTypeLiteral);
-        rt.addToNamespace("std", "reverse", rt.readVar("reverse"));  
+        rt.addToNamespace("std", "reverse", rt.readVar("reverse"));*/
     }
 };

@@ -1,47 +1,41 @@
-import * as defaults from "./defaults";
 import * as Flatted from 'flatted';
-import { BaseInterpreter, Interpreter } from "./interpreter";
-import { resolveIdentifier } from "./includes/shared/string_utils";
+import { constructTypeParser, LLParser, parse } from './typecheck';
+import * as interp from "./interpreter";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
+import { TypeDB, FunctionMatchResult, abstractFunctionReturnSig } from "./typedb";
+import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
+import { sizeUntil } from './shared/string_utils';
+import * as typecheck from './typecheck';
+import * as ios_base from './shared/ios_base';
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
-export type CCharType = "char" | "signed char" | "unsigned char" | "wchar_t" | "unsigned wchar_t" | "char16_t" | "unsigned char16_t" | "char32_t" | "unsigned char32_t";
-export type CIntType = "short" | "short int" | "signed short" | "signed short int" | "unsigned short" | "unsigned short int" | "int" | "signed int" | "unsigned" | "unsigned int" | "long" | "long int" | "long int" | "signed long" | "signed long int" | "unsigned long" | "unsigned long int" | "long long" | "long long int" | "long long int" | "signed long long" | "signed long long int" | "unsigned long long" | "unsigned long long int" | "bool";
-export type CFloatType = "float" | "double";
-export type CBasicType = CCharType | CIntType | CFloatType | "void";
-export type TypeSignature = "global" | "(char)" | "(signed char)" | "(unsigned char)" | "(short)" | "(short int)" | "(signed short)" | "(signed short int)" | "(unsigned short)" | "(unsigned short int)" | "(int)" | "(signed int)" | "(unsigned)" | "(unsigned int)" | "(long)" | "(long int)" | "(long int)" | "(signed long)" | "(signed long int)" | "(unsigned long)" | "(unsigned long int)" | "(long long)" | "(long long int)" | "(long long int)" | "(signed long long)" | "(signed long long int)" | "(unsigned long long)" | "(unsigned long long int)" | "(float)" | "(double)" | "(bool)";
 
 export interface IncludeModule {
     load(rt: CRuntime): void;
 }
 
+export interface Stdio {
+    isMochaTest?: boolean;
+    promiseError: (promise_error: string) => void;
+    drain?: () => string;
+    cinStop: () => void;
+    cinProceed: () => void;
+    cinState: () => boolean;
+    setReadResult: (result: string) => void;
+    getReadResult: () => string;
+    getInput: () => Promise<string>;
+    finishCallback: (ExitCode: number) => void;
+    write: (s: string) => void;
+}
+
 export interface JSCPPConfig {
     specifiers?: Specifier[];
-    charTypes?: CCharType[];
-    intTypes?: CIntType[];
-    limits?: {
-        [typeName in CBasicType | "pointer"]?: {
-            max: number;
-            min: number;
-            bytes: number;
-        }
-    };
+    arithmeticResolutionMap?: { [x: string]: ArithmeticSig };
     includes?: { [fileName: string]: IncludeModule };
-    loadedLibraries?: string[];
+    loadedLibraries: string[];
     fstream?: {
-        open: (context: object, fileName: string) => object
+        open: (context: any, fileName: string) => FileInstance;
     };
-    stdio?: {
-        isMochaTest?: boolean;
-        promiseError: (promise_error: string) => void;
-        drain?: () => string;
-        cinStop: () => void;
-        cinProceed: () => void;
-        cinState: () => boolean;
-        setReadResult: (result: string) => void;
-        getReadResult: () => string;
-        getInput: () => Promise<string>;
-        finishCallback: (ExitCode: number) => void;
-        write: (s: string) => void;
-    };
+    stdio?: Stdio;
     unsigned_overflow?: "error" | "warn" | "ignore";
 
     debug?: boolean;
@@ -51,200 +45,13 @@ export interface JSCPPConfig {
     stopExecutionCheck?: () => boolean;
 }
 
-export type OpHandler = {
-    functions?: { [paramSignature: string]: CFunction };
-    reg?: FunctionRegistry;
-    default?: CFunction;
-};
-export type OpSignature = "o(--)" | "o(-)" | "o(-=)" | "o(->)" | "o(,)" | "o(!)" | "o(!=)" | "o(())" | "o([])" | "o(*)" | "o(*=)" | "o(/)" | "o(/=)" | "o(&)" | "o(&=)" | "o(%)" | "o(%=)" | "o(^)" | "o(^=)" | "o(+)" | "o(++)" | "o(+=)" | "o(<)" | "o(<<)" | "o(<<=)" | "o(<=)" | "o(=)" | "o(==)" | "o(>)" | "o(>=)" | "o(>>)" | "o(>>=)" | "o(|)" | "o(|=)" | "o(~)";
-
-export interface FunctionRegistry {
-    [signature: string]: {
-        args: (VariableType | "?")[];  // question mark ignores further parameter type compatibility check, useful for functions like "printf" and "scanf"
-        optionalArgs: OptionalArg[];
-    }
-}
+export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[_])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)" | "o(_call)" | "o(_stub)";
 
 export interface Member {
-    type: VariableType;
+    type: ObjectType;
     name: string;
     initialize?: (rt: CRuntime, _this: Variable) => Variable;
 }
-
-export interface OpHandlerMap {
-    handlers: { [opSignature: string]: OpHandler; };
-    cConstructor?: (rt: CRuntime, _this: Variable, args?: Variable[]) => void;
-    members?: Member[];
-    father?: string;
-};
-
-export interface BoolType {
-    type: "primitive";
-    name: "bool";
-}
-
-export interface IntType {
-    type: "primitive";
-    name: CCharType | CIntType;
-}
-
-export interface FloatType {
-    type: "primitive";
-    name: CFloatType;
-}
-
-export interface VoidType {
-    type: "primitive";
-    name: "void";
-}
-
-type PrimitiveType = BoolType | IntType | FloatType | VoidType;
-
-export interface NormalPointerType {
-    type: "pointer";
-    ptrType: "normal";
-    targetType: VariableType;
-}
-
-export interface ArrayType {
-    type: "pointer";
-    ptrType: "array";
-    size: number;
-    eleType: VariableType;
-}
-
-export interface FunctionPointerType {
-    type: "pointer";
-    ptrType: "function";
-    targetType: FunctionType;
-}
-
-export type PointerType = NormalPointerType | ArrayType | FunctionPointerType;
-
-export interface ReferenceType {
-    type: "reference";
-    targetType: VariableType;
-}
-
-export interface StructType {
-    type: "struct";
-    name: string;
-}
-
-export interface OperatorFunctionType {
-    type: "function";
-}
-
-export interface FunctionType {
-    type: "function";
-    retType?: VariableType;
-    signature?: (VariableType | "?")[];
-}
-
-export interface ClassType {
-    type: "class";
-    name: string;
-}
-
-export type VariableType = PrimitiveType | ReferenceType | StructType | PointerType | FunctionType | ClassType;
-
-export type BasicValue = number | boolean;
-
-export interface NormalPointerValue {
-    target: Variable | null;
-}
-
-export interface ArrayValue {
-    position: number;
-    target: Variable[];
-}
-
-export type PointerValue = NormalPointerValue | ArrayValue | FunctionPointerValue;
-
-export interface ObjectValue {
-    members?: { [name: string]: Variable };
-}
-
-export type VariableValue = PointerValue | ObjectValue | BasicValue | FunctionValue;
-
-export interface BoolVariable {
-    t: PrimitiveType;
-    v: boolean;
-}
-
-export interface IntVariable {
-    t: PrimitiveType;
-    v: number;
-}
-
-export interface FloatVariable {
-    t: FloatType;
-    v: number;
-}
-
-type PrimitiveVariable = BoolVariable | IntVariable | FloatVariable;
-
-export interface NormalPointerVariable {
-    t: NormalPointerType;
-    v: NormalPointerValue;
-}
-
-export interface ArrayVariable {
-    t: ArrayType;
-    v: ArrayValue;
-}
-
-export interface FunctionPointerValue {
-    target: FunctionVariable,
-    name: string,
-    defineType: VariableType | "global",
-    args: (VariableType | "?")[],
-    retType: VariableType,
-};
-
-export interface FunctionPointerVariable {
-    t: FunctionPointerType;
-    v: FunctionPointerValue;
-}
-
-// Dummy is used to differentiate "pre-" or "post-" ++/-- operator
-export interface DummyVariable {
-    t: "dummy";
-    v: null;
-}
-
-type PointerVariable = NormalPointerVariable | ArrayVariable | FunctionPointerVariable;
-
-export interface ObjectVariable {
-    t: ClassType;
-    v: ObjectValue;
-    left?: boolean;
-}
-
-export interface FunctionValue {
-    target?: CFunction;
-    defineType: VariableType | "global";
-    name: string;
-    bindThis: Variable;
-}
-
-export interface FunctionVariable {
-    t: FunctionType | OperatorFunctionType;
-    v: FunctionValue;
-}
-
-export interface ArrayElementVariable {
-    t: VariableType;
-    v: VariableValue;
-    array: Variable[];
-    arrayIndex: number;
-}
-
-export type Variable = {
-    left?: boolean;
-    readonly?: boolean;
-    dataType?: PrimitiveType;
-} & (PrimitiveVariable | PointerVariable | ObjectVariable | FunctionVariable | ArrayElementVariable);
 
 export interface RuntimeScope {
     "$name": string;
@@ -258,10 +65,6 @@ export interface NamespaceScope {
         [objectName: string]: Variable;
     };
 }
-
-export interface OptionalArg { name: string, type: VariableType, expression: any }
-
-type CFunction = (rt: CRuntime, _this: Variable, ...args: (Variable | DummyVariable)[]) => any;
 
 export interface MakeValueStringOptions {
     noArray?: boolean;
@@ -280,58 +83,115 @@ export function mergeConfig(a: any, b: any) {
     }
 };
 
+export interface FunctionSymbol {
+    type: string[],
+    target: CFunction | null,
+}
+
+export interface TypeHandlerMap {
+    functionDB: TypeDB;
+    functionsByID: FunctionSymbol[];
+}
+
+export type TypeSignature = {
+    inline: string,
+    array: string[],
+};
+
+export type FileInstance = {
+    name: string;
+    _open: boolean;
+    is_open: () => boolean;
+    read: (data: string) => string | void;
+    clear: () => void;
+    write: (data: string) => void;
+    close: () => void;
+};
+
+
+export type FileManager = { freefd: number, files: { [fd: number]: FileInstance } };
+
+export type FunctionCallInstance = {
+    actions: FunctionMatchResult,
+    target: FunctionSymbol,
+};
+
 export class CRuntime {
+    parser: LLParser;
     config: JSCPPConfig;
-    numericTypeOrder: string[];
-    types: { [typeSignature: string]: OpHandlerMap }
-    intTypeLiteral: IntType;
-    unsignedintTypeLiteral: IntType;
-    longTypeLiteral: IntType;
-    floatTypeLiteral: FloatType;
-    doubleTypeLiteral: FloatType;
-    charTypeLiteral: IntType;
-    wcharTypeLiteral: IntType;
-    unsignedcharTypeLiteral: IntType;
-    boolTypeLiteral: IntType;
-    voidTypeLiteral: VoidType;
-    nullPointerValue: PointerValue;
-    voidPointerType: PointerType;
-    nullPointer: PointerVariable;
     scope: RuntimeScope[];
     namespace: NamespaceScope;
-    typedefs: { [name: string]: VariableType };
-    interp: BaseInterpreter;
+    typeMap: { [domainIdentifier: string]: TypeHandlerMap };
+    typedefs: { [name: string]: MaybeLeft<ObjectType> };
+    interp: interp.BaseInterpreter<any>;
+    fileio: FileManager;
+    ictable: typecheck.ImplicitConversionTable;
 
     constructor(config: JSCPPConfig) {
-        this.config = defaults.getDefaultConfig();
-        mergeConfig(this.config, config);
-        this.numericTypeOrder = defaults.numericTypeOrder;
-        this.types = defaults.getDefaultTypes();
+        this.parser = constructTypeParser();
+        this.config = config;
+        this.typeMap = {};
+        this.addTypeDomain("{global}");
+        this.fileio = { freefd: 4, files: {} };
 
-        this.intTypeLiteral = this.primitiveType("int") as IntType;
-        this.unsignedintTypeLiteral = this.primitiveType("unsigned int") as IntType;
-        this.longTypeLiteral = this.primitiveType("long") as IntType;
-        this.floatTypeLiteral = this.primitiveType("float") as FloatType;
-        this.doubleTypeLiteral = this.primitiveType("double") as FloatType;
-        this.charTypeLiteral = this.primitiveType("char") as IntType;
-        this.wcharTypeLiteral = this.primitiveType("wchar_t") as IntType;
-        this.unsignedcharTypeLiteral = this.primitiveType("unsigned char") as IntType;
-        this.boolTypeLiteral = this.primitiveType("bool") as IntType;
-        this.voidTypeLiteral = this.primitiveType("void") as VoidType;
-        this.nullPointerValue = this.makeNormalPointerValue(null);
-        this.voidPointerType = this.normalPointerType(this.voidTypeLiteral);
-        this.nullPointer = this.val(this.voidPointerType, this.nullPointerValue) as PointerVariable;
-        this.scope = [{ "$name": "global", variables: {} }];
+        this.scope = [{ "$name": "{global}", variables: {} }];
         this.namespace = {};
         this.typedefs = {};
+        this.ictable = {};
+    }
+
+    openFile(path: InitIndexPointerVariable<ArithmeticVariable>, mode: number): number {
+        const { fstream } = this.config;
+        if (fstream === undefined) {
+            this.raiseException("[CRuntime].config.fstream is undefined");
+        }
+        const fileName = this.getStringFromCharArray(path);
+        const fileInst = fstream.open({ t: { name: "ofstream" } }, fileName);
+        if (((mode & ios_base.openmode.out) !== 0 && (mode & ios_base.openmode.app) === 0) || (mode & ios_base.openmode.trunc) !== 0) {
+            fileInst.clear();
+        }
+        this.fileio.files[this.fileio.freefd] = fileInst;
+        return fileInst.is_open() ? this.fileio.freefd++ : -1;
+    }
+
+    fileRead(fd: InitArithmeticVariable): InitIndexPointerVariable<ArithmeticVariable> {
+        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        const readData = fileInst.read("");
+        if (readData === undefined) {
+            this.raiseException("File read failed unexpectedly")
+        }
+        return this.getCharArrayFromString(readData);
+    }
+
+    fileClose(fd: InitArithmeticVariable): void {
+        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        fileInst.close();
+    }
+
+    fileWrite(fd: InitArithmeticVariable, data: InitIndexPointerVariable<ArithmeticVariable>): void {
+        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
+    }
+
+    addTypeDomain(domain: string) {
+        if (domain in this.typeMap) {
+            this.raiseException(`Domain ${domain} already exists`);
+        }
+        this.typeMap[domain] = {
+            functionDB: new TypeDB(this.parser),
+            functionsByID: []
+        };
     }
 
     include(name: string) {
+        if (this.config.includes === undefined) {
+            this.raiseException("[CRuntime].config.includes is undefined");
+        }
         const {
             includes
         } = this.config;
         if (name in includes) {
-            const lib = includes[name];
+            // const lib = includes[name];
             if (this.config.loadedLibraries.includes(name))
                 return;
             this.config.loadedLibraries.push(name);
@@ -341,429 +201,359 @@ export class CRuntime {
         }
     };
 
-    getSize(element: Variable) {
-        let ret = 0;
-        if (this.isArrayType(element) && (element.v.position === 0)) {
-            let i = 0;
-            while (i < element.v.target.length) {
-                ret += this.getSize(element.v.target[i]);
-                i++;
+    getSizeByType(t: AnyType): number {
+        let at: ArithmeticType | null;
+        let pt: PointerType<ObjectType | FunctionType> | null;
+        if ((pt = variables.asPointerType(t)) !== null) {
+            if (pt.sizeConstraint !== null) {
+                return this.getSizeByType(pt.pointee) * pt.sizeConstraint;
             }
-        } else {
-            ret += this.getSizeByType(element.t);
+            this.raiseException("Not yet implemented");
+        } else if ((at = variables.asArithmeticType(t)) !== null) {
+            return variables.arithmeticProperties[at.sig].bytes;
         }
-        return ret;
+        this.raiseException("Not yet implemented");
     };
 
-    getSizeByType(t: VariableType) {
-        if (this.isPointerType(t)) {
-            return this.config.limits["pointer"].bytes;
-        } else if (this.isPrimitiveType(t)) {
-            return this.config.limits[t.name].bytes;
+    getMember(l: Variable, identifier: string): Variable {
+        //l = this.asCapturedVariable(l);
+        let lc = variables.asClass(l);
+        if (lc !== null) {
+            if (!lc.v.lvHolder === null) {
+                this.raiseException("Access to a member of a non-lvalue variable is forbidden");
+            }
+            if (lc.v.state !== "INIT") {
+                this.raiseException("Access to an unbounded index member")
+            }
+            const domainName: string = this.domainString(lc.t);
+            if (domainName in this.typeMap) {
+                if (identifier in lc.v.members) {
+                    return lc.v.members[identifier];
+                } else {
+                    this.raiseException(`type '${this.makeTypeString(lc.t)}' does not have a member called '${identifier}'`);
+                }
+            } else {
+                this.raiseException(`type '${this.makeTypeString(lc.t)}' is unknown`);
+            }
         } else {
-            this.raiseException("not implemented");
+            this.raiseException("only a class or struct can have members");
         }
     };
 
-    captureValue(t: any): any {
-        if (t.v !== undefined) {
-            return t;
+    stdio(): Stdio {
+        if (this.config.stdio === undefined) {
+            this.raiseException("[CRuntime].config.stdio is undefined");
         }
-        if (t.type === "pointer" && t.array !== undefined && t.arrayIndex !== undefined/* && this.isArrayType(t) */) {
-            if (t.arrayIndex >= t.array.length) {
-                this.raiseException("index out of bound " + t.arrayIndex + " >= " + t.array.length);
-            } else if (t.arrayIndex < 0) {
-                this.raiseException("negative index " + t.arrayIndex);
-            }
-            // debugger;
-            const u = t.array[t.arrayIndex];
-            u.array = t.array;
-            u.arrayIndex = t.arrayIndex;
-            return u;
-        } else {
-            this.raiseException("internal error: attempt to capture an undefined lvalue type other than pointer");
-        }
+        return this.config.stdio;
     }
 
-    getMember(l: Variable, r: string): Variable {
-        l = this.captureValue(l);
-        const lt = l.t;
-        if (this.isClassType(l) || this.isStructType(l)) {
-            const ltsig = this.getTypeSignature(lt);
-            if (this.types.hasOwnProperty(ltsig)) {
-                const t = this.types[ltsig].handlers;
-                if (t.hasOwnProperty(r)) {
-                    return {
-                        t: {
-                            type: "function",
-                        },
-                        v: {
-                            defineType: lt,
-                            name: r,
-                            bindThis: l
-                        }
-                    };
-                } else {
-                    if (l.v.members.hasOwnProperty(r)) {
-                        return l.v.members[r];
-                    } else {
-                        this.raiseException("type '" + this.makeTypeString(lt) + "' does not have a member named '" + r + "'")
-                    }
-
-                }
-            } else {
-                this.raiseException("type '" + this.makeTypeString(lt) + "' is unknown");
-            }
-        } else {
-            this.raiseException("only a class can have members");
+    arrayTypeSignature(array: string[]): TypeSignature {
+        const inline: string = array.join(" ");
+        if (!parse(this.parser, array)) {
+            this.raiseException(`Malformed type signature: '${inline}'`)
         }
+        return { inline, array };
     };
 
-    defFunc(lt: VariableType, name: string, retType: VariableType, argTypes: VariableType[], argNames: string[], stmts: any, interp: Interpreter, optionalArgs: OptionalArg[], readonlyArgs: boolean[]) {
-        if (stmts != null) {
-            const f = function* (rt: CRuntime, _this: Variable, ...args: Variable[]) {
-                // logger.warn("calling function: %j", name);
-                rt.enterScope("function " + name);
-                argNames.forEach(function(argName, i) {
-                    args[i].readonly = readonlyArgs[i];
-                    rt.defVar(argName, argTypes[i], args[i]);
-                });
-                for (let i = 0, end = optionalArgs.length; i < end; i++) {
-                    const optionalArg = optionalArgs[i];
-                    if (args[argNames.length + i] != null) {
-                        rt.defVar(optionalArg.name, optionalArg.type, args[argNames.length + i]);
-                    } else {
-                        const argValue = yield* interp.visit(interp, optionalArg.expression);
-                        rt.defVar(optionalArg.name, optionalArg.type, rt.cast(optionalArg.type, argValue));
-                    }
-                }
-                let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
-                if (!rt.isTypeEqualTo(retType, rt.voidTypeLiteral)) {
-                    if (ret instanceof Array && (ret[0] === "return")) {
-                        ret = rt.cast(retType, ret[1]);
-                    } else {
-                        rt.raiseException("you must return a value");
-                    }
-                } else {
-                    if (Array.isArray(ret)) {
-                        if ((ret[0] === "return") && ret[1]) {
-                            rt.raiseException("you cannot return a value from a void function");
-                        }
-                    }
-                    ret = undefined;
-                }
-                rt.exitScope("function " + name);
-                // logger.warn("function: returing %j", ret);
-                return ret;
-            };
-
-            this.regFunc(f, lt, name, argTypes, retType, optionalArgs);
-        } else {
-            this.regFuncPrototype(lt, name, argTypes, retType, optionalArgs);
+    typeSignature(inline: string): TypeSignature {
+        const array: string[] = inline.split(" ");
+        if (!parse(this.parser, array)) {
+            this.raiseException(`Malformed type signature: '${inline}'`)
         }
+        return { inline, array };
     };
 
-    makeParametersSignature(args: (VariableType | "?" | "dummy")[]) {
-        const ret = new Array(args.length);
-        let i = 0;
-        while (i < args.length) {
-            const arg = args[i];
-            ret[i] = this.getTypeSignature(arg);
-            i++;
-        }
-        return ret.join(",");
+    typeSignatureUnchecked(array: string[]): TypeSignature {
+        return { inline: array.join(" "), array };
     };
 
-    getCompatibleFunc(lt: VariableType | "global", name: string, args: (Variable | DummyVariable)[]) {
-        let ret;
-        const ltsig = this.getTypeSignature(lt);
-        if (ltsig in this.types) {
-            const t = this.types[ltsig].handlers;
-            if (name in t) {
-                // logger.info("method found");
-                const ts = args.map(v => v.t);
-                const sig = this.makeParametersSignature(ts);
-                if (sig in t[name].functions) {
-                    ret = t[name].functions[sig];
-                } else {
-                    const compatibles: CFunction[] = [];
-                    const reg = t[name].reg;
-                    Object.keys(reg).forEach(signature => {
-                        let newTs: (VariableType | "dummy")[];
-                        const regArgInfo = reg[signature];
-                        const dts = regArgInfo.args;
-                        let newDts: (VariableType | "dummy")[];
-                        const {
-                            optionalArgs
-                        } = regArgInfo;
-                        if ((dts[dts.length - 1] === "?") && ((dts.length - 1) <= ts.length)) {
-                            newTs = ts.slice(0, dts.length - 1);
-                            newDts = dts.slice(0, -1) as VariableType[];
-                        } else {
-                            newTs = ts;
-                            newDts = dts as VariableType[];
+    /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeDB-associated functions */
+    createFunctionTypeSignature(domain: ClassType | "{global}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], noThis = false): TypeSignature {
+        const thisSig: string[] = (domain === "{global}" || noThis) ? [] : variables.toStringSequence(domain, true, false, this.raiseException);
+        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.v.lvHolder !== null, false, this.raiseException);
+        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
+        const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat(2);
+        return this.arrayTypeSignature(result);
+    }
+
+    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: interp.MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
+        while (true) {
+            let f: CFunction | null = null;
+            const _optionalArgs = [...optionalArgs]; // cloned array passed to a closure
+            if (stmts != null) {
+                f = function*(rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) {
+                    if (templateArgs.length > 1) {
+                        rt.raiseException("Not yet implemented");
+                    }
+                    // logger.warn("calling function: %j", name);
+                    rt.enterScope("function " + name);
+                    if (args.length + _optionalArgs.length !== argTypes.length) {
+                        rt.raiseException(`Expected ${argTypes.length} arguments, got ${args.length}`)
+                    }
+                    argNames.slice(0, args.length).forEach(function(argName, i) {
+                        if (argTypes[i].v.lvHolder === null) {
+                            args[i] = variables.clone(args[i], "SELF", false, rt.raiseException);
                         }
-                        if (newDts.length <= newTs.length) {
-                            let ok = true;
-                            let i = 0;
-                            while (ok && (i < newDts.length)) {
-                                ok = this.castable(newTs[i], newDts[i]);
-                                i++;
-                            }
-                            while (ok && (i < newTs.length)) {
-                                ok = this.castable(newTs[i], optionalArgs[i - newDts.length].type);
-                                i++;
-                            }
-                            if (ok) {
-                                compatibles.push(t[name].functions[this.makeParametersSignature(regArgInfo.args)]);
-                            }
+                        if (args[i].v.isConst && !argTypes[i].v.isConst) {
+                            rt.raiseException("Cannot pass a const-value where a volatile value is required")
+                        } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
+                            args[i] = variables.clone(args[i], args[i].v.lvHolder, false, rt.raiseException);
+                            (args[i].v as any).isConst = true;
                         }
+                        rt.defVar(argName, args[i]);
                     });
-                    if (compatibles.length === 0) {
-                        if ("#default" in t[name]) {
-                            ret = t[name].functions["#default"];
-                        } else {
-                            const argsStr = ts.map(v => {
-                                return this.makeTypeString(v);
-                            }).join(", ");
-                            this.raiseException("no method " + name + " in " + this.makeTypeString(lt) + " accepts " + argsStr);
-                        }
-                    } else if (compatibles.length > 1) {
-                        this.raiseException("ambiguous method invoking, " + compatibles.length + " compatible methods");
-                    } else {
-                        ret = compatibles[0];
+                    for (const optarg of _optionalArgs) {
+                        rt.defVar(optarg.name, variables.clone(optarg.variable, "SELF", false, rt.raiseException));
                     }
-                }
-            } else {
-                this.raiseException("method " + name + " is not defined in " + this.makeTypeString(lt));
-            }
-        } else {
-            this.raiseException("type " + this.makeTypeString(lt) + " is unknown");
-        }
-        if ((ret == null)) {
-            this.raiseException("method " + name + " does not seem to be implemented");
-        }
-        return ret;
-    };
-
-    matchVarArg(methods: OpHandler, sig: string) {
-        for (let _sig in methods) {
-            if (_sig[_sig.length - 1] === "?") {
-                _sig = _sig.slice(0, -1);
-                if (sig.startsWith(_sig)) {
-                    return methods.functions[_sig];
-                }
-            }
-        }
-        return null;
-    };
-
-    getFunc(lt: (VariableType | "global"), name: string, args: (VariableType | "dummy")[]) {
-        if (lt !== "global" && (this.isPointerType(lt) || this.isFunctionType(lt))) {
-            let f;
-            if (this.isArrayType(lt)) {
-                f = "pointer_array";
-            } else if (this.isFunctionType(lt)) {
-                f = "function";
-            } else {
-                f = "pointer_normal";
-            }
-            let t = null;
-            if (name in this.types[f].handlers) {
-                t = this.types[f].handlers;
-            } else if (name in this.types["pointer"].handlers) {
-                t = this.types["pointer"].handlers;
-            }
-            if (t) {
-                const sig = this.makeParametersSignature(args);
-                let method;
-                if (t[name].functions != null && sig in t[name].functions) {
-                    return t[name].functions[sig];
-                } else if ((method = this.matchVarArg(t[name], sig)) !== null) {
-                    return method;
-                } else if (t[name].default) {
-                    return t[name].default;
-                } else {
-                    this.raiseException("no method " + name + " in " + this.makeTypeString(lt) + " accepts (" + sig + ")");
-                }
-            }
-        }
-        const ltsig = this.getTypeSignature(lt);
-        if (ltsig in this.types) {
-            const t = this.types[ltsig].handlers;
-            if (name in t) {
-                const sig = this.makeParametersSignature(args);
-                let method;
-                if (t[name].functions != null && sig in t[name].functions) {
-                    return t[name].functions[sig];
-                } else if ((method = this.matchVarArg(t[name], sig)) !== null) {
-                    return method;
-                } else if (t[name].default) {
-                    return t[name].default;
-                } else {
-                    this.raiseException("no method " + name + " in " + this.makeTypeString(lt) + " accepts (" + sig + ")");
-                }
-            } else {
-                this.raiseException("method " + name + " is not defined in " + this.makeTypeString(lt));
-            }
-        } else {
-            if (lt !== "global" && this.isPointerType(lt)) {
-                this.raiseException("this pointer has no proper method overload");
-            } else {
-                this.raiseException("type " + this.makeTypeString(lt) + " is not defined");
-            }
-        }
-    };
-
-    makeOperatorFuncName = (name: string) => `o(${name})`;
-
-    regOperator(f: CFunction, lt: VariableType, name: string, args: VariableType[], retType: VariableType) {
-        return this.regFunc(f, lt, this.makeOperatorFuncName(name), args, retType);
-    };
-
-    regFuncPrototype(lt: VariableType | "global", name: string, args: VariableType[], retType: VariableType, optionalArgs?: OptionalArg[]) {
-        const ltsig = this.getTypeSignature(lt);
-        if (ltsig in this.types) {
-            const t = this.types[ltsig].handlers;
-            if (!(name in t)) {
-                t[name] = {
-                    functions: {},
-                    reg: {},
-                };
-            }
-            if (!("reg" in t[name])) {
-                t[name]["reg"] = {};
-            }
-            const sig = this.makeParametersSignature(args);
-            if (sig in t[name]) {
-                this.raiseException("method " + name + " with parameters (" + sig + ") is already defined");
-            }
-            const type = this.functionType(retType, args);
-            if (lt === "global") {
-                this.defVar(name, type, this.val(type, {
-                    bindThis: null,
-                    defineType: lt,
-                    name,
-                    target: null
-                }));
-            }
-            t[name].functions[sig] = null;
-            if (t[name].reg[sig] == null) {
-                t[name].reg[sig] = {
-                    args,
-                    optionalArgs
-                };
-            }
-        } else {
-            this.raiseException("type " + this.makeTypeString(lt) + " is unknown");
-        }
-    };
-
-    regFunc(f: CFunction, lt: VariableType | "global", name: string, args: (VariableType | "?")[], retType: VariableType, optionalArgs?: OptionalArg[]) {
-        const ltsig = this.getTypeSignature(lt);
-        if (ltsig in this.types) {
-            if (!optionalArgs) { optionalArgs = []; }
-            const t = this.types[ltsig].handlers;
-            if (!(name in t)) {
-                t[name] = {
-                    functions: {},
-                    reg: {},
-                };
-            }
-            if (t[name].functions == null) {
-                t[name].functions = {};
-            }
-            if (t[name].reg == null) {
-                t[name].reg = {};
-            }
-            const sig = this.makeParametersSignature(args);
-            // console.log("regFunc " + name + "(" + sig + ")");
-            if (t[name].functions[sig] != null && t[name].reg[sig] != null) {
-                this.raiseException("method " + name + " with parameters (" + sig + ") is already defined");
-            }
-            const type = this.functionType(retType, args);
-            if (lt === "global") {
-                if (this.varAlreadyDefined(name)) {
-                    const func = this.scope[0].variables[name];
-                    if (this.isFunctionType(func)) {
-                        const v = func.v;
-                        if (v.target !== null) {
-                            this.raiseException("global method " + name + " with parameters (" + sig + ") is already defined");
-                        } else {
-                            v.target = f;
+                    let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
+                    if (retType === "VOID") {
+                        if (Array.isArray(ret)) {
+                            if ((ret[0] === "return") && ret[1]) {
+                                rt.raiseException("void function cannot return a value");
+                            }
                         }
+                        ret = "VOID";
                     } else {
-                        this.raiseException(name + " is already defined as " + this.makeTypeString(func?.t));
-                    }
-                } else {
-                    this.defVar(name, type, this.val(type, {
-                        bindThis: null,
-                        defineType: lt,
-                        name,
-                        target: f
-                    }));
-                }
-            }
-            t[name].functions[sig] = f;
-            t[name].reg[sig] = {
-                args,
-                optionalArgs
-            };
-        } else {
-            this.raiseException("type " + this.makeTypeString(lt) + " is unknown");
-        }
-    };
-
-    registerTypedef(basttype: VariableType, name: string) {
-        return this.typedefs[name] = basttype;
-    };
-
-    promoteNumeric(l: VariableType, r: VariableType) {
-        if (this.isNumericType(l) && this.isNumericType(r)) {
-            if (this.isTypeEqualTo(l, r)) {
-                if (this.isTypeEqualTo(l, this.boolTypeLiteral)) {
-                    return this.intTypeLiteral;
-                }
-                if (this.isTypeEqualTo(l, this.charTypeLiteral)) {
-                    return this.intTypeLiteral;
-                }
-                if (this.isTypeEqualTo(l, this.unsignedcharTypeLiteral)) {
-                    return this.unsignedintTypeLiteral;
-                }
-                return l;
-            } else if (this.isIntegerType(l) && this.isIntegerType(r)) {
-                let rett;
-                const slt = this.getSignedType(l);
-                const srt = this.getSignedType(r);
-                if (this.isTypeEqualTo(slt, srt)) {
-                    rett = slt;
-                } else {
-                    const slti = this.numericTypeOrder.indexOf(slt.name);
-                    const srti = this.numericTypeOrder.indexOf(srt.name);
-                    if (slti <= srti) {
-                        if (this.isUnsignedType(l) && this.isUnsignedType(r)) {
-                            rett = r;
+                        if (ret instanceof Array && (ret[0] === "return")) {
+                            ret = rt.cast(retType.t, ret[1]);
+                        } else if (name === "main") {
+                            ret = variables.arithmetic("I32", 0, null);
                         } else {
-                            rett = srt;
-                        }
-                    } else {
-                        if (this.isUnsignedType(l) && this.isUnsignedType(r)) {
-                            rett = l;
-                        } else {
-                            rett = slt;
+                            rt.raiseException("non-void function must return a value");
                         }
                     }
+                    rt.exitScope("function " + name);
+                    // logger.warn("function: returning %j", ret);
+                    return ret;
+                };
+            }
+            const fnsig = this.createFunctionTypeSignature(domain, retType, argTypes);
+            this.regFunc(f, domain, name, fnsig, []);
+            if (optionalArgs.length === 0) {
+                return;
+            }
+            argTypes.push(optionalArgs[0].variable);
+            argNames.push(optionalArgs[0].name);
+            optionalArgs = optionalArgs.slice(1);
+        }
+    };
+
+    /** Convenience function for static type checking of operators */
+    getOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeftCV<ObjectType>[], templateTypes: (string | string[])[]): FunctionCallInstance {
+        return this.getFuncByParams(domain, identifier, params, templateTypes);
+    }
+
+    tryGetOpByParams(domain: "{global}", identifier: OpSignature, params: MaybeLeftCV<ObjectType>[], templateTypes: (string | string[])[]): FunctionCallInstance | null {
+        return this.tryGetFuncByParams(domain, identifier, params, templateTypes);
+    }
+
+    getFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[], templateTypes: (string | string[])[]): FunctionCallInstance {
+        const fn = this.tryGetFuncByParams(domain, identifier, params, templateTypes);
+        if (fn === null) {
+            const domainSig: string = this.domainString(domain);
+            if (!(domainSig in this.typeMap)) {
+                this.raiseException(`domain '${domainSig}' is unknown`);
+            }
+            const domainMap: TypeHandlerMap = this.typeMap[domainSig];
+            const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, x.v.isConst)).join(", ") + ")";
+            const overloads = domainMap.functionDB.functions[identifier];
+            const overloadsMsg = (overloads !== undefined)
+                ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.type.join(" ")}`).join("\n")
+                : "No available overloads";
+            this.raiseException(`No matching function '${domainSig === "{global}" ? "" : `${domainSig}::`}${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
+        }
+        return fn;
+    };
+
+    tryGetFuncByParams(domain: ClassType | "{global}", identifier: string, params: MaybeLeftCV<ObjectType>[], templateTypes: (string | string[])[]): FunctionCallInstance | null {
+        if (identifier.startsWith("std::")) {
+            identifier = identifier.substr(5);
+        }
+        const domainSig: string = this.domainString(domain);
+        if (!(domainSig in this.typeMap)) {
+            this.raiseException(`domain '${domainSig}' is unknown`);
+        }
+        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
+        //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
+        const domainMap: TypeHandlerMap = this.typeMap[domainSig];
+        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, templateTypes, this.ictable, this.raiseException);
+        if (fn === null) {
+            return null;
+        }
+        return { actions: fn, target: domainMap.functionsByID[fn.fnid] };
+    };
+
+
+    *invokeCallFromVariable(funvar: Function, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
+        const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
+        const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
+        //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
+        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ictable, []);
+        if (funmatch === null) {
+            this.raiseException("Invalid arguments"); // TODO: make message more comprehensive
+        }
+        if (funvar.v.target === null) {
+            this.raiseException("Function is defined but no implementation is found");
+        }
+        if (funmatch.valueActions.length !== 0) {
+            for (const castAction of funmatch.castActions) {
+                if (castAction.cast.type === "ARITHMETIC") {
+                    const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
+                    args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                } else {
+                    this.raiseException("Implicit cast via constructor: not yet implemented");
                 }
-                return rett;
-            } else if (!this.isIntegerType(l) && this.isIntegerType(r)) {
-                return l;
-            } else if (this.isIntegerType(l) && !this.isIntegerType(r)) {
-                return r;
-            } else if (!this.isIntegerType(l) && !this.isIntegerType(r)) {
-                return this.primitiveType("double");
+            }
+            funmatch.valueActions.forEach((action, i) => {
+                if (action === "CLONE") {
+                    args[i] = variables.clone(this.expectValue(args[i]), "SELF", false, this.raiseException);
+                }
+            })
+        }
+        // function pointers can only point to a single untemplated instance
+        const returnYield = funvar.v.target(this, [], ...args);
+        return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
+
+    }
+
+    *invokeCall(callInst: FunctionCallInstance, templateArgs: ObjectType[], ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
+        if (callInst.target.target === null) {
+            this.raiseException("Function is defined but no implementation is found");
+        }
+        if (callInst.actions.valueActions.length !== 0) {
+            for (const castAction of callInst.actions.castActions) {
+                if (castAction.cast.type === "ARITHMETIC") {
+                    const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
+                    args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                } else if (castAction.cast.type === "CTOR") {
+                    const fnid = this.typeMap[castAction.cast.domain].functionDB.matchExactOverload("o(_ctor)", castAction.cast.fnsig);
+                    if (fnid === -1) {
+                        this.raiseException("Implicit cast via constructor: failed to cast (expected a match)");
+                    }
+                    const fncall = this.typeMap[castAction.cast.domain].functionsByID[fnid];
+                    if (fncall.target === null) {
+                        this.raiseException("Implicit cast via constructor: constructor is defined but no implementation is found");
+                    }
+                    if (templateArgs.length > 0) {
+                        this.raiseException("Implicit cast via constructor: not yet implemented")
+                    }
+                    const castYield = fncall.target(this, [], args[castAction.index]);
+                    const castResult = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                    if (castResult === "VOID") {
+                        this.raiseException("Implicit cast via constructor: expected a non-void result");
+                    }
+                    args[castAction.index] = this.unbound(castResult);
+                } else {
+                    args[castAction.index] = variables.directPointer(args[castAction.index], "SELF", false);
+                }
+            }
+            callInst.actions.valueActions.forEach((action, i) => {
+                if (action === "CLONE") {
+                    args[i] = variables.clone(this.expectValue(args[i]), "SELF", false, this.raiseException);
+                }
+            })
+        }
+        const returnYield = callInst.target.target(this, templateArgs, ...args);
+        return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
+    }
+
+    makeBinaryOperatorFuncName = (name: string) => `o(_${name}_)`;
+    makePrefixOperatorFuncName = (name: string) => `o(${name}_)`;
+    makePostfixOperatorFuncName = (name: string) => `o(_${name})`;
+
+    domainString(domain: ClassType | "{global}"): string {
+        if (domain === "{global}") {
+            return domain;
+        }
+        let seq: string[] = [domain.identifier];
+        let sub: ClassType = domain;
+        while (sub.memberOf !== null) {
+            seq.push(sub.memberOf.identifier);
+            sub = sub.memberOf;
+        }
+        return seq.reverse().join(".");
+    }
+
+    regFunc(f: CFunction | null, domain: ClassType | "{global}", name: string, fnsig: TypeSignature, templateTypes: number[]): void {
+        const domainInlineSig: string = this.domainString(domain);
+        if (!(domainInlineSig in this.typeMap)) {
+            this.raiseException(`type '${fnsig.inline}' is unknown`);
+        }
+        const domainMap: TypeHandlerMap = this.typeMap[domainInlineSig];
+        //console.log(`regfunc: '${fnsig.inline}'`);
+
+        const existingOverloadId = domainMap.functionDB.matchExactOverload(name, fnsig.inline);
+        if (existingOverloadId !== -1) {
+            const overload = domainMap.functionsByID[existingOverloadId];
+            if (overload.target === null) {
+                if (f === null) {
+                    this.raiseException(`Redefinition of a function prototype '${domainInlineSig}::${name}'`);
+                }
+                overload.target = f;
+            } else {
+                this.raiseException(`Reimplementation of function '${domainInlineSig}::${name}' of type '${fnsig.inline}'.`)
             }
         } else {
-            this.raiseException("you cannot promote (to) a non numeric type");
+            if (this.varAlreadyDefined(name)) {
+                if (!(domain === "{global}" && name in this.scope[0].variables && variables.asFunction(this.scope[0].variables[name]) !== null)) {
+                    if (domain === "{global}" && name in this.scope[0].variables) {
+                        this.raiseException(`Global function '${name}' is already declared as a non-function variable of type ${this.makeTypeStringOfVar(this.scope[0].variables[name])}.`)
+                    } else {
+                        this.raiseException(`Redeclaration of '${domainInlineSig}::${name}' (overloading member functions is not yet implemented)`)
+                    }
+                }
+            }
+            domainMap.functionDB.addFunctionOverload(name, fnsig.array, templateTypes, domainMap.functionsByID.length, this.raiseException);
+            domainMap.functionsByID.push({ type: fnsig.array, target: f });
+            if (name === "o(_ctor)" && domain !== "{global}") {
+                const dstTypeInline = variables.toStringSequence(domain, false, false, this.raiseException).join(" ");
+                if (!(dstTypeInline in this.ictable)) {
+                    this.ictable[dstTypeInline] = {};
+                }
+                const srcArgStart = fnsig.inline.indexOf("(") + 2;
+                const srcTypeInline = fnsig.inline.substr(srcArgStart, fnsig.inline.length - srcArgStart - 2);
+                const abstractSig = abstractFunctionReturnSig(fnsig.array).join(" ");
+                this.ictable[dstTypeInline][srcTypeInline] = { fnsig: abstractSig, domain: domainInlineSig };
+            }
+        }
+    };
+
+    registerTypedef(basttype: MaybeLeft<ObjectType>, name: string) {
+        this.typedefs[name] = basttype;
+    };
+
+    promoteNumeric(l: ArithmeticType, r: ArithmeticType): ArithmeticType {
+        const lProperties = variables.arithmeticProperties[l.sig];
+        const rProperties = variables.arithmeticProperties[r.sig];
+        if (variables.arithmeticTypesEqual(l, r)) {
+            if (l.sig === "BOOL") {
+                return variables.arithmeticType("I32");
+            }
+            if (l.sig === "I8") {
+                return variables.arithmeticType("I32");
+            }
+            if (l.sig === "U8") {
+                return variables.arithmeticType("U32");
+            }
+            return l;
+        } else if (!lProperties.isFloat && !rProperties.isFloat) {
+            const sl = variables.arithmeticType(lProperties.asSigned);
+            const sr = variables.arithmeticType(rProperties.asSigned);
+            if (variables.arithmeticTypesEqual(sl, sr)) {
+                return sl;
+            } else {
+                if (lProperties.bytes <= rProperties.bytes) {
+                    return (!lProperties.isSigned && !rProperties.isSigned) ? r : sr;
+                } else {
+                    return (!lProperties.isSigned && !rProperties.isSigned) ? l : sl;
+                }
+            }
+        } else if (lProperties.isFloat && !rProperties.isFloat) {
+            return l;
+        } else if (!lProperties.isFloat && rProperties.isFloat) {
+            return r;
+        } else {
+            return variables.arithmeticType("F64");
         }
     };
 
@@ -771,20 +561,32 @@ export class CRuntime {
         return this.resolveNamespacePath(scope.variables, varname);
     };
 
-    readVar(varname: string) {
+    readVarOrFunc(varname: string): Variable | Function {
+        const rvar = this.tryReadVar(varname);
+        if (rvar !== null) {
+            return rvar;
+        }
+        const fnid = this.typeMap["{global}"].functionDB.matchSingleFunction(varname, this.raiseException);
+        if (fnid !== -1) {
+            const fninfo = this.typeMap["{global}"].functionsByID[fnid];
+            return variables.function(fninfo.type, varname, fninfo.target, null, "SELF");
+        }
+        this.raiseException("variable '" + varname + "' does not exist");
+    };
+
+    tryReadVar(varname: string): Variable | null {
         let i = this.scope.length - 1;
         while (i >= 0) {
             const vc = this.scope[i];
-            if (vc.variables[varname] != null) {
-                const ret = vc.variables[varname];
-                return ret;
+            if (varname in vc.variables) {
+                return vc.variables[varname];
             }
             i--;
         }
-        this.raiseException("variable " + varname + " does not exist");
+        return null;
     };
 
-    deleteVar(varname: string) {
+    deleteVar(varname: string): void {
         let i = this.scope.length - 1;
         while (i >= 0) {
             const vc = this.scope[i];
@@ -794,16 +596,86 @@ export class CRuntime {
             }
             i--;
         }
-        this.raiseException("variable " + varname + " does not exist");
+        this.raiseException("variable '" + varname + "' does not exist");
     };
 
-    varAlreadyDefined(varname: string) {
-        const vc = this.scope[this.scope.length - 1];
-        return varname in vc;
+    varAlreadyDefined(varname: string): boolean {
+        // NOTE: This is not how it's supposed to work.
+        // TODO: fix this
+        let i = this.scope.length - 1;
+        //while (i >= 0) {
+        const vc = this.scope[i];
+        if (varname in vc.variables) {
+            return true;
+        }
+        //    i--;
+        //}
+        return false;
     };
 
-    defVar(varname: string, type: VariableType, initval: Variable) {
-        initval = this.captureValue(initval);
+    simpleType(_type: (string | interp.XScopedIdentifier | interp.XScopedMaybeTemplatedIdentifier)[]): MaybeLeft<ObjectType> | "VOID" {
+        type SimpleTypeNode = {
+            name: string,
+            templateSpec: SimpleTypeNode[][] | null;
+        };
+        function makeSimplifiedTypeNotation(type: (string | interp.XScopedIdentifier | interp.XScopedMaybeTemplatedIdentifier)[]): SimpleTypeNode[] {
+            return type.flatMap<SimpleTypeNode>(x => {
+                if (typeof x === "string") {
+                    return (["const", "auto"].includes(x)) ? [] : { name: x, templateSpec: null };
+                } else if (x.type === "ScopedIdentifier") {
+                    return { name: x.Identifier, templateSpec: null }
+                } else {
+                    return {
+                        name: (typeof x.ScopedIdentifier === "string") ? x.ScopedIdentifier : x.ScopedIdentifier.Identifier,
+                        templateSpec: x.TemplateType !== null ? x.TemplateType.map(makeSimplifiedTypeNotation) : null
+                    };
+                }
+            });
+        }
+        function printTypeSpec(type: SimpleTypeNode[]): string {
+            return type.map(x => x.name + (x.templateSpec === null ? "" : ("<" + x.templateSpec.map(printTypeSpec).join(", ") + ">"))).join(" ");
+        }
+        function makeSimpleType(rt: CRuntime, typeArr: SimpleTypeNode[]): MaybeLeft<ObjectType> | "VOID" {
+            if (typeArr.every(x => x.templateSpec === null)) {
+                let typeStr = typeArr.map(x => x.name).join(" ");
+                if (typeStr in variables.defaultArithmeticResolutionMap) {
+                    return { t: { sig: variables.defaultArithmeticResolutionMap[typeStr] }, v: { lvHolder: null } };
+                }
+                if (typeStr === "void") {
+                    return "VOID";
+                }
+            }
+            if (typeArr.length === 1) {
+                const type = typeArr[0];
+                if (type.name in rt.typeMap) {
+                    const fn = rt.typeMap[type.name].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
+
+                    if (fn !== null) {
+                        const templateSpec = type.templateSpec === null ? [] : type.templateSpec.map(x => {
+                            let a = makeSimpleType(rt, x);
+                            if (a === "VOID") {
+                                rt.raiseException("Type lookup: void types inside template specifiers are not supported");
+                            }
+                            return a.t;
+                        });
+                        return { t: variables.classType(type.name, templateSpec, null), v: { lvHolder: null } }
+                    } else {
+                        rt.raiseException("Type lookup: No constructor for the specified structure");
+                    }
+                }
+                if (type.name in rt.typedefs) {
+                    return rt.typedefs[type.name];
+                }
+            }
+            rt.raiseException(`Type lookup: Unknown type '${printTypeSpec(typeArr)}'`);
+        }
+        if (_type instanceof Array) {
+            return makeSimpleType(this, makeSimplifiedTypeNotation(_type));
+        }
+        this.raiseException("Type lookup: Invalid argument (internal erro)");
+    };
+
+    defVar(varname: string, object: Variable) {
         if (varname == null) {
             this.raiseException("cannot define a variable without name");
         }
@@ -811,270 +683,316 @@ export class CRuntime {
             this.raiseException("variable " + varname + " already defined");
         }
 
-        const dataType = initval.dataType;
-        const readonly = initval.readonly;
         const vc = this.scope[this.scope.length - 1];
-        // logger.log("defining variable: %j, %j", varname, type);
-        if (this.isReferenceType(type)) {
-            initval = this.cast(type, initval);
-        } else {
-            initval = this.clone(this.cast(type, initval), true);
+
+        //console.log(`defining variable: '${varname}' of type '${this.makeTypeStringOfVar(object)}'`);
+
+        if (object.v.lvHolder === null) {
+            //@ts-ignore
+            object.v.lvHolder = "SELF";
         }
 
-        vc.variables[varname] = initval === undefined ? this.defaultValue(type) : initval;
-        vc.variables[varname].readonly = readonly;
-        vc.variables[varname].left = true;
-        if (dataType)
-            vc.variables[varname].dataType = dataType;
+        vc.variables[varname] = object;
     };
 
-    booleanToNumber(b: BasicValue) {
-        if (typeof (b) === "boolean") {
-            return b ? 1 : 0;
-        }
-        return b;
-    }
-
-    inrange(type: VariableType, value: BasicValue, errorMsg?: string) {
-        if (this.isPrimitiveType(type)) {
-            value = this.booleanToNumber(value);
-            const limit = this.config.limits[type.name];
-            const overflow = !((value <= limit.max) && (value >= limit.min));
-            if (errorMsg && overflow) {
-                if (this.isUnsignedType(type)) {
-                    if (this.config.unsigned_overflow === "error") {
-                        console.error(errorMsg);
-                        this.raiseException(errorMsg);
-                        return false;
-                    } else if (this.config.unsigned_overflow === "warn") {
-                        console.error(errorMsg);
-                        return true;
-                    } else {
-                        return true;
-                    }
-                } else {
+    inrange(x: number, t: ArithmeticType, onError?: () => string) {
+        const properties = variables.arithmeticProperties[t.sig];
+        const overflow = !((x <= properties.maxv) && (x >= properties.minv));
+        if (onError && overflow) {
+            const errorMsg = onError();
+            if (properties.isSigned === false) {
+                if (this.config.unsigned_overflow === "error") {
+                    console.error(errorMsg);
                     this.raiseException(errorMsg);
+                } else if (this.config.unsigned_overflow === "warn") {
+                    console.error(errorMsg);
                 }
+                return true;
+            } else {
+                this.raiseException(errorMsg);
             }
-            return !overflow;
-        } else {
+        }
+        return !overflow;
+    };
+
+    castable(type1: ObjectType, type2: ObjectType) {
+        // TODO: unweird this function
+        if (variables.typesEqual(type1, type2)) {
             return true;
         }
-    };
-
-    ensureUnsigned(type: VariableType, value: BasicValue) {
-        value = this.booleanToNumber(value);
-        if (this.isUnsignedType(type)) {
-            const limit = this.config.limits[type.name];
-            const period = limit.max - limit.min;
-            if (value < limit.min) {
-                value += period * Math.ceil((limit.min - value) / period);
-            }
-            if (value > limit.max) {
-                value = ((value - limit.min) % period) + limit.min;
-            }
-        }
-        return value;
-    };
-
-    isNumericType(type: VariableType): type is PrimitiveType;
-    isNumericType(type: Variable | DummyVariable): type is PrimitiveVariable;
-    isNumericType(type: string): boolean;
-    isNumericType(type: VariableType | Variable | DummyVariable | string) {
-        if (typeof type === "string") {
-            return this.isFloatType(type) || this.isIntegerType(type);
-        }
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isNumericType(type.t);
-        }
-        return this.isFloatType(type) || this.isIntegerType(type);
-    };
-
-    isUnsignedType(type: VariableType): type is PrimitiveType;
-    isUnsignedType(type: string): boolean;
-    isUnsignedType(type: VariableType | string): boolean {
-        if (typeof type === "string") {
-            switch (type) {
-                case "unsigned char": case "unsigned short": case "unsigned short int": case "unsigned": case "unsigned int": case "unsigned long": case "unsigned long int": case "unsigned long long": case "unsigned long long int":
-                    return true;
-                default:
-                    return false;
-            }
-        } else {
-            return (type.type === "primitive") && this.isUnsignedType(type.name);
-        }
-    };
-
-    isIntegerType(type: Variable): type is (IntVariable | BoolVariable);
-    isIntegerType(type: VariableType): type is (IntType | BoolType);
-    isIntegerType(type: string): boolean;
-    isIntegerType(type: Variable | VariableType | string) {
-        if (typeof type === "string") {
-            return this.config.charTypes.includes(type as CCharType) || this.config.intTypes.includes(type as CIntType);
-        } else if ('t' in type) {
-            return this.isIntegerType(type.t);
-        } else {
-            return (type.type === "primitive") && this.isIntegerType(type.name);
-        }
-    };
-
-    isFloatType(type: Variable): type is FloatVariable;
-    isFloatType(type: VariableType): type is FloatType;
-    isFloatType(type: string): boolean;
-    isFloatType(type: Variable | VariableType | string): boolean {
-        if (typeof type === "string") {
-            switch (type) {
-                case "float": case "double":
-                    return true;
-                default:
-                    return false;
-            }
-        } else if ('t' in type) {
-            return this.isFloatType(type.t);
-        } else {
-            return (type.type === "primitive") && this.isFloatType(type.name);
-        }
-    };
-
-    getSignedType(type: VariableType): PrimitiveType {
-        if (type.type === "primitive") {
-            return this.primitiveType(type.name.replace("unsigned", "").trim() as CBasicType);
-        } else {
-            this.raiseException("Cannot get signed type from non-primitive type " + this.makeTypeString(type));
-        }
-    };
-
-    castable(type1: VariableType | "dummy", type2: VariableType | "dummy") {
-        if (type1 === "dummy" || type2 === "dummy") {
-            this.raiseException("Unexpected dummy");
-            return;
-        }
-        if (this.isTypeEqualTo(type1, type2)) {
+        let ptr1: PointerType<ObjectType | FunctionType> | null;
+        let ptr2: PointerType<ObjectType | FunctionType> | null;
+        let class1: ClassType | null;
+        let class2: ClassType | null;
+        if (variables.asArithmeticType(type1) !== null && variables.asArithmeticType(type2) !== null) {
             return true;
-        }
-        if (this.isPrimitiveType(type1) && this.isPrimitiveType(type2)) {
-            return this.isNumericType(type2) && this.isNumericType(type1);
-        } else if (this.isPointerType(type1) && this.isPointerType(type2)) {
-            if (this.isFunctionType(type1)) {
-                return this.isPointerType(type2);
+        } else if ((ptr1 = variables.asPointerType(type1)) !== null && (ptr2 = variables.asPointerType(type2)) !== null) {
+            if (variables.asFunctionType(ptr1.pointee) !== null) {
+                return variables.asFunctionType(ptr2.pointee) !== null;
             }
-            return !this.isFunctionType(type2);
-        } else if (this.isStringType(type1) && this.isStringType(type2)) {
-            return true;
-        } else if (this.isClassType(type1) && this.isClassType(type2)) {
-            return true;
-        } else if (this.isPrimitiveType(type1) && this.isReferenceType(type2)) {
-            return true;
-        } else if (this.isClassType(type1) || this.isClassType(type2)) {
+            return !variables.asFunctionType(ptr2.pointee); // ???
+        } else if ((class1 = variables.asClassType(type1)) !== null && (class2 = variables.asClassType(type2)) !== null) {
+            return false;
+        } else if (variables.asClassType(type1) || variables.asClassType(type2)) {
             this.raiseException("not implemented");
         }
-        return false;
+        this.raiseException("not implemented");
     };
 
-    cast(type: IntType, value: Variable | DummyVariable): IntVariable;
-    cast(type: VariableType, value: Variable | DummyVariable): Variable;
-    cast(type: VariableType, value: Variable | DummyVariable) {
-        // TODO: looking for global overload
-        let v;
-        if (value.t !== "dummy") {
-        } else {
-            this.raiseException(this.makeValString(value) + " is dummy");
+    makeTypeStringOfVar(object: MaybeLeftCV<ObjectType>): string {
+        return this.makeTypeString(object.t, !(object.v.lvHolder !== null), object.v.isConst);
+    }
+
+    makeTypeString(type: AnyType, isLValue: boolean = false, isConst: boolean = false): string {
+        const inner = (t: AnyType) => this.makeTypeString(t, false, false);
+        const branch: { [sig in string]: () => string } = {
+            "ARITHMETIC": () => {
+                const x = type as ArithmeticType;
+                return variables.arithmeticProperties[x.sig].name;
+            },
+            "VOID": () => {
+                return "void";
+            },
+            "PTR": () => {
+                const x = type as PointerType<ObjectType | FunctionType>;
+                if (x.sizeConstraint !== null) {
+                    return inner(x.pointee) + "[" + String(x.sizeConstraint) + "]";
+                } else {
+                    return inner(x.pointee) + "*";
+                }
+            },
+            "CLASS": () => {
+                const x = type as ClassType;
+                return (x.memberOf ? inner(x.memberOf) + "::" : "") + x.identifier + ((x.templateSpec.length === 0) ? "" : "<" + x.templateSpec.map(inner).join(", ") + ">");
+            },
+            "FUNCTION": () => {
+                const x = type as FunctionType;
+                return "{" + x.fulltype.join(" ") + "}";
+            },
+        }
+        const where = (type.sig in variables.arithmeticSig) ? "ARITHMETIC" : type.sig;
+        return [isConst ? "const " : "", branch[where](), isLValue ? "&" : ""].join("");
+    }
+
+    /** For integers, performs a two's-complement integer overflow on demand.
+      * > Does not really depend on signedness, just on limits set by basic arithmetic types. 
+      * For floating-point values, rounds to the nearest precision available.*/
+    adjustArithmeticValue(x: InitArithmeticVariable): void {
+        const info = variables.arithmeticProperties[x.t.sig];
+        if (!info.isFloat && !Number.isInteger(x.v.value)) {
+            x.v.value = Math.sign(x.v.value) * Math.floor(Math.abs(x.v.value));
+        }
+        if (info.isFloat || (x.v.value >= info.minv && x.v.value <= info.maxv)) {
+            if (x.t.sig === "F32") {
+                // javascript numbers are typically double-precision FP values.
+                x.v.value = Math.fround(x.v.value);
+            }
             return;
         }
-        if (this.isTypeEqualTo(value.t, type)) {
-            if (this.isStructType(type) && value.left && (value as any).array == null) {
-                return this.cloneDeep(value);
-            }
-            return value;
+        let q: number = (x.v.value - info.minv) % (info.maxv + 1 - info.minv);
+        if (q < 0) {
+            q += info.maxv + 1 - info.minv;
         }
-        if (this.isPrimitiveType(type) && this.isPrimitiveType(value.t)) {
-            if (type.name === "bool") {
-                return this.val(type, value.v ? 1 : 0);
-            } else if (["float", "double"].includes(type.name)) {
-                if (!this.isNumericType(value)) {
-                    this.raiseException("cannot cast " + this.makeValueString(value) + " to " + this.makeTypeString(type));
-                } else if (this.inrange(type, value.v, "overflow when casting " + this.makeTypeString(value?.t) + " to " + this.makeTypeString(type))) {
-                    value.v = this.ensureUnsigned(type, value.v);
-                    return this.val(type, value.v);
+        x.v.value = q + info.minv;
+    }
+
+    makeValueString(v: Variable | Function, options: MakeValueStringOptions = {}): string {
+        if (v.v.state === "UNINIT") {
+            return "<uninitialised>";
+        }
+        const arithmeticVar = variables.asArithmetic(v) as InitArithmeticVariable | null;
+        if (arithmeticVar !== null) {
+            const val = arithmeticVar.v.value;
+            const sig = arithmeticVar.t.sig;
+            const properties = variables.arithmeticProperties[sig];
+            if (sig === "I8") {
+                // 31 /* hex = 0x21, ascii = '!' */
+                const signedVal = val >= 0 ? val : properties.maxv + 1 + val;
+                return `${val} /* hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')}, ascii = '${String.fromCharCode(val)}' */`;
+            } else if (sig === "BOOL") {
+                return val !== 0 ? "true" : "false";
+            } else if (!properties.isFloat) {
+                // 160 /* hex = 0xA0 */
+                const signedVal = val >= 0 ? val : properties.maxv + 1 + val;
+                return `${val} /* hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')} */`;
+            } else {
+                return val.toString();
+            }
+        }
+        const pointerVar = variables.asPointer(v) as InitPointerVariable<PointeeVariable> | null;
+        if (pointerVar !== null) {
+            if (variables.asFunctionType(pointerVar.t.pointee) !== null) {
+                return "<function>";
+            }
+            if (options.noPointer) {
+                return "->/*...*/";
+            } else {
+                options.noPointer = true;
+                if (pointerVar.v.subtype === "DIRECT") {
+                    return "->" + this.makeValueString({ t: pointerVar.t.pointee, v: pointerVar.v.pointee, left: false, readonly: false } as Variable | Function);
+                } else {
+                    const indexPointerVar = pointerVar as InitIndexPointerVariable<Variable>;
+                    const arrayObjectType = indexPointerVar.t.pointee;
+                    const asArithmeticElemType: ArithmeticType | null = variables.asArithmeticType(arrayObjectType);
+                    if (asArithmeticElemType?.sig === "I8" || asArithmeticElemType?.sig === "U8") {
+                        // string representation
+                        return `"${this.getStringFromCharArray(indexPointerVar as InitIndexPointerVariable<ArithmeticVariable>)}"`;
+                    } else if (options.noArray) {
+                        return "{ /*...*/ }";
+                    } else {
+                        options.noArray = true;
+                        const displayList = [];
+                        const slice = indexPointerVar.v.pointee.values.slice(indexPointerVar.v.index);
+                        for (let i = 0; i < slice.length; i++) {
+                            displayList.push(this.makeValueString({ t: arrayObjectType, v: slice[i], left: false, readonly: false } as Variable | Function, options));
+                        }
+                        return "{ " + displayList.join(", ") + " }";
+                    }
+                }
+            }
+        }
+        if (variables.asClassType(v.t) !== null) {
+            return "<class>";
+        }
+        return "<unknown>";
+    };
+
+    /** Parses an character array representing the UTF-8 sequence into a string. */
+    getStringFromCharArray(src: InitIndexPointerVariable<ArithmeticVariable>, len: number | null = null): string {
+        if (!(src.t.pointee.sig === "I8" || src.t.pointee.sig === "U8")) {
+            this.raiseException("Not a char array")
+        }
+        if (len === null) {
+            len = src.v.pointee.values.length - src.v.index;
+        }
+        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index, src.v.index + len).map((x: ArithmeticValue) => x.state === "INIT" ? x.value : 0));
+        // remove trailing null-terminators '\0' from the end
+        return fromUtf8CharArray(byteArray).replace(/\0+$/, "");
+    }
+
+    getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticVariable> {
+        let array = toUtf8CharArray(src);
+        //console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; }).join(""));
+        let memoryObject = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), new Array<ArithmeticValue>())
+        array.forEach((iv, ii) => {
+            const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: ii };
+            memoryObject.values.push(variables.arithmetic("I8", iv, lvHolder, false).v);
+        })
+        // add a null-terminator ('\0')
+        const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: array.length };
+        memoryObject.values.push(variables.arithmetic("I8", 0, lvHolder, false).v);
+
+        return variables.indexPointer(memoryObject, 0, true, null, false);
+    }
+
+    cast(target: ObjectType, v: InitVariable, allowUToSOverflow: boolean = false): ResultOrGen<InitVariable> {
+        // TODO: looking for global overload
+        if (variables.typesEqual(v.t, target)) {
+            return v;
+        }
+        const arithmeticTarget = variables.asArithmeticType(target);
+        const arithmeticVar = variables.asArithmetic(v);
+        if (arithmeticTarget !== null && arithmeticVar !== null) {
+            const targetInfo = variables.arithmeticProperties[arithmeticTarget.sig];
+            const fromInfo = variables.arithmeticProperties[arithmeticVar.t.sig];
+            const arithmeticValue = this.arithmeticValue(arithmeticVar);
+            if (target.sig === "BOOL") {
+                return variables.arithmetic(target.sig, arithmeticValue === 0 ? 0 : 1, null);
+            } else if (targetInfo.isFloat) {
+                const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeStringOfVar(v)}' to '${this.makeTypeString(target)}'`;
+                if (this.inrange(arithmeticValue, arithmeticTarget, onErr)) {
+                    return variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
                 }
             } else {
-                if (type.name.slice(0, 8) === "unsigned") {
-                    if (!this.isNumericType(value)) {
-                        this.raiseException("cannot cast " + this.makeValueString(value) + " to " + this.makeTypeString(type));
-                    } else if (value.v < 0) {
-                        const { bytes } = this.config.limits[type.name];
-                        let newValue = this.booleanToNumber(value.v) & ((1 << (8 * bytes)) - 1); // truncates
-                        if (this.inrange(type, newValue, `cannot cast negative value ${newValue} to ` + this.makeTypeString(type))) {
-                            newValue = this.ensureUnsigned(type, newValue);
-                            // unsafe! bitwise truncation is platform dependent
-                            return this.val(type, newValue);
-                        }
+                const conversionErrorMsg: () => string = () => `${this.makeValueString(v)} of type ${this.makeTypeStringOfVar(v)} to type ${this.makeTypeString(target)}`;
+                if (!targetInfo.isSigned) {
+                    if (arithmeticValue < 0) {
+                        const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
+                        this.adjustArithmeticValue(newVar);
+                        //if (this.inrange(newVar.v.value as number, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
+                        return newVar;
+                        //}
                     }
                 }
-                if (!this.isNumericType(value)) {
-                    this.raiseException("cannot cast " + this.makeValueString(value) + " to " + this.makeTypeString(type));
-                } else if (this.isFloatType(value)) {
-                    v = value.v > 0 ? Math.floor(this.booleanToNumber(value.v)) : Math.ceil(this.booleanToNumber(value.v));
-                    if (this.inrange(type, v, "overflow when casting " + this.makeValString(value) + " to " + this.makeTypeString(type))) {
-                        v = this.ensureUnsigned(type, v);
-                        return this.val(type, v);
+                if (fromInfo.isFloat) {
+                    const intVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue), null);
+                    if (this.inrange(intVar.v.value as number, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                        this.adjustArithmeticValue(intVar);
+                        return intVar;
                     }
                 } else {
-                    if (this.inrange(type, value.v, "overflow when casting " + this.makeValString(value) + " to " + this.makeTypeString(type))) {
-                        value.v = this.ensureUnsigned(type, value.v);
-                        return this.val(type, value.v);
+                    const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
+                    if (allowUToSOverflow || this.inrange(newVar.v.value as number, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                        this.adjustArithmeticValue(newVar);
+                        return newVar;
                     }
                 }
             }
-        } else if (this.isPrimitiveType(type) && this.isArrayType(value)) {
-            if (this.isTypeEqualTo(type, value.t.eleType)) {
+        }
+        else if (arithmeticTarget?.sig === "BOOL") {
+            const boolSym = this.getOpByParams("{global}", "o(_bool)", [v], []);
+            return this.invokeCall(boolSym, [], v) as ResultOrGen<InitArithmeticVariable>;
+        }
+        const pointerTarget = variables.asPointerType(target);
+        const iptrVar = variables.asInitIndexPointer(v);
+        //const dptrVar = variables.asInitDirectPointer(v);
+        if (pointerTarget !== null && iptrVar !== null) {
+            if (variables.typesEqual(pointerTarget.pointee, iptrVar.t.pointee)) {
+                if (pointerTarget.sizeConstraint === null || pointerTarget.sizeConstraint === iptrVar.t.sizeConstraint) {
+                    return variables.indexPointer(iptrVar.v.pointee, iptrVar.v.index, pointerTarget.sizeConstraint !== null, null);
+                }
+            }
+        }
+        this.raiseException("Cast: Type error not yet implemented");
+        /*else if (this.isPrimitiveType(target) && this.isArrayType(value)) {
+            if (this.isTypeEqualTo(target, value.t.eleType)) {
                 return value;
             }
-        } else if (this.isStructType(type)) {
+        } else if (this.isStructType(target)) {
             return value;
-        } else if (this.isReferenceType(type)) {
+        } else if (this.isReferenceType(target)) {
             return value;
-        } else if (this.isPointerType(type)) {
+        } else if (this.isPointerType(target)) {
             if (this.isArrayType(value)) {
-                if (this.isNormalPointerType(type)) {
-                    if (this.isTypeEqualTo(type.targetType, value.t.eleType)) {
+                if (this.isNormalPointerType(target)) {
+                    if (this.isTypeEqualTo(target.targetType, value.t.eleType)) {
                         return value;
                     } else {
-                        this.raiseException(this.makeTypeString(type?.targetType) + " is not equal to array element type " + this.makeTypeString(value?.t.eleType));
+                        this.raiseException(this.makeTypeString(target?.targetType) + " is not equal to array element target " + this.makeTypeString(value?.t.eleType));
                     }
-                } else if (this.isArrayType(type)) {
-                    if (this.isTypeEqualTo(type.eleType, value.t.eleType)) {
+                } else if (this.isArrayType(target)) {
+                    if (this.isTypeEqualTo(target.eleType, value.t.eleType)) {
                         return value;
                     } else {
-                        this.raiseException("array element type " + this.makeTypeString(type?.eleType) + " is not equal to array element type " + this.makeTypeString(value?.t.eleType));
+                        this.raiseException("array element target " + this.makeTypeString(target?.eleType) + " is not equal to array element target " + this.makeTypeString(value?.t.eleType));
                     }
                 } else {
                     this.raiseException("cannot cast a function to a regular pointer");
                 }
             } else {
-                if (this.isNormalPointerType(type)) {
+                if (this.isNormalPointerType(target)) {
                     if (this.isNormalPointerType(value)) {
-                        if (this.isTypeEqualTo(type.targetType, value.t.targetType)) {
+                        if (this.isTypeEqualTo(target.targetType, value.t.targetType)) {
                             return value;
                         } else {
-                            this.raiseException(this.makeTypeString(type?.targetType) + " is not equal to " + this.makeTypeString(value?.t.targetType));
+                            this.raiseException(this.makeTypeString(target?.targetType) + " is not equal to " + this.makeTypeString(value?.t.targetType));
                         }
                     } else {
                         this.raiseException(this.makeValueString(value) + " is not a normal pointer");
                     }
-                } else if (this.isArrayType(type)) {
+                } else if (this.isArrayType(target)) {
                     if (this.isNormalPointerType(value)) {
-                        if (this.isTypeEqualTo(type.eleType, value.t.targetType)) {
+                        if (this.isTypeEqualTo(target.eleType, value.t.targetType)) {
                             return value;
                         } else {
-                            this.raiseException("array element type " + this.makeTypeString(type?.eleType) + " is not equal to " + this.makeTypeString(value?.t.targetType));
+                            this.raiseException("array element target " + this.makeTypeString(target?.eleType) + " is not equal to " + this.makeTypeString(value?.t.targetType));
                         }
                     } else {
                         this.raiseException(this.makeValueString(value) + " is not a normal pointer");
                     }
-                } else if (this.isFunctionPointerType(type)) {
+                } else if (this.isFunctionPointerType(target)) {
                     if (this.isFunctionPointerType(value.t)) {
-                        if (!this.isTypeEqualTo(type, value.t)) {
+                        if (!this.isTypeEqualTo(target, value.t)) {
                             this.raiseException("Function pointers do not share the same signature");
                         }
                         return value;
@@ -1085,34 +1003,30 @@ export class CRuntime {
                     this.raiseException("cannot cast a function to a regular pointer");
                 }
             }
-        } else if (this.isFunctionType(type)) {
+        } else if (this.isFunctionType(target)) {
             if (this.isFunctionType(value.t)) {
                 return this.val(value.t, value.v);
             } else {
                 this.raiseException("cannot cast a regular pointer to a function");
             }
-        } else if (this.isClassType(type)) {
-            if (this.isStringClass(type)) {
-                return this.val(type, value.v);
-            } else if (this.isVectorClass(type)) {
-                return this.val(type, value.v);
+        } else if (this.isClassType(target)) {
+            if (this.isStringClass(target)) {
+                return this.val(target, value.v);
+            } else if (this.isVectorClass(target)) {
+                return this.val(target, value.v);
             } else {
                 this.raiseException("not implemented");
             }
         } else if (this.isClassType(value.t)) {
-            value = this.getCompatibleFunc(value.t, this.makeOperatorFuncName(type.name), [])(this, value);
+            value = this.getCompatibleFunc(value.t, this.makeOperatorFuncName(target.name), [])(this, value);
             return value;
         } else {
-            this.raiseException("cast failed from type " + this.makeTypeString(type) + " to " + this.makeTypeString(value?.t));
-        }
+            this.raiseException("cast failed from target " + this.makeTypeString(target) + " to " + this.makeTypeString(value?.t));
+        }*/
     };
 
-    cloneDeep(obj: any): Object {
-        return Flatted.parse(Flatted.stringify(obj));
-    };
-
-    clone(v: Variable, isInitializing?: boolean) {
-        return this.val(v.t, v.v, false, isInitializing);
+    cloneDeep<T>(obj: T): T {
+        return Flatted.parse(Flatted.stringify(obj)) as T;
     };
 
     addToNamespace(namespacePath: string, name: string, obj: any) {
@@ -1168,468 +1082,39 @@ export class CRuntime {
         // logger.info("%j", this.scope);
         while (true) {
             const s = this.scope.pop();
-            if (!scopename || !(this.scope.length > 1) || (s["$name"] === scopename)) {
+            if (!scopename || !(this.scope.length > 1) || ((s as RuntimeScope)["$name"] === scopename)) {
                 break;
             }
         }
     };
 
-    val(t: IntType, v: BasicValue, left?: boolean, isInitializing?: boolean): IntVariable;
-    val(t: PointerType, v: PointerValue, left?: boolean, isInitializing?: boolean): PointerVariable;
-    val(t: VariableType, v: VariableValue, left?: boolean, isInitializing?: boolean): Variable;
-    val(t: VariableType, v: VariableValue, left = false, isInitializing = false): Variable {
-        if (this.isNumericType(t)) {
-            let checkRange: boolean;
-            if (isInitializing) {
-                if (typeof (v) !== "number" || isNaN(v)) {
-                    checkRange = false;
-                } else {
-                    checkRange = true;
-                }
-            } else {
-                checkRange = true;
-            }
-            if (checkRange) {
-                this.inrange(t, v as BasicValue, `overflow of ${this.makeValString({ t, v } as Variable)}`);
-                v = this.ensureUnsigned(t, v as BasicValue);
-            }
-        }
-        if (left === undefined) {
-            left = false;
-        }
-        return {
-            t,
-            v,
-            left
-        } as Variable;
+    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObject[]) {
+        const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
+        const domainInline = this.domainString(classType);
+        this.addTypeDomain(domainInline);
+
+        const members: { [name: string]: Variable } = {};
+        memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable })
+        const stubClass = variables.class(classType, members, null);
+
+        const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
+        this.regFunc(function(rt: CRuntime): InitClassVariable {
+            return variables.clone(stubClass, null, false, rt.raiseException);
+        }, classType, "o(_stub)", stubCtorTypeSig, []);
     };
 
-    isTypeEqualTo(type1: (VariableType | "?"), type2: (VariableType | "?")): boolean {
-        if (type1 === "?" || type2 === "?") {
-            return type1 === type2;
-        }
-        if (type1.type === type2.type) {
-            switch (type1.type) {
-                case "primitive":
-                    return type1.name === (type2 as any).name;
-                    break;
-                case "class":
-                    return type1.name === (type2 as any).name;
-                    break;
-                case "struct":
-                    return type1.name === (type2 as any).name;
-                    break;
-                case "pointer":
-                    type2 = type2 as PointerType;
-                    if ((type1.ptrType === type2.ptrType) || ((type1.ptrType !== "function") && (type2.ptrType !== "function"))) {
-                        switch (type1.ptrType) {
-                            case "array":
-                                return this.isTypeEqualTo(type1.eleType, (type2 as ArrayType).eleType || (type2 as NormalPointerType).targetType);
-                                break;
-                            case "function":
-                                return this.isTypeEqualTo((type1 as FunctionPointerType).targetType, (type2 as FunctionPointerType).targetType);
-                                break;
-                            case "normal":
-                                return this.isTypeEqualTo(type1.targetType, (type2 as ArrayType).eleType || (type2 as NormalPointerType).targetType);
-                                break;
-                        }
-                    }
-                    break;
-                case "function":
-                    if (this.isTypeEqualTo(type1.retType, (type2 as FunctionType).retType) && (type1.signature.length === (type2 as FunctionType).signature.length)) {
-                        return type1.signature.every((type, index, arr) => {
-                            const x = this.isTypeEqualTo(type, (type2 as FunctionType).signature[index]);
-                            return x;
-                        });
-                    }
-                    break;
-            }
-        }
-        return type1 === type2;
-    };
+    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObjectListCreator) {
+        const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
+        const domainInline = this.domainString(classType);
+        this.addTypeDomain(domainInline);
 
-    isBoolType(type: VariableType | string): boolean {
-        if (typeof type === "string") {
-            return type === "bool";
-        } else {
-            return (type.type === "primitive") && this.isBoolType(type.name);
-        }
-    };
-
-    isVoidType(type: VariableType | string): boolean {
-        if (typeof type === "string") {
-            return type === "void";
-        } else {
-            return (type.type === "primitive") && this.isVoidType(type.name);
-        }
-    };
-    isPrimitiveType(type: VariableType): type is PrimitiveType;
-    isPrimitiveType(type: string): type is CBasicType;
-    isPrimitiveType(type: Variable | DummyVariable): type is PrimitiveVariable;
-    isPrimitiveType(type: VariableType | Variable | DummyVariable | string) {
-        if (typeof type === "string") {
-            return this.isNumericType(type) || this.isBoolType(type) || this.isVoidType(type);
-        }
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isPrimitiveType(type.t);
-        }
-        return this.isNumericType(type) || this.isBoolType(type) || this.isVoidType(type);
-    };
-
-    isArrayType(type: VariableType): type is ArrayType;
-    isArrayType(type: Variable | DummyVariable): type is ArrayVariable;
-    isArrayType(type: VariableType | Variable | DummyVariable) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isArrayType(type.t);
-        }
-        return this.isPointerType(type) && (type.ptrType === "array");
-    };
-
-    isArrayElementType(type: Variable | DummyVariable): type is ArrayElementVariable;
-    isArrayElementType(type: Variable | DummyVariable) {
-        return type.t !== "dummy" && "array" in type.t;
-    };
-
-    isFunctionPointerType(type: VariableType): type is FunctionPointerType;
-    isFunctionPointerType(type: Variable | DummyVariable): type is FunctionPointerVariable;
-    isFunctionPointerType(type: VariableType | Variable | DummyVariable) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isFunctionPointerType(type.t);
-        }
-        return this.isPointerType(type) && type.ptrType === "function";
-    };
-
-    isFunctionType(type: VariableType): type is FunctionType;
-    isFunctionType(type: Variable | DummyVariable): type is FunctionVariable;
-    isFunctionType(type: VariableType | Variable | DummyVariable) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isFunctionType(type.t);
-        }
-        return type.type === "function";
-    };
-
-    isNormalPointerType(type: VariableType): type is NormalPointerType;
-    isNormalPointerType(type: Variable | DummyVariable): type is NormalPointerVariable;
-    isNormalPointerType(type: Variable | DummyVariable | VariableType): type is NormalPointerType {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isNormalPointerType(type.t);
-        }
-        return this.isPointerType(type) && (type.ptrType === "normal");
-    };
-
-    isPointerType(type: VariableType): type is PointerType;
-    isPointerType(type: Variable | DummyVariable): type is PointerVariable;
-    isPointerType(type: Variable | DummyVariable | VariableType) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isPointerType(type.t);
-        }
-        return type.type === "pointer";
-    };
-
-    isReferenceType(type: VariableType): type is ReferenceType;
-    isReferenceType(type: Variable | DummyVariable | VariableType) {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isReferenceType(type.t);
-        }
-        return type.type === "reference";
-    };
-
-    isStructType(type: VariableType | string): type is StructType;
-    isStructType(type: Variable | DummyVariable): type is ObjectVariable;
-    isStructType(type: any): type is StructType {
-        if (typeof type === "string") {
-            return this.getTypeSignature({ type: "struct", name: type }) in this.types;
-        }
-
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isStructType(type.t);
-        }
-        return type.type === "struct";
-    };
-
-    isClassType(type: VariableType): type is ClassType;
-    isClassType(type: Variable | DummyVariable): type is ObjectVariable;
-    isClassType(type: VariableType | DummyVariable | Variable): type is ClassType {
-        if ('t' in type) {
-            return type.t !== "dummy" && this.isClassType(type.t);
-        } else if ('targetType' in type) {
-            return this.isClassType(type.targetType);
-        }
-        return type.type === "class";
-    };
-
-    arrayPointerType(eleType: VariableType, size: number): ArrayType {
-        return {
-            type: "pointer",
-            ptrType: "array",
-            eleType,
-            size
-        };
-    };
-
-    makeArrayPointerValue(arr: Variable[], position: number): ArrayValue {
-        return {
-            target: arr,
-            position
-        }
-    };
-
-    functionPointerType(retType: VariableType, signature: (VariableType | "?")[]): FunctionPointerType {
-        return {
-            type: "pointer",
-            ptrType: "function",
-            targetType: this.functionType(retType, signature)
-        };
-    };
-
-    functionType(retType: VariableType, signature: (VariableType | "?")[]): FunctionType {
-        return {
-            type: "function",
-            retType,
-            signature
-        };
-    };
-
-    makeFunctionPointerValue(f: FunctionVariable, name: string, lt: VariableType | "global", args: (VariableType | "?")[], retType: VariableType): FunctionPointerValue {
-        return {
-            target: f,
-            name,
-            defineType: lt,
-            args,
-            retType
-        };
-    };
-
-    normalPointerType(targetType: VariableType): PointerType {
-        if (targetType.type === "function") {
-            return {
-                type: "pointer",
-                ptrType: "function",
-                targetType,
-            }
-        }
-        return {
-            type: "pointer",
-            ptrType: "normal",
-            targetType
-        };
-    };
-
-    makeReferenceType(targetType: VariableType): ReferenceType {
-        return {
-            type: "reference",
-            targetType
-        };
-    };
-
-    makeNormalPointerValue(target: Variable): PointerValue {
-        return {
-            target
-        };
-    };
-
-    simpleType(type: string | string[]): VariableType {
-        if (Array.isArray(type)) {
-            if (type.length > 1) {
-                const typeStr = type.map((t) => (t as any).Identifier ?? t).filter(t => {
-                    return !this.config.specifiers.includes(t as Specifier);
-                }).join(" ");
-                return this.simpleType(typeStr);
-            } else {
-                return this.typedefs[type[0]] || this.simpleType(type[0]);
-            }
-        } else {
-            if (this.isPrimitiveType(type)) {
-                return this.primitiveType(type);
-            } else if (this.isStructType(type)) {
-                return this.simpleStructType(type);
-            } else if (this.isNamespaceType(type)) {
-                return this.simpleType(resolveIdentifier(type).split("::").pop());
-            } else {
-                return this.simpleClassType(type);
-            }
-        }
-    };
-
-    simpleStructType(type: string) {
-        const structType: StructType = {
-            type: "struct",
-            name: type
-        };
-        if (this.getTypeSignature(structType) in this.types) {
-            return structType;
-        } else {
-            this.raiseException("type " + type + " is not defined");
-        }
-    };
-
-    simpleClassType(type: string) {
-        const clsType: ClassType = {
-            type: "class",
-            name: type
-        };
-        if (this.getTypeSignature(clsType) in this.types) {
-            return clsType;
-        } else {
-            this.raiseException("type " + type + " is not defined");
-        }
-    };
-
-    newStruct(structname: string, members: Member[]) {
-        const clsType: StructType = {
-            type: "struct",
-            name: structname
-        };
-
-        const sig = this.getTypeSignature(clsType);
-        if (sig in this.types) {
-            this.raiseException(this.makeTypeString(clsType) + " is already defined");
-        }
-
-        this.types[sig] = {
-            cConstructor(rt, _this) {
-                const v = _this.v as ObjectValue;
-                v.members = {};
-                for (const member of members) {
-                    v.members[member.name] = (member.initialize != null) ? rt.cloneDeep(member.initialize(rt, _this)) as Variable : rt.defaultValue(member.type, true);
-                }
-            },
-            members,
-            handlers: {
-                // ...defaults.defaultOpHandler.handlers,
-                "o(=)": {
-                    default(rt: CRuntime, l: any, r: any) {
-                        if (!l.left) {
-                            rt.raiseException(rt.makeValString(l) + " is not a left value");
-                        } else if (l.readonly) {
-                            rt.raiseException(`assignment of read-only variable ${rt.makeValString(l)}`);
-                        }
-
-                        l.v = rt.cast(l.t, r).v;
-                        return l;
-                    },
-                },
-                "o(&)": {
-                    default(rt: CRuntime, l: any, r: any) {
-                        if (r === undefined) {
-                            if (!l.left) {
-                                rt.raiseException(rt.makeValString(l) + " is not a left value");
-                            }
-                            if ("array" in l) {
-                                return rt.val(rt.arrayPointerType(l.t, l.array.length), rt.makeArrayPointerValue(l.array, l.arrayIndex));
-                            } else {
-                                const t = rt.normalPointerType(l.t);
-                                return rt.val(t, rt.makeNormalPointerValue(l));
-                            }
-                            
-                        } else {
-                            rt.raiseException(`operator & between types '${rt.makeTypeString(l)}' and '${rt.makeTypeString(r)}' is undefined`)
-                        }
-                    },
-                },
-            },
-        };
-        return clsType;
-    };
-
-    newClass(classname: string, members: Member[]) {
-        const clsType: ClassType = {
-            type: "class",
-            name: classname
-        };
-        const sig = this.getTypeSignature(clsType);
-        if (sig in this.types) {
-            this.raiseException(this.makeTypeString(clsType) + " is already defined");
-        }
-
-        this.types[sig] = {
-            father: classname,
-            cConstructor(rt, _this, args = []) {
-                const v = _this.v as ObjectValue;
-                v.members = {};
-                let i = 0;
-                while (i < members.length) {
-                    const member = members[i];
-                    v.members[member.name] = (member.initialize != null) ? member.initialize(rt, _this) : rt.defaultValue(member.type, true);
-                    i++;
-                }
-                rt.types[sig].handlers["o(())"]?.default(rt, _this, ...args);
-            },
-            members,
-            handlers: {},
-        };
-
-        return clsType;
-    };
-
-    primitiveType(type: CBasicType): PrimitiveType {
-        return {
-            type: "primitive",
-            name: type,
-        } as PrimitiveType;
-    };
-
-    isCharType(type: VariableType) {
-        return "name" in type && this.config.charTypes.indexOf(type.name as CCharType) !== -1;
-    };
-
-    isStringType(type: Variable): type is ArrayVariable;
-    isStringType(type: VariableType): type is ArrayType;
-    isStringType(type: Variable | VariableType) {
-        if ("t" in type) {
-            return this.isStringType(type.t);
-        } else if ('targetType' in type) {
-            return this.isStringType(type.targetType);
-        }
-        return (this.isArrayType(type) && this.isCharType(type.eleType)) || this.isStringClass(type);
-    };
-
-    isStringClass(type: VariableType) {
-        return (type.type === "class" && type.name === "string");
-    };
-
-    isVectorClass(type: VariableType) {
-        return (type.type === "class" && type.name === "vector");
-    };
-
-    isNamespaceType(type: string | Variable | VariableType) {
-        return resolveIdentifier(type).split('::').length > 1;
-    };
-
-    getStringFromCharArray(element: ArrayVariable) {
-        if (this.isStringType(element.t)) {
-            const {
-                target
-            } = element.v;
-            let result = "";
-            let i = 0;
-            while (i < target.length) {
-                const charVal = target[i];
-                if (charVal.v === 0) {
-                    break;
-                }
-                result += String.fromCharCode(charVal.v as number);
-                i++;
-            }
-            return result;
-        } else {
-            this.raiseException("target is not a string");
-        }
-    };
-
-    makeCharArrayFromString(str: string, typename?: CBasicType): ArrayVariable {
-        // if (!typename) { typename = this.detectWideCharacters(str) ? "wchar_t" : "char"; }
-        if (!typename) { typename = "char"; }
-        const charType = this.primitiveType(typename);
-        const type = this.arrayPointerType(charType, str.length + 1);
-        const trailingZero = this.val(charType, 0);
-        return {
-            t: type,
-            v: {
-                target: str.split("").map(c => this.val(charType, c.charCodeAt(0))).concat([trailingZero]),
-                position: 0,
-            }
-        };
+        const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
+        this.regFunc(function(_rt: CRuntime, templateArgs: [ClassType]): InitClassVariable {
+            const members: { [name: string]: Variable } = {};
+            const memList: interp.MemberObject[] = memberList.factory(...templateArgs);
+            memList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable });
+            return variables.class(variables.classType(identifier, templateArgs[0].templateSpec, domain === "{global}" ? null : domain), members, null);
+        }, classType, "o(_stub)", stubCtorTypeSig, new Array<number>(memberList.numTemplateArgs).fill(-1));
     };
 
     detectWideCharacters(str: string): boolean {
@@ -1638,150 +1123,101 @@ export class CRuntime {
         return wideCharacterRange.test(str);
     }
 
-    getTypeSignature(type: VariableType | "global" | "?" | "dummy") {
-        // (primitive), [class], <struct>, {pointer}
-        if (typeof (type) === "string") {
-            return type;
+    /** Safely accesses values.
+      * Panics if value is uninitalised. */
+    arithmeticValue(variable: MaybeUnboundArithmeticVariable): number {
+        if (variable.v.state === "UNINIT") {
+            this.raiseException("Access of an uninitialised value")
+        } else if (variable.v.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
-        let ret: string;
-        if (type.type === "primitive") {
-            ret = "(" + type.name + ")";
-        } else if (type.type === "class") {
-            ret = "[" + type.name + "]";
-        } else if (type.type === "struct") {
-            ret = "<" + type.name + ">";
-        } else if (type.type === "reference") {
-            ret = this.getTypeSignature(type.targetType);
-        } else if (type.type === "pointer") {
-            // !targetType, @size!eleType, !#retType!param1,param2,...
-            ret = "{";
-            if (type.ptrType === "normal") {
-                ret += "!" + this.getTypeSignature(type.targetType);
-            } else if (type.ptrType === "array") {
-                ret += "!" + this.getTypeSignature(type.eleType);
-            } else if (type.ptrType === "function") {
-                ret += "@" + this.getTypeSignature(type.targetType);
-            }
-            ret += "}";
-        } else if (type.type === "function") {
-            // #retType!param1,param2,...
-            ret = "#" + this.getTypeSignature(type.retType) + "!" + type.signature.map(e => {
-                return this.getTypeSignature(e);
-            }).join(",");
-        }
-        return ret;
-    };
+        return variable.v.value;
+    }
 
-    makeTypeString(type: VariableType | "global" | "dummy" | "?" | undefined) {
-        // (primitive), [class], <struct>, {pointer}
-        let ret;
-        if (type === undefined) {
-            ret = "<unknown>";
+    expectValue(variable: MaybeUnboundVariable): InitVariable {
+        if (variable.v.state === "UNINIT") {
+            this.raiseException("Access of an uninitialised value")
+        } else if (variable.v.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
-        else if (typeof (type) === "string") {
-            ret = "$" + type;
-        } else if (type.type === "primitive") {
-            ret = type.name;
-        } else if (type.type === "class") {
-            ret = type.name;
-        } else if (type.type === "struct") {
-            ret = `<${type.name}>`;
-        } else if (type.type === "pointer") {
-            // !targetType, @size!eleType, #retType!param1,param2,...
-            ret = "";
-            if (type.ptrType === "normal") {
-                ret += this.makeTypeString(type?.targetType) + "*";
-            } else if (type.ptrType === "array") {
-                ret += this.makeTypeString(type?.eleType) + `[${type.size}]`;
-            } else if (type.ptrType === "function") {
-                ret += this.makeTypeString(type?.targetType.retType) + "(*f)" + "(" + type.targetType.signature.map(e => {
-                    return this.makeTypeString(e);
-                }).join(",") + ")";
-            }
-        }
-        return ret;
-    };
+        return variable as InitVariable;
+    }
 
-    makeValueString(l: Variable | DummyVariable, options?: MakeValueStringOptions): string {
-        let display: string;
-        if (!options) { options = {}; }
-        if (this.isPrimitiveType(l)) {
-            if (this.isTypeEqualTo(l.t, this.charTypeLiteral)) {
-                display = "'" + String.fromCharCode(l.v as number) + "'";
-            } else if (this.isBoolType(l.t)) {
-                display = l.v !== 0 ? "true" : "false";
+    unbound(variable: MaybeUnboundVariable): Variable {
+        if (variable.v.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        }
+        return variable as Variable;
+    }
+
+    defaultValue(type: ObjectType, lvHolder: LValueHolder<Variable>): ResultOrGen<Variable> {
+        let classType: ClassType | null;
+        let pointerType: PointerType<ObjectType | FunctionType> | null;
+        if (type.sig in variables.arithmeticSig) {
+            return variables.uninitArithmetic(type.sig as ArithmeticSig, lvHolder as LValueHolder<ArithmeticVariable>, false);
+        } else if ((classType = variables.asClassType(type)) !== null) {
+            const domainName = classType.identifier;
+            if (!(domainName in this.typeMap)) {
+                this.raiseException(`Could not resolve a class named '${domainName}'`)
+            }
+            const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
+            if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
+                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
             } else {
-                display = l.v.toString();
+                this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }
-        } else if (this.isPointerType(l)) {
-            if (this.isFunctionType(l.t)) {
-                display = "<function>";
-            } else if (this.isArrayType(l)) {
-                if (this.isTypeEqualTo(l.t.eleType, this.charTypeLiteral)) {
-                    // string
-                    display = "\"" + this.getStringFromCharArray(l) + "\"";
-                } else if (options.noArray) {
-                    display = "[...]";
-                } else {
-                    options.noArray = true;
-                    const displayList = [];
-                    for (let i = l.v.position, end = l.v.target.length, asc = l.v.position <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                        displayList.push(this.makeValueString(l.v.target[i], options));
-                    }
-                    display = "[" + displayList.join(",") + "]";
-                }
-            } else if (this.isNormalPointerType(l)) {
-                if (options.noPointer) {
-                    display = "->?";
-                } else {
-                    options.noPointer = true;
-                    display = "->" + this.makeValueString(l.v.target);
-                }
+        } else if ((pointerType = variables.asPointerType(type)) !== null) {
+            if (pointerType.sizeConstraint === null) {
+                return variables.uninitPointer(pointerType.pointee, null, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);
             } else {
-                this.raiseException("unknown pointer type");
+
             }
-        } else if (this.isClassType(l)) {
-            display = "<object>";
-        } else if (this.isStructType(l)) {
-            display = "<struct>";
         }
-        return display;
+        this.raiseException("Not yet implemented");
     };
 
-    makeValString(l: Variable | DummyVariable) {
-        return this.makeValueString(l) + "(" + this.makeTypeString(l?.t) + ")";
-    };
-
-    makeConstructor(type: VariableType, args: Variable[], left = false): Variable {
-        const ret = this.val(type, { members: {} }, left);
-        this.types[this.getTypeSignature(type)].cConstructor(this, ret, args);
-        return ret;
-    };
-
-    defaultValue(type: VariableType, left = false): Variable {
-        if (type.type === "primitive") {
-            return this.val(type, 0, left, true);
-        } else if (type.type === "class" || type.type === "struct") {
-            const ret = this.val(type, { members: {} }, left);
-            this.types[this.getTypeSignature(type)].cConstructor(this, ret);
-            return ret;
-        } else if (type.type === "pointer") {
-            if (type.ptrType === "normal") {
-                return this.val(type, this.makeNormalPointerValue(null), left);
-            } else if (type.ptrType === "array") {
-                const init = [];
-                for (let i = 0, end = type.size, asc = 0 <= end; asc ? i < end : i > end; asc ? i++ : i--) {
-                    init[i] = this.defaultValue(type.eleType, true);
+    *defaultValue2(type: ObjectType, lvHolder: LValueHolder<Variable>): ResultOrGen<Variable> {
+        let classType: ClassType | null;
+        let pointerType: PointerType<ObjectType | FunctionType> | null;
+        if (type.sig in variables.arithmeticSig) {
+            return variables.uninitArithmetic(type.sig as ArithmeticSig, lvHolder as LValueHolder<ArithmeticVariable>, false);
+        } else if ((classType = variables.asClassType(type)) !== null) {
+            const domainName = classType.identifier;
+            if (!(domainName in this.typeMap)) {
+                this.raiseException(`Could not resolve a class named '${domainName}'`)
+            }
+            const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
+            if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
+                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
+            } else {
+                this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
+            }
+        } else if ((pointerType = variables.asPointerType(type)) !== null) {
+            if (pointerType.sizeConstraint === null) {
+                return variables.uninitPointer(pointerType.pointee, null, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);
+            } else if (pointerType.sizeConstraint < 0) {
+                // negative sizeConstraint value is reserved for occasions when the variable is a sized array but array size expression is not given.
+                // e.g.: int a[] = { 3, 4, 5 };
+                this.raiseException("Array size or a brace-enclosed list initialiser must be provided at the point of declaration of a static array");
+            } else {
+                if (pointerType.pointee.sig === "FUNCTION") {
+                    this.raiseException("Cannot declare an array of functions (perhaps you meant an array of function pointers?)")
                 }
-                return this.val(type, this.makeArrayPointerValue(init, 0), left);
-            } else if (type.ptrType === "function") {
-                return this.val(this.functionPointerType(type.targetType.retType, type.targetType.signature), this.makeFunctionPointerValue(null, null, null, type.targetType.signature, type.targetType.retType));
+                const memory = variables.arrayMemory<Variable>(pointerType.pointee as ObjectType, []);
+                for (let i = 0; i < pointerType.sizeConstraint; i++) {
+                    // variables.clone() is a shallow clone, do not put defaultVal outside the for-loop
+                    const defaultValueYield = this.defaultValue2(pointerType.pointee as ObjectType, null);
+                    const defaultVal = interp.asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
+                    memory.values.push(variables.clone(defaultVal, { array: memory, index: i }, false, this.raiseException, true).v);
+                }
+                return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>);
             }
         }
+        this.raiseException("Not yet implemented");
     };
 
-    raiseException(message: string, currentNode?: any) {
-        if (this.interp) {
+    raiseException(message: string, currentNode?: any): never {
+        if (this?.interp) {
             if (currentNode == null) {
                 ({
                     currentNode
@@ -1792,9 +1228,9 @@ export class CRuntime {
                     if (currentNode != null) {
                         const ln = currentNode.sLine;
                         const col = currentNode.sColumn;
-                        return ln + ":" + col;
+                        return `[line ${ln}:${col}]`;
                     } else {
-                        return "<position unavailable>";
+                        return "[position unavailable]";
                     }
                 })();
             throw new Error(posInfo + " " + message);
@@ -1804,7 +1240,7 @@ export class CRuntime {
     };
 
     raiseSoftException(message: string, currentNode?: any) {
-        if (this.interp) {
+        if (this?.interp) {
             if (currentNode == null) {
                 ({
                     currentNode
@@ -1815,12 +1251,12 @@ export class CRuntime {
                     if (currentNode != null) {
                         const ln = currentNode.sLine;
                         const col = currentNode.sColumn;
-                        return ln + ":" + col;
+                        return `[line ${ln}:${col}]`;
                     } else {
-                        return "<position unavailable>";
+                        return "[position unavailable]";
                     }
                 })();
-            console.error(posInfo + " " + message);
+            console.error(posInfo + " WARN: " + message);
         } else {
             console.error(message);
         }

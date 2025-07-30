@@ -1,4 +1,4 @@
-const prepast = require("./prepast");
+import * as prepast from "./prepast";
 // @ts-ignore
 import * as PEGUtil from "pegjs-util";
 import { BaseInterpreter } from "./interpreter";
@@ -10,16 +10,74 @@ interface Macro {
     replacement: any;
 };
 
-class Preprocessor extends BaseInterpreter {
+interface TranslationUnitSpec {
+    type: "TranslationUnit",
+    lines: any[]
+}
+
+interface CodeSpec {
+    type: "Code",
+    val: (any | string)[],
+}
+
+interface PrepIncludeLibSpec {
+    type: "PrepIncludeLib",
+    name: string
+}
+
+interface PrepIncludeLocalSpec {
+    type: "PrepIncludeLocal",
+    name: string
+}
+
+interface PrepSimpleMacroSpec {
+    type: "PrepSimpleMacro",
+    Identifier: IdentifierSpec,
+    Replacement: any,
+}
+
+interface PrepFunctionMacroSpec {
+    type: "PrepFunctionMacro",
+    Identifier: IdentifierSpec,
+    Args: any,
+    Replacement: any,
+}
+
+interface PrepUndefSpec {
+    type: "PrepUndef",
+    Identifier: IdentifierSpec,
+}
+interface PrepIfdefSpec {
+    type: "PrepIfdef",
+    Identifier: IdentifierSpec,
+}
+interface PrepIfndefSpec {
+    type: "PrepIfndef",
+    Identifier: IdentifierSpec,
+}
+interface PrepElseSpec {
+    type: "PrepElse",
+}
+interface PrepEndifSpec {
+    type: "PrepEndif",
+}
+interface IdentifierSpec {
+    type: "Identifier",
+    val: string
+}
+
+type Statement = TranslationUnitSpec | CodeSpec | PrepIncludeLibSpec | PrepIncludeLocalSpec | PrepSimpleMacroSpec | PrepFunctionMacroSpec | PrepUndefSpec | PrepIfdefSpec | PrepIfndefSpec | PrepElseSpec | PrepEndifSpec | IdentifierSpec;
+
+class Preprocessor extends BaseInterpreter<Statement> {
     ret: string;
     macros: { [name: string]: Macro };
     doinclude: boolean[];
-    macroStack: any[];
-    visitors: { [name: string]: (interp: Preprocessor, s: any, param?: any) => any };
+    macroStack: Statement[];
+    visitors: { [name: string]: (interp: Preprocessor, s: Statement, param?: any) => any };
 
     constructor(rt: CRuntime) {
         super(rt);
-        const pushInc = function (b: boolean) {
+        const pushInc = function(b: boolean) {
             this.doinclude.push(this.doinclude[this.doinclude.length - 1] && b);
         };
 
@@ -29,7 +87,7 @@ class Preprocessor extends BaseInterpreter {
         this.macroStack = [];
         this.doinclude = [true];
         this.visitors = {
-            TranslationUnit(interp, s, code) {
+            TranslationUnit(interp, s: TranslationUnitSpec, code) {
                 let i = 0;
                 while (i < s.lines.length) {
                     const dec = s.lines[i];
@@ -39,7 +97,7 @@ class Preprocessor extends BaseInterpreter {
                 }
                 return interp.ret;
             },
-            Code(interp, s, code) {
+            Code(interp, s: CodeSpec, _code) {
                 if (interp.doinclude[interp.doinclude.length - 1]) {
                     let i = 0;
                     while (i < s.val.length) {
@@ -49,37 +107,41 @@ class Preprocessor extends BaseInterpreter {
                     }
                 }
             },
-            PrepSimpleMacro(interp, s, code) {
+            PrepSimpleMacro(interp, s: PrepSimpleMacroSpec, _code) {
                 interp.newMacro(s.Identifier, s.Replacement);
             },
-            PrepFunctionMacro(interp, s, code) {
+            PrepFunctionMacro(interp, s: PrepFunctionMacroSpec, _code) {
                 interp.newMacroFunction(s.Identifier, s.Args, s.Replacement);
             },
-            PrepIncludeLib(interp, s, code) {
+            PrepIncludeLib(interp, s: PrepIncludeLibSpec, _code) {
                 interp.rt.include(s.name);
             },
-            PrepIncludeLocal(interp, s, code) {
-                const {
-                    includes
-                } = interp.rt.config;
-                if (s.name in includes) {
-                    includes[s.name].load(interp.rt);
+            PrepIncludeLocal(interp, s: PrepIncludeLocalSpec, _code) {
+                if (interp.rt.config.includes === undefined) {
+                    interp.rt.raiseException("[Preprocessor].interp.rt.config.includes is undefined");
                 } else {
-                    interp.rt.raiseException("cannot find file: " + s.name);
+                    const {
+                        includes
+                    } = interp.rt.config;
+                    if (s.name in includes) {
+                        includes[s.name].load(interp.rt);
+                    } else {
+                        interp.rt.raiseException("cannot find file: " + s.name);
+                    }
                 }
             },
-            PrepUndef(interp, s, code) {
+            PrepUndef(interp, s: PrepUndefSpec, _code) {
                 if (interp.isMacroDefined(s.Identifier)) {
                     delete interp.macros[s.Identifier.val];
                 }
             },
-            PrepIfdef(interp, s, code) {
+            PrepIfdef(interp, s: PrepIfdefSpec, _code) {
                 pushInc(interp.isMacroDefined(s.Identifier));
             },
-            PrepIfndef(interp, s, code) {
+            PrepIfndef(interp, s: PrepIfndefSpec, _code) {
                 pushInc(!interp.isMacroDefined(s.Identifier));
             },
-            PrepElse(interp, s, code) {
+            PrepElse(interp, _s: PrepElseSpec, _code) {
                 if (interp.doinclude.length > 1) {
                     const x = interp.doinclude.pop();
                     pushInc(!x);
@@ -87,51 +149,53 @@ class Preprocessor extends BaseInterpreter {
                     interp.rt.raiseException("#else must be used after a #if");
                 }
             },
-            PrepEndif(interp, s, code) {
+            PrepEndif(interp, _s: PrepEndifSpec, _code) {
                 if (interp.doinclude.length > 1) {
                     interp.doinclude.pop();
                 } else {
                     interp.rt.raiseException("#endif must be used after a #if");
                 }
             },
-            unknown(interp, s, code) {
+            unknown(interp, s, _code) {
                 interp.rt.raiseException("unhandled syntax " + s.type);
             }
         };
     }
-    visit(s: any, code: string) {
+    visit(s: Statement, code: string) {
         if ("type" in s) {
-            const _node = this.currentNode;
+            // const _node = this.currentNode;
             this.currentNode = s;
             if (s.type in this.visitors) {
                 return this.visitors[s.type](this, s, code);
             } else {
                 return this.visitors["unknown"](this, s, code);
             }
-            this.currentNode = _node;
+            // this.currentNode = _node;
         } else {
             this.currentNode = s;
             this.rt.raiseException("untyped syntax structure: " + JSON.stringify(s));
         }
     };
 
-    isMacroDefined(node: any) {
+    isMacroDefined(node: Statement): boolean {
         if (node.type === "Identifier") {
             return node.val in this.macros;
-        } else {
+        } else if ("Identifier" in node) {
             return node.Identifier.val in this.macros;
+        } else {
+            return false;
         }
     };
 
-    isMacro(node: any) {
-        return this.isMacroDefined(node) && "val" in node && (this.macros[node.val].type === "simple");
+    isMacro(node: Statement): boolean {
+        return this.isMacroDefined(node) && "val" in node && (this.macros[node.val as string].type === "simple");
     };
 
-    isMacroFunction(node: any) {
+    isMacroFunction(node: Statement): boolean {
         return this.isMacroDefined(node) && "Identifier" in node && (this.macros[node.Identifier.val].type === "function");
     };
 
-    newMacro(id: any, replacement: any) {
+    newMacro(id: any, replacement: any): void {
         if (this.isMacroDefined(id)) {
             this.rt.raiseException("macro " + id.val + " is already defined");
         }
@@ -141,7 +205,7 @@ class Preprocessor extends BaseInterpreter {
         };
     };
 
-    newMacroFunction(id: any, args: any[], replacement: any) {
+    newMacroFunction(id: any, args: any[], replacement: any): void {
         if (this.isMacroDefined(id)) {
             this.rt.raiseException("macro " + id.val + " is already defined");
         }
@@ -187,14 +251,21 @@ class Preprocessor extends BaseInterpreter {
         }
     };
 
-    replaceMacroFunction(node: any) {
-        if (this.isMacroFunction(node)) {
+    replaceMacroFunction(_node: Statement) {
+        if (this.isMacroFunction(_node)) {
+            const node = _node as any;
             const name = node.Identifier.val;
             const argsText = node.Args;
+            if (!(name in this.macros)) {
+                this.rt.raiseException(`[Preprocessor].macros[${name}] is undefined`);
+            }
             const rep = this.macros[name].replacement;
             const {
                 args
             } = this.macros[name];
+            if (args === undefined) {
+                this.rt.raiseException("args is undefined");
+            }
             if (args.length === argsText.length) {
                 let ret = "";
                 let i = 0;
@@ -234,6 +305,7 @@ class Preprocessor extends BaseInterpreter {
                 this.rt.raiseException("macro " + name + " requires " + args.length + " arguments (" + argsText.length + " given)");
             }
         } else {
+            const node = _node as any;
             const argsText = node.Args;
             const v = [];
             let i = 0;

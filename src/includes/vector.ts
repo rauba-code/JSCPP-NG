@@ -1,199 +1,124 @@
-import { Iterator } from "./shared/iterator";
-import { CRuntime, ClassType, Variable, VariableType } from "../rt";
+import { asResult } from "../interpreter";
+import { CRuntime, FunctionCallInstance } from "../rt";
+import * as common from "../shared/common";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ClassType, InitValue, AbstractVariable, AbstractTemplatedClassType, InitClassVariable, ClassValue, ArithmeticVariable } from "../variables";
+
+interface VectorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
+    readonly identifier: "vector",
+}
+
+type VectorVariable<T extends Variable> = AbstractVariable<VectorType<T["t"]>, VectorValue<T>>;
+
+interface VectorValue<T extends Variable> extends InitValue<VectorVariable<T>> {
+    members: {
+        "_ptr": InitIndexPointerVariable<T>,
+        "_sz": InitArithmeticVariable,
+        "_cap": InitArithmeticVariable,
+    }
+}
 
 export = {
     load(rt: CRuntime) {
-        const vectorType: ClassType = rt.newClass("vector", [{
-            name: "element_container",
-            type: [] as any,
-            initialize(rt, _this) { 
-                return new Vector([]) as any; 
-            }
-        }]);
-        rt.addToNamespace("std", "vector", vectorType);
-
-        class Vector {
-            dataType: any;
-            elements: any[];
-            iterator: Iterator;
-
-            constructor(elements: any[]) {
-                this.elements = elements;
-            }
-        
-            [Symbol.iterator]() {
-                this.iterator = new Iterator(this.dataType, this, this.elements);
-                return this.iterator;
-            }
-
-            push_back(value: any) {
-                this.elements.push(value);
-            }
-
-            push_front(value: any) {
-                this.elements.unshift(value);
-            }
-
-            pop_back() {
-                if (this.size() > 0) {
-                    this.elements.pop();
-                }
-            }
-
-            insert(start: any, end: any) {
-                this.elements.splice(((start as any).v?.index ?? start.v) as number, 0, end);
-                return this.iterator;
-            }
-
-            erase(start: Variable, end: Variable) {
-                if (rt.isNumericType(start)) {
-                    if ((start as any).v < 0) {
-                        rt.raiseException(`Runtime error: erase 'start' index can't be ${start.v}`);
-                    } else if ((start as any).v > this.size()) {
-                        rt.raiseException(`Runtime error: erase 'start' index ${start.v} can't exceed vector size ${this.size()}`);
+        rt.defineStruct2("{global}", "vector", {
+            numTemplateArgs: 1, factory: (dataItem: VectorType<ObjectType>) => {
+                return [
+                    {
+                        name: "_ptr",
+                        variable: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF")
+                    },
+                    {
+                        name: "_sz",
+                        variable: variables.arithmetic("I32", 0, "SELF")
+                    },
+                    {
+                        name: "_cap",
+                        variable: variables.arithmetic("I32", 0, "SELF")
                     }
+                ]
+            }
+        });
+        function* _grow(rt: CRuntime, vec: VectorVariable<Variable>, amount: number): Gen<void> {
+            const _sz: number = vec.v.members._sz.v.value;
+            const _cap: number = vec.v.members._cap.v.value;
+            if (_sz + amount > _cap) {
+                let newcap = Math.max(vec.v.members._cap.v.value * 2, 8);
+                while (_sz + amount > newcap) {
+                    newcap *= 2;
                 }
-                this.elements.splice(((start as any).v?.index ?? start.v) as number, ((end?.v as number) - (start.v as number)) || 1);
-                return this.iterator;
-            }
-
-            resize(count: any, value: any) {
-                const currentSize = this.size();
-                if (count.v as number < currentSize) {
-                    this.elements.length = count.v as number;
-                } else {
-                    this.elements.push(...new Array((count.v as number) - currentSize).fill(value ?? rt.defaultValue(this.dataType)));
+                const _pointeeType: ObjectType = vec.v.members._ptr.t.pointee;
+                const newMemory = variables.arrayMemory<Variable>(_pointeeType, []);
+                for (let i = 0; i < _sz; i++) {
+                    newMemory.values.push(variables.clone(rt.unbound(variables.arrayMember(vec.v.members._ptr.v.pointee, i) as MaybeUnboundVariable), { array: newMemory, index: i }, false, rt.raiseException, true).v);
                 }
+                for (let i = _sz; i < newcap; i++) {
+                    const defaultYield = rt.defaultValue2(_pointeeType, { array: newMemory, index: i });
+                    const defaultVar = asResult(defaultYield) ?? (yield* defaultYield as Gen<Variable>);
+                    newMemory.values.push(defaultVar.v);
+                }
+                vec.v.members._ptr.v.pointee = newMemory;
+                vec.v.members._cap.v.value = newcap;
             }
-            
-            size() {
-                return this.elements.length;
-            }
+            vec.v.members._sz.v.value += amount;
 
-            front() {
-                return this.elements[0];
-            }
-
-            back() {
-                return this.elements[this.size() - 1];
-            }
-
-            get(index: number) {
-                return this.elements[index];
-            }
-
-            clear() {
-                this.elements = [];
-            }
         }
-
-        const _getElementContainer = function(_this: any) {
-            return _this.v.members["element_container"];
-        };
-
-        const vectorTypeSig = rt.getTypeSignature(vectorType);
-        rt.types[vectorTypeSig].handlers = {
-            "o([])": {
-                default(rt, _this: any, r: Variable) {
-                    const element_container = _getElementContainer(_this);
-                    return element_container.get(r.v as number);
+        common.regOps(rt, [
+            {
+                op: "o(_[_])",
+                type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > I32 )",
+                default(rt: CRuntime, _templateTypes: [], l: VectorVariable<Variable>, _idx: ArithmeticVariable): Variable {
+                    const idx = rt.arithmeticValue(_idx);
+                    if (idx < 0 || idx >= l.v.members._sz.v.value) {
+                        rt.raiseException("vector operator[]: index out of range error");
+                    }
+                    return variables.arrayMember(l.v.members._ptr.v.pointee, l.v.members._ptr.v.index + idx) as ArithmeticVariable;
                 }
             },
-            "o(!=)": {
-                default(rt, _left: any, _right: any) {
-                    return rt.val(rt.boolTypeLiteral, _left.v.index != _right.index);
+        ]);
+        common.regMemberFuncs(rt, "vector", [
+            {
+                op: "begin",
+                type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS vector < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitIndexPointerVariable<Variable> {
+                    return variables.indexPointer(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index, false, null, false);
                 }
             },
-            "o(+)": { // vector .begin() + value
-                default(rt, _left: any, _right: Variable) {
-                    return _right;
+            {
+                op: "end",
+                type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS vector < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitIndexPointerVariable<Variable> {
+                    return variables.indexPointer(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index + vec.v.members._sz.v.value, false, null, false);
                 }
             },
-            "o(-)": { // vector .end() - value
-                default(rt, _left: any, _right: Variable) {
-                    return rt.val(rt.intTypeLiteral, (_left.index - (_right as any).v));
+            {
+                op: "push_back",
+                type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, tail: Variable): Gen<"VOID"> {
+                    yield* _grow(rt, vec, 1);
+                    const index = vec.v.members._ptr.v.index + vec.v.members._sz.v.value - 1;
+                    vec.v.members._ptr.v.pointee.values[index] = variables.clone(tail, { index, array: vec.v.members._ptr.v.pointee }, false, rt.raiseException, true).v;
+                    return "VOID";
                 }
             },
-            "o(*)": {
-                default(rt, _left: Variable, _right: Variable) {
-                    const iterator: any = _left.v;
-                    return iterator.scope.get(iterator.index);
+            {
+                op: "pop_back",
+                type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > )",
+                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Gen<"VOID"> {
+                    if (vec.v.members._sz.v.value === 0) {
+                        rt.raiseException("pop_back(): vector is empty");
+                    }
+                    vec.v.members._sz.v.value--;
+                    return "VOID";
                 }
             },
-            "o(=)": {
-                default(rt, _left: any, _right: Variable) {
-                    //_left.v = _right.v;
+            {
+                op: "size",
+                type: "!ParamObject FUNCTION I32 ( CLREF CLASS vector < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitArithmeticVariable {
+                    return variables.arithmetic("I32", vec.v.members._sz.v.value, null, false);
                 }
             },
-            "o(++)": { // vector it++;
-                default(rt, _left: any, _right: Variable) {
-                    _left.v.next();
-                }
-            }
-        };
+        ])
 
-        rt.regFunc(function(rt: CRuntime, _this: any, val: Variable) {
-            // const vectorDataType = _this.dataType;
-            const element_container = _getElementContainer(_this);
-            element_container.push_back(rt.cloneDeep(val));
-        }, vectorType, "push_back", ["?"], rt.voidTypeLiteral);
 
-        rt.regFunc(function(rt: CRuntime, _this: any) {
-            const element_container = _getElementContainer(_this);
-            element_container.pop_back();
-        }, vectorType, "pop_back", [], rt.voidTypeLiteral);
-
-        rt.regFunc(function(rt: CRuntime, _this: any, count: Variable, value: Variable) {
-            const element_container = _getElementContainer(_this);
-            return element_container.resize(count, value);
-        }, vectorType, "resize", ["?"], "?" as unknown as VariableType);
-
-        rt.regFunc(function(rt: CRuntime, _this: any, start: Variable, end: Variable) {
-            const element_container = _getElementContainer(_this);
-            return element_container.insert(start, end);
-        }, vectorType, "insert", ["?"], "?" as unknown as VariableType);
-
-        rt.regFunc(function(rt: CRuntime, _this: any, start: Variable, end: Variable) {
-            const element_container = _getElementContainer(_this);
-            return element_container.erase(start, end);
-        }, vectorType, "erase", ["?"], "?" as unknown as VariableType);
-
-        rt.regFunc(function(rt: CRuntime, _this: any) {
-            const element_container = _getElementContainer(_this);
-            element_container.clear();
-        }, vectorType, "clear", [], rt.voidTypeLiteral);
-
-        rt.regFunc(function(rt: CRuntime, _this: any) {
-            const element_container = _getElementContainer(_this);
-            return rt.val(rt.intTypeLiteral, element_container.size());
-        }, vectorType, "size", [], rt.intTypeLiteral);
-
-        rt.regFunc(function(rt: CRuntime, _this: any) {
-            const element_container = _getElementContainer(_this);
-            return element_container.front();
-        }, vectorType, "front", [], "?" as unknown as VariableType);
-
-        rt.regFunc(function(rt: CRuntime, _this: any) {
-            const element_container = _getElementContainer(_this);
-            return element_container.back();
-        }, vectorType, "back", [], "?" as unknown as VariableType);
-
-        rt.regFunc(function(rt: CRuntime, _this: any) {
-            const element_container = _getElementContainer(_this);
-            const iterator = element_container[Symbol.iterator]();
-            return iterator.begin();
-        }, vectorType, "begin", [], "?" as unknown as VariableType);
-
-        rt.regFunc(function(rt: CRuntime, _this: any) {
-            const element_container = _getElementContainer(_this);
-            const iterator = element_container[Symbol.iterator]();
-            return iterator.end();
-        }, vectorType, "end", [], "?" as unknown as VariableType);
-
-        rt.regFunc(function(rt: CRuntime, _this: any) {
-            const element_container = _getElementContainer(_this);
-            const iterator = element_container[Symbol.iterator]();
-            return iterator;
-        }, vectorType, "__iterator", [], "?" as unknown as VariableType);
     }
 };

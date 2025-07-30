@@ -2,33 +2,34 @@
 import { CRuntime, IncludeModule, JSCPPConfig, mergeConfig } from "./rt";
 
 import { Interpreter } from "./interpreter";
-const ast = require("./ast");
-const preprocessor = require("./preprocessor");
+import ast = require("./ast");
+import preprocessor = require("./preprocessor");
 import Debugger from "./debugger"
 // @ts-ignore;
 import * as PEGUtil from "pegjs-util";
+import * as defaults from "./defaults";
+import { InitArithmeticValue, MaybeUnboundArithmeticValue } from "./variables";
 
 const includes: { [fileName: string]: IncludeModule } = {
+    iostream: require("./includes/iostream"),
+    iomanip: require("./includes/iomanip"),
+    _bits__unixapi: require("./includes/bits/unixapi"),
     ifstream: require("./includes/ifstream"),
     ofstream: require("./includes/ofstream"),
     fstream: require("./includes/fstream"),
-    sstream: require("./includes/sstream"),
-    string: require("./includes/string"),
-    iostream: require("./includes/iostream"),
-    cctype: require("./includes/cctype"),
-    climits: require("./includes/climits"),
     cstring: require("./includes/cstring"),
-    cmath: require("./includes/cmath"),
-    cstdio: require("./includes/cstdio"),
-    cstdlib: require("./includes/cstdlib"),
     ctime: require("./includes/ctime"),
-    iomanip: require("./includes/iomanip"),
-    vector: require("./includes/vector"),
+    climits: require("./includes/climits"),
+    cmath: require("./includes/cmath"),
+    cstdlib: require("./includes/cstdlib"),
+    cstdio: require("./includes/cstdio"),
+    string: require("./includes/string"),
+    sstream: require("./includes/sstream"),
     algorithm: require("./includes/algorithm"),
-    functional: require("./includes/functional"),
-    utility: require("./includes/utility"),
-    _bits__stdcpp: require("./includes/bits/stdcpp"),
-    foo: require("./includes/dummy_class_foo")
+    vector: require("./includes/vector"),
+    cctype: require("./includes/cctype"),
+    /*functional: require("./includes/functional"),
+    _bits__stdcpp: require("./includes/bits/stdcpp")*/
 };
 
 const headerAlias: { [filename: string]: string } = {
@@ -39,6 +40,7 @@ const headerAlias: { [filename: string]: string } = {
     "stdio.h": "cstdio",
     "stdlib.h": "cstdlib",
     "bits/stdc++.h": "_bits__stdcpp",
+    "bits/unixapi.h": "_bits__unixapi",
     "time.h": "ctime"
 };
 
@@ -49,7 +51,7 @@ for (const alias of Object.keys(headerAlias)) {
 
 export type InputFunction = () => Promise<string>;
 
-function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number {
+function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number | void {
     let step;
     let inputbuffer = ""; // input.toString();
     let proceed = true;
@@ -65,7 +67,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         const openFiles: any = {};
 
         return {
-            open(context: object, fileName: string) {
+            open(_context: object, fileName: string) {
                 const openFileNode: any = testFiles[fileName] || ({ [fileName]: { value: "" } });
                 openFiles[fileName] = {
                     name: fileName,
@@ -121,13 +123,13 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             },
             drain() {
                 const x = inputbuffer;
-                inputbuffer = null;
+                inputbuffer = "";
                 return x;
             },
-            getInput() {
+            getInput(): Promise<string> {
                 return Promise.resolve(input?.() ?? "'InputFunction' is missing.");
             },
-            finishCallback(ExitCode: number) {
+            finishCallback(_ExitCode: number) {
 
             },
             write(s) {
@@ -135,6 +137,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
             }
         },
         includes: this.includes,
+        loadedLibraries: [],
         unsigned_overflow: "error",
     };
 
@@ -158,27 +161,35 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                 performedSteps++;
 
                 if (step.done) {
-                    const exitCode = step.value.v as number
-                    _config.stdio.finishCallback(exitCode);
-                    return exitCode;
+                    const exitVal = step.value.v as MaybeUnboundArithmeticValue;
+                    if (exitVal.state === "UNINIT") {
+                        throw new Error("[return statement] Access of an uninitialised variable");
+                    } else if (exitVal.state === "UNBOUND") {
+                        throw new Error("[return statement] Access of an out-of-bounds variable");
+                    } else {
+                        const exitCode = (exitVal as InitArithmeticValue).value;
+                        (_config.stdio as any).finishCallback(exitCode);
+                        return exitCode;
+                    }
                 }
-
-                if (performedSteps > _config.maxExecutionSteps)
+                if (performedSteps > (_config.maxExecutionSteps as number))
                     throw new Error("The execution step limit has been reached.");
                 else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
                     throw new Error("Time limit exceeded.");
 
-                if ((performedSteps % _config.eventLoopSteps) === 0) {
+                if ((performedSteps % (_config.eventLoopSteps as number)) === 0) {
                     await new Promise((resolve) => setImmediate(resolve));
                 }
             }
         } catch (error) {
-            _config.stdio.promiseError(error.message);
+            (_config.stdio as any).promiseError(error.message);
         }
     }
 
     mergeConfig(_config, config);
     const rt = new CRuntime(_config);
+    defaults.addDefaultOperations(rt);
+
     code = code.toString();
     const oldCode = code;
     code = preprocessor.parse(rt, code);
@@ -195,7 +206,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         step = defGen.next();
         if (step.done) { break; }
     }
-    const mainGen = rt.getFunc("global", "main", [])(rt, null);
+    const mainGen = rt.invokeCall(rt.getFuncByParams("{global}", "main", [], []), []) as Generator;
     if (_config.debug) {
         mydebugger.start(rt, mainGen);
         return mydebugger;
