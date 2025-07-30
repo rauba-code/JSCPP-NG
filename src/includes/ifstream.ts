@@ -362,6 +362,41 @@ export = {
                     return variables.arithmetic("BOOL", l.v.members._is_open.v.value, null);
                 }
             },
+            {
+                op: "good",
+                type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                    const eofbit = l.v.members.eofbit.v.value;
+                    const failbit = l.v.members.failbit.v.value;
+                    const badbit = l.v.members.badbit.v.value;
+                    return variables.arithmetic("BOOL", 1 - (eofbit | failbit | badbit), null);
+                }
+            },
+            {
+                op: "fail",
+                type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                    const failbit = l.v.members.failbit.v.value;
+                    const badbit = l.v.members.badbit.v.value;
+                    return variables.arithmetic("BOOL", failbit | badbit, null);
+                }
+            },
+            {
+                op: "bad",
+                type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                    const badbit = l.v.members.badbit.v.value;
+                    return variables.arithmetic("BOOL", badbit, null);
+                }
+            },
+            {
+                op: "eof",
+                type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                    const eofbit = l.v.members.eofbit.v.value;
+                    return variables.arithmetic("BOOL", eofbit, null);
+                }
+            },
         ]);
 
         common.regGlobalFuncs(rt, [
