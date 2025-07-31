@@ -996,12 +996,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                 let beginVar: Variable;
                 let endVar: Variable;
+                let classIterable: ClassVariable | null;
                 if (iterable.t.sig === "PTR" && iterable.t.sizeConstraint !== null) {
                     const arrayIterable = iterable as InitIndexPointerVariable<Variable>;
                     beginVar = variables.indexPointer(arrayIterable.v.pointee, arrayIterable.v.index, false, "SELF");
                     endVar = variables.indexPointer(arrayIterable.v.pointee, arrayIterable.v.index + (arrayIterable.t.sizeConstraint as number), false, "SELF");
+                } else if ((classIterable = variables.asClass(iterable)) !== null) {
+                    const beginInst = rt.tryGetFuncByParams(classIterable.t, "begin", [classIterable], []);
+                    const endInst = rt.tryGetFuncByParams(classIterable.t, "end", [classIterable], []);
+                    if (beginInst !== null && endInst !== null) {
+                        const beginYield = rt.invokeCall(beginInst, [], classIterable);
+                        const endYield = rt.invokeCall(endInst, [], classIterable);
+                        const beginResult = asResult(beginYield) ?? (yield * beginYield as Gen<MaybeUnboundVariable | "VOID">);
+                        const endResult = asResult(endYield) ?? (yield * endYield as Gen<MaybeUnboundVariable | "VOID">);
+                        beginVar = (beginResult !== "VOID") ? variables.clone(rt.unbound(beginResult), "SELF", false, rt.raiseException) : rt.raiseException("Range-based-for statement error: Expected 'begin' to be a variable, got void" + printTypes());
+                        endVar = (endResult !== "VOID") ? variables.clone(rt.unbound(endResult), "SELF", false, rt.raiseException) : rt.raiseException("Range-based-for statement error: Expected 'end' to be a variable, got void" + printTypes());
+                    } else {
+                        rt.raiseException("Range-based-for statement error: Expression is not iterable (missing 'begin' and 'end' member functions)" + printTypes());
+                    }
                 } else {
-                    rt.raiseException("Range-based-for statement error: Expression is not iterable\n" + printTypes());
+                    rt.raiseException("Range-based-for statement error: Expression is not iterable" + printTypes());
                 }
                 if (!variables.typesEqual(beginVar.t, endVar.t)) {
                     rt.raiseException(`Range-based-for statement error: Incompatible types between begin-expression '${rt.makeTypeStringOfVar(beginVar)}' and end-expression '${rt.makeTypeStringOfVar(endVar)}'${printTypes()}`);
