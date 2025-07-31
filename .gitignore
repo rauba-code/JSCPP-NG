@@ -41,3 +41,4 @@ demo/*.js.map
 .tscache
 src/ast.js
 src/prepast.js
+jscpp-ng.iml
