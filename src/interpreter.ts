@@ -508,12 +508,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType>, node?: XInitializerExpr | XInitializerArray | null, typeHint?: ObjectType | null }): ResultOrGen<void> {
                 const { rt } = interp;
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
-                if (deducedType) {
-                    rt.raiseException("DeclarationError: Not yet implemented");
-                }
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
-                const _basetype: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = /* deducedType ? (param.deducedType ?? interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType>>) : */ rt.simpleType(s.DeclarationSpecifiers);
-                const basetype = (_basetype === "VOID") ? rt.raiseException("Declaration error: Type error or not yet implemented") : _basetype;
+                const basetypeOrVoid: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType> | "VOID">)) : rt.simpleType(s.DeclarationSpecifiers);
+                const basetype = (basetypeOrVoid === "VOID") ? rt.raiseException("Declaration error: Declared variable cannot have a void type") : basetypeOrVoid;
 
                 for (const dec of s.InitDeclaratorList) {
                     let visitResult: DeclaratorYield;

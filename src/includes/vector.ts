@@ -120,9 +120,26 @@ export = {
                 }
             },
             {
+                op: "resize",
+                type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > I32 CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _size: ArithmeticVariable, tail: Variable): Gen<"VOID"> {
+                    const size = rt.arithmeticValue(_size);
+                    const oldSize = vec.v.members._sz.v.value;
+                    if (size <= oldSize) {
+                        vec.v.members._sz.v.value = size;
+                    } else {
+                        yield* _grow(rt, vec, size - oldSize);
+                        for (let index = oldSize; index < size; index++) {
+                            vec.v.members._ptr.v.pointee.values[index] = variables.clone(tail, { index, array: vec.v.members._ptr.v.pointee }, false, rt.raiseException, true).v;
+                        }
+                    }
+                    return "VOID";
+                }
+            },
+            {
                 op: "pop_back",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > )",
-                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Gen<"VOID"> {
+                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): "VOID" {
                     if (vec.v.members._sz.v.value === 0) {
                         rt.raiseException("vector::pop_back(): vector is empty");
                     }
@@ -153,6 +170,25 @@ export = {
                 }
             },
             {
+                op: "insert",
+                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _pos: PointerVariable<Variable>, tail: Variable): Gen<InitIndexPointerVariable<Variable>> {
+                    const pos = variables.asInitIndexPointer(_pos) ?? rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
+                    if (pos.v.pointee !== vec.v.members._ptr.v.pointee) {
+                        rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
+                    }
+                    yield* _grow(rt, vec, 1);
+                    const pointee = vec.v.members._ptr.v.pointee;
+                    pos.v.pointee = pointee;
+                    const _sz: number = vec.v.members._sz.v.value;
+                    for (let i = _sz - 2; i >= Math.max(pos.v.index, 0); i--) {
+                        pointee.values[i + 1] = { lvHolder: pointee.values[i + 1], ...pointee.values[i] };
+                    }
+                    pointee.values[pos.v.index] = variables.clone(tail, { index: pos.v.index, array: pointee }, false, rt.raiseException, true).v;
+                    return pos;
+                }
+            },
+            {
                 op: "erase",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 PTR ?0 )",
                 default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _first: PointerVariable<Variable>, _last: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
@@ -170,6 +206,14 @@ export = {
                         first.v.pointee.values[i] = { lvHolder: first.v.pointee.values[i], ...first.v.pointee.values[i + diff] };
                     }
                     return first;
+                }
+            },
+            {
+                op: "clear",
+                type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): "VOID" {
+                    vec.v.members._sz.v.value = 0;
+                    return "VOID";
                 }
             },
         ])
