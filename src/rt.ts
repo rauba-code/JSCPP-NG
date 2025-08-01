@@ -1,4 +1,3 @@
-import * as Flatted from 'flatted';
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
 import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
@@ -944,89 +943,6 @@ export class CRuntime {
             }
         }
         this.raiseException("Cast: Type error not yet implemented");
-        /*else if (this.isPrimitiveType(target) && this.isArrayType(value)) {
-            if (this.isTypeEqualTo(target, value.t.eleType)) {
-                return value;
-            }
-        } else if (this.isStructType(target)) {
-            return value;
-        } else if (this.isReferenceType(target)) {
-            return value;
-        } else if (this.isPointerType(target)) {
-            if (this.isArrayType(value)) {
-                if (this.isNormalPointerType(target)) {
-                    if (this.isTypeEqualTo(target.targetType, value.t.eleType)) {
-                        return value;
-                    } else {
-                        this.raiseException(this.makeTypeString(target?.targetType) + " is not equal to array element target " + this.makeTypeString(value?.t.eleType));
-                    }
-                } else if (this.isArrayType(target)) {
-                    if (this.isTypeEqualTo(target.eleType, value.t.eleType)) {
-                        return value;
-                    } else {
-                        this.raiseException("array element target " + this.makeTypeString(target?.eleType) + " is not equal to array element target " + this.makeTypeString(value?.t.eleType));
-                    }
-                } else {
-                    this.raiseException("cannot cast a function to a regular pointer");
-                }
-            } else {
-                if (this.isNormalPointerType(target)) {
-                    if (this.isNormalPointerType(value)) {
-                        if (this.isTypeEqualTo(target.targetType, value.t.targetType)) {
-                            return value;
-                        } else {
-                            this.raiseException(this.makeTypeString(target?.targetType) + " is not equal to " + this.makeTypeString(value?.t.targetType));
-                        }
-                    } else {
-                        this.raiseException(this.makeValueString(value) + " is not a normal pointer");
-                    }
-                } else if (this.isArrayType(target)) {
-                    if (this.isNormalPointerType(value)) {
-                        if (this.isTypeEqualTo(target.eleType, value.t.targetType)) {
-                            return value;
-                        } else {
-                            this.raiseException("array element target " + this.makeTypeString(target?.eleType) + " is not equal to " + this.makeTypeString(value?.t.targetType));
-                        }
-                    } else {
-                        this.raiseException(this.makeValueString(value) + " is not a normal pointer");
-                    }
-                } else if (this.isFunctionPointerType(target)) {
-                    if (this.isFunctionPointerType(value.t)) {
-                        if (!this.isTypeEqualTo(target, value.t)) {
-                            this.raiseException("Function pointers do not share the same signature");
-                        }
-                        return value;
-                    } else {
-                        this.raiseException("cannot cast a regular/array pointer to a function pointer");
-                    }
-                } else {
-                    this.raiseException("cannot cast a function to a regular pointer");
-                }
-            }
-        } else if (this.isFunctionType(target)) {
-            if (this.isFunctionType(value.t)) {
-                return this.val(value.t, value.v);
-            } else {
-                this.raiseException("cannot cast a regular pointer to a function");
-            }
-        } else if (this.isClassType(target)) {
-            if (this.isStringClass(target)) {
-                return this.val(target, value.v);
-            } else if (this.isVectorClass(target)) {
-                return this.val(target, value.v);
-            } else {
-                this.raiseException("not implemented");
-            }
-        } else if (this.isClassType(value.t)) {
-            value = this.getCompatibleFunc(value.t, this.makeOperatorFuncName(target.name), [])(this, value);
-            return value;
-        } else {
-            this.raiseException("cast failed from target " + this.makeTypeString(target) + " to " + this.makeTypeString(value?.t));
-        }*/
-    };
-
-    cloneDeep<T>(obj: T): T {
-        return Flatted.parse(Flatted.stringify(obj)) as T;
     };
 
     addToNamespace(namespacePath: string, name: string, obj: any) {
@@ -1100,7 +1016,7 @@ export class CRuntime {
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
             return variables.clone(stubClass, null, false, rt.raiseException);
-        }, classType, "o(_stub)", stubCtorTypeSig, []);
+        }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
     defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObjectListCreator) {
@@ -1114,7 +1030,7 @@ export class CRuntime {
             const memList: interp.MemberObject[] = memberList.factory(...templateArgs);
             memList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable });
             return variables.class(variables.classType(identifier, templateArgs[0].templateSpec, domain === "{global}" ? null : domain), members, null);
-        }, classType, "o(_stub)", stubCtorTypeSig, new Array<number>(memberList.numTemplateArgs).fill(-1));
+        }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
     detectWideCharacters(str: string): boolean {

@@ -2,7 +2,7 @@ import { asResult } from "../interpreter";
 import { CRuntime, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { strcmp, StringType, StringVariable, strncmp } from "../shared/string_utils";
-import { ArithmeticVariable, Gen, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, ResultOrGen, variables } from "../variables";
+import { ArithmeticVariable, ClassType, Gen, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, ResultOrGen, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -123,7 +123,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS string < > ( PTR I8 )",
-                *default(rt: CRuntime, _templateTypes: [], _r: PointerVariable<ArithmeticVariable>): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes: [ClassType], _r: PointerVariable<ArithmeticVariable>): Gen<StringVariable> {
                     const lYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
                     const l = asResult(lYield) ?? (yield* lYield as Gen<StringVariable>);
                     const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
@@ -139,7 +139,7 @@ export = {
             }
         ];
         for (const ctorHandler of ctorHandlers) {
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
         }
 
         common.regMemberFuncs(rt, "string", [

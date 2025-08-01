@@ -182,7 +182,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS ifstream < > ( PTR I8 )",
-                default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticVariable>): IfStreamVariable {
+                default(_rt: CRuntime, _templateTypes: [ClassType], _path: PointerVariable<ArithmeticVariable>): IfStreamVariable {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
@@ -193,7 +193,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS ifstream < > ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, _templateTypes: [], _path: StringVariable): IfStreamVariable {
+                default(_rt: CRuntime, _templateTypes: [ClassType], _path: StringVariable): IfStreamVariable {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
@@ -204,7 +204,7 @@ export = {
         ];
 
         for (const ctorHandler of ctorHandlers) {
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
         }
 
         function _get(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable, consumeDelimiter: boolean): IfStreamVariable {

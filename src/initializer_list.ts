@@ -1,5 +1,5 @@
 import { CRuntime } from "./rt";
-import { AbstractVariable, ClassType, InitIndexPointerVariable, InitValue, ObjectType, Variable } from "./variables";
+import { AbstractVariable, ClassType, InitIndexPointerVariable, InitValue, ObjectType, Variable, variables } from "./variables";
 
 export interface InitializerListType<T extends ObjectType> extends ClassType {
     readonly sig: "CLASS",
@@ -17,5 +17,14 @@ export interface InitializerListValue<T extends Variable> extends InitValue<Init
 }
 
 export function initializerListInit(rt: CRuntime): void {
-    
+    rt.defineStruct2("{global}", "initializer_list", {
+        numTemplateArgs: 1, factory: (dataItem: InitializerListType<ObjectType>) => {
+            return [
+                {
+                    name: "_values",
+                    variable: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF")
+                },
+            ]
+        }
+    });
 }

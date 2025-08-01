@@ -568,9 +568,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                             const _classType = variables.asClassType(type.t);
                             const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
+                            const classStr = variables.toStringSequence(classType, false, false, rt.raiseException);
 
                             //const initClass = variables.class(classType, {}, "SELF");
-                            const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs, []), [], ...constructorArgs);
+                            const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs, [classStr]), [classType], ...constructorArgs);
                             const xinitOrVoid = asResult(xinitYield) ?? (yield* (xinitYield as Gen<MaybeUnboundVariable | "VOID">))
                             if (xinitOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
@@ -703,6 +704,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Initialiser list error: Not yet implemented");
                 } else if (typeHint !== null) {
                     if (childTypeHint === null) {
+                        const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
                         rt.raiseException("Initialiser list error: Not yet implemented");
                     }
                     let initList: Variable[] = [];
@@ -725,7 +727,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const targetStr = variables.toStringSequence(childTypeHint, false, false, rt.raiseException).join(" ");
                             const sourceStr = variables.toStringSequence(rawVariable.t, false, false, rt.raiseException).join(" ");
                             if (targetStr in rt.ictable && sourceStr in rt.ictable[targetStr]) {
-                                const func = rt.getFuncByParams(variables.asClassType(childTypeHint) ?? rt.raiseException("Initialiser list error: not yet implemented"), "o(_ctor)", [rawVariable], []);
+                                const func = rt.getFuncByParams(variables.asClassType(childTypeHint) ?? rt.raiseException("Initialiser list error: not yet implemented"), "o(_ctor)", [rawVariable], [targetStr]);
                                 const callYield = rt.invokeCall(func, [], rawVariable);
                                 const callResult = asResult(callYield) ?? (yield* callYield as Gen<MaybeUnboundVariable | "VOID">);
                                 if (callResult === "VOID") {
