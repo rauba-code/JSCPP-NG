@@ -15,7 +15,6 @@ export interface InitializerListValue<T extends Variable> extends InitValue<Init
         "_values": InitIndexPointerVariable<T>
     }
 }
-
 export function initializerListInit(rt: CRuntime): void {
     rt.defineStruct2("{global}", "initializer_list", {
         numTemplateArgs: 1, factory: (dataItem: InitializerListType<ObjectType>) => {
@@ -27,4 +26,23 @@ export function initializerListInit(rt: CRuntime): void {
             ]
         }
     });
+}
+
+export function createInitializerList<T extends Variable>(type: T["t"], values: T["v"][]): InitializerListVariable<T> {
+    return {
+        t: {
+            sig: "CLASS",
+            identifier: "initializer_list",
+            templateSpec: [ type ],
+            memberOf: null
+        },
+        v: {
+            isConst: false,
+            lvHolder: null,
+            state: "INIT",
+            members: {
+                _values: variables.indexPointer(variables.arrayMemory<T>(type, values), 0, false, "SELF")
+            }
+        }
+    }
 }

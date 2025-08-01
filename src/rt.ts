@@ -125,6 +125,7 @@ export class CRuntime {
     interp: interp.BaseInterpreter<any>;
     fileio: FileManager;
     ictable: typecheck.ImplicitConversionTable;
+    explicitListInitTable: { [name: string]: ((type: ObjectType) => ObjectType)};
 
     constructor(config: JSCPPConfig) {
         this.parser = constructTypeParser();
@@ -137,6 +138,7 @@ export class CRuntime {
         this.namespace = {};
         this.typedefs = {};
         this.ictable = {};
+        this.explicitListInitTable = {};
     }
 
     openFile(path: InitIndexPointerVariable<ArithmeticVariable>, mode: number): number {

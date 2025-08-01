@@ -41,20 +41,21 @@ export = {
         const ctorHandler: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS vector < ?0 > ( CLASS initializer_list < ?0 > )",
-            default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): VectorVariable<Variable> {
+            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): Gen<VectorVariable<Variable>> {
                 const thisType = variables.classType("vector", list.t.templateSpec, null);
-                const vec = rt.defaultValue2(thisType, "SELF") as VectorVariable<Variable>;
-                const listValues = list.v.members._values.v.pointee.values;
+                const vec = yield *rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
+                const listmem = list.v.members._values.v.pointee;
                 const memory = variables.arrayMemory<Variable>(thisType.templateSpec[0], []);
-                for (let i = 0; i < listValues.length; i++) {
-                    memory.values.push(variables.clone(rt.unbound(variables.arrayMember(vec.v.members._ptr.v.pointee, i) as MaybeUnboundVariable), { array: memory, index: i }, false, rt.raiseException, true).v);
+                for (let i = 0; i < listmem.values.length; i++) {
+                    memory.values.push(variables.clone(rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: memory, index: i }, false, rt.raiseException, true).v);
                 }
                 vec.v.members._ptr.v.pointee = memory;
-                vec.v.members._cap.v.value = listValues.length;
-                vec.v.members._sz.v.value = listValues.length;
+                vec.v.members._cap.v.value = listmem.values.length;
+                vec.v.members._sz.v.value = listmem.values.length;
                 return vec;
             }
         };
+        rt.explicitListInitTable["vector"] = (vec: VectorType<ObjectType>) => vec.templateSpec[0];
         rt.regFunc(ctorHandler.default, variables.classType("vector", [], null), ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
         function* _grow(rt: CRuntime, vec: VectorVariable<Variable>, amount: number): Gen<void> {
             const _sz: number = vec.v.members._sz.v.value;

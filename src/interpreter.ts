@@ -1,6 +1,7 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig } from "./variables";
+import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -696,7 +697,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (ptrTypeHint !== null && ptrTypeHint.pointee.sig === "FUNCTION") {
                     rt.raiseException("Initialiser list error: Cannot declare array of functions (perhaps you meant array of function pointers?)");
                 }
-                const childTypeHint = (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) ? ptrTypeHint.pointee as ObjectType : null;
+                let childTypeHint = (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) ? ptrTypeHint.pointee as ObjectType : null;
                 if (s.Initializers.length === 0) {
                     if (typeHint === null) {
                         rt.raiseException("Initialiser list error: Type must be known for an empty initialiser list ('{ }') expression");
@@ -705,7 +706,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else if (typeHint !== null) {
                     if (childTypeHint === null) {
                         const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
-                        rt.raiseException("Initialiser list error: Not yet implemented");
+                        if (classTypeHint.identifier in rt.explicitListInitTable) {
+                            childTypeHint = rt.explicitListInitTable[classTypeHint.identifier](typeHint);
+                        } else {
+                            rt.raiseException("Initialiser list error: Not yet implemented");
+                        }
                     }
                     let initList: Variable[] = [];
                     for (const item of s.Initializers) {
@@ -763,7 +768,19 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         return variables.indexPointer(memory, 0, true, null);
                     } else {
-                        rt.raiseException("Initialiser list error: Not yet implemented");
+                        const ilist = createInitializerList<Variable>(childTypeHint, initList.map(x => x.v));
+                        if (param.typeHint !== undefined) {
+                            const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
+                            const ctorInst = rt.getFuncByParams(classTypeHint, "o(_ctor)", [ilist], [variables.toStringSequence(classTypeHint, false, false, rt.raiseException)]);
+                            const ctorYield = rt.invokeCall(ctorInst, [classTypeHint], ilist);
+                            const ctorResult = asResult(ctorYield) ?? (yield *ctorYield as Gen<MaybeUnboundVariable | "VOID">);
+                            if (ctorResult === "VOID") {
+                                rt.raiseException("Initialiser list error: expected a constructor returning a non-void value");
+                            }
+                            return rt.unbound(ctorResult);
+                        } else {
+                            return ilist;
+                        }
                     }
                 } else {
                     rt.raiseException("Initialiser list error: Not yet implemented");
