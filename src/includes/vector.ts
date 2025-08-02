@@ -1,7 +1,8 @@
+import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
-import { CRuntime, FunctionCallInstance } from "../rt";
+import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ClassType, InitValue, AbstractVariable, AbstractTemplatedClassType, InitClassVariable, ClassValue, ArithmeticVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
 
 interface VectorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "vector",
@@ -37,6 +38,25 @@ export = {
                 ]
             }
         });
+        const ctorHandler: common.OpHandler = {
+            op: "o(_ctor)",
+            type: "!ParamObject FUNCTION CLASS vector < ?0 > ( CLASS initializer_list < ?0 > )",
+            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): Gen<VectorVariable<Variable>> {
+                const thisType = variables.classType("vector", list.t.templateSpec, null);
+                const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
+                const listmem = list.v.members._values.v.pointee;
+                const memory = variables.arrayMemory<Variable>(thisType.templateSpec[0], []);
+                for (let i = 0; i < listmem.values.length; i++) {
+                    memory.values.push(variables.clone(rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: memory, index: i }, false, rt.raiseException, true).v);
+                }
+                vec.v.members._ptr.v.pointee = memory;
+                vec.v.members._cap.v.value = listmem.values.length;
+                vec.v.members._sz.v.value = listmem.values.length;
+                return vec;
+            }
+        };
+        rt.explicitListInitTable["vector"] = (vec: VectorType<ObjectType>) => vec.templateSpec[0];
+        rt.regFunc(ctorHandler.default, variables.classType("vector", [], null), ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
         function* _grow(rt: CRuntime, vec: VectorVariable<Variable>, amount: number): Gen<void> {
             const _sz: number = vec.v.members._sz.v.value;
             const _cap: number = vec.v.members._cap.v.value;
@@ -68,7 +88,7 @@ export = {
                 default(rt: CRuntime, _templateTypes: [], l: VectorVariable<Variable>, _idx: ArithmeticVariable): Variable {
                     const idx = rt.arithmeticValue(_idx);
                     if (idx < 0 || idx >= l.v.members._sz.v.value) {
-                        rt.raiseException("vector operator[]: index out of range error");
+                        rt.raiseException("vector::operator[]: index out of range error");
                     }
                     return variables.arrayMember(l.v.members._ptr.v.pointee, l.v.members._ptr.v.index + idx) as ArithmeticVariable;
                 }
@@ -100,11 +120,28 @@ export = {
                 }
             },
             {
+                op: "resize",
+                type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > I32 CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _size: ArithmeticVariable, tail: Variable): Gen<"VOID"> {
+                    const size = rt.arithmeticValue(_size);
+                    const oldSize = vec.v.members._sz.v.value;
+                    if (size <= oldSize) {
+                        vec.v.members._sz.v.value = size;
+                    } else {
+                        yield* _grow(rt, vec, size - oldSize);
+                        for (let index = oldSize; index < size; index++) {
+                            vec.v.members._ptr.v.pointee.values[index] = variables.clone(tail, { index, array: vec.v.members._ptr.v.pointee }, false, rt.raiseException, true).v;
+                        }
+                    }
+                    return "VOID";
+                }
+            },
+            {
                 op: "pop_back",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > )",
-                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Gen<"VOID"> {
+                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): "VOID" {
                     if (vec.v.members._sz.v.value === 0) {
-                        rt.raiseException("pop_back(): vector is empty");
+                        rt.raiseException("vector::pop_back(): vector is empty");
                     }
                     vec.v.members._sz.v.value--;
                     return "VOID";
@@ -117,8 +154,68 @@ export = {
                     return variables.arithmetic("I32", vec.v.members._sz.v.value, null, false);
                 }
             },
+            {
+                op: "erase",
+                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 )",
+                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _pos: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
+                    const pos = variables.asInitIndexPointer(_pos) ?? rt.raiseException("vector::erase(): expected 'pos' to point to the vector element");
+                    if (pos.v.pointee !== vec.v.members._ptr.v.pointee) {
+                        rt.raiseException("vector::erase(): expected 'pos' to point to the vector element");
+                    }
+                    const _sz: number = --vec.v.members._sz.v.value;
+                    for (let i = pos.v.index; i < _sz; i++) {
+                        pos.v.pointee.values[i] = { lvHolder: pos.v.pointee.values[i], ...pos.v.pointee.values[i + 1] };
+                    }
+                    return pos;
+                }
+            },
+            {
+                op: "insert",
+                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _pos: PointerVariable<Variable>, tail: Variable): Gen<InitIndexPointerVariable<Variable>> {
+                    const pos = variables.asInitIndexPointer(_pos) ?? rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
+                    if (pos.v.pointee !== vec.v.members._ptr.v.pointee) {
+                        rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
+                    }
+                    yield* _grow(rt, vec, 1);
+                    const pointee = vec.v.members._ptr.v.pointee;
+                    pos.v.pointee = pointee;
+                    const _sz: number = vec.v.members._sz.v.value;
+                    for (let i = _sz - 2; i >= Math.max(pos.v.index, 0); i--) {
+                        pointee.values[i + 1] = { lvHolder: pointee.values[i + 1], ...pointee.values[i] };
+                    }
+                    pointee.values[pos.v.index] = variables.clone(tail, { index: pos.v.index, array: pointee }, false, rt.raiseException, true).v;
+                    return pos;
+                }
+            },
+            {
+                op: "erase",
+                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 PTR ?0 )",
+                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _first: PointerVariable<Variable>, _last: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
+                    const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("vector::erase(): expected 'first' to point to the vector element");
+                    const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("vector::erase(): expected 'last' to point to the vector element");
+                    if (first.v.pointee !== vec.v.members._ptr.v.pointee) {
+                        rt.raiseException("vector::erase(): expected 'first' to point to the vector element");
+                    }
+                    if (last.v.pointee !== vec.v.members._ptr.v.pointee) {
+                        rt.raiseException("vector::erase(): expected 'last' to point to the vector element");
+                    }
+                    const diff = Math.max(0, last.v.index - first.v.index);
+                    const _sz: number = (vec.v.members._sz.v.value -= diff);
+                    for (let i = first.v.index; i < _sz; i++) {
+                        first.v.pointee.values[i] = { lvHolder: first.v.pointee.values[i], ...first.v.pointee.values[i + diff] };
+                    }
+                    return first;
+                }
+            },
+            {
+                op: "clear",
+                type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): "VOID" {
+                    vec.v.members._sz.v.value = 0;
+                    return "VOID";
+                }
+            },
         ])
-
-
     }
 };

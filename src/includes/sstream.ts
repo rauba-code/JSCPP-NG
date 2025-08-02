@@ -184,7 +184,7 @@ export = {
                 }
             };
 
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), []);
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
 
             function _getline(rt: CRuntime, l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStringStreamVariable {
                 let b = l.v.members.buf;

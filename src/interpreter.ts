@@ -1,6 +1,7 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig } from "./variables";
+import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
     return yield null;
@@ -507,12 +508,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType>, node?: XInitializerExpr | XInitializerArray | null, typeHint?: ObjectType | null }): ResultOrGen<void> {
                 const { rt } = interp;
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
-                if (deducedType) {
-                    rt.raiseException("DeclarationError: Not yet implemented");
-                }
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
-                const _basetype: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = /* deducedType ? (param.deducedType ?? interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType>>) : */ rt.simpleType(s.DeclarationSpecifiers);
-                const basetype = (_basetype === "VOID") ? rt.raiseException("Declaration error: Type error or not yet implemented") : _basetype;
+                const basetypeOrVoid: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType> | "VOID">)) : rt.simpleType(s.DeclarationSpecifiers);
+                const basetype = (basetypeOrVoid === "VOID") ? rt.raiseException("Declaration error: Declared variable cannot have a void type") : basetypeOrVoid;
 
                 for (const dec of s.InitDeclaratorList) {
                     let visitResult: DeclaratorYield;
@@ -568,9 +566,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                             const _classType = variables.asClassType(type.t);
                             const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
+                            const classStr = variables.toStringSequence(classType, false, false, rt.raiseException);
 
                             //const initClass = variables.class(classType, {}, "SELF");
-                            const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs, []), [], ...constructorArgs);
+                            const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs, [classStr]), [classType], ...constructorArgs);
                             const xinitOrVoid = asResult(xinitYield) ?? (yield* (xinitYield as Gen<MaybeUnboundVariable | "VOID">))
                             if (xinitOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
@@ -695,7 +694,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (ptrTypeHint !== null && ptrTypeHint.pointee.sig === "FUNCTION") {
                     rt.raiseException("Initialiser list error: Cannot declare array of functions (perhaps you meant array of function pointers?)");
                 }
-                const childTypeHint = (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) ? ptrTypeHint.pointee as ObjectType : null;
+                let childTypeHint = (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) ? ptrTypeHint.pointee as ObjectType : null;
                 if (s.Initializers.length === 0) {
                     if (typeHint === null) {
                         rt.raiseException("Initialiser list error: Type must be known for an empty initialiser list ('{ }') expression");
@@ -703,7 +702,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Initialiser list error: Not yet implemented");
                 } else if (typeHint !== null) {
                     if (childTypeHint === null) {
-                        rt.raiseException("Initialiser list error: Not yet implemented");
+                        const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
+                        if (classTypeHint.identifier in rt.explicitListInitTable) {
+                            childTypeHint = rt.explicitListInitTable[classTypeHint.identifier](typeHint);
+                        } else {
+                            rt.raiseException("Initialiser list error: Not yet implemented");
+                        }
                     }
                     let initList: Variable[] = [];
                     for (const item of s.Initializers) {
@@ -725,7 +729,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const targetStr = variables.toStringSequence(childTypeHint, false, false, rt.raiseException).join(" ");
                             const sourceStr = variables.toStringSequence(rawVariable.t, false, false, rt.raiseException).join(" ");
                             if (targetStr in rt.ictable && sourceStr in rt.ictable[targetStr]) {
-                                const func = rt.getFuncByParams(variables.asClassType(childTypeHint) ?? rt.raiseException("Initialiser list error: not yet implemented"), "o(_ctor)", [rawVariable], []);
+                                const func = rt.getFuncByParams(variables.asClassType(childTypeHint) ?? rt.raiseException("Initialiser list error: not yet implemented"), "o(_ctor)", [rawVariable], [targetStr]);
                                 const callYield = rt.invokeCall(func, [], rawVariable);
                                 const callResult = asResult(callYield) ?? (yield* callYield as Gen<MaybeUnboundVariable | "VOID">);
                                 if (callResult === "VOID") {
@@ -761,7 +765,19 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         return variables.indexPointer(memory, 0, true, null);
                     } else {
-                        rt.raiseException("Initialiser list error: Not yet implemented");
+                        const ilist = createInitializerList<Variable>(childTypeHint, initList.map(x => x.v));
+                        if (param.typeHint !== undefined) {
+                            const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
+                            const ctorInst = rt.getFuncByParams(classTypeHint, "o(_ctor)", [ilist], [variables.toStringSequence(classTypeHint, false, false, rt.raiseException)]);
+                            const ctorYield = rt.invokeCall(ctorInst, [classTypeHint], ilist);
+                            const ctorResult = asResult(ctorYield) ?? (yield *ctorYield as Gen<MaybeUnboundVariable | "VOID">);
+                            if (ctorResult === "VOID") {
+                                rt.raiseException("Initialiser list error: expected a constructor returning a non-void value");
+                            }
+                            return rt.unbound(ctorResult);
+                        } else {
+                            return ilist;
+                        }
                     }
                 } else {
                     rt.raiseException("Initialiser list error: Not yet implemented");
@@ -1061,7 +1077,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
 
                 while (true) {
-                    debugger;
                     const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
                     const neqVar = asResult(neqYield) ?? (yield* neqYield as Gen<ArithmeticVariable>);
                     if (rt.arithmeticValue(neqVar) === 0) {
