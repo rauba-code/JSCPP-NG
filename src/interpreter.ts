@@ -1077,7 +1077,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
 
                 while (true) {
-                    debugger;
                     const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
                     const neqVar = asResult(neqYield) ?? (yield* neqYield as Gen<ArithmeticVariable>);
                     if (rt.arithmeticValue(neqVar) === 0) {

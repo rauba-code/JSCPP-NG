@@ -1,10 +1,37 @@
 import { asResult } from "../interpreter";
-import { CRuntime, FunctionCallInstance } from "../rt";
+import { CRuntime, FunctionCallInstance, OpSignature } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ArithmeticVariable } from "../variables";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ArithmeticVariable, AbstractVariable, AbstractTemplatedClassType, InitValue, PointerType } from "../variables";
+
+interface PairType<T1 extends ObjectType, T2 extends ObjectType> extends AbstractTemplatedClassType<null, [T1, T2]> {
+    readonly identifier: "pair",
+}
+
+type PairVariable<T1 extends Variable, T2 extends Variable> = AbstractVariable<PairType<T1["t"], T2["t"]>, PairValue<T1, T2>>;
+
+interface PairValue<T1 extends Variable, T2 extends Variable> extends InitValue<PairVariable<T1, T2>> {
+    members: {
+        "first": T1,
+        "second": T2,
+    }
+}
 
 export = {
     load(rt: CRuntime) {
+        rt.defineStruct2("{global}", "pair", {
+            numTemplateArgs: 2, factory: (dataItem: PairType<ObjectType, ObjectType>) => {
+                return [
+                    {
+                        name: "first",
+                        variable: asResult(rt.defaultValue(dataItem.templateSpec[0], "SELF")) ?? rt.raiseException("pair: Not yet implemented"),
+                    },
+                    {
+                        name: "second",
+                        variable: asResult(rt.defaultValue(dataItem.templateSpec[1], "SELF")) ?? rt.raiseException("pair: Not yet implemented"),
+                    },
+                ]
+            }
+        });
         function yieldBlocking(x: ResultOrGen<MaybeUnboundVariable | "VOID">): InitArithmeticVariable {
             if (asResult(x)) {
                 if (x === "VOID") {
@@ -64,6 +91,23 @@ export = {
             });
             return "VOID";
         }
+        function* extreme_element(rt: CRuntime, _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>, fnname: string, op: OpSignature): Gen<InitIndexPointerVariable<Variable>> {
+            const first = variables.asInitIndexPointer(_first) ?? rt.raiseException(fnname + "(): Expected 'first' to point to an element");
+            const last = variables.asInitIndexPointer(_last) ?? rt.raiseException(fnname + "(): Expected 'last' to point to an element");
+            if (first.v.pointee !== last.v.pointee) {
+                rt.raiseException(fnname + "(): Expected 'first' and 'last' to point to an element of the same memory region");
+            }
+            const mini = variables.indexPointer(first.v.pointee, first.v.index++, false, null);
+            const cmpInst = rt.getOpByParams("{global}", op, [rt.unbound(variables.deref(first) as MaybeUnboundVariable), rt.unbound(variables.deref(mini) as MaybeUnboundVariable)], []);
+            for (; first.v.index < last.v.index; first.v.index++) {
+                const cmpYield = rt.invokeCall(cmpInst, [], rt.unbound(variables.deref(first) as MaybeUnboundVariable), rt.unbound(variables.deref(mini) as MaybeUnboundVariable)) as ResultOrGen<ArithmeticVariable>;
+                const cmpResult = rt.arithmeticValue(asResult(cmpYield) ?? (yield* cmpYield as Gen<ArithmeticVariable>))
+                if (cmpResult !== 0) {
+                    mini.v.index = first.v.index;
+                }
+            }
+            return mini;
+        }
 
         // template<typename RandomIt> void sort(RandomIt first, RandomIt last)
         // C++ Reference does not define RandomIt.
@@ -101,6 +145,46 @@ export = {
                 op: "stable_sort",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
+            },
+            {
+                op: "min_element",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): Gen<InitIndexPointerVariable<Variable>> {
+                    return yield* extreme_element(rt, _first, _last, "min_element", "o(_<_)");
+                }
+            },
+            {
+                op: "max_element",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): Gen<InitIndexPointerVariable<Variable>> {
+                    return yield* extreme_element(rt, _first, _last, "max_element", "o(_>_)");
+                }
+            },
+            {
+                op: "minmax_element",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): Gen<PairVariable<InitIndexPointerVariable<Variable>, InitIndexPointerVariable<Variable>>> {
+                    const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("minmax_element(): Expected 'first' to point to an element");
+                    const mini = yield* extreme_element(rt, variables.indexPointer(first.v.pointee, first.v.index, false, null), _last, "minmax_element", "o(_<_)");
+                    const maxi = yield* extreme_element(rt, variables.indexPointer(first.v.pointee, first.v.index, false, null), _last, "minmax_element", "o(_>_)");
+                    return {
+                        t: {
+                            sig: "CLASS",
+                            identifier: "pair",
+                            memberOf: null,
+                            templateSpec: [_first.t as PointerType<ObjectType>, _first.t as PointerType<ObjectType>]
+                        },
+                        v: {
+                            isConst: false,
+                            lvHolder: null,
+                            state: "INIT",
+                            members: {
+                                first: variables.indexPointer(mini.v.pointee, mini.v.index, false, "SELF"),
+                                second: variables.indexPointer(maxi.v.pointee, maxi.v.index, false, "SELF"),
+                            }
+                        }
+                    };
+                }
             },
             {
                 op: "find",
@@ -151,10 +235,10 @@ export = {
             // TODO: implement
             _panic(_rt, "find", "not yet implemented");
         }, "global", "find", ["?"], "?" as unknown as VariableType);
-
+    
         rt.regFunc(function(rt: CRuntime, _this: Variable, first: AlgorithmIterable, last: AlgorithmIterable) {
             const it: AlgorithmIterator = createAlgorithmIterator(rt, first, last, "reverse");
-
+    
             for (let i: number = 0; i * 2 < it.last_pos - it.first_pos; i++) {
                 const p = it.first_pos + i;
                 const q = ((it.last_pos - 1) - i);

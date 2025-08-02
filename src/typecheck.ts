@@ -439,9 +439,6 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                     retv = false;
                     return;
                 }
-                if (pair.subtype.includes("vector")) {
-                    debugger;
-                }
                 let valueAction: "BORROW" | "CLONE" | "CAST" = "CLONE";
                 const tmpSub = pair.subtype;
                 const tmpSuper = pair.supertype;
