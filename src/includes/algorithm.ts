@@ -1,79 +1,10 @@
 import { asResult } from "../interpreter";
 import { CRuntime, FunctionCallInstance } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable } from "../variables";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ArithmeticVariable } from "../variables";
 
 export = {
     load(rt: CRuntime) {
-        // this may be useful for using functions with parameters
-        /*function invoke_arbitrary_function(_rt: CRuntime, fun: Function, ...args: Variable[]): Variable {
-            let invocation = fun?.v?.target(_rt, fun, ...args);
-            if (invocation === undefined) {
-                _panic(_rt, "<internal>", "failed to invoke a given function (function is unknown)");
-            }
-            for (let i: number = 0; i < 100_000_000; i++) {
-                const retv = invocation.next();
-                if (retv.done === true) {
-                    return retv.value;
-                }
-            }
-            _panic(_rt, "<internal>", "failed to invoke a given function (runtime limit exceeded)");
-        }*/
-        /*function sort_inner(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable, _comp: any): void {
-            const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "sort");
-            if (_comp !== undefined) {
-                if (_comp.t?.type !== "function") {
-                    _panic(_rt, "sort", "parameter 'comp' is not a function (passing structures with operator bool() overloads is not yet implemented)")
-                }
-                if (_comp.t.retType?.type !== "primitive"
-                || _comp.t.retType.name !== "bool"
-                || _comp.t.signature?.length !== 2
-                || _comp.t.signature[0].type !== "reference"
-                || !(_.isEqual(_comp.t.signature[0].targetType, it.pointee_type))
-                || _comp.t.signature[1].type !== "reference"
-                || !(_.isEqual(_comp.t.signature[1].targetType, it.pointee_type))
-                ) {
-                    _panic(_rt, "sort", "comparison function does not have a signature of type 'bool ()(const T&, const T&)'")
-                }
-
-            }
-            if (it.first_pos > it.last_pos || it.first_pos < 0 || it.last_pos > it.array.length) {
-                _panic(_rt, "sort", "undefined behaviour caused by invalid pointer positions")
-            }
-            let lt_fun: any;
-            if (_comp === undefined) {
-                const o_lt : string = _rt.makeOperatorFuncName("<");
-                const pointee_type_sig : string = _rt.getTypeSignature(it.pointee_type);
-                if (pointee_type_sig === undefined) {
-                    _panic(_rt, "sort", "operator < is not supported for the specified type")
-                }
-                lt_fun = _rt.types[pointee_type_sig]?.handlers[o_lt]?.default;
-                if (lt_fun === undefined) {
-                    _panic(_rt, "sort", "operator < is not supported for the specified type")
-                }
-            } else {
-                lt_fun = function(__rt: CRuntime, lhs: any, rhs: any): any { 
-                    return invoke_arbitrary_function(__rt, _comp, lhs, rhs); 
-                };
-            }
-            const sort_comparator = function(lhs: any, rhs: any): number {
-                // JavaScript specifically wants a symmetrical comparator, so we compare both sides
-                // these return 0.0 or 1.0
-                const a_lt_b = lt_fun(_rt, lhs, rhs).v;
-                const b_lt_a = lt_fun(_rt, rhs, lhs).v;
-                // return -2.0, 0.0, or 2.0
-                return b_lt_a - a_lt_b;
-            }
-            const value_array = new Array();
-            for (let i = it.first_pos; i < it.last_pos; i++) {
-                value_array.push(it.array[i]);
-            }
-            value_array.sort(sort_comparator);
-            for (let i = it.first_pos; i < it.last_pos; i++) {
-                it.array[i] = value_array[i - it.first_pos];
-            }
-        }*/
-
         function yieldBlocking(x: ResultOrGen<MaybeUnboundVariable | "VOID">): InitArithmeticVariable {
             if (asResult(x)) {
                 if (x === "VOID") {
@@ -113,7 +44,7 @@ export = {
             for (let i = 0; i < region.length; i++) {
                 indexRegion.push(i);
             }
-            const clref_t : MaybeLeftCV<ObjectType> = { t: l.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
+            const clref_t: MaybeLeftCV<ObjectType> = { t: l.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
             const cmpFun = (_cmp !== null) ? (variables.asInitDirectPointer(_cmp) as InitDirectPointerVariable<Function> ?? rt.raiseException("sort: Parameter 'cmp' does not point to a function")) : null;
             const ltFun = (cmpFun === null) ? rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []) : null;
             function sortCmp(li: number, ri: number): number {
@@ -121,8 +52,8 @@ export = {
                 // these return 0.0 or 1.0
                 const lhs = region[li];
                 const rhs = region[ri];
-                const a_lt_b = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, lhs, rhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], lhs, rhs)).v.value;
-                const b_lt_a = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({t: cmpFun.t.pointee, v: cmpFun.v.pointee}, rhs, lhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], rhs, lhs)).v.value;
+                const a_lt_b = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({ t: cmpFun.t.pointee, v: cmpFun.v.pointee }, lhs, rhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], lhs, rhs)).v.value;
+                const b_lt_a = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({ t: cmpFun.t.pointee, v: cmpFun.v.pointee }, rhs, lhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], rhs, lhs)).v.value;
                 // return -2.0, 0.0, or 2.0
                 return b_lt_a - a_lt_b;
 
@@ -170,6 +101,44 @@ export = {
                 op: "stable_sort",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
+            },
+            {
+                op: "find",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>, value: Variable): Gen<InitIndexPointerVariable<Variable>> {
+                    if (_first.t.pointee.sig === "FUNCTION" || _last.t.pointee.sig === "FUNCTION") {
+                        rt.raiseException("find(): Expected a pointer to an object variable");
+                    }
+                    const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("find(): Expected 'first' to point to an element");
+                    const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("find(): Expected 'last' to point to an element");
+                    if (first.v.pointee !== last.v.pointee) {
+                        rt.raiseException("find(): Expected 'first' and 'last' to point to an element of the same memory region");
+                    }
+                    const eqInst = rt.getOpByParams("{global}", "o(_==_)", [rt.unbound(variables.deref(first) as MaybeUnboundVariable), value], []);
+                    for (; first.v.index < last.v.index; first.v.index++) {
+                        const eqYield = rt.invokeCall(eqInst, [], rt.unbound(variables.deref(first) as MaybeUnboundVariable), value) as ResultOrGen<ArithmeticVariable>;
+                        const eqResult = rt.arithmeticValue(asResult(eqYield) ?? (yield* eqYield as Gen<ArithmeticVariable>))
+                        if (eqResult !== 0) {
+                            return first;
+                        }
+                    }
+                    return first;
+                }
+            },
+            {
+                op: "distance",
+                type: "!ParamObject FUNCTION I32 ( PTR ?0 PTR ?0 )",
+                default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): InitArithmeticVariable {
+                    if (_first.t.pointee.sig === "FUNCTION" || _last.t.pointee.sig === "FUNCTION") {
+                        rt.raiseException("find(): Expected a pointer to an object variable");
+                    }
+                    const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("find(): Expected 'first' to point to an element");
+                    const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("find(): Expected 'last' to point to an element");
+                    if (first.v.pointee !== last.v.pointee) {
+                        rt.raiseException("find(): Expected 'first' and 'last' to point to an element of the same memory region");
+                    }
+                    return variables.arithmetic("I32", last.v.index - first.v.index, null);
+                }
             }
         ]);
         // InputIt is just like RandomIt but not necessarilly ValueSwappable
