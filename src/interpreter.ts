@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, ObjectValue } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -528,7 +528,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         rt.raiseException("Declaration error: Not yet implemented");
                     }
                     const rhs = dec.Declarator.right as DirectDeclaratorModifier[];
-                    for (const modifier of rhs) {
+                    for (const modifier of rhs.reverse()) {
                         if (modifier.type === "DirectDeclarator_modifier_array") {
                             if (modifier.Modifier.length > 0) {
                                 rt.raiseException("Declaration error: Type error or not yet implemented");
