@@ -197,7 +197,7 @@ InitDeclaratorList
     ;
 
 InitDeclarator
-    = a:Declarator b:(EQU x:Initializer {return x;})? {return addPositionInfo({type:'InitDeclarator', Declarator:a, Initializers:b});}
+    = a:Declarator b:((EQU x:Initializer {return x;}) / InitializerListExpr)? {return addPositionInfo({type:'InitDeclarator', Declarator:a, Initializers:b});}
     ;
 
 StorageClassSpecifier
@@ -402,10 +402,12 @@ TypedefName
     = Identifier
     ;
 
+InitializerListExpr = LWING a:InitializerList COMMA? RWING {return addPositionInfo({type:'Initializer_array', Initializers:a});}
+
 Initializer
     = a:AssignmentExpression {return addPositionInfo({type:'Initializer_expr', Expression:a});}
     / LWING a:StructInitializerList COMMA? RWING { return addPositionInfo({type:'StructExpression', values:a}); }
-    / LWING a:InitializerList COMMA? RWING {return addPositionInfo({type:'Initializer_array', Initializers:a});}
+    / InitializerListExpr 
     ;
 
 InitializerList
