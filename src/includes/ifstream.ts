@@ -227,7 +227,7 @@ export = {
                 }
                 const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
                 if (bi === delim || bi === 0) {
-                    if (consumeDelimiter) {
+                    if (consumeDelimiter && bi === delim) {
                         b.v.index++;
                     }
                     variables.arithmeticAssign(si, 0, rt.raiseException);
@@ -239,6 +239,20 @@ export = {
             }
             if (cnt === 0) {
                 l.v.members.failbit.v.value = 1;
+            }
+            return l;
+        }
+        function _ignore(rt: CRuntime, l: IfStreamVariable, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+            let b = l.v.members.buf;
+            const count = rt.arithmeticValue(_count);
+            const delim = rt.arithmeticValue(_delim);
+            for (let i = 0; i < count; i++) {
+                const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                if (bi === delim) {
+                    b.v.index++;
+                } else {
+                    break;
+                }
             }
             return l;
         }
@@ -322,6 +336,27 @@ export = {
                         rt.adjustArithmeticValue(ch as InitArithmeticVariable);
                     }
                     return l;
+                }
+            },
+            {
+                op: "ignore",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > I32 I8 )",
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+                    return _ignore(rt, l, _count, _delim);
+                }
+            },
+            {
+                op: "ignore",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > I32 )",
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _count: ArithmeticVariable): IfStreamVariable {
+                    return _ignore(rt, l, _count, variables.arithmetic("I8", 10, null));
+                }
+            },
+            {
+                op: "ignore",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > )",
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): IfStreamVariable {
+                    return _ignore(rt, l, variables.arithmetic("I32", 1, null), variables.arithmetic("I8", 10, null));
                 }
             },
             {
