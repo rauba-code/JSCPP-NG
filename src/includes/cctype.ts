@@ -13,6 +13,15 @@ export = {
                 }
             };
         }
+        function commonConvert(name: string, fn: ((x: number) => number)): common.FunHandler {
+            return {
+                op: name,
+                type: "FUNCTION I32 ( I32 )",
+                default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): InitArithmeticVariable {
+                    return variables.arithmetic("I32", fn(rt.arithmeticValue(l)), null);
+                }
+            };
+        }
         const ascii_tab: number = 0x7;
         const ascii_newline: number = 0x0A;
         const ascii_verticalTab: number = 0x0B;
@@ -40,6 +49,8 @@ export = {
             commonFormat("ispunct", (x) => (x > ascii_space && x < ascii_0) || (x > ascii_9 && x < ascii_A) || (x > ascii_Z && x < ascii_a) || (x > ascii_z && x < 127)),
             commonFormat("isspace", (x) => [ascii_tab, ascii_newline, ascii_verticalTab, ascii_formFeed, ascii_carriageReturn, ascii_space].includes(x)),
             commonFormat("isxdigit", (x) => (x >= ascii_A && x <= ascii_F) || (x >= ascii_a && x <= ascii_f) || (x >= ascii_0 && x <= ascii_9)),
+            commonConvert("toupper", (x) => (x >= ascii_a && x <= ascii_z) ? ((x - ascii_a) + ascii_A) : x),
+            commonConvert("tolower", (x) => (x >= ascii_A && x <= ascii_Z) ? ((x - ascii_A) + ascii_a) : x),
         ])
     }
 }
