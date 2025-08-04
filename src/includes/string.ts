@@ -192,6 +192,22 @@ export = {
                 }
             },
             {
+                op: "begin",
+                type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitIndexPointerVariable<ArithmeticVariable> {
+                    const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    return variables.indexPointer(lptr.v.pointee, lptr.v.index, false, null);
+                }
+            },
+            {
+                op: "end",
+                type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitIndexPointerVariable<ArithmeticVariable> {
+                    const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    return variables.indexPointer(lptr.v.pointee, lptr.v.index + l.v.members._size.v.value, false, null);
+                }
+            },
+            {
                 op: "front",
                 type: "FUNCTION LREF I8 ( CLREF CLASS string < > )",
                 default(rt: CRuntime, _templateTypes: [], l: StringVariable): ArithmeticVariable {

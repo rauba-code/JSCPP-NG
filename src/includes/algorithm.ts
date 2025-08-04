@@ -87,7 +87,7 @@ export = {
             }
             indexRegion.sort(sortCmp);
             indexRegion.forEach((ri, ci) => {
-                l.v.pointee.values[l.v.index + ci] = region[ri].v;
+                l.v.pointee.values[l.v.index + ci] = { lvHolder: { array: l.v.pointee.values, index: l.v.index + ci}, ...region[ri].v }
             });
             return "VOID";
         }
@@ -145,6 +145,25 @@ export = {
                 op: "stable_sort",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner2(rt, lhs, rhs, cmp); }
+            },
+            {
+                op: "reverse",
+                type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
+                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" {
+                    const l: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(lhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
+                    const r: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(rhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
+                    if (l.v.pointee !== r.v.pointee) {
+                        rt.raiseException("sort: expected parameters 'first' and 'last' to point to a same memory region");
+                    }
+                    const region = l.v.pointee.values.slice(l.v.index, r.v.index - l.v.index).map(v => ({ t: l.v.pointee.objectType, v })) as Variable[];
+                    if (region.length === 0) {
+                        return "VOID";
+                    }
+                    for (let i = 0; i < region.length; i++) {
+                        l.v.pointee.values[l.v.index + i] = { lvHolder: { array: l.v.pointee.values, index: l.v.index + i}, ...region[(region.length - 1) - i].v }
+                    }
+                    return "VOID";
+                }
             },
             {
                 op: "min_element",
