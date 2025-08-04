@@ -200,6 +200,48 @@ export = {
                 }
             },
             {
+                op: "substr",
+                type: "FUNCTION CLASS string < > ( CLREF CLASS string < > I32 I32 )",
+                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, pos: InitArithmeticVariable, count: InitArithmeticVariable): Gen<StringVariable> {
+                    const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
+                    const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
+                    if (l.v.members._size.v.value < pos.v.value) {
+                        rt.raiseException(`string::substr(): start position (${pos.v.value}) is greater than the size of string (${l.v.members._size.v.value})`);
+                    }
+                    str.v.members._ptr = variables.indexPointer(lptr.v.pointee, lptr.v.index + pos.v.value, false, "SELF");
+                    str.v.members._size.v.value = count.v.value === -1 ? l.v.members._size.v.value - pos.v.value : Math.min(l.v.members._size.v.value - pos.v.value, count.v.value);
+                    return str;
+                }
+            },
+            {
+                op: "substr",
+                type: "FUNCTION CLASS string < > ( CLREF CLASS string < > I32 )",
+                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, pos: InitArithmeticVariable): Gen<StringVariable> {
+                    const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
+                    const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
+                    if (l.v.members._size.v.value < pos.v.value) {
+                        rt.raiseException(`string::substr(): start position (${pos.v.value}) is greater than the size of string (${l.v.members._size.v.value})`);
+                    }
+                    str.v.members._ptr = variables.indexPointer(lptr.v.pointee, lptr.v.index + pos.v.value, false, "SELF");
+                    str.v.members._size.v.value = l.v.members._size.v.value - pos.v.value;
+                    return str;
+                }
+            },
+            {
+                op: "substr",
+                type: "FUNCTION CLASS string < > ( CLREF CLASS string < > )",
+                *default(rt: CRuntime, _templateTypes: [], l: StringVariable): Gen<StringVariable> {
+                    const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
+                    const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
+                    str.v.members._ptr = variables.indexPointer(lptr.v.pointee, lptr.v.index, false, "SELF");
+                    str.v.members._size.v.value = l.v.members._size.v.value;
+                    return str;
+                }
+            },
+            {
                 op: "end",
                 type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
                 default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitIndexPointerVariable<ArithmeticVariable> {
