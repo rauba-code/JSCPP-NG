@@ -225,29 +225,5 @@ export = {
                 }
             }
         ]);
-        // InputIt is just like RandomIt but not necessarilly ValueSwappable
-        // template<typename InputIt, typename T> InputIt find(InputIt first, InputIt last, const T &value);
-        /*rt.regFunc(function(_rt: CRuntime, _this: Variable, _first: AlgorithmIterable, _last: AlgorithmIterable, _value: NormalPointerVariable | ArrayVariable) {
-            if (_value?.t === undefined) {
-                _panic(_rt, "find", "parameter 'value' is undefined");
-            }
-            const it: AlgorithmIterator = createAlgorithmIterator(_rt, _first, _last, "find");
-            // TODO: implement
-            _panic(_rt, "find", "not yet implemented");
-        }, "global", "find", ["?"], "?" as unknown as VariableType);
-    
-        rt.regFunc(function(rt: CRuntime, _this: Variable, first: AlgorithmIterable, last: AlgorithmIterable) {
-            const it: AlgorithmIterator = createAlgorithmIterator(rt, first, last, "reverse");
-    
-            for (let i: number = 0; i * 2 < it.last_pos - it.first_pos; i++) {
-                const p = it.first_pos + i;
-                const q = ((it.last_pos - 1) - i);
-                const t = it.array[q];
-                const u = it.array[p];
-                it.array[q] = u;
-                it.array[p] = t;
-            }
-        }, "global", "reverse", ["?"], rt.voidTypeLiteral);
-        rt.addToNamespace("std", "reverse", rt.readVar("reverse"));*/
     }
 };
