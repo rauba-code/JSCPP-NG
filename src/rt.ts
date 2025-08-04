@@ -87,10 +87,11 @@ export interface FunctionSymbol {
     target: CFunction | null,
 }
 
-export interface TypeHandlerMap {
+export type TypeHandlerMap = {
     functionDB: TypeDB;
     functionsByID: FunctionSymbol[];
-}
+    memberObjectListCreator: interp.MemberObjectListCreator;
+};
 
 export type TypeSignature = {
     inline: string,
@@ -131,7 +132,7 @@ export class CRuntime {
         this.parser = constructTypeParser();
         this.config = config;
         this.typeMap = {};
-        this.addTypeDomain("{global}");
+        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => []});
         this.fileio = { freefd: 4, files: {} };
 
         this.scope = [{ "$name": "{global}", variables: {} }];
@@ -174,13 +175,14 @@ export class CRuntime {
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
     }
 
-    addTypeDomain(domain: string) {
+    addTypeDomain(domain: string, memberList: interp.MemberObjectListCreator) {
         if (domain in this.typeMap) {
             this.raiseException(`Domain ${domain} already exists`);
         }
         this.typeMap[domain] = {
             functionDB: new TypeDB(this.parser),
-            functionsByID: []
+            functionsByID: [],
+            memberObjectListCreator: memberList
         };
     }
 
@@ -1009,7 +1011,8 @@ export class CRuntime {
     defineStruct(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObject[]) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
-        this.addTypeDomain(domainInline);
+        const factory : interp.MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
+        this.addTypeDomain(domainInline, factory);
 
         const members: { [name: string]: Variable } = {};
         memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable })
@@ -1024,7 +1027,7 @@ export class CRuntime {
     defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObjectListCreator) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
-        this.addTypeDomain(domainInline);
+        this.addTypeDomain(domainInline, memberList);
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(_rt: CRuntime, templateArgs: [ClassType]): InitClassVariable {
