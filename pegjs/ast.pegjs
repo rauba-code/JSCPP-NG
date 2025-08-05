@@ -405,9 +405,9 @@ TypedefName
 InitializerListExpr = LWING a:(x:InitializerList COMMA? {return x;})? RWING {return addPositionInfo({type:'Initializer_array', Initializers:a ?? []});}
 
 Initializer
-    = a:AssignmentExpression {return addPositionInfo({type:'Initializer_expr', Expression:a});}
+    = InitializerListExpr 
+    / a:AssignmentExpression {return addPositionInfo({type:'Initializer_expr', Expression:a});}
     / LWING a:StructInitializerList COMMA? RWING { return addPositionInfo({type:'StructExpression', values:a}); }
-    / InitializerListExpr 
     ;
 
 InitializerList
@@ -427,6 +427,7 @@ PrimaryExpression
     / a:Constant {return addPositionInfo({type:'ConstantExpression', Expression:a});}
     / a:StringLiteral {return addPositionInfo({type:'StringLiteralExpression', value:a});}
     / LPAR a:Expression RPAR {return addPositionInfo({type:'ParenthesesExpression', Expression:a});}
+    / InitializerListExpr
     ;
 
 PostfixExpression
@@ -989,5 +990,6 @@ SCOPEOP    =  a:"::"        Spacing {return a;};
 EOT        =  !_    ;
 
 _          =  . ;
+
 
 

@@ -1489,7 +1489,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         rt.raiseException("Binary operation expression error: Expected a non-void value on the left-hand side of operation");
                     }
                     const left = rt.unbound(_left);
+                    const _typeHint = param.typeHint;
+                    param.typeHint = left.t;
                     const _right: MaybeUnboundVariable | "VOID" = yield* interp.visit(interp, s.right, param);
+                    param.typeHint = _typeHint;
                     if (_right === "VOID") {
                         rt.raiseException("Binary operation expression error: Expected a non-void value on the right-hand side of operation");
                     }
