@@ -757,11 +757,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const memList = memListFactory.factory(...classTypeHint.templateSpec);
                             let resultMembers: { [member: string]: Variable } = {};
                             let i = 0;
-                            if (s.Initializers.length !== memList.length) {
+                            if (s.Initializers.length > memList.length) {
                                 rt.raiseException(`Initialiser list error: Expected ${memList.length} elements, got ${s.Initializers.length};\nExpected brace-enclosed initialiser layout:\n  {${memList.map((mem) => rt.makeTypeString(mem.variable.t)).join(", ")}}`);
                             }
                             for (const member of memList) {
-                                resultMembers[member.name] = yield* getListItem(s.Initializers[i], i, member.variable.t);
+                                resultMembers[member.name] = (i < s.Initializers.length) ?  yield* getListItem(s.Initializers[i], i, member.variable.t) : member.variable;
                                 i++;
                             }
                             return variables.class(classTypeHint, resultMembers, null, false);
