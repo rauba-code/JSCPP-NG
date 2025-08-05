@@ -242,6 +242,35 @@ export = {
                 }
             },
             {
+                op: "replace",
+                type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > I32 I32 CLREF CLASS string < > )",
+                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, pos: InitArithmeticVariable, count: InitArithmeticVariable, r: StringVariable): Gen<StringVariable> {
+                    const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const rptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const lsz = l.v.members._size.v.value;
+                    const rsz = r.v.members._size.v.value;
+                    l.v.members._ptr = variables.indexPointer(variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []), 0, false, "SELF");
+                    l.v.members._size.v.value = 0;
+                    {
+                        const { size, ptr } = strConcat(rt, l, lptr, pos.v.value)
+                        l.v.members._ptr = ptr;
+                        l.v.members._size.v.value = size;
+                    }
+                    {
+                        const { size, ptr } = strConcat(rt, l, rptr, rsz)
+                        l.v.members._ptr = ptr;
+                        l.v.members._size.v.value = size;
+                    }
+                    {
+                        const start = pos.v.value + count.v.value;
+                        const { size, ptr } = strConcat(rt, l, variables.indexPointer(lptr.v.pointee, lptr.v.index + start, false, null), lsz - start);
+                        l.v.members._ptr = ptr;
+                        l.v.members._size.v.value = size;
+                    }
+                    return l;
+                }
+            },
+            {
                 op: "end",
                 type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
                 default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitIndexPointerVariable<ArithmeticVariable> {
