@@ -402,7 +402,7 @@ TypedefName
     = Identifier
     ;
 
-InitializerListExpr = LWING a:InitializerList COMMA? RWING {return addPositionInfo({type:'Initializer_array', Initializers:a});}
+InitializerListExpr = LWING a:(x:InitializerList COMMA? {return x;})? RWING {return addPositionInfo({type:'Initializer_array', Initializers:a ?? []});}
 
 Initializer
     = a:AssignmentExpression {return addPositionInfo({type:'Initializer_expr', Expression:a});}

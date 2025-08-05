@@ -695,122 +695,116 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Initialiser list error: Cannot declare array of functions (perhaps you meant array of function pointers?)");
                 }
                 let childTypeHint = (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) ? ptrTypeHint.pointee as ObjectType : null;
-                if (s.Initializers.length === 0) {
-                    if (typeHint === null) {
-                        rt.raiseException("Initialiser list error: Type must be known for an empty initialiser list ('{ }') expression");
+                if (typeHint === null) {
+                    rt.raiseException("Initialiser list error: Cannot determine type from the context");
+                }
+                function* getListItem(item: XInitializerExpr | XInitializerArray, memIdx: number, childType: ObjectType): Gen<Variable> {
+                    const _typeHint = param.typeHint;
+                    param.typeHint = childType;
+                    const _rawVariable = yield* interp.visit(interp, item, param);
+                    if (!("t" in _rawVariable && "sig" in _rawVariable.t)) {
+                        if (_rawVariable === "VOID") {
+                            rt.raiseException(`Initialiser list error: List member at index ${memIdx}: Expected a variable, got void`);
+                        }
+                        rt.raiseException(`Initialiser list error: List member at index ${memIdx}: Expected a variable`);
                     }
-                    rt.raiseException("Initialiser list error: Not yet implemented");
-                } else if (typeHint !== null) {
-                    function* getListItem(item: XInitializerExpr | XInitializerArray, memIdx: number, childType: ObjectType): Gen<Variable> {
-                        const _typeHint = param.typeHint;
-                        param.typeHint = childType;
-                        const _rawVariable = yield* interp.visit(interp, item, param);
-                        if (!("t" in _rawVariable && "sig" in _rawVariable.t)) {
-                            if (_rawVariable === "VOID") {
-                                rt.raiseException(`Initialiser list error: List member at index ${memIdx}: Expected a variable, got void`);
-                            }
-                            rt.raiseException(`Initialiser list error: List member at index ${memIdx}: Expected a variable`);
-                        }
-                        if (_rawVariable.t.sig === "FUNCTION") {
-                            rt.raiseException(`Initialiser list error: List member at index ${memIdx}: Expected a variable, got function (perhaps you meant a function pointer?)`);
-                        }
-                        const rawVariable = _rawVariable as Variable;
-                        param.typeHint = _typeHint;
-                        if (!variables.typesEqual(rawVariable.t, childType)) {
-                            const targetArithmetic = variables.asArithmeticType(childType);
-                            const sourceArithmetic = variables.asArithmetic(rawVariable);
-                            if (targetArithmetic !== null && sourceArithmetic !== null) {
-                                const result = variables.arithmetic(targetArithmetic.sig, rt.arithmeticValue(sourceArithmetic), null);
-                                rt.adjustArithmeticValue(result);
-                                return result;
-                            } else {
-                                const targetStr = variables.toStringSequence(childType, false, false, rt.raiseException).join(" ");
-                                const sourceStr = variables.toStringSequence(rawVariable.t, false, false, rt.raiseException).join(" ");
-                                if (targetStr in rt.ictable && sourceStr in rt.ictable[targetStr]) {
-                                    const func = rt.getFuncByParams(variables.asClassType(childType) ?? rt.raiseException(`Initialiser list error: List member at index ${memIdx}: not yet implemented`), "o(_ctor)", [rawVariable], [targetStr]);
-                                    const callYield = rt.invokeCall(func, [], rawVariable);
-                                    const callResult = asResult(callYield) ?? (yield* callYield as Gen<MaybeUnboundVariable | "VOID">);
-                                    if (callResult === "VOID") {
-                                        rt.raiseException(`Initialiser list error: List member at index ${memIdx}: Expected a variable, got void`)
-                                    }
-                                    return rt.unbound(callResult);
-                                } else {
-                                    rt.raiseException(`Initialiser list error: List member at index ${memIdx}: cannot implicitly convert from '${rt.makeTypeStringOfVar(rawVariable)}' to '${rt.makeTypeString(childType)}'`);
+                    if (_rawVariable.t.sig === "FUNCTION") {
+                        rt.raiseException(`Initialiser list error: List member at index ${memIdx}: Expected a variable, got function (perhaps you meant a function pointer?)`);
+                    }
+                    const rawVariable = _rawVariable as Variable;
+                    param.typeHint = _typeHint;
+                    if (!variables.typesEqual(rawVariable.t, childType)) {
+                        const targetArithmetic = variables.asArithmeticType(childType);
+                        const sourceArithmetic = variables.asArithmetic(rawVariable);
+                        if (targetArithmetic !== null && sourceArithmetic !== null) {
+                            const result = variables.arithmetic(targetArithmetic.sig, rt.arithmeticValue(sourceArithmetic), null);
+                            rt.adjustArithmeticValue(result);
+                            return result;
+                        } else {
+                            const targetStr = variables.toStringSequence(childType, false, false, rt.raiseException).join(" ");
+                            const sourceStr = variables.toStringSequence(rawVariable.t, false, false, rt.raiseException).join(" ");
+                            if (targetStr in rt.ictable && sourceStr in rt.ictable[targetStr]) {
+                                const func = rt.getFuncByParams(variables.asClassType(childType) ?? rt.raiseException(`Initialiser list error: List member at index ${memIdx}: not yet implemented`), "o(_ctor)", [rawVariable], [targetStr]);
+                                const callYield = rt.invokeCall(func, [], rawVariable);
+                                const callResult = asResult(callYield) ?? (yield* callYield as Gen<MaybeUnboundVariable | "VOID">);
+                                if (callResult === "VOID") {
+                                    rt.raiseException(`Initialiser list error: List member at index ${memIdx}: Expected a variable, got void`)
                                 }
+                                return rt.unbound(callResult);
+                            } else {
+                                rt.raiseException(`Initialiser list error: List member at index ${memIdx}: cannot implicitly convert from '${rt.makeTypeStringOfVar(rawVariable)}' to '${rt.makeTypeString(childType)}'`);
                             }
-                        } else {
-                            return rawVariable;
                         }
+                    } else {
+                        return rawVariable;
                     }
-                    if (childTypeHint === null) {
-                        const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
-                        if (classTypeHint.identifier in rt.explicitListInitTable) {
-                            childTypeHint = rt.explicitListInitTable[classTypeHint.identifier](typeHint);
-                        } else {
-                            if (!(classTypeHint.identifier in rt.typeMap)) {
-                                rt.raiseException(`Initialiser list error: cannot find class named '${classTypeHint.identifier}'`);
-                            }
-                            const memListFactory = rt.typeMap[classTypeHint.identifier].memberObjectListCreator;
-                            if (memListFactory.numTemplateArgs !== classTypeHint.templateSpec.length) {
-                                rt.raiseException(`Initialiser list error: expected ${memListFactory.numTemplateArgs} template arguments, got ${classTypeHint.templateSpec.length}`);
-                            }
-                            const memList = memListFactory.factory(...classTypeHint.templateSpec);
-                            let resultMembers: { [member: string]: Variable } = {};
-                            let i = 0;
-                            if (s.Initializers.length > memList.length) {
-                                rt.raiseException(`Initialiser list error: Expected ${memList.length} elements, got ${s.Initializers.length};\nExpected brace-enclosed initialiser layout:\n  {${memList.map((mem) => rt.makeTypeString(mem.variable.t)).join(", ")}}`);
-                            }
-                            for (const member of memList) {
-                                resultMembers[member.name] = (i < s.Initializers.length) ?  yield* getListItem(s.Initializers[i], i, member.variable.t) : member.variable;
-                                i++;
-                            }
-                            return variables.class(classTypeHint, resultMembers, null, false);
+                }
+                if (childTypeHint === null) {
+                    const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
+                    if (classTypeHint.identifier in rt.explicitListInitTable) {
+                        childTypeHint = rt.explicitListInitTable[classTypeHint.identifier](typeHint);
+                    } else {
+                        if (!(classTypeHint.identifier in rt.typeMap)) {
+                            rt.raiseException(`Initialiser list error: cannot find class named '${classTypeHint.identifier}'`);
                         }
-                    }
-                    let initList: Variable[] = [];
-                    let i = 0;
-                    for (const item of s.Initializers) {
-                        initList.push(yield* getListItem(item, i, childTypeHint))
-                        i++;
-                    }
-                    if (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) {
-                        if (ptrTypeHint.sizeConstraint >= 0 && initList.length > ptrTypeHint.sizeConstraint) {
-                            rt.raiseException(`Initialiser list error: expected at most ${ptrTypeHint.sizeConstraint} elements, got ${initList.length};`)
+                        const memListFactory = rt.typeMap[classTypeHint.identifier].memberObjectListCreator;
+                        if (memListFactory.numTemplateArgs !== classTypeHint.templateSpec.length) {
+                            rt.raiseException(`Initialiser list error: expected ${memListFactory.numTemplateArgs} template arguments, got ${classTypeHint.templateSpec.length}`);
                         }
-                        const size = (ptrTypeHint.sizeConstraint >= 0) ? ptrTypeHint.sizeConstraint : initList.length;
-                        const memory = variables.arrayMemory<Variable>(childTypeHint, []);
+                        const memList = memListFactory.factory(...classTypeHint.templateSpec);
+                        let resultMembers: { [member: string]: Variable } = {};
                         let i = 0;
-                        for (const item of initList) {
-                            memory.values.push(variables.clone(item, { array: memory, index: i }, false, rt.raiseException, true).v);
+                        if (s.Initializers.length > memList.length) {
+                            rt.raiseException(`Initialiser list error: Expected ${memList.length} elements, got ${s.Initializers.length};\nExpected brace-enclosed initialiser layout:\n  {${memList.map((mem) => rt.makeTypeString(mem.variable.t)).join(", ")}}`);
+                        }
+                        for (const member of memList) {
+                            resultMembers[member.name] = (i < s.Initializers.length) ? yield* getListItem(s.Initializers[i], i, member.variable.t) : member.variable;
                             i++;
                         }
-                        if (i < size) {
-                            while (i < size) {
-                                // do not put defaultValue outside the for-loop
-                                const defaultValueYield = rt.defaultValue2(childTypeHint, null);
-                                const defaultValue = asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
-                                memory.values.push(variables.clone(defaultValue, { array: memory, index: i }, false, rt.raiseException, true).v);
-                                i++;
-                            }
-                        }
-                        return variables.indexPointer(memory, 0, true, null);
-                    } else {
-                        const ilist = createInitializerList<Variable>(childTypeHint, initList.map(x => x.v));
-                        if (param.typeHint !== undefined) {
-                            const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
-                            const ctorInst = rt.getFuncByParams(classTypeHint, "o(_ctor)", [ilist], [variables.toStringSequence(classTypeHint, false, false, rt.raiseException)]);
-                            const ctorYield = rt.invokeCall(ctorInst, [classTypeHint], ilist);
-                            const ctorResult = asResult(ctorYield) ?? (yield* ctorYield as Gen<MaybeUnboundVariable | "VOID">);
-                            if (ctorResult === "VOID") {
-                                rt.raiseException("Initialiser list error: expected a constructor returning a non-void value");
-                            }
-                            return rt.unbound(ctorResult);
-                        } else {
-                            return ilist;
+                        return variables.class(classTypeHint, resultMembers, null, false);
+                    }
+                }
+                let initList: Variable[] = [];
+                let i = 0;
+                for (const item of s.Initializers) {
+                    initList.push(yield* getListItem(item, i, childTypeHint))
+                    i++;
+                }
+                if (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) {
+                    if (ptrTypeHint.sizeConstraint >= 0 && initList.length > ptrTypeHint.sizeConstraint) {
+                        rt.raiseException(`Initialiser list error: expected at most ${ptrTypeHint.sizeConstraint} elements, got ${initList.length};`)
+                    }
+                    const size = (ptrTypeHint.sizeConstraint >= 0) ? ptrTypeHint.sizeConstraint : initList.length;
+                    const memory = variables.arrayMemory<Variable>(childTypeHint, []);
+                    let i = 0;
+                    for (const item of initList) {
+                        memory.values.push(variables.clone(item, { array: memory, index: i }, false, rt.raiseException, true).v);
+                        i++;
+                    }
+                    if (i < size) {
+                        while (i < size) {
+                            // do not put defaultValue outside the for-loop
+                            const defaultValueYield = rt.defaultValue2(childTypeHint, null);
+                            const defaultValue = asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
+                            memory.values.push(variables.clone(defaultValue, { array: memory, index: i }, false, rt.raiseException, true).v);
+                            i++;
                         }
                     }
+                    return variables.indexPointer(memory, 0, true, null);
                 } else {
-                    rt.raiseException("Initialiser list error: Not yet implemented");
+                    const ilist = createInitializerList<Variable>(childTypeHint, initList.map(x => x.v));
+                    if (param.typeHint !== undefined) {
+                        const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
+                        const ctorInst = rt.getFuncByParams(classTypeHint, "o(_ctor)", [ilist], [variables.toStringSequence(classTypeHint, false, false, rt.raiseException)]);
+                        const ctorYield = rt.invokeCall(ctorInst, [classTypeHint], ilist);
+                        const ctorResult = asResult(ctorYield) ?? (yield* ctorYield as Gen<MaybeUnboundVariable | "VOID">);
+                        if (ctorResult === "VOID") {
+                            rt.raiseException("Initialiser list error: expected a constructor returning a non-void value");
+                        }
+                        return rt.unbound(ctorResult);
+                    } else {
+                        return ilist;
+                    }
                 }
             },
             *Label_case(interp, s, param) {
