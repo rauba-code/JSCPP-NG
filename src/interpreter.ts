@@ -574,6 +574,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             if (xinitOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
                             } else {
+                                if (isConst) {
+                                    (xinitOrVoid.v as any).isConst = true;
+                                }
                                 rt.defVar(name, rt.unbound(xinitOrVoid));
                             }
                         }
@@ -585,6 +588,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             param.typeHint = decType.t;
                             const initVar: Variable | null = (yield* interp.visit(interp, initSpec, param)) as Variable;
                             param.typeHint = _typeHint;
+                            if (isConst) {
+                                (initVar.v as any).isConst = true;
+                            }
                             rt.defVar(name, initVar);
                         } else {
                             const initVarYield = (initSpec === null) ? rt.defaultValue2(decType.t, "SELF") : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">;
