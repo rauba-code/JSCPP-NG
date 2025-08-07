@@ -9,6 +9,7 @@ import { StringVariable } from "../shared/string_utils";
 
 export = {
     load(rt: CRuntime) {
+        rt.include("string");
         const charType = variables.arithmeticType("I8");
         rt.defineStruct("{global}", "istream", [
             {
