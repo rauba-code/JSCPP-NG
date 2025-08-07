@@ -678,12 +678,9 @@ export class CRuntime {
         this.raiseException("Type lookup: Invalid argument (internal erro)");
     };
 
-    defVar(varname: string, object: Variable) {
-        if (varname == null) {
-            this.raiseException("cannot define a variable without name");
-        }
-        if (this.varAlreadyDefined(varname)) {
-            this.raiseException("variable " + varname + " already defined");
+    defVar(varname: string, object: Variable, allowRedefine: boolean = false) {
+        if (!allowRedefine && this.varAlreadyDefined(varname)) {
+            this.raiseException("Variable '" + varname + "' already defined");
         }
 
         const vc = this.scope[this.scope.length - 1];

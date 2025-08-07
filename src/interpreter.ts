@@ -632,7 +632,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 }
                                 if (isConst) {
                                     (initVar.v as any).isConst = true;
-                                    //rt.raiseException("Declaration error: Not yet implemented");
                                 }
                                 rt.defVar(name, initVar);
                             }
@@ -1077,29 +1076,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException(`Range-based-for statement error: Expected result of operator == between ElementHandlerType types to have a boolean type, got ${rt.makeTypeString(neqTestVar.t)}${printTypes()}`);
                 }
 
-                let elemVar: Variable;
-                if (s.Initializer) {
-                    param.deducedType = beginVar;
-                    if (s.Initializer.InitDeclaratorList.length !== 1) {
-                        rt.raiseException("Range-based-for statement error: Expected at most one variable to be declared" + printTypes());
-                    }
-                    if (s.Initializer.InitDeclaratorList[0].Declarator.left.type !== "Identifier") {
-                        rt.raiseException("Range-based-for statement error: Not yet implemented" + printTypes());
-                    }
-
-                    yield* interp.visit(interp, s.Initializer, param);
-                    const elemVarOrFunc = rt.readVarOrFunc(s.Initializer.InitDeclaratorList[0].Declarator.left.Identifier)
-                    if (variables.asFunction(elemVarOrFunc)) {
-                        rt.raiseException("Range-based-for statement error: Expected the declared variable, got function" + printTypes());
-                    }
-                    elemVar = elemVarOrFunc as Variable;
-                    if (!variables.typesEqual(elemVar.t, derefTestVar.t)) {
-                        rt.raiseException(`Range-based-for statement error: Expected the declared variable to have the same type as ElementHandlerType, got '${rt.makeTypeStringOfVar(elemVar)}'` + printTypes());
-                    }
-                } else {
-                    elemVar = beginVar;
-                }
-
                 while (true) {
                     const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
                     const neqVar = asResult(neqYield) ?? (yield* neqYield as Gen<ArithmeticVariable>);
@@ -1107,16 +1083,78 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         break;
                     }
 
-                    const elemTmpYield = rt.invokeCall(derefInst, [], beginVar) as ResultOrGen<MaybeUnboundVariable>;
-                    const elemTmpVar = asResult(elemTmpYield) ?? (yield* elemTmpYield as Gen<MaybeUnboundVariable>);
+                    if (s.Initializer) {
+                        const elemTmpYield = rt.invokeCall(derefInst, [], beginVar) as ResultOrGen<MaybeUnboundVariable>;
+                        let elemTmpVar = asResult(elemTmpYield) ?? (yield* elemTmpYield as Gen<MaybeUnboundVariable>);
 
-                    const setInst = rt.getOpByParams("{global}", "o(_=_)", [elemVar, elemTmpVar], []);
-                    const setYield = rt.invokeCall(setInst, [], elemVar, rt.unbound(elemTmpVar));
-                    asResult(setYield) ?? (yield* setYield as Gen<"VOID">);
+                        if (s.Initializer.InitDeclaratorList.length !== 1) {
+                            rt.raiseException("Range-based-for statement error: Expected at most one variable to be declared" + printTypes());
+                        }
+                        const dec = s.Initializer.InitDeclaratorList[0];
+                        const declSpec = s.Initializer.DeclarationSpecifiers;
+                        let basetype: MaybeLeft<ObjectType>;
+                        let isConst: boolean;
+                        if (declSpec.length === 1 && declSpec[0] === "auto") {
+                            basetype = elemTmpVar;
+                            isConst = iterable.v.isConst;
+                            if (!dec.Declarator.Reference) {
+                                (elemTmpVar.v as any).isConst = iterable.v.isConst;
+                                elemTmpVar = variables.clone(rt.unbound(elemTmpVar), "SELF", iterable.v.isConst, rt.raiseException);
+                            }
+                        } else if (declSpec.length > 1 && declSpec[0] === "const") {
+                            isConst = true;
+                            const basetypeOrVoid = rt.simpleType(declSpec);
+                            basetype = basetypeOrVoid !== "VOID" ? basetypeOrVoid : rt.raiseException("Range-based-for statement error: Declared variable cannot have a void type" + printTypes());
+                            if (!dec.Declarator.Reference) {
+                                (elemTmpVar.v as any).isConst = true;
+                                elemTmpVar = variables.clone(rt.unbound(elemTmpVar), "SELF", true, rt.raiseException);
+                            }
+                        } else {
+                            isConst = false;
+                            const basetypeOrVoid = rt.simpleType(declSpec);
+                            basetype = basetypeOrVoid !== "VOID" ? basetypeOrVoid : rt.raiseException("Range-based-for statement error: Declared variable cannot have a void type" + printTypes());
+                            if (dec.Declarator.Reference) {
+                                // mutable borrow
+                                if (iterable.v.isConst) {
+                                    rt.raiseException(`Range-based-for statement error: Cannot declare '${rt.makeTypeString(basetype.t, true)}' to '${rt.makeTypeString(elemTmpVar.t, false, true)}' (perhaps you meant '${rt.makeTypeString(basetype.t, true, true)}'?)` + printTypes());
+                                }
+                            } else {
+                                // clone
+                                elemTmpVar = variables.clone(rt.unbound(elemTmpVar), "SELF", false, rt.raiseException);
+                            }
+                        }
+                        let visitResult: DeclaratorYield;
+                        {
+                            const _basetype = param.basetype;
+                            param.basetype = basetype;
+                            visitResult = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
+                            param.basetype = _basetype;
+                        }
+                        const decType: MaybeLeft<ObjectType> = (dec.Declarator.Pointer instanceof Array) ? variables.uninitPointer(basetype.t, null, "SELF") : basetype;
+                        const { name/*, type*/ } = visitResult;
+                        if (!(dec.Declarator.right instanceof Array) || dec.Declarator.right.length !== 0) {
+                            rt.raiseException("Range-based-for statement error: Type error or not yet implemented" + printTypes());
+
+                        }
+                        if (dec.Initializers !== null) {
+                            rt.raiseException("Range-based-for statement error: Declared variable cannot have initialisers" + printTypes());
+                        }
+                        // initVar <=> elemTmpVar
+                        if (!variables.typesEqual(elemTmpVar.t, decType.t)) {
+                            rt.raiseException("Range-based-for statement error: Not yet implemented" + printTypes());
+                        }
+                        if (isConst) {
+                            (elemTmpVar.v as any).isConst = true;
+                        }
+                        rt.defVar(name, rt.unbound(elemTmpVar), true);
+                    } else {
+                        rt.raiseException("Range-based-for statement error: Not yet implemented" + printTypes());
+                    }
+
 
                     const r = yield* interp.visit(interp, s.Statement, param);
                     if (r instanceof Array) {
-                        let end_loop;
+                        let end_loop = false;
                         switch (r[0]) {
                             case "continue":
                                 break;
