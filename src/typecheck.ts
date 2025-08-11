@@ -253,7 +253,7 @@ interface SigPair {
 }
 
 interface FunctionMatchSigPair extends SigPair {
-    /** Triggered on FunctionParamOrEnd call. 0 means not a parameter; 
+    /** Triggered on FunctionParamOrEnd call. 0 means not a parameter;
       * In "FUNCTION R ( A B FUNCTION C ( D ) )", `param_depth` R is 0, for A, B and C it is 1, and 2 for D. */
     paramDepth: number,
     firstLevelParamBreadth: number,
