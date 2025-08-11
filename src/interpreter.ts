@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -197,6 +197,11 @@ export interface XNewExpression extends StatementMeta {
     TypeName: string[] | XScopedMaybeTemplatedIdentifier,
     pointerRank: number,
     arraySizeExpression?: XIdentifierExpression | XConstantExpression | null
+}
+export interface XDeleteStatement extends StatementMeta {
+    type: "DeleteStatement",
+    Expression: XIdentifierExpression | XConstantExpression | null,
+    brackets: boolean,
 }
 export interface XUnaryExpression_Sizeof_Type extends StatementMeta {
     type: "UnaryExpression_Sizeof_Type",
@@ -1267,6 +1272,22 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return ["return"];
             },
+            *DeleteStatement(interp, s: XDeleteStatement, param): Gen<"VOID"> {
+                ({
+                    rt
+                } = interp);
+                const expr = (yield *interp.visit(interp, s.Expression, param)) as MaybeUnboundVariable | "VOID";
+                if (expr === "VOID") {
+                    rt.raiseException("Delete-statement error: Expected non-void expression");
+                }
+                const ptrExpr = variables.asInitPointer(rt.unbound(expr)) ?? rt.raiseException("Delete-statement error: Expected an init pointer expression");
+                if (ptrExpr.t.pointee.sig === "FUNCTION") {
+                    rt.raiseException("Delete-statement error: Cannot delete a function pointer");
+                }
+                variables.indexPointerAssign(ptrExpr as InitPointerVariable<Variable>, variables.arrayMemory(ptrExpr.t.pointee, []), 0, rt.raiseException);
+                return "VOID";
+            },
+            
             IdentifierExpression(interp, s: XIdentifierExpression, param: { functionArgs?: MaybeLeftCV<ObjectType>[] }) {
                 ({ rt } = interp);
 

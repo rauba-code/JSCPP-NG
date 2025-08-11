@@ -92,6 +92,7 @@ Statement
     / SelectionStatement
     / IterationStatement
     / JumpStatement
+    / DeleteStatement
     ;
 
 Label
@@ -139,6 +140,12 @@ JumpStatement
     }
     / RETURN a:Expression? SEMI {
       return addPositionInfo({type: 'JumpStatement_return', Expression:a});
+    }
+    ;
+
+DeleteStatement
+    = DELETE brackets:(LBRK RBRK)? a:Expression SEMI {
+    	return addPositionInfo({type: 'DeleteStatement', Expression:a, brackets:((brackets) ? true : false)});
     }
     ;
 
@@ -658,6 +665,7 @@ CHAR      = a:"char"          !IdChar Spacing {return a;};
 CONST     = a:"const"         !IdChar Spacing {return a;};
 CONTINUE  = a:"continue"      !IdChar Spacing {return a;};
 DEFAULT   = a:"default"       !IdChar Spacing {return a;};
+DELETE    = a:"delete"        !IdChar Spacing {return a;};
 DOUBLE    = a:"double"        !IdChar Spacing {return a;};
 DO        = a:"do"            !IdChar Spacing {return a;};
 ELSE      = a:"else"          !IdChar Spacing {return a;};
@@ -704,6 +712,7 @@ Keyword
       / "const"
       / "continue"
       / "default"
+      / "delete"
       / "double"
       / "do"
       / "else"
