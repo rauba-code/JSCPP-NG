@@ -285,7 +285,7 @@ Declarator
     } )
     ;
 
-TypeScopedMaybeTemplatedIdentifier = TypeSpecifier / ScopedMaybeTemplatedIdentifier;
+TypeScopedMaybeTemplatedIdentifier = (TypeSpecifier)+ / ScopedMaybeTemplatedIdentifier;
 
 ScopedMaybeTemplatedIdentifier =
 	a:ScopedIdentifier b:( LT h:DeclarationSpecifiers t:( COMMA x:DeclarationSpecifiers { return x; })* GT { return [h].concat(t); } )? {
@@ -507,9 +507,18 @@ UnaryOperator
     / TILDA
     / BANG
     ;
+    
+NewExpression 
+	= UnaryExpression /
+	NEW a:TypeScopedMaybeTemplatedIdentifier b:(STAR*) c:(LBRK x:Expression RBRK { return x; })? {
+    	return addPositionInfo({type:'NewExpression', TypeName: a, pointerRank: b.length, arraySizeExpression: c });
+    } / 
+    NEW LPAR a:TypeScopedMaybeTemplatedIdentifier b:(STAR*) RPAR {
+    	return addPositionInfo({type:'NewExpression', TypeName: a, pointerRank: b.length });
+    };
 
 CastExpression
-    = UnaryExpression
+    = NewExpression
     / a:(LPAR TypeName RPAR) b:CastExpression {
       return addPositionInfo({type:'CastExpression', TypeName:a[1], Expression:b});
     }
@@ -661,6 +670,7 @@ IF        = a:"if"            !IdChar Spacing {return a;};
 INT       = a:"int"           !IdChar Spacing {return a;};
 INLINE    = a:"inline"        !IdChar Spacing {return a;};
 LONG      = a:"long"          !IdChar Spacing {return a;};
+NEW       = a:"new"           !IdChar Spacing {return a;};
 REGISTER  = a:"register"      !IdChar Spacing {return a;};
 RESTRICT  = a:"restrict"      !IdChar Spacing {return a;};
 RETURN    = a:"return"        !IdChar Spacing {return a;};
@@ -706,6 +716,7 @@ Keyword
       / "int"
       / "inline"
       / "long"
+      / "new"
       / "register"
       / "restrict"
       / "return"
@@ -991,6 +1002,3 @@ SCOPEOP    =  a:"::"        Spacing {return a;};
 EOT        =  !_    ;
 
 _          =  . ;
-
-
-

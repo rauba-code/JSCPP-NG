@@ -103,8 +103,8 @@ export interface XDirectDeclarator extends StatementMeta {
     type: "DirectDeclarator",
     left: XIdentifier | XDirectDeclarator,
     right: XDirectDeclarator_modifier_ParameterTypeList | XDirectDeclarator_modifier_IdentifierList | DirectDeclaratorModifier[],
-    Reference?: any[][],
-    Pointer: any[][] | null,
+    Reference?: [][],
+    Pointer: [][] | null,
 }
 type DirectDeclaratorModifier = XDirectDeclarator_modifier_ParameterTypeList | XDirectDeclarator_modifier_IdentifierList | XDirectDeclarator_modifier_Array;
 export interface XDirectDeclarator_modifier_Array extends StatementMeta {
@@ -185,12 +185,18 @@ export interface XTypeName extends StatementMeta {
 }
 export interface XAbstractDeclarator extends StatementMeta {
     type: "AbstractDeclarator",
-    Pointer: any[][] | null,
+    Pointer: [][] | null,
 }
 export interface XCastExpression extends StatementMeta {
     type: "CastExpression",
     TypeName: XTypeName,
     Expression: XIdentifierExpression | PostfixExpression
+}
+export interface XNewExpression extends StatementMeta {
+    type: "NewExpression",
+    TypeName: string[] | XScopedMaybeTemplatedIdentifier,
+    pointerRank: number,
+    arraySizeExpression?: XIdentifierExpression | XConstantExpression | null
 }
 export interface XUnaryExpression_Sizeof_Type extends StatementMeta {
     type: "UnaryExpression_Sizeof_Type",
@@ -1498,6 +1504,37 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Cast error: Cannot cast to void");
                 }
                 return rt.cast(type.t, ret, true);
+            },
+            *NewExpression(interp, s: XNewExpression, param): Gen<Variable> {
+                ({
+                    rt
+                } = interp);
+                const xtype = rt.simpleType((s.TypeName instanceof Array) ? s.TypeName : [s.TypeName]) as MaybeLeft<ObjectType> | "VOID";
+                if (xtype === "VOID") {
+                    rt.raiseException("New-expression error: Type cannot be void (void-pointers are not yet implemented");
+                }
+                let xt = xtype.t;
+                for (let i = 0; i < s.pointerRank; i++) {
+                    xt = variables.pointerType(xt, null);
+                }
+                if (s.arraySizeExpression === null || s.arraySizeExpression === undefined) {
+                    const defaultValYield = rt.defaultValue2(xt, "SELF")
+                    const defaultVal = asResult(defaultValYield) ?? (yield* defaultValYield as Gen<Variable>);
+                    return variables.directPointer(defaultVal, "SELF", false);
+                } else {
+                    const arrSzVar = (yield* interp.visit(interp, s.arraySizeExpression, param)) as MaybeUnboundVariable;
+                    const arrSz = rt.arithmeticValue(variables.asArithmetic(rt.unbound(arrSzVar)) ?? rt.raiseException("New-expression error: Array size is expected to be an arithmetic value"));
+                    if (arrSz <= 0) {
+                        rt.raiseException("New-expression error: Array size is expected to hold a positive value");
+                    }
+                    const memory = variables.arrayMemory<Variable>(xt, []);
+                    for (let index = 0; index < arrSz; index++) {
+                        const defaultValYield = rt.defaultValue2(xt, { index, array: memory })
+                        const defaultVal = asResult(defaultValYield) ?? (yield* defaultValYield as Gen<Variable>);
+                        memory.values.push(defaultVal.v);
+                    }
+                    return variables.indexPointer(memory, 0, false, null);
+                }
             },
             TypeName(interp, s: XTypeName, _param): MaybeLeft<ObjectType> | "VOID" {
                 ({
