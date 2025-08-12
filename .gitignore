@@ -42,3 +42,4 @@ demo/*.js.map
 src/ast.js
 src/prepast.js
 jscpp-ng.iml
+package-lock.json

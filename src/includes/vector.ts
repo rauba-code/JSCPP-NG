@@ -38,7 +38,8 @@ export = {
                 ]
             }
         });
-        const ctorHandler: common.OpHandler = {
+
+        const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS vector < ?0 > ( CLASS initializer_list < ?0 > )",
             *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): Gen<VectorVariable<Variable>> {
@@ -55,8 +56,45 @@ export = {
                 return vec;
             }
         };
+
+        const ctorHandler2: common.OpHandler = {
+            op: "o(_ctor)",
+            type: "!ParamObject FUNCTION CLASS vector < ?0 > ( PTR ?0 PTR ?0 )",
+            *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<VectorVariable<Variable>> {
+                const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("vector constructor: expected valid begin iterator");
+                const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("vector constructor: expected valid end iterator");
+                
+                if (begin.v.pointee !== end.v.pointee) {
+                    rt.raiseException("vector constructor: iterators must point to same memory region");
+                }
+                
+                const elementType = begin.v.pointee.objectType;
+                const thisType = variables.classType("vector", [elementType], null);
+                const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
+                
+                const elementCount = end.v.index - begin.v.index;
+                if (elementCount > 0) {
+                    const memory = variables.arrayMemory<Variable>(elementType, []);
+                    
+                    // Kopijuoti elementus iš iteratorių diapazono
+                    for (let i = 0; i < elementCount; i++) {
+                        const sourceElement = rt.unbound(variables.arrayMember(begin.v.pointee, begin.v.index + i) as MaybeUnboundVariable);
+                        memory.values.push(variables.clone(sourceElement, { array: memory, index: i }, false, rt.raiseException, true).v);
+                    }
+                    
+                    vec.v.members._ptr.v.pointee = memory;
+                    vec.v.members._cap.v.value = elementCount;
+                    vec.v.members._sz.v.value = elementCount;
+                }
+                
+                return vec;
+            }
+        };
+
         rt.explicitListInitTable["vector"] = (vec: VectorType<ObjectType>) => vec.templateSpec[0];
-        rt.regFunc(ctorHandler.default, variables.classType("vector", [], null), ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
+        rt.regFunc(ctorHandler1.default, variables.classType("vector", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1]);
+        rt.regFunc(ctorHandler2.default, variables.classType("vector", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1]);
+
         function* _grow(rt: CRuntime, vec: VectorVariable<Variable>, amount: number): Gen<void> {
             const _sz: number = vec.v.members._sz.v.value;
             const _cap: number = vec.v.members._cap.v.value;

@@ -27,8 +27,12 @@ const includes: { [fileName: string]: IncludeModule } = {
     sstream: require("./includes/sstream"),
     algorithm: require("./includes/algorithm"),
     vector: require("./includes/vector"),
+    set: require("./includes/set"),
+    unordered_set: require("./includes/unordered_set"),
     cctype: require("./includes/cctype"),
     numeric: require("./includes/numeric"),
+    // array: require("./includes/array"),
+    // iterator: require("./includes/iterator"),
     /*functional: require("./includes/functional"),
     _bits__stdcpp: require("./includes/bits/stdcpp")*/
 };

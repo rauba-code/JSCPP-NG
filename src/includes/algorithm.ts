@@ -242,6 +242,137 @@ export = {
                     }
                     return variables.arithmetic("I32", last.v.index - first.v.index, null);
                 }
+            },
+            // TODO: Validate and cleanup set_intersection
+            {
+                op: "set_intersection",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 PTR ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], 
+                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
+                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+                    result: PointerVariable<PointeeVariable>): Gen<InitIndexPointerVariable<Variable>> {
+                    
+                    const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
+                    const l1 = variables.asInitIndexPointer(last1) ?? rt.raiseException("set_intersection: expected valid last1 iterator");
+                    const f2 = variables.asInitIndexPointer(first2) ?? rt.raiseException("set_intersection: expected valid first2 iterator");
+                    const l2 = variables.asInitIndexPointer(last2) ?? rt.raiseException("set_intersection: expected valid last2 iterator");
+                    const res = variables.asInitIndexPointer(result) ?? rt.raiseException("set_intersection: expected valid result iterator");
+                    
+                    if (f1.v.pointee !== l1.v.pointee) {
+                        rt.raiseException("set_intersection: first1 and last1 must point to same memory region");
+                    }
+                    if (f2.v.pointee !== l2.v.pointee) {
+                        rt.raiseException("set_intersection: first2 and last2 must point to same memory region");
+                    }
+                    
+                    const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
+                    const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
+                    
+                    let i1 = f1.v.index;
+                    let i2 = f2.v.index;
+                    let resIndex = res.v.index;
+                    
+                    while (i1 < l1.v.index && i2 < l2.v.index) {
+                        const elem1 = rt.unbound(variables.arrayMember(f1.v.pointee, i1) as MaybeUnboundVariable);
+                        const elem2 = rt.unbound(variables.arrayMember(f2.v.pointee, i2) as MaybeUnboundVariable);
+                        
+                        const cmp1Yield = rt.invokeCall(ltFun, [], elem1, elem2) as ResultOrGen<ArithmeticVariable>;
+                        const cmp1Result = rt.arithmeticValue(asResult(cmp1Yield) ?? (yield* cmp1Yield as Gen<ArithmeticVariable>));
+                        
+                        if (cmp1Result !== 0) {
+                            i1++;
+                        } else {
+                            const cmp2Yield = rt.invokeCall(ltFun, [], elem2, elem1) as ResultOrGen<ArithmeticVariable>;
+                            const cmp2Result = rt.arithmeticValue(asResult(cmp2Yield) ?? (yield* cmp2Yield as Gen<ArithmeticVariable>));
+                            
+                            if (cmp2Result !== 0) {
+                                i2++;
+                            } else {
+                                if (res.v.pointee.values.length <= resIndex) {
+                                    while (res.v.pointee.values.length <= resIndex) {
+                                        const defaultVar = rt.defaultValue(f1.v.pointee.objectType, { array: res.v.pointee, index: res.v.pointee.values.length });
+                                        const defaultValue = asResult(defaultVar) ?? rt.raiseException("set_intersection: failed to create default value");
+                                        res.v.pointee.values.push(defaultValue.v);
+                                    }
+                                }
+                                
+                                const resultElement = variables.clone(elem1, { array: res.v.pointee, index: resIndex }, false, rt.raiseException, true);
+                                res.v.pointee.values[resIndex] = resultElement.v;
+                                
+                                i1++;
+                                i2++;
+                                resIndex++;
+                            }
+                        }
+                    }
+                    
+                    return variables.indexPointer(res.v.pointee, resIndex, false, null);
+                }
+            },
+            // TODO: Validate and cleanup set_intersection
+            {
+                op: "set_intersection",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], 
+                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
+                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+                    result: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<InitIndexPointerVariable<Variable>> {
+                    
+                    const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
+                    const l1 = variables.asInitIndexPointer(last1) ?? rt.raiseException("set_intersection: expected valid last1 iterator");
+                    const f2 = variables.asInitIndexPointer(first2) ?? rt.raiseException("set_intersection: expected valid first2 iterator");
+                    const l2 = variables.asInitIndexPointer(last2) ?? rt.raiseException("set_intersection: expected valid last2 iterator");
+                    const res = variables.asInitIndexPointer(result) ?? rt.raiseException("set_intersection: expected valid result iterator");
+                    const cmpFun = variables.asInitDirectPointer(comp) as InitDirectPointerVariable<Function> ?? rt.raiseException("set_intersection: expected valid comparator function");
+                    
+                    if (f1.v.pointee !== l1.v.pointee) {
+                        rt.raiseException("set_intersection: first1 and last1 must point to same memory region");
+                    }
+                    if (f2.v.pointee !== l2.v.pointee) {
+                        rt.raiseException("set_intersection: first2 and last2 must point to same memory region");
+                    }
+                    
+                    let i1 = f1.v.index;
+                    let i2 = f2.v.index;
+                    let resIndex = res.v.index;
+                    
+                    while (i1 < l1.v.index && i2 < l2.v.index) {
+                        const elem1 = rt.unbound(variables.arrayMember(f1.v.pointee, i1) as MaybeUnboundVariable);
+                        const elem2 = rt.unbound(variables.arrayMember(f2.v.pointee, i2) as MaybeUnboundVariable);
+                        
+                        const cmp1Yield = rt.invokeCallFromVariable({ t: cmpFun.t.pointee, v: cmpFun.v.pointee }, elem1, elem2) as ResultOrGen<ArithmeticVariable>;
+                        const cmp1Result = rt.arithmeticValue(asResult(cmp1Yield) ?? (yield* cmp1Yield as Gen<ArithmeticVariable>));
+                        
+                        if (cmp1Result !== 0) {
+                            i1++;
+                        } else {
+                            // Check if elem2 < elem1
+                            const cmp2Yield = rt.invokeCallFromVariable({ t: cmpFun.t.pointee, v: cmpFun.v.pointee }, elem2, elem1) as ResultOrGen<ArithmeticVariable>;
+                            const cmp2Result = rt.arithmeticValue(asResult(cmp2Yield) ?? (yield* cmp2Yield as Gen<ArithmeticVariable>));
+                            
+                            if (cmp2Result !== 0) {
+                                i2++;
+                            } else {
+                                if (res.v.pointee.values.length <= resIndex) {
+                                    while (res.v.pointee.values.length <= resIndex) {
+                                        const defaultVar = rt.defaultValue(f1.v.pointee.objectType, { array: res.v.pointee, index: res.v.pointee.values.length });
+                                        const defaultValue = asResult(defaultVar) ?? rt.raiseException("set_intersection: failed to create default value");
+                                        res.v.pointee.values.push(defaultValue.v);
+                                    }
+                                }
+                                
+                                const resultElement = variables.clone(elem1, { array: res.v.pointee, index: resIndex }, false, rt.raiseException, true);
+                                res.v.pointee.values[resIndex] = resultElement.v;
+                                
+                                i1++;
+                                i2++;
+                                resIndex++;
+                            }
+                        }
+                    }
+                    
+                    return variables.indexPointer(res.v.pointee, resIndex, false, null);
+                }
             }
         ]);
     }
