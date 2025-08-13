@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -103,8 +103,8 @@ export interface XDirectDeclarator extends StatementMeta {
     type: "DirectDeclarator",
     left: XIdentifier | XDirectDeclarator,
     right: XDirectDeclarator_modifier_ParameterTypeList | XDirectDeclarator_modifier_IdentifierList | DirectDeclaratorModifier[],
-    Reference?: any[][],
-    Pointer: any[][] | null,
+    Reference?: [][],
+    Pointer: [][] | null,
 }
 type DirectDeclaratorModifier = XDirectDeclarator_modifier_ParameterTypeList | XDirectDeclarator_modifier_IdentifierList | XDirectDeclarator_modifier_Array;
 export interface XDirectDeclarator_modifier_Array extends StatementMeta {
@@ -185,12 +185,23 @@ export interface XTypeName extends StatementMeta {
 }
 export interface XAbstractDeclarator extends StatementMeta {
     type: "AbstractDeclarator",
-    Pointer: any[][] | null,
+    Pointer: [][] | null,
 }
 export interface XCastExpression extends StatementMeta {
     type: "CastExpression",
     TypeName: XTypeName,
     Expression: XIdentifierExpression | PostfixExpression
+}
+export interface XNewExpression extends StatementMeta {
+    type: "NewExpression",
+    TypeName: string[] | XScopedMaybeTemplatedIdentifier,
+    pointerRank: number,
+    arraySizeExpression?: XIdentifierExpression | XConstantExpression | null
+}
+export interface XDeleteStatement extends StatementMeta {
+    type: "DeleteStatement",
+    Expression: XIdentifierExpression | XConstantExpression | null,
+    brackets: boolean,
 }
 export interface XUnaryExpression_Sizeof_Type extends StatementMeta {
     type: "UnaryExpression_Sizeof_Type",
@@ -1261,6 +1272,22 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return ["return"];
             },
+            *DeleteStatement(interp, s: XDeleteStatement, param): Gen<"VOID"> {
+                ({
+                    rt
+                } = interp);
+                const expr = (yield *interp.visit(interp, s.Expression, param)) as MaybeUnboundVariable | "VOID";
+                if (expr === "VOID") {
+                    rt.raiseException("Delete-statement error: Expected non-void expression");
+                }
+                const ptrExpr = variables.asInitPointer(rt.unbound(expr)) ?? rt.raiseException("Delete-statement error: Expected an init pointer expression");
+                if (ptrExpr.t.pointee.sig === "FUNCTION") {
+                    rt.raiseException("Delete-statement error: Cannot delete a function pointer");
+                }
+                variables.indexPointerAssign(ptrExpr as InitPointerVariable<Variable>, variables.arrayMemory(ptrExpr.t.pointee, []), 0, rt.raiseException);
+                return "VOID";
+            },
+            
             IdentifierExpression(interp, s: XIdentifierExpression, param: { functionArgs?: MaybeLeftCV<ObjectType>[] }) {
                 ({ rt } = interp);
 
@@ -1498,6 +1525,37 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt.raiseException("Cast error: Cannot cast to void");
                 }
                 return rt.cast(type.t, ret, true);
+            },
+            *NewExpression(interp, s: XNewExpression, param): Gen<Variable> {
+                ({
+                    rt
+                } = interp);
+                const xtype = rt.simpleType((s.TypeName instanceof Array) ? s.TypeName : [s.TypeName]) as MaybeLeft<ObjectType> | "VOID";
+                if (xtype === "VOID") {
+                    rt.raiseException("New-expression error: Type cannot be void (void-pointers are not yet implemented");
+                }
+                let xt = xtype.t;
+                for (let i = 0; i < s.pointerRank; i++) {
+                    xt = variables.pointerType(xt, null);
+                }
+                if (s.arraySizeExpression === null || s.arraySizeExpression === undefined) {
+                    const defaultValYield = rt.defaultValue2(xt, "SELF")
+                    const defaultVal = asResult(defaultValYield) ?? (yield* defaultValYield as Gen<Variable>);
+                    return variables.directPointer(defaultVal, "SELF", false);
+                } else {
+                    const arrSzVar = (yield* interp.visit(interp, s.arraySizeExpression, param)) as MaybeUnboundVariable;
+                    const arrSz = rt.arithmeticValue(variables.asArithmetic(rt.unbound(arrSzVar)) ?? rt.raiseException("New-expression error: Array size is expected to be an arithmetic value"));
+                    if (arrSz <= 0) {
+                        rt.raiseException("New-expression error: Array size is expected to hold a positive value");
+                    }
+                    const memory = variables.arrayMemory<Variable>(xt, []);
+                    for (let index = 0; index < arrSz; index++) {
+                        const defaultValYield = rt.defaultValue2(xt, { index, array: memory })
+                        const defaultVal = asResult(defaultValYield) ?? (yield* defaultValYield as Gen<Variable>);
+                        memory.values.push(defaultVal.v);
+                    }
+                    return variables.indexPointer(memory, 0, false, null);
+                }
             },
             TypeName(interp, s: XTypeName, _param): MaybeLeft<ObjectType> | "VOID" {
                 ({
