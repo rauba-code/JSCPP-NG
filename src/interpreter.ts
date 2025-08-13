@@ -702,21 +702,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 return yield* interp.visit(interp, s.Expression, param);
             },
             *Initializer_array(interp, s: XInitializerArray, param: { typeHint?: ObjectType }): Gen<Variable> {
-                ({
-                    rt
-                } = interp);
-                const typeHint = param.typeHint ?? null;
-                const ptrTypeHint = typeHint !== null ? variables.asPointerType(typeHint) : null;
-                if (ptrTypeHint !== null && ptrTypeHint.pointee.sig === "FUNCTION") {
-                    rt.raiseException("Initialiser list error: Cannot declare array of functions (perhaps you meant array of function pointers?)");
-                }
-                let childTypeHint = (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) ? ptrTypeHint.pointee as ObjectType : null;
-                if (typeHint === null) {
-                    rt.raiseException("Initialiser list error: Cannot determine type from the context");
-                }
-                function* getListItem(item: XInitializerExpr | XInitializerArray, memIdx: number, childType: ObjectType): Gen<Variable> {
+                function* getListItem(rt: CRuntime, item: XInitializerExpr | XInitializerArray, memIdx: number, childType: ObjectType | null): Gen<Variable> {
                     const _typeHint = param.typeHint;
-                    param.typeHint = childType;
+                    param.typeHint = childType ?? undefined;
                     const _rawVariable = yield* interp.visit(interp, item, param);
                     if (!("t" in _rawVariable && "sig" in _rawVariable.t)) {
                         if (_rawVariable === "VOID") {
@@ -729,7 +717,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     const rawVariable = _rawVariable as Variable;
                     param.typeHint = _typeHint;
-                    if (!variables.typesEqual(rawVariable.t, childType)) {
+                    if (childType && !variables.typesEqual(rawVariable.t, childType)) {
                         const targetArithmetic = variables.asArithmeticType(childType);
                         const sourceArithmetic = variables.asArithmetic(rawVariable);
                         if (targetArithmetic !== null && sourceArithmetic !== null) {
@@ -755,6 +743,28 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         return rawVariable;
                     }
                 }
+                ({
+                    rt
+                } = interp);
+                const typeHint = param.typeHint ?? null;
+                const ptrTypeHint = typeHint !== null ? variables.asPointerType(typeHint) : null;
+                if (ptrTypeHint !== null && ptrTypeHint.pointee.sig === "FUNCTION") {
+                    rt.raiseException("Initialiser list error: Cannot declare array of functions (perhaps you meant array of function pointers?)");
+                }
+                let childTypeHint = (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) ? ptrTypeHint.pointee as ObjectType : null;
+                if (typeHint === null) {
+                    let initList: Variable[] = [];
+                    let i = 0;
+                    for (const item of s.Initializers) {
+                        initList.push(yield* getListItem(rt, item, i, null))
+                        i++;
+                    }
+                    const classMembers: { [name: string]: Variable } = {};
+                    initList.forEach((xv, xi) => classMembers[xi.toString()] = xv);
+                    const protoStruct = variables.class(variables.classType("__list_prototype", initList.map((x) => x.t), null), classMembers, null);
+                    return protoStruct;
+                    //rt.raiseException("Initialiser list error: Cannot determine type from the context");
+                }
                 if (childTypeHint === null) {
                     const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
                     if (classTypeHint.identifier in rt.explicitListInitTable) {
@@ -774,16 +784,17 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.raiseException(`Initialiser list error: Expected ${memList.length} elements, got ${s.Initializers.length};\nExpected brace-enclosed initialiser layout:\n  {${memList.map((mem) => rt.makeTypeString(mem.variable.t)).join(", ")}}`);
                         }
                         for (const member of memList) {
-                            resultMembers[member.name] = (i < s.Initializers.length) ? yield* getListItem(s.Initializers[i], i, member.variable.t) : member.variable;
+                            resultMembers[member.name] = (i < s.Initializers.length) ? yield* getListItem(rt, s.Initializers[i], i, member.variable.t) : member.variable;
                             i++;
                         }
                         return variables.class(classTypeHint, resultMembers, null, false);
                     }
                 }
+                // childTypeHint is non-null at this point 
                 let initList: Variable[] = [];
                 let i = 0;
                 for (const item of s.Initializers) {
-                    initList.push(yield* getListItem(item, i, childTypeHint))
+                    initList.push(yield* getListItem(rt, item, i, childTypeHint))
                     i++;
                 }
                 if (ptrTypeHint !== null && ptrTypeHint.sizeConstraint !== null) {
@@ -1276,7 +1287,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                const expr = (yield *interp.visit(interp, s.Expression, param)) as MaybeUnboundVariable | "VOID";
+                const expr = (yield* interp.visit(interp, s.Expression, param)) as MaybeUnboundVariable | "VOID";
                 if (expr === "VOID") {
                     rt.raiseException("Delete-statement error: Expected non-void expression");
                 }
@@ -1287,7 +1298,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 variables.indexPointerAssign(ptrExpr as InitPointerVariable<Variable>, variables.arrayMemory(ptrExpr.t.pointee, []), 0, rt.raiseException);
                 return "VOID";
             },
-            
+
             IdentifierExpression(interp, s: XIdentifierExpression, param: { functionArgs?: MaybeLeftCV<ObjectType>[] }) {
                 ({ rt } = interp);
 
