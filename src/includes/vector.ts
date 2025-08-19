@@ -227,6 +227,28 @@ export = {
                 }
             },
             {
+                op: "insert",
+                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 CLREF CLASS initializer_list < ?0 > )",
+                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _pos: PointerVariable<Variable>, tail: InitializerListVariable<Variable>): Gen<InitIndexPointerVariable<Variable>> {
+                    const pos = variables.asInitIndexPointer(_pos) ?? rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
+                    if (pos.v.pointee !== vec.v.members._ptr.v.pointee) {
+                        rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
+                    }
+                    yield* _grow(rt, vec, 1);
+                    rt.raiseException("vector::insert(): Not yet implemented");
+                    /*
+                    const pointee = vec.v.members._ptr.v.pointee;
+                    pos.v.pointee = pointee;
+                    const _sz: number = vec.v.members._sz.v.value;
+                    for (let i = _sz - 2; i >= Math.max(pos.v.index, 0); i--) {
+                        pointee.values[i + 1] = { lvHolder: pointee.values[i + 1], ...pointee.values[i] };
+                    }
+                    pointee.values[pos.v.index] = variables.clone(tail, { index: pos.v.index, array: pointee }, false, rt.raiseException, true).v;
+                    return pos;
+                    */
+                }
+            },
+            {
                 op: "erase",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 PTR ?0 )",
                 default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _first: PointerVariable<Variable>, _last: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {

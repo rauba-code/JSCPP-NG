@@ -1027,10 +1027,13 @@ export class CRuntime {
         memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable })
         const stubClass = variables.class(classType, members, null);
 
-        //const stubClassTypeSigInline = variables.toStringSequence(stubClass.t, false, false, this.raiseException).join(" ");
-        //const listPrototypeType = variables.classType(typecheck.prototypeListSpecifier, memberList.map(x => x.variable.t), null);
-        //const listPrototypeTypeSig = variables.toStringSequence(listPrototypeType, false, false, this.raiseException);
-        //this.ictable[stubClassTypeSigInline][listPrototypeTypeSig.join(" ")] = { domain: "{global}", fnsig: }
+        const stubClassTypeSigInline = variables.toStringSequence(stubClass.t, false, false, this.raiseException).join(" ");
+        const listPrototypeType = variables.classType(typecheck.prototypeListSpecifier, memberList.map(x => x.variable.t), null);
+        const listPrototypeTypeSig = variables.toStringSequence(listPrototypeType, false, false, this.raiseException);
+        if (!(stubClassTypeSigInline in this.ltable)) {
+            this.ltable[stubClassTypeSigInline] = { src: new Set<string>() };
+        }
+        this.ltable[stubClassTypeSigInline].src.add(listPrototypeTypeSig.join(" "));
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
