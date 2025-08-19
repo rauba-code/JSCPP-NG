@@ -126,19 +126,21 @@ export class CRuntime {
     interp: interp.BaseInterpreter<any>;
     fileio: FileManager;
     ictable: typecheck.ImplicitConversionTable;
-    explicitListInitTable: { [name: string]: ((type: ObjectType) => ObjectType)};
+    ltable: typecheck.ListConversionTable;
+    explicitListInitTable: { [name: string]: ((type: ObjectType) => ObjectType) };
 
     constructor(config: JSCPPConfig) {
         this.parser = constructTypeParser();
         this.config = config;
         this.typeMap = {};
-        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => []});
+        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => [] });
         this.fileio = { freefd: 4, files: {} };
 
         this.scope = [{ "$name": "{global}", variables: {} }];
         this.namespace = {};
         this.typedefs = {};
         this.ictable = {};
+        this.ltable = {};
         this.explicitListInitTable = {};
     }
 
@@ -379,7 +381,7 @@ export class CRuntime {
         const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, templateTypes, this.ictable, this.raiseException);
+        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, templateTypes, this.ictable, this.ltable, this.raiseException);
         if (fn === null) {
             return null;
         }
@@ -391,7 +393,7 @@ export class CRuntime {
         const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
         //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
-        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ictable, []);
+        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ictable, this.ltable, []);
         if (funmatch === null) {
             this.raiseException("Invalid arguments"); // TODO: make message more comprehensive
         }
@@ -404,7 +406,7 @@ export class CRuntime {
                     const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
                     args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
                 } else {
-                    this.raiseException("Implicit cast via constructor: not yet implemented");
+                    this.raiseException("Implicit cast: not yet implemented");
                 }
             }
             funmatch.valueActions.forEach((action, i) => {
@@ -425,29 +427,39 @@ export class CRuntime {
         }
         if (callInst.actions.valueActions.length !== 0) {
             for (const castAction of callInst.actions.castActions) {
-                if (castAction.cast.type === "ARITHMETIC") {
-                    const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
-                    args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
-                } else if (castAction.cast.type === "CTOR") {
-                    const fnid = this.typeMap[castAction.cast.domain].functionDB.matchExactOverload("o(_ctor)", castAction.cast.fnsig);
-                    if (fnid === -1) {
-                        this.raiseException("Implicit cast via constructor: failed to cast (expected a match)");
-                    }
-                    const fncall = this.typeMap[castAction.cast.domain].functionsByID[fnid];
-                    if (fncall.target === null) {
-                        this.raiseException("Implicit cast via constructor: constructor is defined but no implementation is found");
-                    }
-                    if (templateArgs.length > 0) {
-                        this.raiseException("Implicit cast via constructor: not yet implemented")
-                    }
-                    const castYield = fncall.target(this, [], args[castAction.index]);
-                    const castResult = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
-                    if (castResult === "VOID") {
-                        this.raiseException("Implicit cast via constructor: expected a non-void result");
-                    }
-                    args[castAction.index] = this.unbound(castResult);
-                } else {
-                    args[castAction.index] = variables.directPointer(args[castAction.index], "SELF", false);
+                switch (castAction.cast.type) {
+                    case "ARITHMETIC":
+                        {
+                            const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
+                            args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                        }
+                        break;
+                    case "CTOR":
+                        {
+                            const fnid = this.typeMap[castAction.cast.domain].functionDB.matchExactOverload("o(_ctor)", castAction.cast.fnsig);
+                            if (fnid === -1) {
+                                this.raiseException("Implicit cast via constructor: failed to cast (expected a match)");
+                            }
+                            const fncall = this.typeMap[castAction.cast.domain].functionsByID[fnid];
+                            if (fncall.target === null) {
+                                this.raiseException("Implicit cast via constructor: constructor is defined but no implementation is found");
+                            }
+                            if (templateArgs.length > 0) {
+                                this.raiseException("Implicit cast via constructor: not yet implemented")
+                            }
+                            const castYield = fncall.target(this, [], args[castAction.index]);
+                            const castResult = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                            if (castResult === "VOID") {
+                                this.raiseException("Implicit cast via constructor: expected a non-void result");
+                            }
+                            args[castAction.index] = this.unbound(castResult);
+                        }
+                        break;
+                    case "FNPTR":
+                        args[castAction.index] = variables.directPointer(args[castAction.index], "SELF", false);
+                        break;
+                    case "LIST":
+                        this.raiseException("Implicit object from list construction: not yet implemented");
                 }
             }
             callInst.actions.valueActions.forEach((action, i) => {
@@ -1008,12 +1020,17 @@ export class CRuntime {
     defineStruct(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObject[]) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
-        const factory : interp.MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
+        const factory: interp.MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
         this.addTypeDomain(domainInline, factory);
 
         const members: { [name: string]: Variable } = {};
         memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable })
         const stubClass = variables.class(classType, members, null);
+
+        //const stubClassTypeSigInline = variables.toStringSequence(stubClass.t, false, false, this.raiseException).join(" ");
+        //const listPrototypeType = variables.classType(typecheck.prototypeListSpecifier, memberList.map(x => x.variable.t), null);
+        //const listPrototypeTypeSig = variables.toStringSequence(listPrototypeType, false, false, this.raiseException);
+        //this.ictable[stubClassTypeSigInline][listPrototypeTypeSig.join(" ")] = { domain: "{global}", fnsig: }
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
