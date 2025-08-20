@@ -540,7 +540,6 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                         } else {
                             const subParamInline = subParamArray.join(" ");
                             const superParamInline = superParamArray.join(" ");
-                            debugger;
                             if (superParamInline in ictable && subParamInline in ictable[superParamInline]) {
                                 retv = null;
                                 valueAction = "CAST";
@@ -548,8 +547,40 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                 pair.subtype = tmpSubRadical;
                                 pair.supertype = tmpSuperRadical;
                             }
-                            if (superParamInline.startsWith("CLASS initializer_list") && subParamInline.startsWith("CLASS __list_prototype")) {
-                                throw new Error("Typecheck: Not yet implemented");
+                            if (superParamInline.startsWith("CLASS initializer_list < ") && subParamInline.startsWith("CLASS __list_prototype < ")) {
+                                pair.subtype = pair.subtype.slice(2);
+                                const supertype = pair.supertype.slice(2);
+                                pair.supertype = pair.supertype.slice(2);
+                                retv = null;
+                                let postSupertype : string[] | null = null;
+                                let postSuperwc : number[] | null = null;
+                                while (pair.subtype[0] !== ">" && retv === null) {
+                                    const tmpPair: FunctionMatchSigPair = {
+                                        supertype: [...supertype],
+                                        superwc: [...pair.superwc],
+                                        firstLevelParamBreadth: pair.firstLevelParamBreadth,
+                                        paramDepth: pair.paramDepth,
+                                        subtype: pair.subtype,
+                                        subwc: pair.subwc,
+                                        wildcards: pair.wildcards,
+                                    };
+                                    retv = matchNontermOrWildcard(parser, "ParamObject", argument, tmpPair, supertype[0], ictable, ltable, result);
+                                    pair.subtype = tmpPair.subtype;
+                                    pair.subwc = tmpPair.subwc;
+                                    postSupertype = tmpPair.supertype;
+                                    postSuperwc = tmpPair.superwc;
+                                }
+                                if (retv !== false) {
+                                    if (postSupertype === null || postSuperwc === null) {
+                                        throw new Error("Typecheck: Not yet implemented (empty list)");
+                                    }
+                                    pair.supertype = postSupertype.slice(1);
+                                    pair.superwc = postSuperwc;
+                                    pair.subtype = pair.subtype.slice(1);
+                                    valueAction = "CAST";
+                                    throw new Error("Typecheck: Not yet implemented")
+                                    //result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", targetSig: superParamArray, ops:  } });
+                                }
                             }
                         }
                     }
