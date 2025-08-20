@@ -540,12 +540,16 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                         } else {
                             const subParamInline = subParamArray.join(" ");
                             const superParamInline = superParamArray.join(" ");
+                            debugger;
                             if (superParamInline in ictable && subParamInline in ictable[superParamInline]) {
                                 retv = null;
                                 valueAction = "CAST";
                                 result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "CTOR", ...ictable[superParamInline][subParamInline] } });
                                 pair.subtype = tmpSubRadical;
                                 pair.supertype = tmpSuperRadical;
+                            }
+                            if (superParamInline.startsWith("CLASS initializer_list") && subParamInline.startsWith("CLASS __list_prototype")) {
+                                throw new Error("Typecheck: Not yet implemented");
                             }
                         }
                     }
