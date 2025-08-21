@@ -63,30 +63,30 @@ export = {
             *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<VectorVariable<Variable>> {
                 const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("vector constructor: expected valid begin iterator");
                 const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("vector constructor: expected valid end iterator");
-                
+
                 if (begin.v.pointee !== end.v.pointee) {
                     rt.raiseException("vector constructor: iterators must point to same memory region");
                 }
-                
+
                 const elementType = begin.v.pointee.objectType;
                 const thisType = variables.classType("vector", [elementType], null);
                 const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
-                
+
                 const elementCount = end.v.index - begin.v.index;
                 if (elementCount > 0) {
                     const memory = variables.arrayMemory<Variable>(elementType, []);
-                    
+
                     // Kopijuoti elementus iš iteratorių diapazono
                     for (let i = 0; i < elementCount; i++) {
                         const sourceElement = rt.unbound(variables.arrayMember(begin.v.pointee, begin.v.index + i) as MaybeUnboundVariable);
                         memory.values.push(variables.clone(sourceElement, { array: memory, index: i }, false, rt.raiseException, true).v);
                     }
-                    
+
                     vec.v.members._ptr.v.pointee = memory;
                     vec.v.members._cap.v.value = elementCount;
                     vec.v.members._sz.v.value = elementCount;
                 }
-                
+
                 return vec;
             }
         };
@@ -234,18 +234,19 @@ export = {
                     if (pos.v.pointee !== vec.v.members._ptr.v.pointee) {
                         rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
                     }
-                    yield* _grow(rt, vec, 1);
-                    rt.raiseException("vector::insert(): Not yet implemented");
-                    /*
+                    const tailPointee = tail.v.members._values.v.pointee;
+                    const tailSize = tailPointee.values.length;
+                    yield* _grow(rt, vec, tailSize);
                     const pointee = vec.v.members._ptr.v.pointee;
                     pos.v.pointee = pointee;
                     const _sz: number = vec.v.members._sz.v.value;
-                    for (let i = _sz - 2; i >= Math.max(pos.v.index, 0); i--) {
-                        pointee.values[i + 1] = { lvHolder: pointee.values[i + 1], ...pointee.values[i] };
+                    for (let i = _sz - 1; i - tailSize >= Math.max(pos.v.index, 0); i--) {
+                        pointee.values[i] = { lvHolder: pointee.values[i], ...pointee.values[i - tailSize] };
                     }
-                    pointee.values[pos.v.index] = variables.clone(tail, { index: pos.v.index, array: pointee }, false, rt.raiseException, true).v;
+                    for (let i = 0; i < tailSize; i++) {
+                        pointee.values[pos.v.index + i] = variables.clone(rt.unbound(variables.arrayMember(tailPointee, i) as MaybeUnboundVariable), { index: pos.v.index + i, array: pointee }, false, rt.raiseException, true).v;
+                    }
                     return pos;
-                    */
                 }
             },
             {
