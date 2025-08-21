@@ -287,8 +287,8 @@ export type CastAction = {
     type: "FNPTR"
 } | {
     type: "LIST",
-    targetSig: string[],
-    ops: ParseFunctionMatchResult
+    isInitList: boolean,
+    ops: ParseFunctionMatchInnerResult
 };
 
 /** For every destination, stored as an inline type signature, an array of viable source types, stored as inline type signatures, is given.
@@ -554,17 +554,24 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                 retv = null;
                                 let postSupertype : string[] | null = null;
                                 let postSuperwc : number[] | null = null;
-                                while (pair.subtype[0] !== ">" && retv === null) {
+                                const listOps : ParseFunctionMatchInnerResult = {
+                                    valueActions: [],
+                                    castActions: [],
+                                }
+                                for (let i = 0; pair.subtype[0] !== ">" && retv === null; i++) {
                                     const tmpPair: FunctionMatchSigPair = {
                                         supertype: [...supertype],
                                         superwc: [...pair.superwc],
-                                        firstLevelParamBreadth: pair.firstLevelParamBreadth,
-                                        paramDepth: pair.paramDepth,
+                                        firstLevelParamBreadth: i,
+                                        paramDepth: 1,
                                         subtype: pair.subtype,
                                         subwc: pair.subwc,
                                         wildcards: pair.wildcards,
                                     };
-                                    retv = matchNontermOrWildcard(parser, "ParamObject", argument, tmpPair, supertype[0], ictable, ltable, result);
+                                    if (parseFunctionMatchInner(parser, "Parametric", tmpPair, ictable, ltable, listOps) !== true) {
+                                        retv = false;
+                                        break;
+                                    }
                                     pair.subtype = tmpPair.subtype;
                                     pair.subwc = tmpPair.subwc;
                                     postSupertype = tmpPair.supertype;
@@ -578,8 +585,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                     pair.superwc = postSuperwc;
                                     pair.subtype = pair.subtype.slice(1);
                                     valueAction = "CAST";
-                                    throw new Error("Typecheck: Not yet implemented")
-                                    //result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", targetSig: superParamArray, ops:  } });
+                                    result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: true, ops: listOps } });
                                 }
                             }
                         }
