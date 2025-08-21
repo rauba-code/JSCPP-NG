@@ -1,11 +1,12 @@
 import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
 import { TypeDB, FunctionMatchResult, abstractFunctionReturnSig } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
 import * as typecheck from './typecheck';
 import * as ios_base from './shared/ios_base';
+import { InitializerListVariable } from './initializer_list';
 export type Specifier = "const" | "inline" | "_stdcall" | "extern" | "static" | "auto" | "register";
 
 export interface IncludeModule {
@@ -388,6 +389,96 @@ export class CRuntime {
         return { actions: fn, target: domainMap.functionsByID[fn.fnid] };
     };
 
+    *convertParams(actions: typecheck.ParseFunctionMatchInnerResult, templateArgs: ObjectType[], args: Variable[]): Gen<void> {
+        for (const castAction of actions.castActions) {
+            switch (castAction.cast.type) {
+                case "ARITHMETIC":
+                    {
+                        const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
+                        args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                    }
+                    break;
+                case "CTOR":
+                    {
+                        const fnid = this.typeMap[castAction.cast.domain].functionDB.matchExactOverload("o(_ctor)", castAction.cast.fnsig);
+                        if (fnid === -1) {
+                            this.raiseException("Implicit cast via constructor: Failed to cast (expected a match)");
+                        }
+                        const fncall = this.typeMap[castAction.cast.domain].functionsByID[fnid];
+                        if (fncall.target === null) {
+                            this.raiseException("Implicit cast via constructor: Constructor is defined but no implementation is found");
+                        }
+                        if (templateArgs.length > 0) {
+                            this.raiseException("Implicit cast via constructor: Not yet implemented")
+                        }
+                        const castYield = fncall.target(this, [], args[castAction.index]);
+                        const castResult = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
+                        if (castResult === "VOID") {
+                            this.raiseException("Implicit cast via constructor: Expected a non-void result");
+                        }
+                        args[castAction.index] = this.unbound(castResult);
+                    }
+                    break;
+                case "FNPTR":
+                    args[castAction.index] = variables.directPointer(args[castAction.index], "SELF", false);
+                    break;
+                case "LIST":
+                    if (args[castAction.index].t.sig !== "CLASS" || (args[castAction.index] as ClassVariable).t.identifier !== typecheck.prototypeListSpecifier) {
+                        this.raiseException(`Implicit object from list construction: expected a list object, got ${this.makeTypeStringOfVar(args[castAction.index])}`);
+                    } else {
+                        const arg = args[castAction.index] as ClassVariable;
+                        let listArgs: Variable[] = [];
+                        for (let i = 0; i < arg.t.templateSpec.length; i++) {
+                            if (!(i.toString() in arg.v.members)) {
+                                this.raiseException(`Implicit object from list construction: Argument '${i.toString()}' is missing`);
+                            }
+                            listArgs.push(arg.v.members[i.toString()]);
+                        }
+                        if (castAction.cast.isInitList) {
+                            yield* this.convertParams(castAction.cast.ops, [], listArgs);
+                            if (listArgs.length === 0) {
+                                this.raiseException("Implicit object from list construction: Not yet implemented");
+                            }
+                            const childType: ObjectType = listArgs[0].t;
+                            const memory = variables.arrayMemory<Variable>(childType, []);
+                            let i = 0;
+                            for (const child of listArgs) {
+                                memory.values.push({
+                                    lvHolder: { array: memory, index: i },
+                                    ...child.v
+                                });
+                                i++;
+                            }
+                            const initList: InitializerListVariable<Variable> = {
+                                t: {
+                                    sig: "CLASS",
+                                    memberOf: null,
+                                    templateSpec: [childType],
+                                    identifier: "initializer_list"
+                                },
+                                v: {
+                                    isConst: false,
+                                    lvHolder: null,
+                                    state: "INIT",
+                                    members: {
+                                        _values: variables.indexPointer(memory, 0, false, null)
+                                    }
+                                }
+                            };
+                            args[castAction.index] = initList;
+                        } else {
+                            this.raiseException("Implicit object from list construction: Not yet implemented");
+                        }
+                    }
+                    break;
+            }
+        }
+        actions.valueActions.forEach((action, i) => {
+            if (action === "CLONE") {
+                args[i] = variables.clone(this.expectValue(args[i]), "SELF", false, this.raiseException);
+            }
+        })
+    }
 
     *invokeCallFromVariable(funvar: Function, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
         const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
@@ -400,21 +491,7 @@ export class CRuntime {
         if (funvar.v.target === null) {
             this.raiseException("Function is defined but no implementation is found");
         }
-        if (funmatch.valueActions.length !== 0) {
-            for (const castAction of funmatch.castActions) {
-                if (castAction.cast.type === "ARITHMETIC") {
-                    const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
-                    args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
-                } else {
-                    this.raiseException("Implicit cast: not yet implemented");
-                }
-            }
-            funmatch.valueActions.forEach((action, i) => {
-                if (action === "CLONE") {
-                    args[i] = variables.clone(this.expectValue(args[i]), "SELF", false, this.raiseException);
-                }
-            })
-        }
+        yield* this.convertParams(funmatch, [], args);
         // function pointers can only point to a single untemplated instance
         const returnYield = funvar.v.target(this, [], ...args);
         return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
@@ -425,49 +502,7 @@ export class CRuntime {
         if (callInst.target.target === null) {
             this.raiseException("Function is defined but no implementation is found");
         }
-        if (callInst.actions.valueActions.length !== 0) {
-            for (const castAction of callInst.actions.castActions) {
-                switch (castAction.cast.type) {
-                    case "ARITHMETIC":
-                        {
-                            const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
-                            args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
-                        }
-                        break;
-                    case "CTOR":
-                        {
-                            const fnid = this.typeMap[castAction.cast.domain].functionDB.matchExactOverload("o(_ctor)", castAction.cast.fnsig);
-                            if (fnid === -1) {
-                                this.raiseException("Implicit cast via constructor: failed to cast (expected a match)");
-                            }
-                            const fncall = this.typeMap[castAction.cast.domain].functionsByID[fnid];
-                            if (fncall.target === null) {
-                                this.raiseException("Implicit cast via constructor: constructor is defined but no implementation is found");
-                            }
-                            if (templateArgs.length > 0) {
-                                this.raiseException("Implicit cast via constructor: not yet implemented")
-                            }
-                            const castYield = fncall.target(this, [], args[castAction.index]);
-                            const castResult = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
-                            if (castResult === "VOID") {
-                                this.raiseException("Implicit cast via constructor: expected a non-void result");
-                            }
-                            args[castAction.index] = this.unbound(castResult);
-                        }
-                        break;
-                    case "FNPTR":
-                        args[castAction.index] = variables.directPointer(args[castAction.index], "SELF", false);
-                        break;
-                    case "LIST":
-                        this.raiseException("Implicit object from list construction: not yet implemented");
-                }
-            }
-            callInst.actions.valueActions.forEach((action, i) => {
-                if (action === "CLONE") {
-                    args[i] = variables.clone(this.expectValue(args[i]), "SELF", false, this.raiseException);
-                }
-            })
-        }
+        yield* this.convertParams(callInst.actions, templateArgs, args);
         const returnYield = callInst.target.target(this, templateArgs, ...args);
         return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
     }
