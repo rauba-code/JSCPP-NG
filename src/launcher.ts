@@ -31,6 +31,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     unordered_set: require("./includes/unordered_set"),
     cctype: require("./includes/cctype"),
     numeric: require("./includes/numeric"),
+    utility: require("./includes/utility"),
     // array: require("./includes/array"),
     // iterator: require("./includes/iterator"),
     /*functional: require("./includes/functional"),

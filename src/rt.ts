@@ -1082,9 +1082,10 @@ export class CRuntime {
         this.addTypeDomain(domainInline, memberList);
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
-        this.regFunc(function(_rt: CRuntime, templateArgs: [ClassType]): InitClassVariable {
+        this.regFunc(function*(_rt: CRuntime, templateArgs: [ClassType]): Gen<InitClassVariable> {
             const members: { [name: string]: Variable } = {};
-            const memList: interp.MemberObject[] = memberList.factory(...templateArgs);
+            const memListYield: ResultOrGen<interp.MemberObject[]> = memberList.factory(...templateArgs);
+            const memList: interp.MemberObject[] = interp.asResult(memListYield) ?? (yield *memListYield as Gen<interp.MemberObject[]>);
             memList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable });
             return variables.class(variables.classType(identifier, templateArgs[0].templateSpec, domain === "{global}" ? null : domain), members, null);
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
@@ -1161,7 +1162,8 @@ export class CRuntime {
             }
             const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
             if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
-                return (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
+                const retvYield = (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
+                return interp.asResult(retvYield) ?? (yield *retvYield as Gen<InitClassVariable>);
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }

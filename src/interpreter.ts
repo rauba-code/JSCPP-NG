@@ -243,7 +243,7 @@ export type MemberObject = {
 
 export type MemberObjectListCreator = {
     numTemplateArgs: number,
-    factory: (...templateArgs: ObjectType[]) => MemberObject[]
+    factory: (...templateArgs: ObjectType[]) => ResultOrGen<MemberObject[]>
 };
 
 type DirectDeclaratorResult = {
@@ -777,7 +777,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         if (memListFactory.numTemplateArgs !== classTypeHint.templateSpec.length) {
                             rt.raiseException(`Initialiser list error: expected ${memListFactory.numTemplateArgs} template arguments, got ${classTypeHint.templateSpec.length}`);
                         }
-                        const memList = memListFactory.factory(...classTypeHint.templateSpec);
+                        const memListYield: ResultOrGen<MemberObject[]> = memListFactory.factory(...classTypeHint.templateSpec);
+                        const memList: MemberObject[] = asResult(memListYield) ?? (yield* memListYield as Gen<MemberObject[]>);
                         let resultMembers: { [member: string]: Variable } = {};
                         let i = 0;
                         if (s.Initializers.length > memList.length) {

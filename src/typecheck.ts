@@ -32,6 +32,7 @@ const term = {
     "CLREF": Object,
     "ARRAY": Object,
     "CLASS": Object,
+    "MEMBERTYPE": Object,
     "PTR": Object,
     "I8": Object,
     "U8": Object,
@@ -73,6 +74,7 @@ const nonTerm = {
     "Array": Object,
     "ArraySize": Object,
     "Class": Object,
+    "MemberType": Object,
     "Arithmetic": Object,
     //"Literal": Object, // unused
     "ObjectOrFunction": Object,
@@ -107,6 +109,7 @@ export function constructTypeParser(): LLParser {
         "Array": [["ARRAY"], ["Object"], ["ArraySize"]],
         "ArraySize": [["positiveint"]],
         "Class": [["CLASS"], ["identifier"], ["<"], ["TemplateParamOrEnd"]],
+        "MemberType": [["MEMBERTYPE"], ["Class"], ["identifier"]],
         "Arithmetic": [["I8", "U8", "I16", "U16", "I32", "U32", "I64", "U64", "F32", "F64", "BOOL"]],
         "Function": [["FUNCTION"], ["Return"], ["("], ["FunctionParamOrEnd"]],
         "FunctionParamOrEnd": [["FunctionParamPlus", ")"]],

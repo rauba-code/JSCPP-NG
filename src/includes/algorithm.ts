@@ -1,37 +1,13 @@
 import { asResult } from "../interpreter";
 import { CRuntime, FunctionCallInstance, OpSignature } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ArithmeticVariable, AbstractVariable, AbstractTemplatedClassType, InitValue, PointerType } from "../variables";
-
-interface PairType<T1 extends ObjectType, T2 extends ObjectType> extends AbstractTemplatedClassType<null, [T1, T2]> {
-    readonly identifier: "pair",
-}
-
-type PairVariable<T1 extends Variable, T2 extends Variable> = AbstractVariable<PairType<T1["t"], T2["t"]>, PairValue<T1, T2>>;
-
-interface PairValue<T1 extends Variable, T2 extends Variable> extends InitValue<PairVariable<T1, T2>> {
-    members: {
-        "first": T1,
-        "second": T2,
-    }
-}
+import { PairVariable } from "../shared/utility";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ArithmeticVariable, PointerType } from "../variables";
 
 export = {
     load(rt: CRuntime) {
-        rt.defineStruct2("{global}", "pair", {
-            numTemplateArgs: 2, factory: (dataItem: PairType<ObjectType, ObjectType>) => {
-                return [
-                    {
-                        name: "first",
-                        variable: asResult(rt.defaultValue(dataItem.templateSpec[0], "SELF")) ?? rt.raiseException("pair: Not yet implemented"),
-                    },
-                    {
-                        name: "second",
-                        variable: asResult(rt.defaultValue(dataItem.templateSpec[1], "SELF")) ?? rt.raiseException("pair: Not yet implemented"),
-                    },
-                ]
-            }
-        });
+        rt.include("utility");
+
         function yieldBlocking(x: ResultOrGen<MaybeUnboundVariable | "VOID">): InitArithmeticVariable {
             if (asResult(x)) {
                 if (x === "VOID") {

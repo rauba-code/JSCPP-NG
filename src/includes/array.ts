@@ -5,7 +5,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable } from "../variables";
 
 interface ArrayType<T extends ObjectType, N extends number> extends AbstractTemplatedClassType<null, [T, ObjectType]> {
     readonly identifier: "array",
@@ -24,17 +24,17 @@ interface ArrayValue<T extends Variable, N extends number> extends InitValue<Arr
 export = {
     load(rt: CRuntime) {
         rt.defineStruct2("{global}", "array", {
-            numTemplateArgs: 2, factory: (dataItem: ArrayType<ObjectType, number>) => {
+            numTemplateArgs: 2, factory: function*(dataItem: ArrayType<ObjectType, number>) {
                 const size = dataItem.templateSpec[1] as any;
                 const sizeValue = typeof size === 'number' ? size : 0;
                 const memory = variables.arrayMemory<Variable>(dataItem.templateSpec[0], []);
-                
+
                 for (let i = 0; i < sizeValue; i++) {
                     const defaultYield = rt.defaultValue2(dataItem.templateSpec[0], { array: memory, index: i });
-                    const defaultVar = asResult(defaultYield) ?? rt.raiseException("array: Not yet implemented");
+                    const defaultVar = asResult(defaultYield) ?? (yield* defaultYield as Gen<Variable>);
                     memory.values.push(defaultVar.v);
                 }
-                
+
                 return [
                     {
                         name: "_data",
@@ -56,16 +56,16 @@ export = {
                 const arr = yield* rt.defaultValue2(thisType, "SELF") as Gen<ArrayVariable<Variable, number>>;
                 const listmem = list.v.members._values.v.pointee;
                 const arraySize = arr.v.members._size.v.value;
-                
+
                 const copyCount = Math.min(listmem.values.length, arraySize);
                 for (let i = 0; i < copyCount; i++) {
                     arr.v.members._data.v.pointee.values[i] = variables.clone(rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: arr.v.members._data.v.pointee, index: i }, false, rt.raiseException, true).v;
                 }
-                
+
                 return arr;
             }
         };
-        
+
         rt.explicitListInitTable["array"] = (arr: ArrayType<ObjectType, number>) => arr.templateSpec[0];
         rt.regFunc(ctorHandler.default, variables.classType("array", [], null), ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
 
@@ -168,7 +168,7 @@ export = {
                     if (arr1.v.members._size.v.value !== arr2.v.members._size.v.value) {
                         rt.raiseException("array::swap(): arrays must have the same size");
                     }
-                    
+
                     const size = arr1.v.members._size.v.value;
                     for (let i = 0; i < size; i++) {
                         const temp = arr1.v.members._data.v.pointee.values[i];
