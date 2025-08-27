@@ -727,7 +727,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         } else {
                             const targetStr = variables.toStringSequence(childType, false, false, rt.raiseException).join(" ");
                             const sourceStr = variables.toStringSequence(rawVariable.t, false, false, rt.raiseException).join(" ");
-                            if (targetStr in rt.ictable && sourceStr in rt.ictable[targetStr]) {
+                            if (targetStr in rt.ct.implicit && sourceStr in rt.ct.implicit[targetStr]) {
                                 const func = rt.getFuncByParams(variables.asClassType(childType) ?? rt.raiseException(`Initialiser list error: List member at index ${memIdx}: not yet implemented`), "o(_ctor)", [rawVariable], [targetStr]);
                                 const callYield = rt.invokeCall(func, [], rawVariable);
                                 const callResult = asResult(callYield) ?? (yield* callYield as Gen<MaybeUnboundVariable | "VOID">);

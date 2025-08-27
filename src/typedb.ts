@@ -72,8 +72,8 @@ export class TypeDB {
         return typecheck.parseSubset(this.parser, makeStringArr(subtype), makeStringArr(supertype), this.scope, this.strict_order, allow_lvalue_substitution);
     };
 
-    matchFunction(subtype: string | string[], supertype: string | string[], templateTypes: string[][], ictable: typecheck.ImplicitConversionTable, ltable: typecheck.ListConversionTable): typecheck.ParseFunctionMatchResult | null {
-        return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), ictable, ltable, templateTypes, this.strict_order);
+    matchFunction(subtype: string | string[], supertype: string | string[], templateTypes: string[][], ct: typecheck.ConversionTables): typecheck.ParseFunctionMatchResult | null {
+        return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), ct, templateTypes, this.strict_order);
     };
 
     addFunctionOverload(identifier: string, function_type: string | string[], templateTypes: number[], function_id: number, onError: (x: string) => void): void {
@@ -104,7 +104,7 @@ export class TypeDB {
         return fnobj.overloads[0].fnid;
     };
 
-    matchFunctionByParams(identifier: string, params: (string | string[])[], templateTypes: (string | string[])[], ictable: typecheck.ImplicitConversionTable, ltable: typecheck.ListConversionTable, onError: (x: string) => void): FunctionMatchResult | null {
+    matchFunctionByParams(identifier: string, params: (string | string[])[], templateTypes: (string | string[])[], ct: typecheck.ConversionTables, onError: (x: string) => void): FunctionMatchResult | null {
         if (!(identifier in this.functions)) {
             return null;
         }
@@ -116,7 +116,7 @@ export class TypeDB {
             return sa;
         });
         const target: string[] = ["FUNCTION", "Return", "("].concat(...targetParams).concat(")");
-        return this.matchOverload(identifier, target, templateTypes.map(makeStringArr), ictable, ltable, onError);
+        return this.matchOverload(identifier, target, templateTypes.map(makeStringArr), ct, onError);
     };
 
     /** Used for matching function definitions and implementations;
@@ -134,7 +134,7 @@ export class TypeDB {
         return -1;
     };
 
-    matchOverload(identifier: string, target: string[], templateTypes: string[][], ictable: typecheck.ImplicitConversionTable, ltable: typecheck.ListConversionTable, onError: (x: string) => void): FunctionMatchResult | null {
+    matchOverload(identifier: string, target: string[], templateTypes: string[][], ct: typecheck.ConversionTables, onError: (x: string) => void): FunctionMatchResult | null {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
             return null;
@@ -149,7 +149,7 @@ export class TypeDB {
             if (templateTypes.length > fnobj.overloads[i].templateTypes.length) {
                 continue;
             }
-            let match = this.matchFunction(target, fnobj.overloads[i].type, templateTypes, ictable, ltable);
+            let match = this.matchFunction(target, fnobj.overloads[i].type, templateTypes, ct);
             if (match !== null) {
                 if (bestCandidate !== null) {
                     if (bestCandidate.castActions.length > match.castActions.length) {

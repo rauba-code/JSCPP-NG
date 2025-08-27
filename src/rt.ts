@@ -126,8 +126,7 @@ export class CRuntime {
     typedefs: { [name: string]: MaybeLeft<ObjectType> };
     interp: interp.BaseInterpreter<any>;
     fileio: FileManager;
-    ictable: typecheck.ImplicitConversionTable;
-    ltable: typecheck.ListConversionTable;
+    ct: typecheck.ConversionTables;
     explicitListInitTable: { [name: string]: ((type: ObjectType) => ObjectType) };
 
     constructor(config: JSCPPConfig) {
@@ -140,8 +139,7 @@ export class CRuntime {
         this.scope = [{ "$name": "{global}", variables: {} }];
         this.namespace = {};
         this.typedefs = {};
-        this.ictable = {};
-        this.ltable = {};
+        this.ct = { implicit: {}, list: {} };
         this.explicitListInitTable = {};
     }
 
@@ -382,7 +380,7 @@ export class CRuntime {
         const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, templateTypes, this.ictable, this.ltable, this.raiseException);
+        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, templateTypes, this.ct, this.raiseException);
         if (fn === null) {
             return null;
         }
@@ -484,7 +482,7 @@ export class CRuntime {
         const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
         const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
         //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
-        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ictable, this.ltable, []);
+        const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ct, []);
         if (funmatch === null) {
             this.raiseException("Invalid arguments"); // TODO: make message more comprehensive
         }
@@ -557,13 +555,13 @@ export class CRuntime {
             domainMap.functionsByID.push({ type: fnsig.array, target: f });
             if (name === "o(_ctor)" && domain !== "{global}") {
                 const dstTypeInline = variables.toStringSequence(domain, false, false, this.raiseException).join(" ");
-                if (!(dstTypeInline in this.ictable)) {
-                    this.ictable[dstTypeInline] = {};
+                if (!(dstTypeInline in this.ct.implicit)) {
+                    this.ct.implicit[dstTypeInline] = {};
                 }
                 const srcArgStart = fnsig.inline.indexOf("(") + 2;
                 const srcTypeInline = fnsig.inline.substr(srcArgStart, fnsig.inline.length - srcArgStart - 2);
                 const abstractSig = abstractFunctionReturnSig(fnsig.array).join(" ");
-                this.ictable[dstTypeInline][srcTypeInline] = { fnsig: abstractSig, domain: domainInlineSig };
+                this.ct.implicit[dstTypeInline][srcTypeInline] = { fnsig: abstractSig, domain: domainInlineSig };
             }
         }
     };
@@ -1065,10 +1063,10 @@ export class CRuntime {
         const stubClassTypeSigInline = variables.toStringSequence(stubClass.t, false, false, this.raiseException).join(" ");
         const listPrototypeType = variables.classType(typecheck.prototypeListSpecifier, memberList.map(x => x.variable.t), null);
         const listPrototypeTypeSig = variables.toStringSequence(listPrototypeType, false, false, this.raiseException);
-        if (!(stubClassTypeSigInline in this.ltable)) {
-            this.ltable[stubClassTypeSigInline] = { src: new Set<string>() };
+        if (!(stubClassTypeSigInline in this.ct.list)) {
+            this.ct.list[stubClassTypeSigInline] = { src: new Set<string>() };
         }
-        this.ltable[stubClassTypeSigInline].src.add(listPrototypeTypeSig.join(" "));
+        this.ct.list[stubClassTypeSigInline].src.add(listPrototypeTypeSig.join(" "));
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
