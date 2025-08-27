@@ -91,7 +91,7 @@ export interface FunctionSymbol {
 export type TypeHandlerMap = {
     functionDB: TypeDB;
     functionsByID: FunctionSymbol[];
-    memberObjectListCreator: interp.MemberObjectListCreator;
+    memberObjectListCreator: MemberObjectListCreator;
 };
 
 export type TypeSignature = {
@@ -115,6 +115,16 @@ export type FileManager = { freefd: number, files: { [fd: number]: FileInstance 
 export type FunctionCallInstance = {
     actions: FunctionMatchResult,
     target: FunctionSymbol,
+};
+
+export type MemberObject = {
+    name: string,
+    variable: Variable
+};
+
+export type MemberObjectListCreator = {
+    numTemplateArgs: number,
+    factory: (...templateArgs: ObjectType[]) => ResultOrGen<MemberObject[]>
 };
 
 export class CRuntime {
@@ -176,7 +186,7 @@ export class CRuntime {
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
     }
 
-    addTypeDomain(domain: string, memberList: interp.MemberObjectListCreator) {
+    addTypeDomain(domain: string, memberList: MemberObjectListCreator) {
         if (domain in this.typeMap) {
             this.raiseException(`Domain ${domain} already exists`);
         }
@@ -280,7 +290,7 @@ export class CRuntime {
         return this.arrayTypeSignature(result);
     }
 
-    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: interp.MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
+    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
         while (true) {
             let f: CFunction | null = null;
             const _optionalArgs = [...optionalArgs]; // cloned array passed to a closure
@@ -362,7 +372,7 @@ export class CRuntime {
             const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, x.v.isConst)).join(", ") + ")";
             const overloads = domainMap.functionDB.functions[identifier];
             const overloadsMsg = (overloads !== undefined)
-                ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.type.join(" ")}`).join("\n")
+                ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${typecheck.parsePrint(this.parser, x.type, "Type", true)}`).join("\n")
                 : "No available overloads";
             this.raiseException(`No matching function '${domainSig === "{global}" ? "" : `${domainSig}::`}${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
         }
@@ -1050,14 +1060,14 @@ export class CRuntime {
         }
     };
 
-    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObject[]) {
+    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[]) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
-        const factory: interp.MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
+        const factory: MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
         this.addTypeDomain(domainInline, factory);
 
         const members: { [name: string]: Variable } = {};
-        memberList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable })
+        memberList.forEach((x: MemberObject) => { members[x.name] = x.variable })
         const stubClass = variables.class(classType, members, null);
 
         const stubClassTypeSigInline = variables.toStringSequence(stubClass.t, false, false, this.raiseException).join(" ");
@@ -1074,7 +1084,7 @@ export class CRuntime {
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
-    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: interp.MemberObjectListCreator) {
+    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         this.addTypeDomain(domainInline, memberList);
@@ -1082,9 +1092,9 @@ export class CRuntime {
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function*(_rt: CRuntime, templateArgs: [ClassType]): Gen<InitClassVariable> {
             const members: { [name: string]: Variable } = {};
-            const memListYield: ResultOrGen<interp.MemberObject[]> = memberList.factory(...templateArgs);
-            const memList: interp.MemberObject[] = interp.asResult(memListYield) ?? (yield *memListYield as Gen<interp.MemberObject[]>);
-            memList.forEach((x: interp.MemberObject) => { members[x.name] = x.variable });
+            const memListYield: ResultOrGen<MemberObject[]> = memberList.factory(...templateArgs);
+            const memList: MemberObject[] = interp.asResult(memListYield) ?? (yield* memListYield as Gen<MemberObject[]>);
+            memList.forEach((x: MemberObject) => { members[x.name] = x.variable });
             return variables.class(variables.classType(identifier, templateArgs[0].templateSpec, domain === "{global}" ? null : domain), members, null);
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
@@ -1161,7 +1171,7 @@ export class CRuntime {
             const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
             if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
                 const retvYield = (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
-                return interp.asResult(retvYield) ?? (yield *retvYield as Gen<InitClassVariable>);
+                return interp.asResult(retvYield) ?? (yield* retvYield as Gen<InitClassVariable>);
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }

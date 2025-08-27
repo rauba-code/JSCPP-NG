@@ -1,5 +1,5 @@
 import { resolveIdentifier } from "./shared/string_utils";
-import { CRuntime, FunctionCallInstance, OpSignature, RuntimeScope } from "./rt";
+import { CRuntime, FunctionCallInstance, MemberObject, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
@@ -234,16 +234,6 @@ type ParameterTypeListResult = {
     argTypes: MaybeLeftCV<ObjectType>[],
     argNames: (string | null)[],
     optionalArgs: MemberObject[],
-};
-
-export type MemberObject = {
-    name: string,
-    variable: Variable
-};
-
-export type MemberObjectListCreator = {
-    numTemplateArgs: number,
-    factory: (...templateArgs: ObjectType[]) => ResultOrGen<MemberObject[]>
 };
 
 type DirectDeclaratorResult = {

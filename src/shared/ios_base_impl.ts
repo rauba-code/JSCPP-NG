@@ -1,9 +1,8 @@
-import { CRuntime } from "../rt";
+import { CRuntime, MemberObject } from "../rt";
 import { ArithmeticProperties, ArithmeticVariable, PointerVariable, variables } from "../variables";
 import * as common from "./common";
 import * as ios_base from "./ios_base";
 import * as unixapi from "../shared/unixapi";
-import { MemberObject } from "../interpreter";
 import { StringVariable } from "./string_utils";
 
 function pad(rt: CRuntime, s: string, pmode: number, width: number, chr: number): string {

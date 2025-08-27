@@ -1,3 +1,5 @@
+import { variables } from "./variables";
+
 export class TypeParseError extends Error {
     constructor(...params: any[]) {
         super(...params);
@@ -109,7 +111,7 @@ export function constructTypeParser(): LLParser {
         "Array": [["ARRAY"], ["Object"], ["ArraySize"]],
         "ArraySize": [["positiveint"]],
         "Class": [["CLASS"], ["identifier"], ["<"], ["TemplateParamOrEnd"]],
-        "MemberType": [["MEMBERTYPE"], ["Class"], ["identifier"]],
+        "MemberType": [["MEMBERTYPE"], ["identifier"], ["Class"]],
         "Arithmetic": [["I8", "U8", "I16", "U16", "I32", "U32", "I64", "U64", "F32", "F64", "BOOL"]],
         "Function": [["FUNCTION"], ["Return"], ["("], ["FunctionParamOrEnd"]],
         "FunctionParamOrEnd": [["FunctionParamPlus", ")"]],
@@ -176,9 +178,11 @@ function preparse(sentence: string[], strict_order: boolean = true): { sentence:
     let wildcardMap: number[] = [];
     let expectedMaxId: number = 0;
     let anonWildcardId: number = targets.length;
+    let isIdentifier: boolean = false;
     return {
         sentence: sentence.map((x: string) => {
             if (x.startsWith(wildcardSpecifier)) {
+                // identifiers cannot have a wildcardSpecifier or wildcardDeclarator prefix
                 const wildcardId: number = parseInt(x.slice(1));
                 if (!(wildcardId >= 0 && wildcardId < targets.length)) {
                     throw new TypeParseError(`Wildcard ${x} is out of bounds`);
@@ -194,8 +198,14 @@ function preparse(sentence: string[], strict_order: boolean = true): { sentence:
             } else if (x.startsWith(wildcardDeclarator)) {
                 throw new TypeParseError('Wildcard declarator detected after the start of the sentence')
             } else {
-                if (x in nonTerm) {
-                    wildcardMap.push(anonWildcardId++);
+                if (isIdentifier) {
+                    isIdentifier = false;
+                } else {
+                    if (x in nonTerm) {
+                        wildcardMap.push(anonWildcardId++);
+                    } else if (x === "CLASS" || x === "MEMBERLIST") {
+                        isIdentifier = true;
+                    }
                 }
                 return x;
             }
@@ -560,9 +570,9 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                 const supertype = pair.supertype.slice(2);
                                 pair.supertype = pair.supertype.slice(2);
                                 retv = null;
-                                let postSupertype : string[] | null = null;
-                                let postSuperwc : number[] | null = null;
-                                const listOps : ParseFunctionMatchInnerResult = {
+                                let postSupertype: string[] | null = null;
+                                let postSuperwc: number[] | null = null;
+                                const listOps: ParseFunctionMatchInnerResult = {
                                     valueActions: [],
                                     castActions: [],
                                 }
@@ -741,3 +751,144 @@ function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SubsetSigPair)
     return retv;
 }
 
+/** Outputs a string given a variable type sentence and name (optionally).
+ *  @param parser The LL(1) Parser, created using `constructTypeParser`.
+ *  @param sentence Sequence of tokens, which describes the variable type.
+ *  @param scope The topmost nonterminal token of both statements (default = `'Type'`).
+ *  @param strict_order Ensure that typed wildcard statements are going from ?0 in ascending order in the sequence (default = `true`).
+ *  @throws TypeParseError on invalid preparsing (see: `strict_order`).
+ **/
+export function parsePrint(parser: LLParser, sentence: string[], scope: NonTerm = 'Type', strict_order: boolean = true): string | null {
+    const preparseResult = preparse(sentence, strict_order);
+    let isIdentifier: boolean = false;
+    let keyFreqMap: { [key: string]: number } = {};
+    let i: number = 0;
+    let wcCount: number[] = [];
+    for (const word of preparseResult.sentence) {
+        if (!isIdentifier) {
+            if (word in nonTerm) {
+                const wci = preparseResult.wildcardMap[i++];
+                if (!(wci in wcCount)) {
+                    if (!(word in keyFreqMap)) {
+                        keyFreqMap[word] = 1;
+                    } else {
+                        keyFreqMap[word]++;
+                    }
+                    wcCount[wci] = keyFreqMap[word];
+                }
+            }
+            if (word === "CLASS" || word === "MEMBERTYPE") {
+                isIdentifier = true;
+            }
+        } else {
+            isIdentifier = false;
+        }
+    }
+    let wcNames: string[] = [];
+    isIdentifier = false;
+    i = 0;
+    for (const word of preparseResult.sentence) {
+        if (!isIdentifier) {
+            if (word in nonTerm) {
+                const wci = preparseResult.wildcardMap[i++];
+                if (!(wci in wcNames)) {
+                    wcNames[wci] = "T" + word + ((keyFreqMap[word] > 1) ? wcCount[wci] : "")
+                }
+            }
+            if (word === "CLASS" || word === "MEMBERTYPE") {
+                isIdentifier = true;
+            }
+        } else {
+            isIdentifier = false;
+        }
+    }
+    const inout = { sentence: preparseResult.sentence, output: [], wcMap: preparseResult.wildcardMap, wcNames };
+    parsePrintInner(parser, scope, inout);
+    return inout.output.join("");
+}
+
+function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: string[], output: string[], wcMap: number[], wcNames: string[] }): void {
+    let endLoop: boolean = false;
+    let rhs: string | null = null;
+    parser[scope].forEach((argument) => {
+        if (endLoop) {
+            return;
+        }
+        debugger;
+        if (inout.sentence.length > 0 && inout.sentence[0] in argument) {
+            const innerScope: NonTerm | null = argument[inout.sentence[0]] as NonTerm | null;
+            const head = inout.sentence[0];
+            if (innerScope === null) {
+                if (head === scope) {
+                    inout.output.push(inout.wcNames[inout.wcMap[0]]);
+                    inout.wcMap = inout.wcMap.slice(1);
+                    endLoop = true;
+                } else {
+                    switch (head) {
+                        case "FUNCTION":
+                            break;
+                        case "LREF":
+                            rhs = "&";
+                            break;
+                        case "CLREF":
+                            inout.output.push("const ");
+                            rhs = "&";
+                            break;
+                        case "PTR":
+                            rhs = "*";
+                            break;
+                        case ">":
+                            if (inout.output[inout.output.length - 1] !== "<") {
+                                inout.output.push(head);
+                            } else {
+                                inout.output.pop();
+                            }
+                            break;
+                        case "<":
+                        case "(":
+                        case ")":
+                            inout.output.push(head);
+                            break;
+                        case "I8":
+                        case "U8":
+                        case "I16":
+                        case "U16":
+                        case "I32":
+                        case "U32":
+                        case "I64":
+                        case "U64":
+                        case "F32":
+                        case "F32":
+                        case "F64":
+                        case "F64":
+                        case "BOOL":
+                            inout.output.push(variables.arithmeticProperties[head].name);
+                            break;
+                    }
+                }
+                inout.sentence = inout.sentence.slice(1);
+            } else {
+                parsePrintInner(parser, innerScope as NonTerm, inout);
+            }
+        } else if (inout.sentence.length > 0 && "identifier" in argument) {
+            inout.output.push(inout.sentence[0]);
+            inout.sentence = inout.sentence.slice(1);
+        } else if (inout.sentence.length > 0 && "positiveint" in argument) {
+            if (!(parseInt(inout.sentence[0]) > 0)) {
+                throw new TypeParseError(`Typecheck: Malformed type signature`)
+                //inout.sentence = null;
+            } else {
+                inout.sentence = inout.sentence.slice(1);
+            }
+        } else {
+            throw new TypeParseError(`Typecheck: Malformed type signature`)
+            //inout.sentence = null;
+        }
+    });
+    if (scope === "Parametric" && !(inout.sentence[0] === ")" || inout.sentence[0] === ">")) {
+        inout.output.push(", ");
+    }
+    if (rhs !== null) {
+        inout.output.push(rhs);
+    }
+}
