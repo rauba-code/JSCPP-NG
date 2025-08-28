@@ -235,7 +235,7 @@ export = {
                 updatedArray.values[i] = updatedArray.values[i - 1];
             }
             
-            updatedArray.values[insertPos] = variables.clone(value, { array: updatedArray, index: insertPos }, false, rt.raiseException, true).v;
+            updatedArray.values[insertPos] = variables.clone(rt, value, { array: updatedArray, index: insertPos }, false, true).v;
             setVar.v.members._sz.v.value++;
             
             return [variables.indexPointer(updatedArray, insertPos, false, null, false), true];

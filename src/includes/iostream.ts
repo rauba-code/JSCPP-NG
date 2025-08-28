@@ -34,15 +34,15 @@ export = {
             },
         ]);
         const cinType = rt.simpleType(["istream"]) as MaybeLeft<IStreamType>;
-        const cin = variables.clone(rt.defaultValue(cinType.t, "SELF") as IStreamVariable, "SELF", false, rt.raiseException);
-        variables.arithmeticAssign(cin.v.members.fd, unixapi.FD_STDIN, rt.raiseException);
+        const cin = variables.clone(rt, rt.defaultValue(cinType.t, "SELF") as IStreamVariable, "SELF", false);
+        variables.arithmeticAssign(rt, cin.v.members.fd, unixapi.FD_STDIN);
 
         rt.addToNamespace("std", "cin", cin);
 
         ios_base_impl.defineOstream(rt, "ostream", []);
         const coutType = rt.simpleType(["ostream"]) as MaybeLeft<OStreamType>;
-        const cout = variables.clone(rt.defaultValue(coutType.t, "SELF") as OStreamVariable, "SELF", false, rt.raiseException);
-        variables.arithmeticAssign(cout.v.members.fd, unixapi.FD_STDOUT, rt.raiseException);
+        const cout = variables.clone(rt, rt.defaultValue(coutType.t, "SELF") as OStreamVariable, "SELF", false);
+        variables.arithmeticAssign(rt, cout.v.members.fd, unixapi.FD_STDOUT);
 
         rt.addToNamespace("std", "cout", cout);
 
@@ -61,7 +61,7 @@ export = {
                 // + 1 because of trailing '\0'
                 if (result.v.index + 1 >= result.v.pointee.values.length) {
                     stdio.getInput().then((result) => {
-                        variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
+                        variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
                         if (!stdio.isMochaTest) {
                             unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), l.v.members.buf);
                         }
@@ -74,8 +74,8 @@ export = {
             inputPromise.then(([_is_raw, l, retv]) => {
                 let buf = l.v.members.buf;
                 if (buf.v.pointee.values.length <= buf.v.index) {
-                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
+                    variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                     return variables.arithmetic("I32", -1, null);
                 }
                 const topv = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
@@ -113,11 +113,11 @@ export = {
                     if (!(whitespaceChars.includes(char.v.value))) {
                         break;
                     }
-                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                 }
                 if (r.t.sig === "I8") {
-                    variables.arithmeticAssign(r, char.v.value, rt.raiseException);
-                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, r, char.v.value);
+                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                     const stdio = rt.stdio();
                     if (stdio.isMochaTest) {
                         stdio.write(String.fromCodePoint(char.v.value) + "\n");
@@ -126,7 +126,7 @@ export = {
                     let wordValues: number[] = [];
                     while (!(whitespaceChars.includes(char.v.value))) {
                         wordValues.push(char.v.value);
-                        variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                        variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                         char = yield* readChar(rt, l);
                         if (eofbit.v.value === 1 || failbit.v.value === 1) {
                             failbit.v.value = 1;
@@ -144,10 +144,10 @@ export = {
                         stdio.write(wordString + "\n");
                     }
                     if (Number.isNaN(num)) {
-                        variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                        variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                         return l;
                     }
-                    variables.arithmeticAssign(r, num, rt.raiseException);
+                    variables.arithmeticAssign(rt, r, num);
 
                 }
                 rt.adjustArithmeticValue((r as InitArithmeticVariable));
@@ -172,21 +172,21 @@ export = {
                     if (!(whitespaceChars.includes(char.v.value))) {
                         break;
                     }
-                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                 }
 
                 let i = 0;
                 while (!(whitespaceChars.includes(char.v.value))) {
-                    variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticVariable).v, char.v.value, rt.raiseException)
+                    variables.arithmeticValueAssign(rt, (rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticVariable).v, char.v.value)
                     i++;
-                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                     char = yield* readChar(rt, l);
                     if (eofbit.v.value === 1 || failbit.v.value === 1) {
                         failbit.v.value = 1;
                         return l;
                     }
                 }
-                variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticVariable).v, 0, rt.raiseException)
+                variables.arithmeticValueAssign(rt, (rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticVariable).v, 0)
                 if (i === 0) {
                     failbit.v.value = 1;
                     return l;
@@ -217,14 +217,14 @@ export = {
                     if (!(whitespaceChars.includes(char.v.value))) {
                         break;
                     }
-                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                 }
 
                 let i = 0;
                 while (!(whitespaceChars.includes(char.v.value))) {
                     memory.values.push(variables.arithmetic("I8", char.v.value, { array: memory, index: memory.values.length }).v);
                     i++;
-                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                     char = yield* readChar(rt, l);
                     if (eofbit.v.value === 1 || failbit.v.value === 1) {
                         failbit.v.value = 1;
@@ -257,7 +257,7 @@ export = {
                 // + 1 because of trailing '\0'
                 if (result.v.index + 1 >= result.v.pointee.values.length) {
                     stdio.getInput().then((result) => {
-                        variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
+                        variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
                         resolve([false, l]);
                     });
                 } else {
@@ -272,9 +272,9 @@ export = {
                 if (s === null) {
                     rt.raiseException("Not an index pointer");
                 }
-                const oldiptr = variables.clone(b, "SELF", false, rt.raiseException);
+                const oldiptr = variables.clone(rt, b, "SELF", false);
                 if (b.v.index >= b.v.pointee.values.length) {
-                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
                 }
                 let cnt = 0;
                 while (cnt < count - 1) {
@@ -282,16 +282,16 @@ export = {
                     const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
                     if (bi === delim || bi === 0) {
                         // consume the delimiter
-                        variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
-                        variables.arithmeticAssign(si, 0, rt.raiseException);
+                        variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
+                        variables.arithmeticAssign(rt, si, 0);
                         break;
                     }
-                    variables.arithmeticAssign(si, bi, rt.raiseException);
-                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, si, bi);
+                    variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
                     cnt++;
                 }
                 if (cnt === 0) {
-                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                 }
 
                 if (!is_raw) {
@@ -315,7 +315,7 @@ export = {
                 // + 1 because of trailing '\0'
                 if (result.v.index + 1 >= result.v.pointee.values.length) {
                     stdio.getInput().then((result) => {
-                        variables.indexPointerAssign(l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0, rt.raiseException);
+                        variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
                         resolve([false, l]);
                     });
                 } else {
@@ -326,10 +326,10 @@ export = {
                 let b = l.v.members.buf;
                 const delim = rt.arithmeticValue(_delim);
                 const i8type = s.v.members._ptr.t.pointee;
-                const oldiptr = variables.clone(b, "SELF", false, rt.raiseException);
+                const oldiptr = variables.clone(rt, b, "SELF", false);
                 if (b.v.index >= b.v.pointee.values.length) {
-                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
+                    variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                     return;
                 }
                 let cnt = 0;
@@ -338,18 +338,18 @@ export = {
                     const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
                     if (bi === delim || bi === 0) {
                         // consume the delimiter
-                        variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                        variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
                         break;
                     }
                     memory.values.push(variables.arithmetic(i8type.sig, bi, { array: memory, index: cnt }).v);
-                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
                     cnt++;
                 }
                 memory.values.push(variables.arithmetic(i8type.sig, 0, { array: memory, index: cnt }).v);
                 if (cnt === 0) {
-                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                 }
-                variables.indexPointerAssign(s.v.members._ptr, memory, 0, rt.raiseException);
+                variables.indexPointerAssign(rt, s.v.members._ptr, memory, 0);
                 s.v.members._size.v.value = cnt;
 
                 if (!is_raw) {
@@ -372,7 +372,7 @@ export = {
                 *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable): Gen<ArithmeticVariable> {
                     const retv = yield* readChar(rt, l);
                     const buf = l.v.members.buf;
-                    variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                     return retv;
                 }
             },

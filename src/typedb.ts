@@ -1,5 +1,6 @@
 import { LLParser, NonTerm } from './typecheck';
 import * as typecheck from './typecheck'
+import { CRuntime } from './rt';
 
 function makeStringArr(type: string | string[]): string[] {
     if (typeof type === "string") {
@@ -77,9 +78,9 @@ export class TypeDB {
         return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), ct, templateTypes, this.strict_order);
     };
 
-    addFunctionOverload(identifier: string, function_type: string | string[], templateTypes: number[], function_id: number, onError: (x: string) => never): void {
+    addFunctionOverload(rt: CRuntime, identifier: string, function_type: string | string[], templateTypes: number[], function_id: number): void {
         const sa = abstractFunctionReturnSig(makeStringArr(function_type));
-        const annotation = typecheck.parsePrint(this.parser, makeStringArr(function_type), identifier, "Type", true) ?? onError("Failed to make a type annotation");
+        const annotation = typecheck.parsePrint(this.parser, makeStringArr(function_type), identifier, "Type", true) ?? rt.raiseException("Failed to make a type annotation");
         const inline = sa.join(" ");
         if (!(identifier in this.functions)) {
             this.functions[identifier] = { overloads: [{ type: sa, fnid: function_id, templateTypes, annotation }], cache: {}, exactCache: { [inline]: function_id } };
@@ -89,36 +90,36 @@ export class TypeDB {
             this.functions[identifier].cache = {};
             // keep exactCache
             if (inline in this.functions[identifier].exactCache) {
-                onError(`Redeclaration of a function '${identifier}'`);
+                rt.raiseException(`Redeclaration of a function '${identifier}'`);
             }
             this.functions[identifier].exactCache[inline] = function_id;
         }
     };
 
-    matchSingleFunction(identifier: string, onError: (x: string) => never): number {
+    matchSingleFunction(rt: CRuntime, identifier: string): number {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
             return -1;
         }
         if (fnobj.overloads.length > 1) {
-            onError(`Overloaded function ${identifier} has multiple candidates`);
+            rt.raiseException(`Overloaded function ${identifier} has multiple candidates`);
         }
         return fnobj.overloads[0].fnid;
     };
 
-    matchFunctionByParams(identifier: string, params: (string | string[])[], templateTypes: (string | string[])[], ct: typecheck.ConversionTables, onError: (x: string) => void): FunctionMatchResult | null {
+    matchFunctionByParams(rt: CRuntime, identifier: string, params: (string | string[])[], templateTypes: (string | string[])[], ct: typecheck.ConversionTables): FunctionMatchResult | null {
         if (!(identifier in this.functions)) {
             return null;
         }
         const targetParams: string[] = params.flatMap((x) => {
             const sa: string[] = makeStringArr(x);
             if (sa.length > 0 && sa[0].startsWith(typecheck.wildcardDeclarator)) {
-                onError("Calling a function with parameters of wildcard type is unsupported");
+                rt.raiseException("Calling a function with parameters of wildcard type is unsupported");
             }
             return sa;
         });
         const target: string[] = ["FUNCTION", "Return", "("].concat(...targetParams).concat(")");
-        return this.matchOverload(identifier, target, templateTypes.map(makeStringArr), ct, onError);
+        return this.matchOverload(rt, identifier, target, templateTypes.map(makeStringArr), ct);
     };
 
     /** Used for matching function definitions and implementations;
@@ -136,7 +137,7 @@ export class TypeDB {
         return -1;
     };
 
-    matchOverload(identifier: string, target: string[], templateTypes: string[][], ct: typecheck.ConversionTables, onError: (x: string) => void): FunctionMatchResult | null {
+    matchOverload(rt: CRuntime, identifier: string, target: string[], templateTypes: string[][], ct: typecheck.ConversionTables): FunctionMatchResult | null {
         const fnobj = this.functions[identifier];
         if (fnobj === undefined) {
             return null;
@@ -168,8 +169,7 @@ export class TypeDB {
             }
         }
         if (candidateIndices.length > 1) {
-            onError(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n${candidateIndices.map((iv, ii) => (ii + 1).toString() + ") " + fnobj.overloads[iv].type.join(" ")).join("\n")}`);
-            return null;
+            rt.raiseException(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n${candidateIndices.map((iv, ii) => (ii + 1).toString() + ") " + fnobj.overloads[iv].type.join(" ")).join("\n")}`);
         }
         fnobj.cache[targetInline] = bestCandidate;
         return bestCandidate;

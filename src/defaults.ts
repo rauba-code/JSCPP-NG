@@ -421,9 +421,9 @@ const defaultOpHandler: OpHandler[] = [
                 if (variables.asFunctionType(l.t.pointee) !== null) {
                     rt.raiseException("Function-pointer assignment invalid inside arrays");
                 }
-                variables.indexPointerAssign(l as InitPointerVariable<Variable>, (r as InitIndexPointerVariable<Variable>).v.pointee, r.v.index, rt.raiseException);
+                variables.indexPointerAssign(rt, l as InitPointerVariable<Variable>, (r as InitIndexPointerVariable<Variable>).v.pointee, r.v.index);
             } else if (r.v.subtype === "DIRECT") {
-                variables.directPointerAssign(l, r, rt.raiseException);
+                variables.directPointerAssign(rt, l, r);
             }
             return l;
         }
@@ -432,7 +432,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_=_)",
         type: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
         default(rt, _templateType: [], l: ClassVariable, r: ClassVariable): ClassVariable {
-            Object.entries(r.v.members).map(([k, v]) => l.v.members[k] = variables.clone(v, "SELF", false, rt.raiseException, true));
+            Object.entries(r.v.members).map(([k, v]) => l.v.members[k] = variables.clone(rt, v, "SELF", false, true));
             return l;
         }
     },
@@ -498,7 +498,7 @@ const defaultOpHandler: OpHandler[] = [
             const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
             const i = rt.arithmeticValue(index);
             if (i === 0) {
-                return variables.clone(l, null, false, rt.raiseException);
+                return variables.clone(rt, l, null, false);
             }
             if (l.v.subtype === "INDEX") {
                 return variables.indexPointer(l.v.pointee, l.v.index + i, false, null, false);

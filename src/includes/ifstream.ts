@@ -96,7 +96,7 @@ export = {
                         buf.v.index++;
                     }
                     if (r.t.sig === "I8") {
-                        variables.arithmeticAssign(r, char, rt.raiseException);
+                        variables.arithmeticAssign(rt, r, char);
                         buf.v.index++;
                     } else {
                         let wordValues: number[] = [];
@@ -122,7 +122,7 @@ export = {
                             failbit.v.value = 1;
                             return l;
                         }
-                        variables.arithmeticAssign(r, num, rt.raiseException);
+                        variables.arithmeticAssign(rt, r, num);
                     }
                     rt.adjustArithmeticValue((r as InitArithmeticVariable));
                     return l;
@@ -163,7 +163,7 @@ export = {
                     }
                     memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: i }).v);
 
-                    variables.indexPointerAssign(r.v.members._ptr, memory, 0, rt.raiseException);
+                    variables.indexPointerAssign(rt, r.v.members._ptr, memory, 0);
                     r.v.members._size.v.value = i;
 
                     if (i === 0) {
@@ -186,7 +186,7 @@ export = {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
-                    variables.arithmeticAssign(result.v.members.fd, _open(_rt, result, pathPtr), rt.raiseException);
+                    variables.arithmeticAssign(rt, result.v.members.fd, _open(_rt, result, pathPtr));
                     return result;
                 }
             },
@@ -197,7 +197,7 @@ export = {
                     const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
-                    variables.arithmeticAssign(result.v.members.fd, _open(_rt, result, pathPtr), rt.raiseException);
+                    variables.arithmeticAssign(rt, result.v.members.fd, _open(_rt, result, pathPtr));
                     return result;
                 }
             },
@@ -216,13 +216,13 @@ export = {
                 rt.raiseException("Not an index pointer");
             }
             if (b.v.index >= b.v.pointee.values.length) {
-                variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
             }
             let cnt = 0;
             while (cnt < count) {
                 const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticVariable;
                 if (cnt + 1 === count) {
-                    variables.arithmeticAssign(si, 0, rt.raiseException);
+                    variables.arithmeticAssign(rt, si, 0);
                     break;
                 }
                 const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
@@ -230,10 +230,10 @@ export = {
                     if (consumeDelimiter && bi === delim) {
                         b.v.index++;
                     }
-                    variables.arithmeticAssign(si, 0, rt.raiseException);
+                    variables.arithmeticAssign(rt, si, 0);
                     break;
                 }
-                variables.arithmeticAssign(si, bi, rt.raiseException);
+                variables.arithmeticAssign(rt, si, bi);
                 b.v.index++;
                 cnt++;
             }
@@ -275,7 +275,7 @@ export = {
                     if (bi !== 0) {
                         cnt++;
                     }
-                    //variables.arithmeticAssign(si, 0, rt.raiseException);
+                    //variables.arithmeticAssign(rt, si, 0);
                     break;
                 }
                 memory.values.push(variables.arithmetic(i8type.sig, bi, { array: memory, index: cnt }).v);
@@ -284,9 +284,9 @@ export = {
             }
             memory.values.push(variables.arithmetic(i8type.sig, 0, { array: memory, index: cnt }).v);
             if (cnt === 0) {
-                variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                variables.arithmeticAssign(rt, l.v.members.failbit, 1);
             }
-            variables.indexPointerAssign(s.v.members._ptr, memory, 0, rt.raiseException);
+            variables.indexPointerAssign(rt, s.v.members._ptr, memory, 0);
             s.v.members._size.v.value = cnt;
         }
         common.regMemberFuncs(rt, "ifstream", [
@@ -296,12 +296,12 @@ export = {
                 default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
                     let b = l.v.members.buf;
                     if (b.v.pointee.values.length <= b.v.index) {
-                        variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                        variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                        variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
+                        variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                         return variables.arithmetic("I32", -1, null);
                     }
                     const top = variables.arrayMember(b.v.pointee, b.v.index);
-                    variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, l.v.members.buf, l.v.members.buf.v.index + 1);
                     const retv = variables.arithmetic("I32", rt.arithmeticValue(top), null, false);
                     rt.adjustArithmeticValue(retv);
                     return retv;
@@ -327,12 +327,12 @@ export = {
                 default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, ch: ArithmeticVariable): IfStreamVariable {
                     let b = l.v.members.buf;
                     if (b.v.pointee.values.length <= b.v.index) {
-                        variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                        variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                        variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
+                        variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                     } else {
                         const top = variables.arrayMember(b.v.pointee, b.v.index);
-                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
-                        variables.arithmeticAssign(ch, rt.arithmeticValue(top), rt.raiseException);
+                        variables.indexPointerAssignIndex(rt, l.v.members.buf, l.v.members.buf.v.index + 1);
+                        variables.arithmeticAssign(rt, ch, rt.arithmeticValue(top));
                         rt.adjustArithmeticValue(ch as InitArithmeticVariable);
                     }
                     return l;
@@ -457,9 +457,9 @@ export = {
             const fd = _rt.openFile(right, ios_base.openmode.in);
 
             if (fd !== -1) {
-                variables.arithmeticAssign(_this.v.members.fd, fd, rt.raiseException);
+                variables.arithmeticAssign(rt, _this.v.members.fd, fd);
                 _this.v.members._is_open.v.value = 1;
-                variables.indexPointerAssign(_this.v.members.buf, _rt.fileRead(_this.v.members.fd).v.pointee, 0, rt.raiseException);
+                variables.indexPointerAssign(rt, _this.v.members.buf, _rt.fileRead(_this.v.members.fd).v.pointee, 0);
             } else {
                 _this.v.members.failbit.v.value = 1;
             }

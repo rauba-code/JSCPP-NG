@@ -57,8 +57,8 @@ export = {
                     while (rt.arithmeticValue(variables.arrayMember(r.v.pointee, r.v.index + i)) !== 0) {
                         i++;
                     }
-                    variables.arithmeticAssign(l.v.members._size, i, rt.raiseException);
-                    variables.indexPointerAssign(l.v.members._ptr, r.v.pointee, r.v.index, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members._size, i);
+                    variables.indexPointerAssign(rt, l.v.members._ptr, r.v.pointee, r.v.index);
 
                     return l;
                 }
@@ -68,8 +68,8 @@ export = {
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > CLREF CLASS string < > )",
                 default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): StringVariable {
                     const rptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
-                    variables.arithmeticAssign(l.v.members._size, r.v.members._size.v.value, rt.raiseException);
-                    variables.indexPointerAssign(l.v.members._ptr, rptr.v.pointee, rptr.v.index, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members._size, r.v.members._size.v.value);
+                    variables.indexPointerAssign(rt, l.v.members._ptr, rptr.v.pointee, rptr.v.index);
 
                     return l;
                 }
@@ -172,8 +172,8 @@ export = {
                     while (rt.arithmeticValue(variables.arrayMember(r.v.pointee, r.v.index + i)) !== 0) {
                         i++;
                     }
-                    variables.arithmeticAssign(l.v.members._size, i, rt.raiseException);
-                    variables.indexPointerAssign(l.v.members._ptr, r.v.pointee, r.v.index, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members._size, i);
+                    variables.indexPointerAssign(rt, l.v.members._ptr, r.v.pointee, r.v.index);
 
                     return l;
                 }

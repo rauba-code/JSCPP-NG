@@ -48,7 +48,7 @@ export = {
                 const listmem = list.v.members._values.v.pointee;
                 const memory = variables.arrayMemory<Variable>(thisType.templateSpec[0], []);
                 for (let i = 0; i < listmem.values.length; i++) {
-                    memory.values.push(variables.clone(rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: memory, index: i }, false, rt.raiseException, true).v);
+                    memory.values.push(variables.clone(rt, rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: memory, index: i }, false, true).v);
                 }
                 vec.v.members._ptr.v.pointee = memory;
                 vec.v.members._cap.v.value = listmem.values.length;
@@ -79,7 +79,7 @@ export = {
                     // Kopijuoti elementus iš iteratorių diapazono
                     for (let i = 0; i < elementCount; i++) {
                         const sourceElement = rt.unbound(variables.arrayMember(begin.v.pointee, begin.v.index + i) as MaybeUnboundVariable);
-                        memory.values.push(variables.clone(sourceElement, { array: memory, index: i }, false, rt.raiseException, true).v);
+                        memory.values.push(variables.clone(rt, sourceElement, { array: memory, index: i }, false, true).v);
                     }
 
                     vec.v.members._ptr.v.pointee = memory;
@@ -106,7 +106,7 @@ export = {
                 const _pointeeType: ObjectType = vec.v.members._ptr.t.pointee;
                 const newMemory = variables.arrayMemory<Variable>(_pointeeType, []);
                 for (let i = 0; i < _sz; i++) {
-                    newMemory.values.push(variables.clone(rt.unbound(variables.arrayMember(vec.v.members._ptr.v.pointee, i) as MaybeUnboundVariable), { array: newMemory, index: i }, false, rt.raiseException, true).v);
+                    newMemory.values.push(variables.clone(rt, rt.unbound(variables.arrayMember(vec.v.members._ptr.v.pointee, i) as MaybeUnboundVariable), { array: newMemory, index: i }, false, true).v);
                 }
                 for (let i = _sz; i < newcap; i++) {
                     const defaultYield = rt.defaultValue2(_pointeeType, { array: newMemory, index: i });
@@ -153,7 +153,7 @@ export = {
                 *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, tail: Variable): Gen<"VOID"> {
                     yield* _grow(rt, vec, 1);
                     const index = vec.v.members._ptr.v.index + vec.v.members._sz.v.value - 1;
-                    vec.v.members._ptr.v.pointee.values[index] = variables.clone(tail, { index, array: vec.v.members._ptr.v.pointee }, false, rt.raiseException, true).v;
+                    vec.v.members._ptr.v.pointee.values[index] = variables.clone(rt, tail, { index, array: vec.v.members._ptr.v.pointee }, false, true).v;
                     return "VOID";
                 }
             },
@@ -168,7 +168,7 @@ export = {
                     } else {
                         yield* _grow(rt, vec, size - oldSize);
                         for (let index = oldSize; index < size; index++) {
-                            vec.v.members._ptr.v.pointee.values[index] = variables.clone(tail, { index, array: vec.v.members._ptr.v.pointee }, false, rt.raiseException, true).v;
+                            vec.v.members._ptr.v.pointee.values[index] = variables.clone(rt, tail, { index, array: vec.v.members._ptr.v.pointee }, false, true).v;
                         }
                     }
                     return "VOID";
@@ -222,7 +222,7 @@ export = {
                     for (let i = _sz - 2; i >= Math.max(pos.v.index, 0); i--) {
                         pointee.values[i + 1] = { lvHolder: pointee.values[i + 1], ...pointee.values[i] };
                     }
-                    pointee.values[pos.v.index] = variables.clone(tail, { index: pos.v.index, array: pointee }, false, rt.raiseException, true).v;
+                    pointee.values[pos.v.index] = variables.clone(rt, tail, { index: pos.v.index, array: pointee }, false, true).v;
                     return pos;
                 }
             },
@@ -244,7 +244,7 @@ export = {
                         pointee.values[i] = { lvHolder: pointee.values[i], ...pointee.values[i - tailSize] };
                     }
                     for (let i = 0; i < tailSize; i++) {
-                        pointee.values[pos.v.index + i] = variables.clone(rt.unbound(variables.arrayMember(tailPointee, i) as MaybeUnboundVariable), { index: pos.v.index + i, array: pointee }, false, rt.raiseException, true).v;
+                        pointee.values[pos.v.index + i] = variables.clone(rt, rt.unbound(variables.arrayMember(tailPointee, i) as MaybeUnboundVariable), { index: pos.v.index + i, array: pointee }, false, true).v;
                     }
                     return pos;
                 }

@@ -79,7 +79,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             if (l.v.members.width.v.value >= 0) {
                 const padded = pad(rt, rt.getStringFromCharArray(iptr), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
                 unixapi.write(rt, [], l.v.members.fd, rt.getCharArrayFromString(padded));
-                variables.arithmeticAssign(l.v.members.width, -1, rt.raiseException);
+                variables.arithmeticAssign(rt, l.v.members.width, -1);
             } else {
                 unixapi.write(rt, [], l.v.members.fd, iptr);
             }
@@ -97,7 +97,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             if (l.v.members.width.v.value >= 0) {
                 const padded = pad(rt, rt.getStringFromCharArray(iptr, r.v.members._size.v.value), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
                 unixapi.write(rt, [], l.v.members.fd, rt.getCharArrayFromString(padded));
-                variables.arithmeticAssign(l.v.members.width, -1, rt.raiseException);
+                variables.arithmeticAssign(rt, l.v.members.width, -1);
             } else {
                 unixapi.write(rt, [], l.v.members.fd, iptr);
             }
@@ -147,7 +147,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             const ns = numstr(rt, l, num, numProperties);
             const padded = pad(rt, ns, l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
             const str = rt.getCharArrayFromString(padded);
-            variables.arithmeticAssign(l.v.members.width, -1, rt.raiseException);
+            variables.arithmeticAssign(rt, l.v.members.width, -1);
             unixapi.write(rt, [], l.v.members.fd, str);
             return l;
         }

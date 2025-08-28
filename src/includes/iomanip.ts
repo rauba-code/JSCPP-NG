@@ -80,9 +80,9 @@ export = {
 
         function createIOManipToken(rt: CRuntime, mode: number, param: number | null): IOManipTokenVariable {
             const iomanip_token = rt.defaultValue(iomanipTokenType.t, null) as IOManipTokenVariable;
-            variables.arithmeticAssign(iomanip_token.v.members.mode, mode, rt.raiseException);
+            variables.arithmeticAssign(rt, iomanip_token.v.members.mode, mode);
             if (param !== null) {
-                variables.arithmeticAssign(iomanip_token.v.members.param, param, rt.raiseException);
+                variables.arithmeticAssign(rt, iomanip_token.v.members.param, param);
             }
             return iomanip_token;
 

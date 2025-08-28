@@ -283,9 +283,9 @@ export class CRuntime {
 
     /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeDB-associated functions */
     createFunctionTypeSignature(domain: ClassType | "{global}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], noThis = false): TypeSignature {
-        const thisSig: string[] = (domain === "{global}" || noThis) ? [] : variables.toStringSequence(domain, true, false, this.raiseException);
-        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(retType.t, retType.v.lvHolder !== null, false, this.raiseException);
-        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
+        const thisSig: string[] = (domain === "{global}" || noThis) ? [] : variables.toStringSequence(this, domain, true, false);
+        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(this, retType.t, retType.v.lvHolder !== null, false);
+        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(this, x.t, x.v.lvHolder !== null, x.v.isConst));
         const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat(2);
         return this.arrayTypeSignature(result);
     }
@@ -306,18 +306,18 @@ export class CRuntime {
                     }
                     argNames.slice(0, args.length).forEach(function(argName, i) {
                         if (argTypes[i].v.lvHolder === null) {
-                            args[i] = variables.clone(args[i], "SELF", false, rt.raiseException);
+                            args[i] = variables.clone(rt, args[i], "SELF", false);
                         }
                         if (args[i].v.isConst && !argTypes[i].v.isConst) {
                             rt.raiseException("Cannot pass a const-value where a volatile value is required")
                         } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
-                            args[i] = variables.clone(args[i], args[i].v.lvHolder, false, rt.raiseException);
+                            args[i] = variables.clone(rt, args[i], args[i].v.lvHolder, false);
                             (args[i].v as any).isConst = true;
                         }
                         rt.defVar(argName, args[i]);
                     });
                     for (const optarg of _optionalArgs) {
-                        rt.defVar(optarg.name, variables.clone(optarg.variable, "SELF", false, rt.raiseException));
+                        rt.defVar(optarg.name, variables.clone(rt, optarg.variable, "SELF", false));
                     }
                     let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
                     if (retType === "VOID") {
@@ -387,10 +387,10 @@ export class CRuntime {
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
         }
-        const paramSig = params.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
+        const paramSig = params.map((x) => variables.toStringSequence(this, x.t, x.v.lvHolder !== null, x.v.isConst));
         //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-        const fn = domainMap.functionDB.matchFunctionByParams(identifier, paramSig, templateTypes, this.ct, this.raiseException);
+        const fn = domainMap.functionDB.matchFunctionByParams(this, identifier, paramSig, templateTypes, this.ct);
         if (fn === null) {
             return null;
         }
@@ -483,13 +483,13 @@ export class CRuntime {
         }
         actions.valueActions.forEach((action, i) => {
             if (action === "CLONE") {
-                args[i] = variables.clone(this.expectValue(args[i]), "SELF", false, this.raiseException);
+                args[i] = variables.clone(this, this.expectValue(args[i]), "SELF", false);
             }
         })
     }
 
     *invokeCallFromVariable(funvar: Function, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
-        const paramSig = args.map((x) => variables.toStringSequence(x.t, x.v.lvHolder !== null, x.v.isConst, this.raiseException));
+        const paramSig = args.map((x) => variables.toStringSequence(this, x.t, x.v.lvHolder !== null, x.v.isConst));
         const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
         //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
         const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ct, []);
@@ -561,10 +561,10 @@ export class CRuntime {
                     }
                 }
             }
-            domainMap.functionDB.addFunctionOverload(name, fnsig.array, templateTypes, domainMap.functionsByID.length, this.raiseException);
+            domainMap.functionDB.addFunctionOverload(this, name, fnsig.array, templateTypes, domainMap.functionsByID.length);
             domainMap.functionsByID.push({ type: fnsig.array, target: f });
             if (name === "o(_ctor)" && domain !== "{global}") {
-                const dstTypeInline = variables.toStringSequence(domain, false, false, this.raiseException).join(" ");
+                const dstTypeInline = variables.toStringSequence(this, domain, false, false).join(" ");
                 if (!(dstTypeInline in this.ct.implicit)) {
                     this.ct.implicit[dstTypeInline] = {};
                 }
@@ -624,7 +624,7 @@ export class CRuntime {
         if (rvar !== null) {
             return rvar;
         }
-        const fnid = this.typeMap["{global}"].functionDB.matchSingleFunction(varname, this.raiseException);
+        const fnid = this.typeMap["{global}"].functionDB.matchSingleFunction(this, varname);
         if (fnid !== -1) {
             const fninfo = this.typeMap["{global}"].functionsByID[fnid];
             return variables.function(fninfo.type, varname, fninfo.target, null, "SELF");
@@ -1070,9 +1070,9 @@ export class CRuntime {
         memberList.forEach((x: MemberObject) => { members[x.name] = x.variable })
         const stubClass = variables.class(classType, members, null);
 
-        const stubClassTypeSigInline = variables.toStringSequence(stubClass.t, false, false, this.raiseException).join(" ");
+        const stubClassTypeSigInline = variables.toStringSequence(this, stubClass.t, false, false).join(" ");
         const listPrototypeType = variables.classType(typecheck.prototypeListSpecifier, memberList.map(x => x.variable.t), null);
-        const listPrototypeTypeSig = variables.toStringSequence(listPrototypeType, false, false, this.raiseException);
+        const listPrototypeTypeSig = variables.toStringSequence(this, listPrototypeType, false, false);
         if (!(stubClassTypeSigInline in this.ct.list)) {
             this.ct.list[stubClassTypeSigInline] = { src: new Set<string>() };
         }
@@ -1080,7 +1080,7 @@ export class CRuntime {
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
-            return variables.clone(stubClass, null, false, rt.raiseException);
+            return variables.clone(rt, stubClass, null, false);
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
@@ -1191,7 +1191,7 @@ export class CRuntime {
                     // variables.clone() is a shallow clone, do not put defaultVal outside the for-loop
                     const defaultValueYield = this.defaultValue2(pointerType.pointee as ObjectType, null);
                     const defaultVal = interp.asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
-                    memory.values.push(variables.clone(defaultVal, { array: memory, index: i }, false, this.raiseException, true).v);
+                    memory.values.push(variables.clone(this, defaultVal, { array: memory, index: i }, false, true).v);
                 }
                 return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>);
             }

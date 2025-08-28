@@ -88,7 +88,7 @@ export = {
                             buf.v.index++;
                         }
                         if (r.t.sig === "I8") {
-                            variables.arithmeticAssign(r, char, rt.raiseException);
+                            variables.arithmeticAssign(rt, r, char);
                             buf.v.index++;
                         } else {
                             let wordValues: number[] = [];
@@ -114,7 +114,7 @@ export = {
                                 failbit.v.value = 1;
                                 return l;
                             }
-                            variables.arithmeticAssign(r, num, rt.raiseException);
+                            variables.arithmeticAssign(rt, r, num);
                         }
                         rt.adjustArithmeticValue((r as InitArithmeticVariable));
                         return l;
@@ -138,14 +138,14 @@ export = {
                             if (!(whitespaceChars.includes(char.v.value))) {
                                 break;
                             }
-                            variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                            variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                         }
 
                         let i = 0;
                         const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
                         while (!(whitespaceChars.includes(char.v.value))) {
                             memory.values.push(variables.arithmetic("I8", char.v.value, { array: memory, index: i }).v);
-                            variables.indexPointerAssignIndex(buf, buf.v.index + 1, rt.raiseException);
+                            variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                             char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
                             i++;
                             if (char.v.value === 0) {
@@ -155,7 +155,7 @@ export = {
                         }
                         memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: i }).v);
 
-                        variables.indexPointerAssign(r.v.members._ptr, memory, 0, rt.raiseException);
+                        variables.indexPointerAssign(rt, r.v.members._ptr, memory, 0);
                         r.v.members._size.v.value = i;
 
                         if (i === 0) {
@@ -177,7 +177,7 @@ export = {
                     const result = rt.defaultValue(thisType, "SELF") as IStringStreamVariable;
                     const sbuf = variables.asInitIndexPointer(s.v.members._ptr) as InitIndexPointerVariable<ArithmeticVariable> | null;
                     if (sbuf !== null) {
-                        variables.indexPointerAssign(result.v.members.buf, sbuf.v.pointee, sbuf.v.index, rt.raiseException);
+                        variables.indexPointerAssign(rt, result.v.members.buf, sbuf.v.pointee, sbuf.v.index);
                     }
 
                     return result;
@@ -195,7 +195,7 @@ export = {
                     rt.raiseException("Not an index pointer");
                 }
                 if (b.v.index >= b.v.pointee.values.length) {
-                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
                 }
                 let cnt = 0;
                 while (cnt < count - 1) {
@@ -203,16 +203,16 @@ export = {
                     const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
                     if (bi === delim || bi === 0) {
                         // consume the delimiter
-                        variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
-                        variables.arithmeticAssign(si, 0, rt.raiseException);
+                        variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
+                        variables.arithmeticAssign(rt, si, 0);
                         break;
                     }
-                    variables.arithmeticAssign(si, bi, rt.raiseException);
-                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, si, bi);
+                    variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
                     cnt++;
                 }
                 if (cnt === 0) {
-                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                 }
                 return l;
             }
@@ -221,8 +221,8 @@ export = {
                 const delim = rt.arithmeticValue(_delim);
                 const i8type = s.v.members._ptr.t.pointee;
                 if (b.v.index >= b.v.pointee.values.length) {
-                    variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
+                    variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                     return;
                 }
                 let cnt = 0;
@@ -231,19 +231,19 @@ export = {
                     const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
                     if (bi === delim || bi === 0) {
                         // consume the delimiter
-                        variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
-                        //variables.arithmeticAssign(si, 0, rt.raiseException);
+                        variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
+                        //variables.arithmeticAssign(rt, si, 0);
                         break;
                     }
                     memory.values.push(variables.arithmetic(i8type.sig, bi, { array: memory, index: cnt }).v);
-                    variables.indexPointerAssignIndex(b, b.v.index + 1, rt.raiseException);
+                    variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
                     cnt++;
                 }
                 memory.values.push(variables.arithmetic(i8type.sig, 0, { array: memory, index: cnt }).v);
                 if (cnt === 0) {
-                    variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                    variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                 }
-                variables.indexPointerAssign(s.v.members._ptr, memory, 0, rt.raiseException);
+                variables.indexPointerAssign(rt, s.v.members._ptr, memory, 0);
                 s.v.members._size.v.value = cnt;
             }
             common.regMemberFuncs(rt, `${structName}`, [
@@ -253,12 +253,12 @@ export = {
                     default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable): InitArithmeticVariable {
                         let b = l.v.members.buf;
                         if (b.v.pointee.values.length <= b.v.index) {
-                            variables.arithmeticAssign(l.v.members.eofbit, 1, rt.raiseException);
-                            variables.arithmeticAssign(l.v.members.failbit, 1, rt.raiseException);
+                            variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
+                            variables.arithmeticAssign(rt, l.v.members.failbit, 1);
                             return variables.arithmetic("I32", -1, null);
                         }
                         const top = variables.arrayMember(b.v.pointee, b.v.index);
-                        variables.indexPointerAssignIndex(l.v.members.buf, l.v.members.buf.v.index + 1, rt.raiseException);
+                        variables.indexPointerAssignIndex(rt, l.v.members.buf, l.v.members.buf.v.index + 1);
                         const retv = variables.arithmetic("I32", rt.arithmeticValue(top), null, false);
                         rt.adjustArithmeticValue(retv);
                         return retv;

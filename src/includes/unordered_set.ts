@@ -2,7 +2,6 @@
 // First make set work
 
 import { InitializerListVariable } from "../initializer_list";
-import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
 import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
@@ -106,7 +105,7 @@ export = {
             
             // Element doesn't exist, add it
             const newIndex = dataArray.values.length;
-            dataArray.values.push(variables.clone(value, { array: dataArray, index: newIndex }, false, rt.raiseException, true).v);
+            dataArray.values.push(variables.clone(rt, value, { array: dataArray, index: newIndex }, false, true).v);
             usetVar.v.members._sz.v.value++;
             
             return [variables.indexPointer(dataArray, newIndex, false, null, false), true];

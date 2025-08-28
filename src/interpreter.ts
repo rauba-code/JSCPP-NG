@@ -459,7 +459,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const initvar = asResult(initvarYield) ?? (yield* (initvarYield as Gen<Variable>));
                         optionalArgs.push({
                             name: _name ?? rt.raiseException("Parameter type list error: expected a name"),
-                            variable: variables.clone(initvar, null, false, rt.raiseException)
+                            variable: variables.clone(rt, initvar, null, false)
                         });
                     } else {
                         if (optionalArgs.length > 0) {
@@ -567,7 +567,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                             const _classType = variables.asClassType(type.t);
                             const classType = (_classType === null) ? rt.raiseException("Declaration error: Not yet implemented / Type Error") : _classType;
-                            const classStr = variables.toStringSequence(classType, false, false, rt.raiseException);
+                            const classStr = variables.toStringSequence(rt, classType, false, false);
 
                             //const initClass = variables.class(classType, {}, "SELF");
                             const xinitYield = rt.invokeCall(rt.getFuncByParams(classType, "o(_ctor)", constructorArgs, [classStr]), [classType], ...constructorArgs);
@@ -599,9 +599,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             if (initVarOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
                             } else {
-                                let initVar = initSpec === null ? variables.clone(rt.unbound(initVarOrVoid), "SELF", false, rt.raiseException, true) : rt.unbound(initVarOrVoid);
+                                let initVar = initSpec === null ? variables.clone(rt, rt.unbound(initVarOrVoid), "SELF", false, true) : rt.unbound(initVarOrVoid);
                                 if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
-                                    initVar = variables.clone(initVar, "SELF", false, rt.raiseException, true);
+                                    initVar = variables.clone(rt, initVar, "SELF", false, true);
                                 }
                                 if (!variables.typesEqual(initVar.t, decType.t)) {
                                     const ptrDecType = variables.asPointerType(decType.t);
@@ -626,7 +626,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                         }
                                     } else {
                                         const preDecVarYield = rt.defaultValue2(decType.t, "SELF");
-                                        const preDecVar = variables.clone(asResult(preDecVarYield) ?? (yield* preDecVarYield as Gen<Variable>), "SELF", false, rt.raiseException, true);
+                                        const preDecVar = variables.clone(rt, asResult(preDecVarYield) ?? (yield* preDecVarYield as Gen<Variable>), "SELF", false, true);
                                         const callInst = rt.getFuncByParams("{global}", "o(_=_)", [preDecVar, initVar], []);
                                         const retvYield = rt.invokeCall(callInst, [], preDecVar, initVar)
                                         const retv = asResult(retvYield) ?? (yield* retvYield as Gen<MaybeUnboundVariable | "VOID">)
@@ -668,7 +668,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                             structMemberList.push({
                                 name,
-                                variable: variables.clone(initvar, "SELF", false, rt.raiseException, true)
+                                variable: variables.clone(rt, initvar, "SELF", false, true)
                             });
                         }
                     }
@@ -715,8 +715,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.adjustArithmeticValue(result);
                             return result;
                         } else {
-                            const targetStr = variables.toStringSequence(childType, false, false, rt.raiseException).join(" ");
-                            const sourceStr = variables.toStringSequence(rawVariable.t, false, false, rt.raiseException).join(" ");
+                            const targetStr = variables.toStringSequence(rt, childType, false, false).join(" ");
+                            const sourceStr = variables.toStringSequence(rt, rawVariable.t, false, false).join(" ");
                             if (targetStr in rt.ct.implicit && sourceStr in rt.ct.implicit[targetStr]) {
                                 const func = rt.getFuncByParams(variables.asClassType(childType) ?? rt.raiseException(`Initialiser list error: List member at index ${memIdx}: not yet implemented`), "o(_ctor)", [rawVariable], [targetStr]);
                                 const callYield = rt.invokeCall(func, [], rawVariable);
@@ -796,7 +796,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const memory = variables.arrayMemory<Variable>(childTypeHint, []);
                     let i = 0;
                     for (const item of initList) {
-                        memory.values.push(variables.clone(item, { array: memory, index: i }, false, rt.raiseException, true).v);
+                        memory.values.push(variables.clone(rt, item, { array: memory, index: i }, false, true).v);
                         i++;
                     }
                     if (i < size) {
@@ -804,7 +804,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             // do not put defaultValue outside the for-loop
                             const defaultValueYield = rt.defaultValue2(childTypeHint, null);
                             const defaultValue = asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
-                            memory.values.push(variables.clone(defaultValue, { array: memory, index: i }, false, rt.raiseException, true).v);
+                            memory.values.push(variables.clone(rt, defaultValue, { array: memory, index: i }, false, true).v);
                             i++;
                         }
                     }
@@ -813,7 +813,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const ilist = createInitializerList<Variable>(childTypeHint, initList.map(x => x.v));
                     if (param.typeHint !== undefined) {
                         const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
-                        const ctorInst = rt.getFuncByParams(classTypeHint, "o(_ctor)", [ilist], [variables.toStringSequence(classTypeHint, false, false, rt.raiseException)]);
+                        const ctorInst = rt.getFuncByParams(classTypeHint, "o(_ctor)", [ilist], [variables.toStringSequence(rt, classTypeHint, false, false)]);
                         const ctorYield = rt.invokeCall(ctorInst, [classTypeHint], ilist);
                         const ctorResult = asResult(ctorYield) ?? (yield* ctorYield as Gen<MaybeUnboundVariable | "VOID">);
                         if (ctorResult === "VOID") {
@@ -1067,8 +1067,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const endYield = rt.invokeCall(endInst, [], classIterable);
                         const beginResult = asResult(beginYield) ?? (yield* beginYield as Gen<MaybeUnboundVariable | "VOID">);
                         const endResult = asResult(endYield) ?? (yield* endYield as Gen<MaybeUnboundVariable | "VOID">);
-                        beginVar = (beginResult !== "VOID") ? variables.clone(rt.unbound(beginResult), "SELF", false, rt.raiseException) : rt.raiseException("Range-based-for statement error: Expected 'begin' to be a variable, got void" + printTypes());
-                        endVar = (endResult !== "VOID") ? variables.clone(rt.unbound(endResult), "SELF", false, rt.raiseException) : rt.raiseException("Range-based-for statement error: Expected 'end' to be a variable, got void" + printTypes());
+                        beginVar = (beginResult !== "VOID") ? variables.clone(rt, rt.unbound(beginResult), "SELF", false) : rt.raiseException("Range-based-for statement error: Expected 'begin' to be a variable, got void" + printTypes());
+                        endVar = (endResult !== "VOID") ? variables.clone(rt, rt.unbound(endResult), "SELF", false) : rt.raiseException("Range-based-for statement error: Expected 'end' to be a variable, got void" + printTypes());
                     } else {
                         rt.raiseException("Range-based-for statement error: Expression is not iterable (missing 'begin' and 'end' member functions)" + printTypes());
                     }
@@ -1118,7 +1118,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             isConst = iterable.v.isConst;
                             if (!dec.Declarator.Reference) {
                                 (elemTmpVar.v as any).isConst = iterable.v.isConst;
-                                elemTmpVar = variables.clone(rt.unbound(elemTmpVar), "SELF", iterable.v.isConst, rt.raiseException);
+                                elemTmpVar = variables.clone(rt, rt.unbound(elemTmpVar), "SELF", iterable.v.isConst);
                             }
                         } else if (declSpec.length > 1 && declSpec[0] === "const") {
                             isConst = true;
@@ -1126,7 +1126,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             basetype = basetypeOrVoid !== "VOID" ? basetypeOrVoid : rt.raiseException("Range-based-for statement error: Declared variable cannot have a void type" + printTypes());
                             if (!dec.Declarator.Reference) {
                                 (elemTmpVar.v as any).isConst = true;
-                                elemTmpVar = variables.clone(rt.unbound(elemTmpVar), "SELF", true, rt.raiseException);
+                                elemTmpVar = variables.clone(rt, rt.unbound(elemTmpVar), "SELF", true);
                             }
                         } else {
                             isConst = false;
@@ -1139,7 +1139,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 }
                             } else {
                                 // clone
-                                elemTmpVar = variables.clone(rt.unbound(elemTmpVar), "SELF", false, rt.raiseException);
+                                elemTmpVar = variables.clone(rt, rt.unbound(elemTmpVar), "SELF", false);
                             }
                         }
                         let visitResult: DeclaratorYield;
@@ -1286,7 +1286,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (ptrExpr.t.pointee.sig === "FUNCTION") {
                     rt.raiseException("Delete-statement error: Cannot delete a function pointer");
                 }
-                variables.indexPointerAssign(ptrExpr as InitPointerVariable<Variable>, variables.arrayMemory(ptrExpr.t.pointee, []), 0, rt.raiseException);
+                variables.indexPointerAssign(rt, ptrExpr as InitPointerVariable<Variable>, variables.arrayMemory(ptrExpr.t.pointee, []), 0);
                 return "VOID";
             },
 
@@ -1521,7 +1521,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 let ret = yield* interp.visit(interp, s.Expression, param);
-                ret = variables.clone(ret, null, false, rt.raiseException);
+                ret = variables.clone(rt, ret, null, false);
                 const type = (yield* interp.visit(interp, s.TypeName, param)) as MaybeLeft<ObjectType> | "VOID";
                 if (type === "VOID") {
                     rt.raiseException("Cast error: Cannot cast to void");

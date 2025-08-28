@@ -59,7 +59,7 @@ export = {
 
                 const copyCount = Math.min(listmem.values.length, arraySize);
                 for (let i = 0; i < copyCount; i++) {
-                    arr.v.members._data.v.pointee.values[i] = variables.clone(rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: arr.v.members._data.v.pointee, index: i }, false, rt.raiseException, true).v;
+                    arr.v.members._data.v.pointee.values[i] = variables.clone(rt, rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: arr.v.members._data.v.pointee, index: i }, false, true).v;
                 }
 
                 return arr;
@@ -156,7 +156,7 @@ export = {
                 default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>, value: Variable): "VOID" {
                     const size = arr.v.members._size.v.value;
                     for (let i = 0; i < size; i++) {
-                        arr.v.members._data.v.pointee.values[i] = variables.clone(value, { index: i, array: arr.v.members._data.v.pointee }, false, rt.raiseException, true).v;
+                        arr.v.members._data.v.pointee.values[i] = variables.clone(rt, value, { index: i, array: arr.v.members._data.v.pointee }, false, true).v;
                     }
                     return "VOID";
                 }

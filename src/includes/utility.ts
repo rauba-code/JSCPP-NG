@@ -39,8 +39,8 @@ export = {
                             lvHolder: null,
                             state: "INIT",
                             members: {
-                                first: variables.clone(lhs, "SELF", false, rt.raiseException, true),
-                                second: variables.clone(rhs, "SELF", false, rt.raiseException, true),
+                                first: variables.clone(rt, lhs, "SELF", false, true),
+                                second: variables.clone(rt, rhs, "SELF", false, true),
                             }
                         }
                     }

@@ -36,10 +36,10 @@ export = {
                 }
                 let bv : number;
                 for (let bi = 0; (bv = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index + bi))) !== 0; bi++) {
-                    variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + ai)) as ArithmeticVariable).v, bv, rt.raiseException);
+                    variables.arithmeticValueAssign(rt, (rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + ai)) as ArithmeticVariable).v, bv);
                     ai++;
                 }
-                variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + ai)) as ArithmeticVariable).v, 0, rt.raiseException);
+                variables.arithmeticValueAssign(rt, (rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + ai)) as ArithmeticVariable).v, 0);
                 return b;
             }
         }, {
@@ -51,9 +51,9 @@ export = {
                 let bv : number;
                 let i : number;
                 for (i = 0; (bv = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index + i))) !== 0; i++) {
-                    variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + i)) as ArithmeticVariable).v, bv, rt.raiseException);
+                    variables.arithmeticValueAssign(rt, (rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + i)) as ArithmeticVariable).v, bv);
                 }
-                variables.arithmeticValueAssign((rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + i)) as ArithmeticVariable).v, 0, rt.raiseException);
+                variables.arithmeticValueAssign(rt, (rt.unbound(variables.arrayMember(a.v.pointee, a.v.index + i)) as ArithmeticVariable).v, 0);
                 return variables.indexPointer(a.v.pointee, a.v.index + i, false, null);
             }
         }]);

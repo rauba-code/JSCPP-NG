@@ -393,12 +393,12 @@ export = {
                                     let vi = 0;
                                     args = args.slice(1);
                                     while (!whitespace.includes(lc) && lc !== 0) {
-                                        variables.arithmeticAssign(rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticVariable, lc, rt.raiseException);
+                                        variables.arithmeticAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticVariable, lc);
                                         vi++;
                                         li++;
                                         lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
                                     }
-                                    variables.arithmeticAssign(rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticVariable, 0, rt.raiseException);
+                                    variables.arithmeticAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticVariable, 0);
                                     break
                                 case ascii_d:
                                     let vtnum = 0;
@@ -414,7 +414,7 @@ export = {
                                         rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
                                     }
                                     const vpointee = variables.asArithmetic(rt.unbound(variables.deref(vptr as InitPointerVariable<Variable>) as MaybeUnboundVariable)) ?? rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
-                                    variables.arithmeticAssign(vpointee, vtnum, rt.raiseException);
+                                    variables.arithmeticAssign(rt, vpointee, vtnum);
                                     break
                                 default:
                                     rt.raiseException("sscanf: invalid format");

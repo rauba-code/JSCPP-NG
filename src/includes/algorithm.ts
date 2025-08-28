@@ -272,7 +272,7 @@ export = {
                                     }
                                 }
                                 
-                                const resultElement = variables.clone(elem1, { array: res.v.pointee, index: resIndex }, false, rt.raiseException, true);
+                                const resultElement = variables.clone(rt, elem1, { array: res.v.pointee, index: resIndex }, false, true);
                                 res.v.pointee.values[resIndex] = resultElement.v;
                                 
                                 i1++;
@@ -337,7 +337,7 @@ export = {
                                     }
                                 }
                                 
-                                const resultElement = variables.clone(elem1, { array: res.v.pointee, index: resIndex }, false, rt.raiseException, true);
+                                const resultElement = variables.clone(rt, elem1, { array: res.v.pointee, index: resIndex }, false, true);
                                 res.v.pointee.values[resIndex] = resultElement.v;
                                 
                                 i1++;

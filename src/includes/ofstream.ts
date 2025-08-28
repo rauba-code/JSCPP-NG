@@ -81,7 +81,7 @@ export = {
         const _open = function(_rt: CRuntime, _this: OfStreamVariable, right: InitIndexPointerVariable<ArithmeticVariable>, mode: number): void {
             const fd = _rt.openFile(right, mode);
             if (fd !== -1) {
-                variables.arithmeticAssign(_this.v.members.fd, fd, rt.raiseException);
+                variables.arithmeticAssign(rt, _this.v.members.fd, fd);
                 _this.v.members._is_open.v.value = 1;
             } else {
                 _this.v.members.failbit.v.value = 1;

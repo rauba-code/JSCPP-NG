@@ -415,7 +415,7 @@ export const variables = {
         return { t: lhs.objectType, v: { lvHolder: { array: lhs, index } as LValueIndexHolder<VElem>, isConst: false, state: "UNBOUND" } as UnboundValue<VElem> };
     },
     /** Create a new variable with the same type and value as the original one */
-    clone<TVar extends Variable>(object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, onError: (x: string) => never, allowUninit: boolean = false): TVar {
+    clone<TVar extends Variable>(rt: CRuntime, object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, allowUninit: boolean = false): TVar {
         type BranchKey = "ARITHMETIC" | "PTR" | "CLASS" | "FUNCTION";
         let branch: { [sig in BranchKey]: (x: LValueHolder<Variable>) => Variable } = {
             "ARITHMETIC": (_lvHolder: LValueHolder<InitArithmeticVariable>) => {
@@ -435,16 +435,16 @@ export const variables = {
             },
             "CLASS": (_lvHolder: LValueHolder<InitClassVariable>) => {
                 const x = object as InitClassVariable;
-                const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(v, "SELF", false, onError, true)]));
+                const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(rt, v, "SELF", false, true)]));
                 return variables.class(x.t, members, _lvHolder, isConst);
             },
             "FUNCTION": (_lvHolder: LValueHolder<any>) => {
-                onError("not yet implemented");
+                rt.raiseException("not yet implemented");
             },
         }
         if (object.v.state === "UNINIT") {
             if (!allowUninit) {
-                onError("Attempted clone of an uninitialised value");
+                rt.raiseException("Attempted clone of an uninitialised value");
             }
             branch = {
                 "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticVariable>) => {
@@ -456,15 +456,15 @@ export const variables = {
                     return variables.uninitPointer(x.t.pointee, x.t.sizeConstraint, _lvHolder, isConst);
                 },
                 "CLASS": () => {
-                    onError("unreachable");
+                    rt.raiseException("unreachable");
                 },
                 "FUNCTION": () => {
-                    onError("unreachable");
+                    rt.raiseException("unreachable");
                 },
             }
         }
         if (!object.v.isConst && isConst) {
-            onError("Cannot clone from a volatile variable to a constant");
+            rt.raiseException("Cannot clone from a volatile variable to a constant");
         }
         const where: BranchKey = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig as BranchKey;
         return branch[where](lvHolder) as TVar;
@@ -582,49 +582,49 @@ export const variables = {
         }
         return branch[lhs.sig as BranchKey]();
     },
-    arithmeticAssign(lhs: ArithmeticVariable, value: number, onError: (x: string) => never): void {
-        checkAssignable(lhs.v, onError);
+    arithmeticAssign(rt: CRuntime, lhs: ArithmeticVariable, value: number): void {
+        checkAssignable(rt, lhs.v);
         lhs.v.state = "INIT";
         (lhs.v as InitArithmeticValue).value = value;
     },
-    arithmeticValueAssign(lv: ArithmeticValue, value: number, onError: (x: string) => never): void {
-        checkAssignable(lv, onError);
+    arithmeticValueAssign(rt: CRuntime, lv: ArithmeticValue, value: number): void {
+        checkAssignable(rt, lv);
         lv.state = "INIT";
         (lv as InitArithmeticValue).value = value;
     },
-    directPointerAssign<VElem extends PointeeVariable>(lhs: PointerVariable<PointeeVariable>, pointee: VElem, onError: (x: string) => never): void {
-        checkAssignable(lhs.v, onError);
+    directPointerAssign<VElem extends PointeeVariable>(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, pointee: VElem): void {
+        checkAssignable(rt, lhs.v);
         if (!variables.typesEqual(lhs.t.pointee, pointee.t)) {
-            const expected = variables.toStringSequence(lhs.t.pointee, false, false, onError).join(" ");
-            const received = variables.toStringSequence(pointee.t, false, false, onError).join(" ");
-            onError(`expected type '${expected}', got '${received}'`)
+            const expected = variables.toStringSequence(rt, lhs.t.pointee, false, false).join(" ");
+            const received = variables.toStringSequence(rt, pointee.t, false, false).join(" ");
+            rt.raiseException(`expected type '${expected}', got '${received}'`)
         }
         lhs.v.state = "INIT";
         (lhs.v as InitDirectPointerValue<VElem>).subtype = "DIRECT";
         (lhs.v as InitDirectPointerValue<VElem>).pointee = pointee.v;
     },
-    indexPointerAssign<VElem extends Variable>(lhs: PointerVariable<VElem>, array: ArrayMemory<VElem>, index: number, onError: (x: string) => never): void {
-        checkAssignable(lhs.v, onError);
+    indexPointerAssign<VElem extends Variable>(rt: CRuntime, lhs: PointerVariable<VElem>, array: ArrayMemory<VElem>, index: number): void {
+        checkAssignable(rt, lhs.v);
         if (!variables.typesEqual(lhs.t.pointee, array.objectType)) {
-            const expected = variables.toStringSequence(lhs.t.pointee, false, false, onError).join(" ");
-            const received = variables.toStringSequence(array.objectType, false, false, onError).join(" ");
-            onError(`expected type '${expected}', got '${received}'`)
+            const expected = variables.toStringSequence(rt, lhs.t.pointee, false, false).join(" ");
+            const received = variables.toStringSequence(rt, array.objectType, false, false).join(" ");
+            rt.raiseException(`expected type '${expected}', got '${received}'`)
         }
         lhs.v.state = "INIT";
         (lhs.v as InitIndexPointerValue<VElem>).subtype = "INDEX";
         (lhs.v as InitIndexPointerValue<VElem>).pointee = array;
         (lhs.v as InitIndexPointerValue<VElem>).index = index;
     },
-    indexPointerAssignIndex(lhs: InitIndexPointerVariable<Variable>, index: number, onError: (x: string) => never): void {
-        checkAssignable(lhs.v, onError);
+    indexPointerAssignIndex(rt: CRuntime, lhs: InitIndexPointerVariable<Variable>, index: number): void {
+        checkAssignable(rt, lhs.v);
         lhs.v.index = index;
     },
-    toStringSequence(type: AnyType, left: boolean, isConst: boolean, onError: (x: string) => never): string[] {
+    toStringSequence(rt: CRuntime, type: AnyType, left: boolean, isConst: boolean): string[] {
         let result = new Array<string>();
         if (left) {
             result.push(isConst ? "CLREF" : "LREF");
         }
-        toStringSequenceInner(type, result, onError);
+        toStringSequenceInner(rt, type, result);
         return result;
     },
     arithmeticSig: arithmeticSig,
@@ -632,16 +632,16 @@ export const variables = {
     defaultArithmeticResolutionMap: defaultArithmeticResolutionMap,
 } as const;
 
-function checkAssignable(v: ObjectValue, onError: (x: string) => never): void {
+function checkAssignable(rt: CRuntime, v: ObjectValue): void {
     if (v.lvHolder === null) {
-        onError("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
+        rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
     if (v.isConst) {
-        onError("Attempted assignment to a constant value");
+        rt.raiseException("Attempted assignment to a constant value");
     }
 }
 
-function toStringSequenceInner(type: AnyType, result: string[], onError: (x: string) => never): void {
+function toStringSequenceInner(rt: CRuntime, type: AnyType, result: string[]): void {
     if (type.sig in arithmeticSig || type.sig === "VOID") {
         result.push(type.sig);
         return;
@@ -650,19 +650,19 @@ function toStringSequenceInner(type: AnyType, result: string[], onError: (x: str
     const branch: { [sig in BranchKey]: () => void } = {
         "PTR": () => {
             result.push("PTR");
-            toStringSequenceInner((type as PointerType<ObjectType | FunctionType>).pointee, result, onError);
+            toStringSequenceInner(rt, (type as PointerType<ObjectType | FunctionType>).pointee, result);
         },
         "CLASS": () => {
             const classType = type as ClassType;
             if (classType.memberOf !== null) {
                 result.push("MEMBER");
-                toStringSequenceInner(classType.memberOf, result, onError);
+                toStringSequenceInner(rt, classType.memberOf, result);
             }
             result.push("CLASS");
             result.push((type as ClassType).identifier);
             result.push("<");
             classType.templateSpec.forEach((x: ObjectType) => {
-                toStringSequenceInner(x, result, onError);
+                toStringSequenceInner(rt, x, result);
             });
             result.push(">");
         },
