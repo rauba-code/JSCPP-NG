@@ -49,6 +49,7 @@ export class TypeDB {
             overloads: {
                 type: string[],
                 fnid: number,
+                annotation: string,
                 /** see FunctionSig for more description */
                 templateTypes: number[],
             }[],
@@ -76,13 +77,14 @@ export class TypeDB {
         return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), ct, templateTypes, this.strict_order);
     };
 
-    addFunctionOverload(identifier: string, function_type: string | string[], templateTypes: number[], function_id: number, onError: (x: string) => void): void {
+    addFunctionOverload(identifier: string, function_type: string | string[], templateTypes: number[], function_id: number, onError: (x: string) => never): void {
         const sa = abstractFunctionReturnSig(makeStringArr(function_type));
+        const annotation = typecheck.parsePrint(this.parser, makeStringArr(function_type), identifier, "Type", true) ?? onError("Failed to make a type annotation");
         const inline = sa.join(" ");
         if (!(identifier in this.functions)) {
-            this.functions[identifier] = { overloads: [{ type: sa, fnid: function_id, templateTypes }], cache: {}, exactCache: { [inline]: function_id } };
+            this.functions[identifier] = { overloads: [{ type: sa, fnid: function_id, templateTypes, annotation }], cache: {}, exactCache: { [inline]: function_id } };
         } else {
-            this.functions[identifier].overloads.push({ type: sa, fnid: function_id, templateTypes });
+            this.functions[identifier].overloads.push({ type: sa, fnid: function_id, templateTypes, annotation });
             // clean the cache for this function
             this.functions[identifier].cache = {};
             // keep exactCache

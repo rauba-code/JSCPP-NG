@@ -372,9 +372,9 @@ export class CRuntime {
             const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, x.v.isConst)).join(", ") + ")";
             const overloads = domainMap.functionDB.functions[identifier];
             const overloadsMsg = (overloads !== undefined)
-                ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${typecheck.parsePrint(this.parser, x.type, "Type", true)}`).join("\n")
+                ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.annotation}`).join("\n")
                 : "No available overloads";
-            this.raiseException(`No matching function '${domainSig === "{global}" ? "" : `${domainSig}::`}${identifier}'\nGiven parameters: ${prettyPrintParams}\n${overloadsMsg}`);
+            this.raiseException(`No matching function '${domainSig === "{global}" ? "" : `${domainSig}::`}${identifier}${prettyPrintParams}'\n${overloadsMsg}`);
         }
         return fn;
     };

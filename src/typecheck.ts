@@ -758,7 +758,7 @@ function parseSubsetInner(parser: LLParser, scope: NonTerm, pair: SubsetSigPair)
  *  @param strict_order Ensure that typed wildcard statements are going from ?0 in ascending order in the sequence (default = `true`).
  *  @throws TypeParseError on invalid preparsing (see: `strict_order`).
  **/
-export function parsePrint(parser: LLParser, sentence: string[], scope: NonTerm = 'Type', strict_order: boolean = true): string | null {
+export function parsePrint(parser: LLParser, sentence: string[], varName: string | null, scope: NonTerm = 'Type', strict_order: boolean = true): string | null {
     const preparseResult = preparse(sentence, strict_order);
     let isIdentifier: boolean = false;
     let keyFreqMap: { [key: string]: number } = {};
@@ -802,19 +802,18 @@ export function parsePrint(parser: LLParser, sentence: string[], scope: NonTerm 
             isIdentifier = false;
         }
     }
-    const inout = { sentence: preparseResult.sentence, output: [], wcMap: preparseResult.wildcardMap, wcNames };
+    const inout = { sentence: preparseResult.sentence, output: [], wcMap: preparseResult.wildcardMap, wcNames, namePass: true, varName };
     parsePrintInner(parser, scope, inout);
     return inout.output.join("");
 }
 
-function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: string[], output: string[], wcMap: number[], wcNames: string[] }): void {
+function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: string[], output: string[], wcMap: number[], wcNames: string[], namePass: boolean, varName: string | null }): void {
     let endLoop: boolean = false;
     let rhs: string | null = null;
     parser[scope].forEach((argument) => {
         if (endLoop) {
             return;
         }
-        debugger;
         if (inout.sentence.length > 0 && inout.sentence[0] in argument) {
             const innerScope: NonTerm | null = argument[inout.sentence[0]] as NonTerm | null;
             const head = inout.sentence[0];
@@ -828,11 +827,11 @@ function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: st
                         case "FUNCTION":
                             break;
                         case "LREF":
-                            rhs = "&";
+                            rhs = " &";
                             break;
                         case "CLREF":
                             inout.output.push("const ");
-                            rhs = "&";
+                            rhs = " &";
                             break;
                         case "PTR":
                             rhs = "*";
@@ -868,6 +867,9 @@ function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: st
                 }
                 inout.sentence = inout.sentence.slice(1);
             } else {
+                if (scope === "Function" && innerScope === "FunctionParamOrEnd") {
+                    inout.namePass = false;
+                }
                 parsePrintInner(parser, innerScope as NonTerm, inout);
             }
         } else if (inout.sentence.length > 0 && "identifier" in argument) {
@@ -876,17 +878,24 @@ function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: st
         } else if (inout.sentence.length > 0 && "positiveint" in argument) {
             if (!(parseInt(inout.sentence[0]) > 0)) {
                 throw new TypeParseError(`Typecheck: Malformed type signature`)
-                //inout.sentence = null;
             } else {
                 inout.sentence = inout.sentence.slice(1);
             }
         } else {
             throw new TypeParseError(`Typecheck: Malformed type signature`)
-            //inout.sentence = null;
         }
     });
     if (scope === "Parametric" && !(inout.sentence[0] === ")" || inout.sentence[0] === ">")) {
         inout.output.push(", ");
+    }
+    if (scope === "Return") {
+        inout.output.pop();
+        if (inout.namePass && inout.varName !== null) {
+            if (inout.output[inout.output.length - 1] !== " &") {
+                inout.output.push(" ");
+            }
+            inout.output.push(inout.varName);
+        }
     }
     if (rhs !== null) {
         inout.output.push(rhs);
