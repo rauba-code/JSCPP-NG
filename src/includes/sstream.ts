@@ -10,6 +10,8 @@ type IStringStreamVariable = AbstractVariable<ios_base.OStreamType, IStringStrea
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cctype"); // gcc-specific
+
         if (!rt.varAlreadyDefined("endl")) {
             const endl = rt.getCharArrayFromString("\n");
             rt.addToNamespace("std", "endl", endl);

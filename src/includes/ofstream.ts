@@ -14,6 +14,8 @@ type OfStreamVariable = AbstractVariable<ios_base.OStreamType, OfstreamValue>;
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cctype"); // gcc-specific
+
         if (!rt.varAlreadyDefined("endl")) {
             const endl = rt.getCharArrayFromString("\n");
             rt.addToNamespace("std", "endl", endl);

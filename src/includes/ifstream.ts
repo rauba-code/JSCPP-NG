@@ -3,7 +3,7 @@ import { StringVariable } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
 import * as common from "../shared/common";
 import * as utf8 from "../utf8";
-import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 
 type IfstreamValue = ios_base.IStreamValue & {
     members: {
@@ -14,9 +14,26 @@ type IfStreamVariable = AbstractVariable<ios_base.OStreamType, IfstreamValue>;
 
 export = {
     load(rt: CRuntime) {
-        if (!rt.varAlreadyDefined("endl")) {
+        if (!("ws_t" in rt.typeMap)) {
             const endl = rt.getCharArrayFromString("\n");
             rt.addToNamespace("std", "endl", endl);
+
+            rt.defineStruct("{global}", "ws_t", []);
+            const ws: ClassVariable = {
+                t: {
+                    sig: "CLASS",
+                    identifier: "ws_t",
+                    memberOf: null,
+                    templateSpec: [],
+                },
+                v: {
+                    isConst: true,
+                    lvHolder: "SELF",
+                    members: {},
+                    state: "INIT"
+                }
+            }
+            rt.addToNamespace("std", "ws", ws);
         }
 
         const charType = variables.arithmeticType("I8");
@@ -173,7 +190,31 @@ export = {
 
                     return l;
                 }
-            }
+            },
+            {
+                op: "o(_>>_)",
+                type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > CLREF CLASS ws_t < > )",
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _r: ClassVariable): IfStreamVariable {
+                    const eofbit = l.v.members.eofbit;
+                    const failbit = l.v.members.failbit;
+                    const buf = l.v.members.buf;
+                    let char: InitArithmeticVariable;
+                    while (true) {
+                        char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
+                        if (char.v.value === 0) {
+                            eofbit.v.value = 1;
+                            failbit.v.value = 1;
+                            return l;
+                        }
+                        if (!(whitespaceChars.includes(char.v.value))) {
+                            break;
+                        }
+                        buf.v.index++;
+                    }
+
+                    return l;
+                }
+            },
         ]);
 
         const thisType = (rt.simpleType(["ifstream"]) as MaybeLeft<ClassType>).t;
@@ -290,6 +331,21 @@ export = {
             s.v.members._size.v.value = cnt;
         }
         common.regMemberFuncs(rt, "ifstream", [
+            {
+                op: "peek",
+                type: "FUNCTION I32 ( LREF CLASS ifstream < > )",
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                    let b = l.v.members.buf;
+                    if ((l.v.members.eofbit.v.value | l.v.members.failbit.v.value | l.v.members.badbit.v.value) === 0) {
+                        const top = variables.arrayMember(b.v.pointee, b.v.index);
+                        const retv = variables.arithmetic("I32", rt.arithmeticValue(top), null, false);
+                        rt.adjustArithmeticValue(retv);
+                        return retv;
+                    } else {
+                        return variables.arithmetic("I32", -1, null);
+                    }
+                }
+            },
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS ifstream < > )",

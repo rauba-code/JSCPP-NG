@@ -1,7 +1,7 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
 import * as ios_base_impl from "../shared/ios_base_impl";
-import { ArithmeticVariable, Gen, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { ArithmeticVariable, ClassVariable, Gen, InitArithmeticValue, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 import * as utf8 from "../utf8";
 import { IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
@@ -9,6 +9,7 @@ import { StringVariable } from "../shared/string_utils";
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cctype"); // gcc-specific
         rt.include("string");
         const charType = variables.arithmeticType("I8");
         rt.defineStruct("{global}", "istream", [
@@ -46,9 +47,26 @@ export = {
 
         rt.addToNamespace("std", "cout", cout);
 
-        if (!rt.varAlreadyDefined("endl")) {
+        if (!("ws_t" in rt.typeMap)) {
             const endl = rt.getCharArrayFromString("\n");
             rt.addToNamespace("std", "endl", endl);
+
+            rt.defineStruct("{global}", "ws_t", []);
+            const ws : ClassVariable = {
+                t: {
+                    sig: "CLASS",
+                    identifier: "ws_t",
+                    memberOf: null,
+                    templateSpec: [],
+                },
+                v: {
+                    isConst: true,
+                    lvHolder: "SELF",
+                    members: {},
+                    state: "INIT"
+                }
+            }
+            rt.addToNamespace("std", "ws", ws);
         }
 
         function readChar(rt: CRuntime, l: IStreamVariable): Gen<InitArithmeticVariable> {
@@ -201,6 +219,34 @@ export = {
         },
         {
             op: "o(_>>_)",
+            type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS ws_t < > )",
+            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: ClassVariable): Gen<IStreamVariable> {
+                const eofbit = l.v.members.eofbit;
+                const failbit = l.v.members.failbit;
+                const buf = l.v.members.buf;
+                let char: InitArithmeticVariable;
+                while (true) {
+                    char = yield* readChar(rt, l);
+                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
+                        failbit.v.value = 1;
+                        return l;
+                    }
+                    if (!(whitespaceChars.includes(char.v.value))) {
+                        break;
+                    }
+                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                }
+
+                /*const stdio = rt.stdio();
+                if (stdio.isMochaTest) {
+                    stdio.write(wordString + "\n");
+                }*/
+
+                return l;
+            }
+        },
+        {
+            op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
             *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: StringVariable): Gen<IStreamVariable> {
                 const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
@@ -245,7 +291,7 @@ export = {
 
                 return l;
             }
-        }
+        },
         ]);
 
         function _getline(rt: CRuntime, l: IStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IStreamVariable {
