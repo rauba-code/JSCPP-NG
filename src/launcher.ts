@@ -32,6 +32,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     cctype: require("./includes/cctype"),
     numeric: require("./includes/numeric"),
     utility: require("./includes/utility"),
+    // map: require("./includes/map"),
     // array: require("./includes/array"),
     // iterator: require("./includes/iterator"),
     /*functional: require("./includes/functional"),
