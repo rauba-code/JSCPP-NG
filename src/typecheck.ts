@@ -309,7 +309,7 @@ export type CastAction = {
 export type ImplicitConversionTable = { [dst: string]: { [src: string]: ImplicitConversionResult } };
 export type ImplicitConversionResult = { fnsig: string, domain: string };
 
-export type ListConversionTable = { [dst: string]: { src: Set<string> } };
+export type ListConversionTable = { [identifier: string]: { dst: string[], src: string[][] } };
 
 export type ConversionTables = {
     implicit: ImplicitConversionTable,
@@ -466,6 +466,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                 let valueAction: "BORROW" | "CLONE" | "CAST" = "CLONE";
                 const tmpSub = pair.subtype;
                 const tmpSuper = pair.supertype;
+                const tmpSuperWc = pair.superwc;
                 if (pair.subtype[0] === "LREF" || pair.subtype[0] === "CLREF") {
                     // lvalue is passed (eligible to passing as an lvalue reference)
                     if ((pair.supertype[0] === "LREF" && pair.subtype[0] === "LREF") || pair.supertype[0] === "CLREF") {
@@ -547,7 +548,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                             return;
                         }
                         const subParamArray = tmpSub.slice(tmpSub[0] === "CLREF" ? 1 : 0, tmpSub.length - tmpSubRadical.length);
-                        const superParamArray = tmpSuper.slice(tmpSuper[0] === "CLREF" ? 1 : 0, tmpSuper.length - tmpSuperRadical.length);
+                        let superParamArray = tmpSuper.slice(tmpSuper[0] === "CLREF" ? 1 : 0, tmpSuper.length - tmpSuperRadical.length);
                         let cast: CastAction | null;
                         if ((cast = tryImplicitCast(pair, subParamArray, superParamArray)) !== null) {
                             retv = null;
@@ -556,6 +557,9 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                             pair.subtype = tmpSubRadical;
                             pair.supertype = tmpSuperRadical;
                         } else {
+                            if (superParamArray[0] in nonTerm && tmpSuperWc.length > 0 && tmpSuperWc[0] in pair.wildcards && typeof(pair.wildcards[tmpSuperWc[0]]) !== "number") {
+                                superParamArray = pair.wildcards[tmpSuperWc[0]] as string[];
+                            }
                             const subParamInline = subParamArray.join(" ");
                             const superParamInline = superParamArray.join(" ");
                             if (superParamInline in ct.implicit && subParamInline in ct.implicit[superParamInline]) {
@@ -604,6 +608,74 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                     pair.subtype = pair.subtype.slice(1);
                                     valueAction = "CAST";
                                     result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: true, ops: listOps } });
+                                }
+                            } else if (subParamInline.startsWith("CLASS __list_prototype < ") && superParamArray[0] === "CLASS" && superParamArray[1] in ct.list) {
+                                const xsuperData = preparse(ct.list[superParamArray[1]].dst);
+                                const xsubData = preparse(superParamArray);
+                                const xresult: ParseFunctionMatchInnerResult = {
+                                    valueActions: new Array<"CLONE" | "BORROW" | "CAST">(),
+                                    castActions: new Array<{ index: number, cast: CastAction }>(),
+                                };
+                                const xpair: FunctionMatchSigPair = {
+                                    subtype: xsubData.sentence,
+                                    subwc: xsubData.wildcardMap,
+                                    supertype: xsuperData.sentence,
+                                    superwc: xsuperData.wildcardMap,
+                                    wildcards: new Array(),
+                                    paramDepth: 0,
+                                    firstLevelParamBreadth: 0,
+                                };
+                                const xretv = parseFunctionMatchInner(parser, 'ParamObject', xpair, ct, xresult);;
+                                if (xretv) {
+                                    for (const src of ct.list[superParamArray[1]].src) {
+                                        if (retv !== false) {
+                                            break;
+                                        }
+                                        const projectedSuper: string[] = src.map((x) => {
+                                            if (x.startsWith("?")) {
+                                                const idx = parseInt(x.substr(1));
+                                                if (!(idx in xpair.wildcards) || typeof (xpair.wildcards[idx]) === "number") {
+                                                    throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
+                                                }
+                                                return xpair.wildcards[idx] as string[];
+                                            } else {
+                                                return x;
+                                            }
+                                        }).flat();
+                                        retv = null;
+                                        const zresult: ParseFunctionMatchInnerResult = {
+                                            valueActions: [],
+                                            castActions: [],
+                                        }
+                                        let zsuper = projectedSuper.slice(3);
+                                        let zsub = tmpSub.slice(3);
+                                        for (let i = 0; zsub[0] !== ">" && zsuper[0] !== ">" && retv === null; i++) {
+                                            const zpair: FunctionMatchSigPair = {
+                                                supertype: zsuper,
+                                                superwc: pair.superwc,
+                                                firstLevelParamBreadth: i,
+                                                paramDepth: 1,
+                                                subtype: zsub,
+                                                subwc: pair.subwc,
+                                                wildcards: pair.wildcards,
+                                            };
+                                            if (parseFunctionMatchInner(parser, "Parametric", zpair, ct, zresult) !== true) {
+                                                retv = false;
+                                                break;
+                                            }
+                                            zsuper = zpair.supertype;
+                                            zsub = zpair.subtype;
+                                            pair.subwc = zpair.subwc;
+                                            pair.superwc = zpair.superwc;
+                                        }
+                                        if (retv !== false) {
+                                            pair.supertype = tmpSuperRadical;
+                                            pair.subtype = tmpSubRadical;
+                                            valueAction = "CAST";
+                                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: false, ops: zresult } });
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }

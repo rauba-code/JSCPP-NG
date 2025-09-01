@@ -1070,13 +1070,15 @@ export class CRuntime {
         memberList.forEach((x: MemberObject) => { members[x.name] = x.variable })
         const stubClass = variables.class(classType, members, null);
 
-        const stubClassTypeSigInline = variables.toStringSequence(this, stubClass.t, false, false).join(" ");
+        const stubClassTypeSig = variables.toStringSequence(this, stubClass.t, false, false);
         const listPrototypeType = variables.classType(typecheck.prototypeListSpecifier, memberList.map(x => x.variable.t), null);
         const listPrototypeTypeSig = variables.toStringSequence(this, listPrototypeType, false, false);
-        if (!(stubClassTypeSigInline in this.ct.list)) {
-            this.ct.list[stubClassTypeSigInline] = { src: new Set<string>() };
+        if (!(identifier in this.ct.list)) {
+            this.ct.list[identifier] = { dst: stubClassTypeSig, src: [] };
+        } else {
+            this.raiseException("Struct definition error: Template struct overloads are not yet implemented");
         }
-        this.ct.list[stubClassTypeSigInline].src.add(listPrototypeTypeSig.join(" "));
+        this.ct.list[identifier].src.push(listPrototypeTypeSig);
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
@@ -1088,6 +1090,27 @@ export class CRuntime {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         this.addTypeDomain(domainInline, memberList);
+
+        let stubClassTypeSig: string[] = [];
+        for (let i = 0; i < memberList.numTemplateArgs; i++) {
+            stubClassTypeSig.push("!ParamObject")
+        }
+        stubClassTypeSig.push("CLASS", identifier, "<");
+        for (let i = 0; i < memberList.numTemplateArgs; i++) {
+            stubClassTypeSig.push(`?${i}`);
+        }
+        stubClassTypeSig.push(">");
+
+        //let listPrototypeTypeSig : string[] = ["CLASS", typecheck.prototypeListSpecifier, "<"];
+        if (!(identifier in this.ct.list)) {
+            this.ct.list[identifier] = { dst: stubClassTypeSig, src: [] };
+        } else {
+            this.raiseException("Struct definition error: Template struct overloads are not yet implemented");
+        }
+        if (identifier === "pair") {
+            this.ct.list[identifier].src.push("CLASS __list_prototype < ?0 ?1 >".split(" "));
+        }
+        //this.ct.list[identifier].src.push(listPrototypeTypeSig);
 
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function*(_rt: CRuntime, templateArgs: [ClassType]): Gen<InitClassVariable> {
