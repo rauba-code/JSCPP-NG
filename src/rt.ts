@@ -444,8 +444,8 @@ export class CRuntime {
                             }
                             listArgs.push(arg.v.members[i.toString()]);
                         }
+                        yield* this.convertParams(castAction.cast.ops, [], listArgs);
                         if (castAction.cast.isInitList) {
-                            yield* this.convertParams(castAction.cast.ops, [], listArgs);
                             if (listArgs.length === 0) {
                                 this.raiseException("Implicit object from list construction: Not yet implemented");
                             }
