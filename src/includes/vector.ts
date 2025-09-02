@@ -37,7 +37,7 @@ export = {
                     }
                 ]
             }
-        });
+        }, ["_ptr", "_sz", "_cap"]);
 
         const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",

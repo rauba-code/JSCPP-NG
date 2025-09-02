@@ -24,8 +24,8 @@ export function initializerListInit(rt: CRuntime): void {
                     variable: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF")
                 },
             ]
-        }
-    });
+        },
+    }, []);
 }
 
 export function createInitializerList<T extends Variable>(type: T["t"], values: T["v"][]): InitializerListVariable<T> {

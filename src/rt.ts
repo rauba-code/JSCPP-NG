@@ -92,6 +92,7 @@ export type TypeHandlerMap = {
     functionDB: TypeDB;
     functionsByID: FunctionSymbol[];
     memberObjectListCreator: MemberObjectListCreator;
+    dataMemberNames: string[]
 };
 
 export type TypeSignature = {
@@ -143,7 +144,7 @@ export class CRuntime {
         this.parser = constructTypeParser();
         this.config = config;
         this.typeMap = {};
-        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => [] });
+        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => [] }, []);
         this.fileio = { freefd: 4, files: {} };
 
         this.scope = [{ "$name": "{global}", variables: {} }];
@@ -186,14 +187,15 @@ export class CRuntime {
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
     }
 
-    addTypeDomain(domain: string, memberList: MemberObjectListCreator) {
+    addTypeDomain(domain: string, memberList: MemberObjectListCreator, dataMemberNames: string[]) {
         if (domain in this.typeMap) {
             this.raiseException(`Domain ${domain} already exists`);
         }
         this.typeMap[domain] = {
             functionDB: new TypeDB(this.parser),
             functionsByID: [],
-            memberObjectListCreator: memberList
+            memberObjectListCreator: memberList,
+            dataMemberNames,
         };
     }
 
@@ -475,7 +477,33 @@ export class CRuntime {
                             };
                             args[castAction.index] = initList;
                         } else {
-                            this.raiseException("Implicit object from list construction: Not yet implemented");
+                            const constructedType = typecheck.parseToObjectType(this.parser, castAction.cast.targetSig) ?? this.raiseException(`Implicit object from list construction: Failed to constructed an object from type '${typecheck.parsePrint(this.parser, castAction.cast.targetSig, null)}'`);
+                            const constructedClassType = variables.asClassType(constructedType);
+                            if (constructedClassType !== null) {
+                                if (!(constructedClassType.identifier in this.typeMap)) {
+                                    this.raiseException(`Implicit object from list construction: Unknown class '${constructedClassType.identifier}'`);
+                                }
+                                const dataMemberNames = this.typeMap[constructedClassType.identifier].dataMemberNames;
+                                if (dataMemberNames.length < listArgs.length) {
+                                    this.raiseException(`Implicit object from list construction: Expected at most ${dataMemberNames.length} data members for class '${constructedClassType.identifier}', received ${listArgs.length}`);
+                                }
+                                let members: {[name: string]: Variable } = {};
+                                for (let i = 0; i < listArgs.length; i++) {
+                                    members[dataMemberNames[i]] = listArgs[i];
+                                }
+                                const classVariable : ClassVariable = {
+                                    t: constructedClassType,
+                                    v: {
+                                        isConst: false,
+                                        lvHolder: null,
+                                        state: "INIT",
+                                        members
+                                    }
+                                }
+                                args[castAction.index] = classVariable;
+                            } else {
+                                this.raiseException("Implicit object from list construction: Not yet implemented");
+                            }
                         }
                     }
                     break;
@@ -1064,7 +1092,8 @@ export class CRuntime {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         const factory: MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
-        this.addTypeDomain(domainInline, factory);
+        const dataMemberNames: string[] = memberList.map(x => x.name);
+        this.addTypeDomain(domainInline, factory, dataMemberNames);
 
         const members: { [name: string]: Variable } = {};
         memberList.forEach((x: MemberObject) => { members[x.name] = x.variable })
@@ -1086,10 +1115,10 @@ export class CRuntime {
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
-    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator) {
+    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[]) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
-        this.addTypeDomain(domainInline, memberList);
+        this.addTypeDomain(domainInline, memberList, dataMemberNames);
 
         let stubClassTypeSig: string[] = [];
         for (let i = 0; i < memberList.numTemplateArgs; i++) {

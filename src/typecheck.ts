@@ -1,4 +1,4 @@
-import { variables } from "./variables";
+import { AnyType, ObjectType, variables } from "./variables";
 
 export class TypeParseError extends Error {
     constructor(...params: any[]) {
@@ -302,6 +302,7 @@ export type CastAction = {
     type: "LIST",
     isInitList: boolean,
     ops: ParseFunctionMatchInnerResult
+    targetSig: string[]
 };
 
 /** For every destination, stored as an inline type signature, an array of viable source types, stored as inline type signatures, is given.
@@ -557,7 +558,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                             pair.subtype = tmpSubRadical;
                             pair.supertype = tmpSuperRadical;
                         } else {
-                            if (superParamArray[0] in nonTerm && tmpSuperWc.length > 0 && tmpSuperWc[0] in pair.wildcards && typeof(pair.wildcards[tmpSuperWc[0]]) !== "number") {
+                            if (superParamArray[0] in nonTerm && tmpSuperWc.length > 0 && tmpSuperWc[0] in pair.wildcards && typeof (pair.wildcards[tmpSuperWc[0]]) !== "number") {
                                 superParamArray = pair.wildcards[tmpSuperWc[0]] as string[];
                             }
                             const subParamInline = subParamArray.join(" ");
@@ -607,7 +608,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                     pair.superwc = postSuperwc;
                                     pair.subtype = pair.subtype.slice(1);
                                     valueAction = "CAST";
-                                    result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: true, ops: listOps } });
+                                    result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: true, ops: listOps, targetSig: [] } });
                                 }
                             } else if (subParamInline.startsWith("CLASS __list_prototype < ") && superParamArray[0] === "CLASS" && superParamArray[1] in ct.list) {
                                 const xsuperData = preparse(ct.list[superParamArray[1]].dst);
@@ -672,7 +673,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                             pair.supertype = tmpSuperRadical;
                                             pair.subtype = tmpSubRadical;
                                             valueAction = "CAST";
-                                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: false, ops: zresult } });
+                                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: false, ops: zresult, targetSig: superParamArray } });
                                             break;
                                         }
                                     }
@@ -973,3 +974,121 @@ function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: st
         inout.output.push(rhs);
     }
 }
+
+/** stub.
+ *  Does NOT accept incomplete and/or template types.
+ *  Does not throw an error, returns null on failure.
+ *  @param parser The LL(1) Parser, created using `constructTypeParser`.
+ *  @param sentence Sequence of tokens, which describes the variable type.
+ *  @param scope The topmost nonterminal token of both statements (default = `'Type'`).
+ *  @param strict_order Ensure that typed wildcard statements are going from ?0 in ascending order in the sequence (default = `true`).
+ *  @returns ObjectType, on successful parse conversion, or null on failure
+ **/
+export function parseToObjectType(parser: LLParser, sentence: string[], scope: NonTerm = 'Type'): AnyType | null {
+    if (preparse(sentence).wildcardMap.length > 0) {
+        return null;
+    }
+    const inout = { sentence, output: null };
+    parseToObjectTypeInner(parser, scope, inout);
+    return inout.output;
+}
+
+function parseToObjectTypeInner(parser: LLParser, scope: NonTerm, inout: { sentence: string[], output: AnyType | null }): void {
+    let endLoop: boolean = false;
+    let localType: AnyType | null = null;
+    parser[scope].forEach((argument) => {
+        if (inout.sentence === null || endLoop) {
+            return;
+        }
+        if (inout.sentence.length > 0 && inout.sentence[0] in argument) {
+            const innerScope: NonTerm | null = argument[inout.sentence[0]] as NonTerm | null;
+            const head = inout.sentence[0];
+            if (innerScope === null) {
+                if (inout.sentence[0] === scope) {
+                    endLoop = true;
+                }
+                inout.sentence = inout.sentence.slice(1);
+                switch (head) {
+                    case "FUNCTION":
+                        break;
+                    case "CLASS":
+                        localType = variables.classType(inout.sentence[0], [], null);
+                        break;
+                    case "LREF":
+                        break;
+                    case "CLREF":
+                        break;
+                    case "PTR":
+                        localType = variables.pointerType(variables.arithmeticType("I8"), null);
+                        break;
+                    case "I8":
+                    case "U8":
+                    case "I16":
+                    case "U16":
+                    case "I32":
+                    case "U32":
+                    case "I64":
+                    case "U64":
+                    case "F32":
+                    case "F32":
+                    case "F64":
+                    case "F64":
+                    case "BOOL":
+                        localType = variables.arithmeticType(head);
+                        break;
+                }
+            } else {
+                if (inout.output === null && localType !== null) {
+                    inout.output = localType;
+                }
+                parseToObjectTypeInner(parser, innerScope as NonTerm, inout);
+                if (inout.output === null) {
+                    return;
+                }
+                if (localType !== null && inout.output !== localType) {
+                    switch (localType.sig) {
+                        case "FUNCTION":
+                            debugger; // unimplemented
+                            inout.output = null;
+                            localType = null;
+                            break;
+                        case "CLASS":
+                            if (inout.output.sig !== "VOID" && inout.output.sig !== "FUNCTION") {
+                                localType.templateSpec.push(inout.output);
+                            } else {
+                                localType = null;
+                                inout.output = null;
+                            }
+                            break;
+                        case "PTR":
+                            if (inout.output.sig !== "VOID") {
+                                localType = variables.pointerType(inout.output, null);
+                            } else {
+                                localType = null;
+                                inout.output = null;
+                            }
+                            break;
+                        default:
+                            localType = null;
+                            inout.output = null;
+                            break;
+                    }
+                }
+            }
+        } else if (inout.sentence.length > 0 && "identifier" in argument) {
+            inout.sentence = inout.sentence.slice(1);
+        } else if (inout.sentence.length > 0 && "positiveint" in argument) {
+            if (!(parseInt(inout.sentence[0]) > 0)) {
+                return null;
+            } else {
+                inout.sentence = inout.sentence.slice(1);
+            }
+        } else {
+            return null;
+        }
+    });
+    if (localType) {
+        inout.output = localType;
+    }
+}
+

@@ -21,7 +21,7 @@ export = {
                     },
                 ]
             }
-        });
+        }, ["first", "second"]);
         common.regGlobalFuncs(rt, [
             {
                 op: "make_pair",
