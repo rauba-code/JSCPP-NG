@@ -1,4 +1,4 @@
-import { AnyType, ObjectType, variables } from "./variables";
+import { AnyType, variables } from "./variables";
 
 export class TypeParseError extends Error {
     constructor(...params: any[]) {

@@ -103,7 +103,7 @@ export = {
                 (retv.v as InitArithmeticValue).value = topv;
                 stdio.cinProceed();
             }).catch((err) => {
-                stdio.promiseError(err.message);
+                stdio.promiseError(err);
             })
             function* stubGenerator() {
                 yield retv as InitArithmeticVariable;
@@ -348,7 +348,7 @@ export = {
                 stdio.cinProceed();
             }).catch((err) => {
                 //console.log(err);
-                stdio.promiseError(err.message);
+                stdio.promiseError(err);
             })
             return l;
         }
@@ -406,7 +406,7 @@ export = {
                 stdio.cinProceed();
             }).catch((err) => {
                 //console.log(err);
-                stdio.promiseError(err.message);
+                stdio.promiseError(err);
             })
             return l;
         }

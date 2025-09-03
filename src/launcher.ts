@@ -111,7 +111,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         fstream,
         stdio: {
             promiseError(promise_error) {
-                console.log(promise_error);
+                console.log(promise_error.message);
             },
             cinStop() {
                 handleStop();
@@ -189,7 +189,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
                 }
             }
         } catch (error) {
-            (_config.stdio as any).promiseError(error.message);
+            (_config.stdio as any).promiseError(error);
         }
     }
 

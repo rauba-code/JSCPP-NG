@@ -15,7 +15,7 @@ export interface IncludeModule {
 
 export interface Stdio {
     isMochaTest?: boolean;
-    promiseError: (promise_error: string) => void;
+    promiseError: (promise_error: Error) => void;
     drain?: () => string;
     cinStop: () => void;
     cinProceed: () => void;
@@ -43,6 +43,22 @@ export interface JSCPPConfig {
     maxTimeout?: number;
     eventLoopSteps?: number;
     stopExecutionCheck?: () => boolean;
+}
+
+export class CRuntimeError extends Error {
+    line: number | null;
+    column: number | null;
+
+    constructor(name: string, line: number | null, column: number | null) {
+        super(name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, CRuntimeError);
+        }
+        this.name = "CRuntimeError";
+        this.line = line;
+        this.column = column;
+        Object.setPrototypeOf(this, CRuntimeError.prototype)
+    }
 }
 
 export type OpSignature = "o(_--)" | "o(--_)" | "o(_-_)" | "o(-_)" | "o(_-=_)" | "o(_->_)" | "o(_,_)" | "o(!_)" | "o(_!=_)" | "o(_[_])" | "o(*_)" | "o(_*_)" | "o(_*=_)" | "o(_/_)" | "o(_/=_)" | "o(_&_)" | "o(&_)" | "o(_&=_)" | "o(_%_)" | "o(_%=_)" | "o(_^_)" | "o(_^=_)" | "o(_+_)" | "o(+_)" | "o(_++)" | "o(++_)" | "o(_+=_)" | "o(_<_)" | "o(_<<_)" | "o(_<<=_)" | "o(_<=_)" | "o(_=_)" | "o(_==_)" | "o(_>_)" | "o(_>=_)" | "o(_>>_)" | "o(_>>=_)" | "o(_|_)" | "o(_|=_)" | "o(~_)" | "o(_&&_)" | "o(_||_)" | "o(_bool)" | "o(_ctor)" | "o(_call)" | "o(_stub)";
@@ -1268,9 +1284,9 @@ export class CRuntime {
                         return "[position unavailable]";
                     }
                 })();
-            throw new Error(posInfo + " " + message);
+            throw new CRuntimeError(posInfo + " " + message, currentNode?.sLine ?? null, currentNode?.sColumn ?? null);
         } else {
-            throw new Error(message);
+            throw new CRuntimeError(message, null, null);
         }
     };
 
