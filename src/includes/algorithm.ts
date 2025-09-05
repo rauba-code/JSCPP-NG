@@ -221,12 +221,9 @@ export = {
             },
             {
                 op: "fill_n",
-                type: "!ParamObject !Arithmetic !ParamObject FUNCTION PTR ?0 ( PTR ?0 ?1 CLREF ?2 )",
-                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, count: ArithmeticVariable, value: Variable): Gen<InitIndexPointerVariable<Variable>> {
-                    if (_first.t.pointee.sig === "FUNCTION") {
-                        rt.raiseException("fill_n(): Expected a pointer to an object variable");
-                    }
-                    let first = variables.asInitIndexPointer(_first) ?? rt.raiseException("fill_n(): Expected 'first' to point to an element");
+                type: "!ParamObject !Arithmetic !ParamObject FUNCTION ?0 ( ?0 ?1 CLREF ?2 )",
+                *default(rt: CRuntime, _templateTypes: [], first: Variable, count: ArithmeticVariable, value: Variable): Gen<Variable> {
+                    //let first = variables.asInitIndexPointer(_first) ?? rt.raiseException("fill_n(): Expected 'first' to point to an element");
                     const c = rt.arithmeticValue(count);
                     const ppInst = rt.getOpByParams("{global}", "o(_++)", [first], []);
                     for (let i = 0; i !== c; i++) {

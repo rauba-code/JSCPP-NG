@@ -105,7 +105,7 @@ export function constructTypeParser(): LLParser {
         "Parametric": [["ParamObject", "LRef", "CLRef", "MemberType"]],
         "LRef": [["LREF"], ["LValue"]],
         "CLRef": [["CLREF"], ["LValue"]],
-        "LValue": [["Object", "Function"]],
+        "LValue": [["Object", "Function", "MemberType"]],
         "Pointee": [["LValue", "VOID"]],
         "Pointer": [["PTR"], ["Pointee"]],
         "Array": [["ARRAY"], ["Object"], ["ArraySize"]],
@@ -626,7 +626,6 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                             result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "MEMBERTYPE", ops: zresult }});
                                             pair.subtype = zpair.subtype;
                                             pair.supertype = tmpSuperRadical;
-                                            debugger;
                                         }
                                     }
                                 }

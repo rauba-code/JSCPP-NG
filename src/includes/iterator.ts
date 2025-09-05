@@ -5,7 +5,7 @@
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, ClassType, InitPointerValue, ClassVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, ClassType, InitPointerValue, ClassVariable, InitPointerVariable } from "../variables";
 
 // Insert iterator type - tik vienas šablono parametras (Container)
 interface InsertIteratorType<ContainerType extends ObjectType> extends AbstractTemplatedClassType<null, [ContainerType]> {
@@ -120,16 +120,20 @@ export = {
         common.regOps(rt, [
             {
                 op: "o(_=_)",
-                type: "!ParamObject FUNCTION LREF CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > CLREF ?0 )",
+                type: "!Class FUNCTION LREF CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > CLREF MEMBERTYPE value_type ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>, value: Variable): Gen<InsertIteratorVariable<Variable>> {
-                    const containerPtr = variables.asInitPointer(insertIter.v.members._container) ?? rt.raiseException("insert_iterator: container not initialized");
+                    const containerPtr = variables.asInitPointer(insertIter.v.members._container) ?? rt.raiseException("insert_iterator: container pointer not initialized");
+                    if (containerPtr.t.pointee.sig === "FUNCTION") {
+                        rt.raiseException("insert_iterator::operator=(): Unexpected function pointer in this->_container");
+                    }
                     const iter = insertIter.v.members._iter;
 
                     // Get container and iterator from pointers
-                    const container = rt.unbound(containerPtr) as Variable;
+                    const x = variables.deref(containerPtr as InitPointerVariable<Variable>) as MaybeUnboundVariable;
+                    const container = variables.asClass(rt.unbound(x) as Variable) ?? rt.raiseException("insert_iterator: container is not a class");
 
                     // Call container's insert method
-                    const insertMethod = rt.getFuncByParams("{global}" as ClassType | "{global}", "insert", [
+                    const insertMethod = rt.getFuncByParams(container.t, "insert", [
                         container,
                         iter,
                         value
