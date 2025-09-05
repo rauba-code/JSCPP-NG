@@ -40,7 +40,7 @@ export = {
                     name: "failbit",
                     variable: variables.arithmetic("BOOL", 0, "SELF"),
                 },
-            ]);
+            ], {});
 
             const whitespaceChars = [0, 9, 10, 32];
 

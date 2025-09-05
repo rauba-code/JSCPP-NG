@@ -33,7 +33,7 @@ export = {
                 name: "failbit",
                 variable: variables.arithmetic("BOOL", 0, "SELF"),
             },
-        ]);
+        ], {});
         const cinType = rt.simpleType(["istream"]) as MaybeLeft<IStreamType>;
         const cin = variables.clone(rt, rt.defaultValue(cinType.t, "SELF") as IStreamVariable, "SELF", false);
         variables.arithmeticAssign(rt, cin.v.members.fd, unixapi.FD_STDIN);
@@ -51,7 +51,7 @@ export = {
             const endl = rt.getCharArrayFromString("\n");
             rt.addToNamespace("std", "endl", endl);
 
-            rt.defineStruct("{global}", "ws_t", []);
+            rt.defineStruct("{global}", "ws_t", [], {});
             const ws : ClassVariable = {
                 t: {
                     sig: "CLASS",

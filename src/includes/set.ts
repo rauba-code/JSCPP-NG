@@ -39,7 +39,7 @@ export = {
                     }
                 ]
             }
-        }, ["_data", "_sz", "_cap"]);
+        }, ["_data", "_sz", "_cap"], {});
 
         // Constructor from initializer_list
         const ctorHandler1: common.OpHandler = {

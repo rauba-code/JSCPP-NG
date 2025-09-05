@@ -20,6 +20,7 @@ interface VectorValue<T extends Variable> extends InitValue<VectorVariable<T>> {
 
 export = {
     load(rt: CRuntime) {
+        const vectorSig: string[] = "!ParamObject CLASS vector < ?0 >".split(" ");
         rt.defineStruct2("{global}", "vector", {
             numTemplateArgs: 1, factory: (dataItem: VectorType<ObjectType>) => {
                 return [
@@ -37,7 +38,13 @@ export = {
                     }
                 ]
             }
-        }, ["_ptr", "_sz", "_cap"]);
+        }, ["_ptr", "_sz", "_cap"], {
+            ["value_type"]: [{ src: vectorSig, dst: ["?0"] }],
+            ["iterator"]: [{ src: vectorSig, dst: ["PTR", "?0"] }],
+            ["const_iterator"]: [{ src: vectorSig, dst: ["PTR", "?0"] }],
+            ["pointer"]: [{ src: vectorSig, dst: ["PTR", "?0"] }],
+            ["reference"]: [{ src: vectorSig, dst: ["LREF", "?0"] }],
+        });
 
         const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",

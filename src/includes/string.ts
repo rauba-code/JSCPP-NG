@@ -15,7 +15,7 @@ export = {
                 name: "_size",
                 variable: variables.arithmetic("I64", 0, "SELF")
             }
-        ])
+        ], {})
 
         function cmpOverloads(op: OpSignature, fn: (strcmpRetv: number) => boolean): common.OpHandler[] {
             return [{

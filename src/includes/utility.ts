@@ -21,7 +21,8 @@ export = {
                     },
                 ]
             }
-        }, ["first", "second"]);
+        }, ["first", "second"], {});
+        rt.ct.list["pair"].src.push("CLASS __list_prototype < ?0 ?1 >".split(" "));
         common.regGlobalFuncs(rt, [
             {
                 op: "make_pair",

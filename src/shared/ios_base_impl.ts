@@ -68,7 +68,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             variable: variables.arithmetic("BOOL", 0, "SELF"),
         },
         ...moreMembers
-    ]);
+    ], {});
 
     common.regOps(rt, [{
         op: "o(_<<_)",

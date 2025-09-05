@@ -72,7 +72,7 @@ export = {
                 name: "param",
                 variable: variables.uninitArithmetic("I32", "SELF"),
             },
-        ]);
+        ], {});
 
         ["ostream", "ofstream"].forEach((x) => { if (x in rt.typeMap) { overloadIomanip(rt, x) } });
 

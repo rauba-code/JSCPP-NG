@@ -104,11 +104,17 @@ export interface FunctionSymbol {
     target: CFunction | null,
 }
 
+export type MemberTypeInfo = {
+    src: string[],
+    dst: string[]
+}
+
 export type TypeHandlerMap = {
     functionDB: TypeDB;
     functionsByID: FunctionSymbol[];
     memberObjectListCreator: MemberObjectListCreator;
     dataMemberNames: string[]
+    memberTypes: { [identifier: string]: MemberTypeInfo[] }
 };
 
 export type TypeSignature = {
@@ -160,7 +166,7 @@ export class CRuntime {
         this.parser = constructTypeParser();
         this.config = config;
         this.typeMap = {};
-        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => [] }, []);
+        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => [] }, [], {});
         this.fileio = { freefd: 4, files: {} };
 
         this.scope = [{ "$name": "{global}", variables: {} }];
@@ -203,7 +209,7 @@ export class CRuntime {
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
     }
 
-    addTypeDomain(domain: string, memberList: MemberObjectListCreator, dataMemberNames: string[]) {
+    addTypeDomain(domain: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: {[identifier: string]: MemberTypeInfo[]}) {
         if (domain in this.typeMap) {
             this.raiseException(`Domain ${domain} already exists`);
         }
@@ -212,6 +218,7 @@ export class CRuntime {
             functionsByID: [],
             memberObjectListCreator: memberList,
             dataMemberNames,
+            memberTypes,
         };
     }
 
@@ -503,11 +510,11 @@ export class CRuntime {
                                 if (dataMemberNames.length < listArgs.length) {
                                     this.raiseException(`Implicit object from list construction: Expected at most ${dataMemberNames.length} data members for class '${constructedClassType.identifier}', received ${listArgs.length}`);
                                 }
-                                let members: {[name: string]: Variable } = {};
+                                let members: { [name: string]: Variable } = {};
                                 for (let i = 0; i < listArgs.length; i++) {
                                     members[dataMemberNames[i]] = listArgs[i];
                                 }
-                                const classVariable : ClassVariable = {
+                                const classVariable: ClassVariable = {
                                     t: constructedClassType,
                                     v: {
                                         isConst: false,
@@ -1104,12 +1111,12 @@ export class CRuntime {
         }
     };
 
-    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[]) {
+    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[], memberTypes: { [identifier: string]: MemberTypeInfo[] }) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         const factory: MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
         const dataMemberNames: string[] = memberList.map(x => x.name);
-        this.addTypeDomain(domainInline, factory, dataMemberNames);
+        this.addTypeDomain(domainInline, factory, dataMemberNames, memberTypes);
 
         const members: { [name: string]: Variable } = {};
         memberList.forEach((x: MemberObject) => { members[x.name] = x.variable })
@@ -1131,10 +1138,10 @@ export class CRuntime {
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
-    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[]) {
+    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: MemberTypeInfo[] }) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
-        this.addTypeDomain(domainInline, memberList, dataMemberNames);
+        this.addTypeDomain(domainInline, memberList, dataMemberNames, memberTypes);
 
         let stubClassTypeSig: string[] = [];
         for (let i = 0; i < memberList.numTemplateArgs; i++) {
@@ -1151,9 +1158,6 @@ export class CRuntime {
             this.ct.list[identifier] = { dst: stubClassTypeSig, src: [] };
         } else {
             this.raiseException("Struct definition error: Template struct overloads are not yet implemented");
-        }
-        if (identifier === "pair") {
-            this.ct.list[identifier].src.push("CLASS __list_prototype < ?0 ?1 >".split(" "));
         }
         //this.ct.list[identifier].src.push(listPrototypeTypeSig);
 

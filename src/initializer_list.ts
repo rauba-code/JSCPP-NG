@@ -25,7 +25,7 @@ export function initializerListInit(rt: CRuntime): void {
                 },
             ]
         },
-    }, []);
+    }, [], {});
 }
 
 export function createInitializerList<T extends Variable>(type: T["t"], values: T["v"][]): InitializerListVariable<T> {

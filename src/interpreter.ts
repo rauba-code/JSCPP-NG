@@ -681,7 +681,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         if (rt.scope.length !== 1) {
                             rt.raiseException("Struct declaration error: Nested classes are not yet implemented");
                         }
-                        rt.defineStruct("{global}", identifier, structMemberList);
+                        rt.defineStruct("{global}", identifier, structMemberList, {});
                     }
                 }
             },

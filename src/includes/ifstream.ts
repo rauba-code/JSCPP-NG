@@ -18,7 +18,7 @@ export = {
             const endl = rt.getCharArrayFromString("\n");
             rt.addToNamespace("std", "endl", endl);
 
-            rt.defineStruct("{global}", "ws_t", []);
+            rt.defineStruct("{global}", "ws_t", [], {});
             const ws: ClassVariable = {
                 t: {
                     sig: "CLASS",
@@ -62,7 +62,7 @@ export = {
                 name: "_is_open",
                 variable: variables.arithmetic("BOOL", 0, "SELF"),
             }
-        ]);
+        ], {});
 
         const whitespaceChars = [0, 9, 10, 32];
 

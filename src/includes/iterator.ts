@@ -50,7 +50,7 @@ export = {
                     }
                 ]
             }
-        }, ["_container", "_iter"]);
+        }, ["_container", "_iter"], {});
 
         // Define back_insert_iterator struct
         rt.defineStruct2("{global}", "back_insert_iterator", {
@@ -62,7 +62,7 @@ export = {
                     }
                 ]
             }
-        }, ["_container"]);
+        }, ["_container"], {});
 
         // Constructor for insert_iterator - pakeista ?1 į PTR ?0
         const insertIteratorCtorHandler: common.OpHandler = {

@@ -70,7 +70,7 @@ export = {
                 name: "rem",
                 variable: variables.uninitArithmetic("I32", "SELF"),
             },
-        ]);
+        ], {});
         rt.defineStruct("{global}", "ldiv_t", [
             {
                 name: "quot",
@@ -80,7 +80,7 @@ export = {
                 name: "rem",
                 variable: variables.uninitArithmetic("I32", "SELF"),
             },
-        ]);
+        ], {});
         rt.defineStruct("{global}", "lldiv_t", [
             {
                 name: "quot",
@@ -90,7 +90,7 @@ export = {
                 name: "rem",
                 variable: variables.uninitArithmetic("I64", "SELF"),
             },
-        ]);
+        ], {});
         common.regGlobalFuncs(rt, [
             {
                 type: "FUNCTION F64 ( PTR I8 )",
