@@ -102,7 +102,7 @@ export function constructTypeParser(): LLParser {
         "Type": [["Object", "VOID", "Function", "LRef"]],
         "Object": [["ParamObject", "Array"]],
         "ParamObject": [["Class", "Arithmetic", "NULLPTR", "Pointer"]],
-        "Parametric": [["ParamObject", "LRef", "CLRef"]],
+        "Parametric": [["ParamObject", "LRef", "CLRef", "MemberType"]],
         "LRef": [["LREF"], ["LValue"]],
         "CLRef": [["CLREF"], ["LValue"]],
         "LValue": [["Object", "Function"]],
@@ -899,6 +899,9 @@ function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: st
                     switch (head) {
                         case "FUNCTION":
                             break;
+                        case "MEMBERTYPE":
+                            rhs = "::" + inout.sentence[1];
+                            break;
                         case "LREF":
                             rhs = " &";
                             break;
@@ -946,7 +949,9 @@ function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: st
                 parsePrintInner(parser, innerScope as NonTerm, inout);
             }
         } else if (inout.sentence.length > 0 && "identifier" in argument) {
-            inout.output.push(inout.sentence[0]);
+            if (scope !== "MemberType") {
+                inout.output.push(inout.sentence[0]);
+            }
             inout.sentence = inout.sentence.slice(1);
         } else if (inout.sentence.length > 0 && "positiveint" in argument) {
             if (!(parseInt(inout.sentence[0]) > 0)) {

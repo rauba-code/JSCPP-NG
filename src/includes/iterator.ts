@@ -5,7 +5,7 @@
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, ClassType, InitPointerValue } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, ClassType, InitPointerValue, ClassVariable } from "../variables";
 
 // Insert iterator type - tik vienas šablono parametras (Container)
 interface InsertIteratorType<ContainerType extends ObjectType> extends AbstractTemplatedClassType<null, [ContainerType]> {
@@ -17,12 +17,13 @@ type InsertIteratorVariable<ContainerType extends Variable> = AbstractVariable<I
 interface InsertIteratorValue<ContainerType extends Variable> extends InitValue<InsertIteratorVariable<ContainerType>> {
     members: {
         "_container": PointerVariable<ContainerType>,
-        "_iter": PointerVariable<Variable>, // bendras Variable tipas iteratoriui
+        "_iter": Variable, // bendras Variable tipas iteratoriui
     }
 }
 
 // Back insert iterator type
-interface BackInsertIteratorType<ContainerType extends ObjectType> extends AbstractTemplatedClassType<null, [ContainerType]> {
+// uncomment after testing
+/*interface BackInsertIteratorType<ContainerType extends ObjectType> extends AbstractTemplatedClassType<null, [ContainerType]> {
     readonly identifier: "back_insert_iterator",
 }
 
@@ -32,13 +33,15 @@ interface BackInsertIteratorValue<ContainerType extends Variable> extends InitVa
     members: {
         "_container": PointerVariable<ContainerType>,
     }
-}
+}*/
 
 export = {
     load(rt: CRuntime) {
         // Define insert_iterator struct - tik vienas šablono parametras
+        const insertIteratorSig: string[] = "!Class CLASS insert_iterator < ?0 >".split(" ");
         rt.defineStruct2("{global}", "insert_iterator", {
             numTemplateArgs: 1, factory: (iteratorType: InsertIteratorType<ObjectType>) => {
+                //const iteratorType = rt
                 return [
                     {
                         name: "_container",
@@ -50,10 +53,14 @@ export = {
                     }
                 ]
             }
-        }, ["_container", "_iter"], {});
+        }, ["_container", "_iter"], {
+            ["value_type"]: [{ src: insertIteratorSig, dst: ["VOID"] }],
+            ["pointer"]: [{ src: insertIteratorSig, dst: ["VOID"] }],
+            ["reference"]: [{ src: insertIteratorSig, dst: ["VOID"] }],
+        });
 
         // Define back_insert_iterator struct
-        rt.defineStruct2("{global}", "back_insert_iterator", {
+        /*rt.defineStruct2("{global}", "back_insert_iterator", {
             numTemplateArgs: 1, factory: (iteratorType: BackInsertIteratorType<ObjectType>) => {
                 return [
                     {
@@ -62,34 +69,31 @@ export = {
                     }
                 ]
             }
-        }, ["_container"], {});
+        }, ["_container"], {});*/
 
         // Constructor for insert_iterator - pakeista ?1 į PTR ?0
         const insertIteratorCtorHandler: common.OpHandler = {
             op: "o(_ctor)",
-            type: "!ParamObject FUNCTION CLASS insert_iterator < ?0 > ( LREF ?0 PTR ?0 )",
-            *default(rt: CRuntime, _templateTypes: ObjectType[], container: Variable, iter: PointerVariable<Variable>): Gen<InsertIteratorVariable<Variable>> {
-                const containerType = _templateTypes[0];
-                const thisType = variables.classType("insert_iterator", [containerType], null);
+            type: "!Class FUNCTION CLASS insert_iterator < ?0 > ( LREF ?0 MEMBERTYPE iterator ?0 )",
+            *default(rt: CRuntime, _templateTypes: ObjectType[], container: Variable, iter: Variable): Gen<InsertIteratorVariable<Variable>> {
+                const thisType = variables.classType("insert_iterator", [container.t], null);
                 const insertIter = yield* rt.defaultValue2(thisType, "SELF") as Gen<InsertIteratorVariable<Variable>>;
-                
+
                 // Set container pointer
                 const containerPtr = insertIter.v.members._container;
-                (containerPtr.v as InitPointerValue<Variable>).pointee = container.v;
                 containerPtr.v.state = "INIT";
-                
-                // Set iterator pointer
-                const iterPtr = variables.asInitIndexPointer(iter) ?? rt.raiseException("inserter: expected valid iterator");
-                const iterPtrVar = insertIter.v.members._iter;
-                (iterPtrVar.v as InitPointerValue<Variable>).pointee = iterPtr.v;
-                iterPtrVar.v.state = "INIT";
-                
+                (containerPtr.v as InitPointerValue<Variable>).pointee = container.v;
+                (containerPtr.v as InitPointerValue<Variable>).subtype = "DIRECT";
+
+                // Set iterator member
+                insertIter.v.members["_iter"] = iter;
+
                 return insertIter;
             }
         };
 
         // Constructor for back_insert_iterator
-        const backInsertIteratorCtorHandler: common.OpHandler = {
+        /*const backInsertIteratorCtorHandler: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS back_insert_iterator < ?0 > ( LREF ?0 )",
             *default(rt: CRuntime, _templateTypes: ObjectType[], container: Variable): Gen<BackInsertIteratorVariable<Variable>> {
@@ -104,13 +108,13 @@ export = {
                 
                 return backInsertIter;
             }
-        };
+        };*/
 
         const insertIteratorType = variables.classType("insert_iterator", [], null);
-        const backInsertIteratorType = variables.classType("back_insert_iterator", [], null);
+        //const backInsertIteratorType = variables.classType("back_insert_iterator", [], null);
 
         rt.regFunc(insertIteratorCtorHandler.default, insertIteratorType, insertIteratorCtorHandler.op, rt.typeSignature(insertIteratorCtorHandler.type), [-1]);
-        rt.regFunc(backInsertIteratorCtorHandler.default, backInsertIteratorType, backInsertIteratorCtorHandler.op, rt.typeSignature(backInsertIteratorCtorHandler.type), [-1]);
+        //rt.regFunc(backInsertIteratorCtorHandler.default, backInsertIteratorType, backInsertIteratorCtorHandler.op, rt.typeSignature(backInsertIteratorCtorHandler.type), [-1]);
 
         // Assignment operators
         common.regOps(rt, [
@@ -119,34 +123,27 @@ export = {
                 type: "!ParamObject FUNCTION LREF CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>, value: Variable): Gen<InsertIteratorVariable<Variable>> {
                     const containerPtr = variables.asInitPointer(insertIter.v.members._container) ?? rt.raiseException("insert_iterator: container not initialized");
-                    const iterPtr = variables.asInitPointer(insertIter.v.members._iter) ?? rt.raiseException("insert_iterator: iterator not initialized");
-                    
+                    const iter = insertIter.v.members._iter;
+
                     // Get container and iterator from pointers
                     const container = rt.unbound(containerPtr) as Variable;
-                    const iter = rt.unbound(iterPtr) as PointerVariable<Variable>;
-                    
+
                     // Call container's insert method
-                    const containerType = container.t as ClassType;
-                    if (containerType.identifier) {
-                        try {
-                            const insertMethod = rt.getFuncByParams("{global}" as ClassType | "{global}", "insert", [
-                                { t: container.t, v: { isConst: false, lvHolder: "SELF" } },
-                                { t: iter.t, v: { isConst: true, lvHolder: "SELF" } },
-                                { t: value.t, v: { isConst: true, lvHolder: "SELF" } }
-                            ], []);
-                            if (insertMethod) {
-                                const insertResult = rt.invokeCall(insertMethod, [], container, iter, value);
-                                asResult(insertResult) ?? (yield* insertResult as Gen<Variable>);
-                            }
-                        } catch (e) {
-                            // Fallback - try to call insert directly
-                        }
-                    }
-                    
+                    const insertMethod = rt.getFuncByParams("{global}" as ClassType | "{global}", "insert", [
+                        container,
+                        iter,
+                        value
+                    ], []);
+                    const insertResult = rt.invokeCall(insertMethod, [], container, iter, value);
+                    asResult(insertResult) ?? (yield* insertResult as Gen<MaybeUnboundVariable | "VOID">);
+                    const ppInst = rt.getOpByParams("{global}", "o(++_)", [iter], []);
+                    const ppYield = rt.invokeCall(ppInst, [], iter);
+                    asResult(ppYield) ?? (yield* ppYield as Gen<MaybeUnboundVariable | "VOID">);
+
                     return insertIter;
                 }
             },
-            {
+            /*{
                 op: "o(_=_)",
                 type: "!ParamObject FUNCTION LREF CLASS back_insert_iterator < ?0 > ( LREF CLASS back_insert_iterator < ?0 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], backInsertIter: BackInsertIteratorVariable<Variable>, value: Variable): Gen<BackInsertIteratorVariable<Variable>> {
@@ -174,7 +171,7 @@ export = {
                     
                     return backInsertIter;
                 }
-            }
+            }*/
         ]);
 
         // Dereference and increment operators
@@ -182,54 +179,55 @@ export = {
             {
                 op: "o(*_)",
                 type: "!ParamObject FUNCTION LREF CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>): InsertIteratorVariable<Variable> {
+                default(_rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>): InsertIteratorVariable<Variable> {
                     return insertIter; // Insert iterators return themselves when dereferenced
                 }
             },
-            {
+            /*{
                 op: "o(*_)",
                 type: "!ParamObject FUNCTION LREF CLASS back_insert_iterator < ?0 > ( LREF CLASS back_insert_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], backInsertIter: BackInsertIteratorVariable<Variable>): BackInsertIteratorVariable<Variable> {
+                default(_rt: CRuntime, _templateTypes: ObjectType[], backInsertIter: BackInsertIteratorVariable<Variable>): BackInsertIteratorVariable<Variable> {
                     return backInsertIter; // Back insert iterators return themselves when dereferenced
                 }
-            },
+            },*/
             {
                 op: "o(++_)",
                 type: "!ParamObject FUNCTION LREF CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>): InsertIteratorVariable<Variable> {
+                default(_rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>): InsertIteratorVariable<Variable> {
                     return insertIter; // Insert iterators don't actually increment
                 }
             },
-            {
+            /*{
                 op: "o(++_)",
                 type: "!ParamObject FUNCTION LREF CLASS back_insert_iterator < ?0 > ( LREF CLASS back_insert_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], backInsertIter: BackInsertIteratorVariable<Variable>): BackInsertIteratorVariable<Variable> {
+                default(_rt: CRuntime, _templateTypes: ObjectType[], backInsertIter: BackInsertIteratorVariable<Variable>): BackInsertIteratorVariable<Variable> {
                     return backInsertIter; // Back insert iterators don't actually increment
                 }
-            },
+            },*/
             {
                 op: "o(_++)",
-                type: "!ParamObject FUNCTION CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > I32 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>, _dummy: ArithmeticVariable): InsertIteratorVariable<Variable> {
+                type: "!ParamObject FUNCTION LREF CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>): InsertIteratorVariable<Variable> {
                     return insertIter; // Insert iterators don't actually increment
                 }
             },
-            {
+            /*{
                 op: "o(_++)",
-                type: "!ParamObject FUNCTION CLASS back_insert_iterator < ?0 > ( LREF CLASS back_insert_iterator < ?0 > I32 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], backInsertIter: BackInsertIteratorVariable<Variable>, _dummy: ArithmeticVariable): BackInsertIteratorVariable<Variable> {
+                type: "!ParamObject FUNCTION LREF CLASS back_insert_iterator < ?0 > ( LREF CLASS back_insert_iterator < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: ObjectType[], backInsertIter: BackInsertIteratorVariable<Variable>): BackInsertIteratorVariable<Variable> {
                     return backInsertIter; // Back insert iterators don't actually increment
                 }
-            }
+            }*/
         ]);
 
-        // Global utility functions - pakeista ?1 į PTR ?0
+        // Global utility functions
         common.regGlobalFuncs(rt, [
             {
                 op: "inserter",
-                type: "!ParamObject FUNCTION CLASS insert_iterator < ?0 > ( LREF ?0 PTR ?0 )",
-                *default(rt: CRuntime, templateTypes: ObjectType[], container: Variable, iter: PointerVariable<Variable>): Gen<InsertIteratorVariable<Variable>> {
-                    const containerType = templateTypes[0];
+                type: "!Class FUNCTION CLASS insert_iterator < ?0 > ( LREF ?0 MEMBERTYPE iterator ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], _container: ClassVariable, _iter: Variable): Gen<InsertIteratorVariable<Variable>> {
+                    rt.raiseException("inserter(): Not yet implemented")
+                    /*const containerType = templateTypes[0];
                     
                     const insertIterResult = insertIteratorCtorHandler.default(rt, [containerType], container, iter);
                     const result = asResult(insertIterResult);
@@ -237,7 +235,7 @@ export = {
                         return result as InsertIteratorVariable<Variable>;
                     } else {
                         return yield* insertIterResult as Gen<InsertIteratorVariable<Variable>>;
-                    }
+                    }*/
                 }
             }
         ]);

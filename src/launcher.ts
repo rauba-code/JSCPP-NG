@@ -34,7 +34,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     utility: require("./includes/utility"),
     // map: require("./includes/map"),
     // array: require("./includes/array"),
-    // iterator: require("./includes/iterator"),
+    iterator: require("./includes/iterator"),
     /*functional: require("./includes/functional"),
     _bits__stdcpp: require("./includes/bits/stdcpp")*/
 };
