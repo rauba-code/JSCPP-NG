@@ -1,5 +1,5 @@
 // logger = require("tracer").colorConsole();
-import { CRuntime, IncludeModule, JSCPPConfig, mergeConfig } from "./rt";
+import { CRuntime, CRuntimeError, IncludeModule, JSCPPConfig, mergeConfig } from "./rt";
 
 import { Interpreter } from "./interpreter";
 import ast = require("./ast");
@@ -205,7 +205,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
 
     const result = PEGUtil.parse(ast, code);
     if (result.error != null) {
-        throw new Error("ERROR: Parsing Failure:\n" + PEGUtil.errorMessage(result.error, true));
+        throw new CRuntimeError(`[line ${result.error.line}:${result.error.column}] Syntax error`, result.error.line, result.error.column);
     }
     const interpreter = new Interpreter(rt);
     const defGen = interpreter.run(result.ast, code);
