@@ -578,54 +578,56 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                 } else {
                                     throw new TypeParseError("Typecheck: Not yet implemented");
                                 }
-                                for (const xsuperCandidate of ct.memberType[sourceClass[1]][memberTypeName]) {
-                                    const xsuperData = preparse(xsuperCandidate.src);
-                                    const xsubData = preparse(sourceClass);
-                                    const xresult: ParseFunctionMatchInnerResult = {
-                                        valueActions: new Array<"CLONE" | "BORROW" | "CAST">(),
-                                        castActions: new Array<{ index: number, cast: CastAction }>(),
-                                    };
-                                    const xpair: FunctionMatchSigPair = {
-                                        subtype: xsubData.sentence,
-                                        subwc: xsubData.wildcardMap,
-                                        supertype: xsuperData.sentence,
-                                        superwc: xsuperData.wildcardMap,
-                                        wildcards: new Array(),
-                                        paramDepth: 0,
-                                        firstLevelParamBreadth: 0,
-                                    };
-                                    const xretv = parseFunctionMatchInner(parser, 'Class', xpair, ct, xresult);;
-                                    if (xretv) {
-                                        const projectedSuper: string[] = xsuperCandidate.dst.map((x) => {
-                                            if (x.startsWith("?")) {
-                                                const idx = parseInt(x.substr(1));
-                                                if (!(idx in xpair.wildcards) || typeof (xpair.wildcards[idx]) === "number") {
-                                                    throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
-                                                }
-                                                return xpair.wildcards[idx] as string[];
-                                            } else {
-                                                return x;
-                                            }
-                                        }).flat();
-                                        const zpair = {
-                                            subtype: pair.subtype,
-                                            subwc: pair.subwc,
-                                            supertype: projectedSuper,
-                                            superwc: pair.superwc,
-                                            wildcards: pair.wildcards,
-                                            paramDepth: 1,
+                                if (sourceClass[1] in ct.memberType && memberTypeName in ct.memberType[sourceClass[1]]) {
+                                    for (const xsuperCandidate of ct.memberType[sourceClass[1]][memberTypeName]) {
+                                        const xsuperData = preparse(xsuperCandidate.src);
+                                        const xsubData = preparse(sourceClass);
+                                        const xresult: ParseFunctionMatchInnerResult = {
+                                            valueActions: new Array<"CLONE" | "BORROW" | "CAST">(),
+                                            castActions: new Array<{ index: number, cast: CastAction }>(),
+                                        };
+                                        const xpair: FunctionMatchSigPair = {
+                                            subtype: xsubData.sentence,
+                                            subwc: xsubData.wildcardMap,
+                                            supertype: xsuperData.sentence,
+                                            superwc: xsuperData.wildcardMap,
+                                            wildcards: new Array(),
+                                            paramDepth: 0,
                                             firstLevelParamBreadth: 0,
                                         };
-                                        const zresult: ParseFunctionMatchInnerResult = {
-                                            valueActions: [],
-                                            castActions: [],
-                                        }
-                                        if (parseFunctionMatchInner(parser, 'Parametric', zpair, ct, zresult) === true) {
-                                            retv = true;
-                                            valueAction = "CAST";
-                                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "MEMBERTYPE", ops: zresult }});
-                                            pair.subtype = zpair.subtype;
-                                            pair.supertype = tmpSuperRadical;
+                                        const xretv = parseFunctionMatchInner(parser, 'Class', xpair, ct, xresult);;
+                                        if (xretv) {
+                                            const projectedSuper: string[] = xsuperCandidate.dst.map((x) => {
+                                                if (x.startsWith("?")) {
+                                                    const idx = parseInt(x.substr(1));
+                                                    if (!(idx in xpair.wildcards) || typeof (xpair.wildcards[idx]) === "number") {
+                                                        throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
+                                                    }
+                                                    return xpair.wildcards[idx] as string[];
+                                                } else {
+                                                    return x;
+                                                }
+                                            }).flat();
+                                            const zpair = {
+                                                subtype: pair.subtype,
+                                                subwc: pair.subwc,
+                                                supertype: projectedSuper,
+                                                superwc: pair.superwc,
+                                                wildcards: pair.wildcards,
+                                                paramDepth: 1,
+                                                firstLevelParamBreadth: 0,
+                                            };
+                                            const zresult: ParseFunctionMatchInnerResult = {
+                                                valueActions: [],
+                                                castActions: [],
+                                            }
+                                            if (parseFunctionMatchInner(parser, 'Parametric', zpair, ct, zresult) === true) {
+                                                retv = true;
+                                                valueAction = "CAST";
+                                                result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "MEMBERTYPE", ops: zresult } });
+                                                pair.subtype = zpair.subtype;
+                                                pair.supertype = tmpSuperRadical;
+                                            }
                                         }
                                     }
                                 }

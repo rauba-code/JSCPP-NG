@@ -233,7 +233,7 @@ export = {
                             const typeOfFirst = rt.makeTypeStringOfVar(first);
                             rt.raiseException(`fill_n(): expected '${typeOfFirst}::operator++' to return an object, got void`);
                         }
-                        const ppResult : Variable = rt.unbound(ppResultOrVoid);
+                        const ppResult: Variable = rt.unbound(ppResultOrVoid);
                         const derefInst = rt.getOpByParams("{global}", "o(*_)", [ppResult], []);
                         const derefYield = rt.invokeCall(derefInst, [], ppResult);
                         const derefResultOrVoid = asResult(derefYield) ?? (yield* derefYield as Gen<MaybeUnboundVariable | "VOID">);
@@ -241,7 +241,7 @@ export = {
                             const typeOfPpResult = rt.makeTypeStringOfVar(ppResult);
                             rt.raiseException(`fill_n(): expected '${typeOfPpResult}::operator*' to return an object, got void`);
                         }
-                        const derefResult : Variable = rt.unbound(derefResultOrVoid);
+                        const derefResult: Variable = rt.unbound(derefResultOrVoid);
                         const setInst = rt.getOpByParams("{global}", "o(_=_)", [derefResult, value], []);
                         const setYield = rt.invokeCall(setInst, [], derefResult, value);
                         const setResultOrVoid = asResult(setYield) ?? (yield* setYield as Gen<MaybeUnboundVariable | "VOID">);
@@ -256,17 +256,18 @@ export = {
             // TODO: Validate and cleanup set_intersection
             {
                 op: "set_intersection",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 PTR ?0 )",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
                     first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
                     first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
-                    result: PointerVariable<PointeeVariable>): Gen<InitIndexPointerVariable<Variable>> {
+                    d_first: Variable): Gen<Variable> {
+
+                    const ppInst = rt.getOpByParams("{global}", "o(_++)", [d_first], []);
 
                     const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
                     const l1 = variables.asInitIndexPointer(last1) ?? rt.raiseException("set_intersection: expected valid last1 iterator");
                     const f2 = variables.asInitIndexPointer(first2) ?? rt.raiseException("set_intersection: expected valid first2 iterator");
                     const l2 = variables.asInitIndexPointer(last2) ?? rt.raiseException("set_intersection: expected valid last2 iterator");
-                    const res = variables.asInitIndexPointer(result) ?? rt.raiseException("set_intersection: expected valid result iterator");
 
                     if (f1.v.pointee !== l1.v.pointee) {
                         rt.raiseException("set_intersection: first1 and last1 must point to same memory region");
@@ -280,7 +281,6 @@ export = {
 
                     let i1 = f1.v.index;
                     let i2 = f2.v.index;
-                    let resIndex = res.v.index;
 
                     while (i1 < l1.v.index && i2 < l2.v.index) {
                         const elem1 = rt.unbound(variables.arrayMember(f1.v.pointee, i1) as MaybeUnboundVariable);
@@ -290,33 +290,45 @@ export = {
                         const cmp1Result = rt.arithmeticValue(asResult(cmp1Yield) ?? (yield* cmp1Yield as Gen<ArithmeticVariable>));
 
                         if (cmp1Result !== 0) {
-                            i1++;
+                            f1.v.index++;
+                            i1 = f1.v.index;
                         } else {
                             const cmp2Yield = rt.invokeCall(ltFun, [], elem2, elem1) as ResultOrGen<ArithmeticVariable>;
                             const cmp2Result = rt.arithmeticValue(asResult(cmp2Yield) ?? (yield* cmp2Yield as Gen<ArithmeticVariable>));
 
-                            if (cmp2Result !== 0) {
-                                i2++;
-                            } else {
-                                if (res.v.pointee.values.length <= resIndex) {
-                                    while (res.v.pointee.values.length <= resIndex) {
-                                        const defaultVar = rt.defaultValue(f1.v.pointee.objectType, { array: res.v.pointee, index: res.v.pointee.values.length });
-                                        const defaultValue = asResult(defaultVar) ?? rt.raiseException("set_intersection: failed to create default value");
-                                        res.v.pointee.values.push(defaultValue.v);
-                                    }
+                            if (cmp2Result === 0) {
+                                const ppYield = rt.invokeCall(ppInst, [], d_first);
+                                const ppResultOrVoid = asResult(ppYield) ?? (yield* ppYield as Gen<MaybeUnboundVariable | "VOID">);
+                                if (ppResultOrVoid === "VOID") {
+                                    const typeOfFirst = rt.makeTypeStringOfVar(d_first);
+                                    rt.raiseException(`set_intersection(): expected '${typeOfFirst}::operator++' to return an object, got void`);
+                                }
+                                const ppResult: Variable = rt.unbound(ppResultOrVoid);
+                                const derefInst = rt.getOpByParams("{global}", "o(*_)", [ppResult], []);
+                                const derefYield = rt.invokeCall(derefInst, [], ppResult);
+                                const derefResultOrVoid = asResult(derefYield) ?? (yield* derefYield as Gen<MaybeUnboundVariable | "VOID">);
+                                if (derefResultOrVoid === "VOID") {
+                                    const typeOfPpResult = rt.makeTypeStringOfVar(ppResult);
+                                    rt.raiseException(`set_intersection(): expected '${typeOfPpResult}::operator*' to return an object, got void`);
+                                }
+                                const derefResult: Variable = rt.unbound(derefResultOrVoid);
+                                f1.v.index++;
+                                i1 = f1.v.index;
+                                const setInst = rt.getOpByParams("{global}", "o(_=_)", [derefResult, elem1], []);
+                                const setYield = rt.invokeCall(setInst, [], derefResult, elem1);
+                                const setResultOrVoid = asResult(setYield) ?? (yield* setYield as Gen<MaybeUnboundVariable | "VOID">);
+                                if (setResultOrVoid === "VOID") {
+                                    const typeOfDerefResult = rt.makeTypeStringOfVar(derefResult);
+                                    rt.raiseException(`set_intersection(): expected '${typeOfDerefResult}::operator*' to return an object, got void`);
                                 }
 
-                                const resultElement = variables.clone(rt, elem1, { array: res.v.pointee, index: resIndex }, false, true);
-                                res.v.pointee.values[resIndex] = resultElement.v;
-
-                                i1++;
-                                i2++;
-                                resIndex++;
                             }
+                            f2.v.index++;
+                            i2 = f2.v.index;
                         }
                     }
 
-                    return variables.indexPointer(res.v.pointee, resIndex, false, null);
+                    return d_first;
                 }
             },
             // TODO: Validate and cleanup set_intersection
