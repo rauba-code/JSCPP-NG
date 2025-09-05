@@ -303,6 +303,9 @@ export type CastAction = {
     isInitList: boolean,
     ops: ParseFunctionMatchInnerResult
     targetSig: string[]
+} | {
+    type: "MEMBERTYPE",
+    ops: ParseFunctionMatchInnerResult
 };
 
 /** For every destination, stored as an inline type signature, an array of viable source types, stored as inline type signatures, is given.
@@ -311,10 +314,16 @@ export type ImplicitConversionTable = { [dst: string]: { [src: string]: Implicit
 export type ImplicitConversionResult = { fnsig: string, domain: string };
 
 export type ListConversionTable = { [identifier: string]: { dst: string[], src: string[][] } };
+export type MemberTypeInfo = {
+    src: string[],
+    dst: string[]
+}
+export type MemberTypeConversionTable = { [classId: string]: { [memberTypeId: string]: MemberTypeInfo[] } };
 
 export type ConversionTables = {
     implicit: ImplicitConversionTable,
     list: ListConversionTable
+    memberType: MemberTypeConversionTable,
 }
 
 export type ParseFunctionMatchInnerResult = {
@@ -560,6 +569,67 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                         } else {
                             if (superParamArray[0] in nonTerm && tmpSuperWc.length > 0 && tmpSuperWc[0] in pair.wildcards && typeof (pair.wildcards[tmpSuperWc[0]]) !== "number") {
                                 superParamArray = pair.wildcards[tmpSuperWc[0]] as string[];
+                            } else if (superParamArray[0] === "MEMBERTYPE") {
+                                const memberTypeName = superParamArray[1];
+                                let sourceClass: string[];
+                                if (superParamArray[2] === "Class") {
+                                    sourceClass = pair.wildcards[tmpSuperWc[0]] as string[];
+                                    pair.superwc = pair.superwc.slice(1);
+                                } else {
+                                    throw new TypeParseError("Typecheck: Not yet implemented");
+                                }
+                                for (const xsuperCandidate of ct.memberType[sourceClass[1]][memberTypeName]) {
+                                    const xsuperData = preparse(xsuperCandidate.src);
+                                    const xsubData = preparse(sourceClass);
+                                    const xresult: ParseFunctionMatchInnerResult = {
+                                        valueActions: new Array<"CLONE" | "BORROW" | "CAST">(),
+                                        castActions: new Array<{ index: number, cast: CastAction }>(),
+                                    };
+                                    const xpair: FunctionMatchSigPair = {
+                                        subtype: xsubData.sentence,
+                                        subwc: xsubData.wildcardMap,
+                                        supertype: xsuperData.sentence,
+                                        superwc: xsuperData.wildcardMap,
+                                        wildcards: new Array(),
+                                        paramDepth: 0,
+                                        firstLevelParamBreadth: 0,
+                                    };
+                                    const xretv = parseFunctionMatchInner(parser, 'Class', xpair, ct, xresult);;
+                                    if (xretv) {
+                                        const projectedSuper: string[] = xsuperCandidate.dst.map((x) => {
+                                            if (x.startsWith("?")) {
+                                                const idx = parseInt(x.substr(1));
+                                                if (!(idx in xpair.wildcards) || typeof (xpair.wildcards[idx]) === "number") {
+                                                    throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
+                                                }
+                                                return xpair.wildcards[idx] as string[];
+                                            } else {
+                                                return x;
+                                            }
+                                        }).flat();
+                                        const zpair = {
+                                            subtype: pair.subtype,
+                                            subwc: pair.subwc,
+                                            supertype: projectedSuper,
+                                            superwc: pair.superwc,
+                                            wildcards: pair.wildcards,
+                                            paramDepth: 1,
+                                            firstLevelParamBreadth: 0,
+                                        };
+                                        const zresult: ParseFunctionMatchInnerResult = {
+                                            valueActions: [],
+                                            castActions: [],
+                                        }
+                                        if (parseFunctionMatchInner(parser, 'Parametric', zpair, ct, zresult) === true) {
+                                            retv = true;
+                                            valueAction = "CAST";
+                                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "MEMBERTYPE", ops: zresult }});
+                                            pair.subtype = zpair.subtype;
+                                            pair.supertype = tmpSuperRadical;
+                                            debugger;
+                                        }
+                                    }
+                                }
                             }
                             const subParamInline = subParamArray.join(" ");
                             const superParamInline = superParamArray.join(" ");
@@ -900,6 +970,7 @@ function parsePrintInner(parser: LLParser, scope: NonTerm, inout: { sentence: st
                         case "FUNCTION":
                             break;
                         case "MEMBERTYPE":
+                            inout.output.push("typename ");
                             rhs = "::" + inout.sentence[1];
                             break;
                         case "LREF":

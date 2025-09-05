@@ -104,17 +104,13 @@ export interface FunctionSymbol {
     target: CFunction | null,
 }
 
-export type MemberTypeInfo = {
-    src: string[],
-    dst: string[]
-}
 
 export type TypeHandlerMap = {
     functionDB: TypeDB;
     functionsByID: FunctionSymbol[];
     memberObjectListCreator: MemberObjectListCreator;
     dataMemberNames: string[]
-    memberTypes: { [identifier: string]: MemberTypeInfo[] }
+    memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }
 };
 
 export type TypeSignature = {
@@ -172,7 +168,7 @@ export class CRuntime {
         this.scope = [{ "$name": "{global}", variables: {} }];
         this.namespace = {};
         this.typedefs = {};
-        this.ct = { implicit: {}, list: {} };
+        this.ct = { implicit: {}, list: {}, memberType: {} };
         this.explicitListInitTable = {};
     }
 
@@ -209,7 +205,7 @@ export class CRuntime {
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
     }
 
-    addTypeDomain(domain: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: {[identifier: string]: MemberTypeInfo[]}) {
+    addTypeDomain(domain: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }) {
         if (domain in this.typeMap) {
             this.raiseException(`Domain ${domain} already exists`);
         }
@@ -454,6 +450,11 @@ export class CRuntime {
                     break;
                 case "FNPTR":
                     args[castAction.index] = variables.directPointer(args[castAction.index], "SELF", false);
+                    break;
+                case "MEMBERTYPE":
+                    const innerList = [args[castAction.index]];
+                    yield* this.convertParams(castAction.cast.ops, [], innerList);
+                    args[castAction.index] = innerList[0];
                     break;
                 case "LIST":
                     if (args[castAction.index].t.sig !== "CLASS" || (args[castAction.index] as ClassVariable).t.identifier !== typecheck.prototypeListSpecifier) {
@@ -1111,7 +1112,7 @@ export class CRuntime {
         }
     };
 
-    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[], memberTypes: { [identifier: string]: MemberTypeInfo[] }) {
+    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         const factory: MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
@@ -1138,7 +1139,7 @@ export class CRuntime {
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
-    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: MemberTypeInfo[] }) {
+    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         this.addTypeDomain(domainInline, memberList, dataMemberNames, memberTypes);
@@ -1156,6 +1157,7 @@ export class CRuntime {
         //let listPrototypeTypeSig : string[] = ["CLASS", typecheck.prototypeListSpecifier, "<"];
         if (!(identifier in this.ct.list)) {
             this.ct.list[identifier] = { dst: stubClassTypeSig, src: [] };
+            this.ct.memberType[identifier] = memberTypes;
         } else {
             this.raiseException("Struct definition error: Template struct overloads are not yet implemented");
         }

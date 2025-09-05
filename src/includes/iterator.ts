@@ -225,9 +225,8 @@ export = {
             {
                 op: "inserter",
                 type: "!Class FUNCTION CLASS insert_iterator < ?0 > ( LREF ?0 MEMBERTYPE iterator ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], _container: ClassVariable, _iter: Variable): Gen<InsertIteratorVariable<Variable>> {
-                    rt.raiseException("inserter(): Not yet implemented")
-                    /*const containerType = templateTypes[0];
+                *default(rt: CRuntime, templateTypes: ObjectType[], container: ClassVariable, iter: Variable): Gen<InsertIteratorVariable<Variable>> {
+                    const containerType = templateTypes[0];
                     
                     const insertIterResult = insertIteratorCtorHandler.default(rt, [containerType], container, iter);
                     const result = asResult(insertIterResult);
@@ -235,7 +234,7 @@ export = {
                         return result as InsertIteratorVariable<Variable>;
                     } else {
                         return yield* insertIterResult as Gen<InsertIteratorVariable<Variable>>;
-                    }*/
+                    }
                 }
             }
         ]);
