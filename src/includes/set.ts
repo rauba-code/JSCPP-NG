@@ -373,6 +373,17 @@ export = {
             },
             {
                 op: "insert",
+                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS set < ?0 > PTR ?0 CLREF ?0 )",
+                default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]) {
+                    // same as above, ignoring the iterator
+                    const setVar = args[0] as SetVariable<Variable>;
+                    const value = args[2];
+                    const [iterator, _inserted] = _insert(rt, setVar, value);
+                    return iterator;
+                }
+            },
+            {
+                op: "insert",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > PTR ?0 PTR ?0 )",
                 default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
                     const setVar = args[0] as SetVariable<Variable>;

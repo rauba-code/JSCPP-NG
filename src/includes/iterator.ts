@@ -122,6 +122,11 @@ export = {
                 op: "o(_=_)",
                 type: "!Class FUNCTION LREF CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > CLREF MEMBERTYPE value_type ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>, value: Variable): Gen<InsertIteratorVariable<Variable>> {
+                    // current implementation of function parameter conversion does not convert LREF to CLREF, need to do that manually
+                    const wasConst : boolean = value.v.isConst;
+                    if (!wasConst) {
+                        (value.v as any).isConst = true;
+                    }
                     const containerPtr = variables.asInitPointer(insertIter.v.members._container) ?? rt.raiseException("insert_iterator: container pointer not initialized");
                     if (containerPtr.t.pointee.sig === "FUNCTION") {
                         rt.raiseException("insert_iterator::operator=(): Unexpected function pointer in this->_container");
@@ -144,6 +149,9 @@ export = {
                     const ppYield = rt.invokeCall(ppInst, [], iter);
                     asResult(ppYield) ?? (yield* ppYield as Gen<MaybeUnboundVariable | "VOID">);
 
+                    if (!wasConst) {
+                        (value.v as any).isConst = false;
+                    }
                     return insertIter;
                 }
             },

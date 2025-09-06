@@ -473,6 +473,70 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                     retv = false;
                     return;
                 }
+                function tryMatchMemberType(wsuper: string[], wsuperRadical: string[], wsubPrefix: string[], wsuperPrefix: string[]) {
+                    const memberTypeName = wsuper[1];
+                    let sourceClass: string[];
+                    if (wsuper[2] === "Class") {
+                        sourceClass = pair.wildcards[tmpSuperWc[0]] as string[];
+                        pair.superwc = pair.superwc.slice(1);
+                    } else {
+                        throw new TypeParseError("Typecheck: Not yet implemented");
+                    }
+                    if (sourceClass[1] in ct.memberType && memberTypeName in ct.memberType[sourceClass[1]]) {
+                        for (const xsuperCandidate of ct.memberType[sourceClass[1]][memberTypeName]) {
+                            const xsuperData = preparse(xsuperCandidate.src);
+                            const xsubData = preparse(sourceClass);
+                            const xresult: ParseFunctionMatchInnerResult = {
+                                valueActions: new Array<"CLONE" | "BORROW" | "CAST">(),
+                                castActions: new Array<{ index: number, cast: CastAction }>(),
+                            };
+                            const xpair: FunctionMatchSigPair = {
+                                subtype: xsubData.sentence,
+                                subwc: xsubData.wildcardMap,
+                                supertype: xsuperData.sentence,
+                                superwc: xsuperData.wildcardMap,
+                                wildcards: new Array(),
+                                paramDepth: 0,
+                                firstLevelParamBreadth: 0,
+                            };
+                            const xretv = parseFunctionMatchInner(parser, 'Class', xpair, ct, xresult);;
+                            if (xretv) {
+                                const projectedSuper: string[] = xsuperCandidate.dst.map((x) => {
+                                    if (x.startsWith("?")) {
+                                        const idx = parseInt(x.substr(1));
+                                        if (!(idx in xpair.wildcards) || typeof (xpair.wildcards[idx]) === "number") {
+                                            throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
+                                        }
+                                        return xpair.wildcards[idx] as string[];
+                                    } else {
+                                        return x;
+                                    }
+                                }).flat();
+                                const zpair = {
+                                    subtype: [...wsubPrefix, ...pair.subtype],
+                                    subwc: pair.subwc,
+                                    supertype: [...wsuperPrefix, ...projectedSuper],
+                                    superwc: pair.superwc,
+                                    wildcards: pair.wildcards,
+                                    paramDepth: 1,
+                                    firstLevelParamBreadth: 0,
+                                };
+                                const zresult: ParseFunctionMatchInnerResult = {
+                                    valueActions: [],
+                                    castActions: [],
+                                }
+                                if (parseFunctionMatchInner(parser, 'Parametric', zpair, ct, zresult) === true) {
+                                    retv = true;
+                                    valueAction = "CAST";
+                                    result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "MEMBERTYPE", ops: zresult } });
+                                    pair.subtype = zpair.subtype;
+                                    pair.supertype = wsuperRadical;
+                                }
+                            }
+                        }
+                    }
+
+                }
                 let valueAction: "BORROW" | "CLONE" | "CAST" = "CLONE";
                 const tmpSub = pair.subtype;
                 const tmpSuper = pair.supertype;
@@ -521,14 +585,21 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                 pair.subtype = tmpSubRadical;
                                 pair.supertype = tmpSuperRadical;
                             } else {
-                                const subParamInline = subParamArray.join(" ");
-                                const superParamInline = superParamArray.join(" ");
-                                if (superParamInline in ct.implicit && subParamInline in ct.implicit[superParamInline]) {
-                                    retv = null;
-                                    valueAction = "CAST";
-                                    result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "CTOR", ...ct.implicit[superParamInline][subParamInline] } });
-                                    pair.subtype = tmpSubRadical;
-                                    pair.supertype = tmpSuperRadical;
+                                if (superParamArray[0] === "MEMBERTYPE") {
+                                    const wsubPrefix = tmpSub.slice(0, tmpSub.length - (subParamArray.length + tmpSubRadical.length));
+                                    const wsuperPrefix = tmpSuper.slice(0, tmpSuper.length - (superParamArray.length + tmpSuperRadical.length));
+                                    debugger;
+                                    tryMatchMemberType(superParamArray, tmpSuperRadical, wsubPrefix, wsuperPrefix);
+                                } else {
+                                    const subParamInline = subParamArray.join(" ");
+                                    const superParamInline = superParamArray.join(" ");
+                                    if (superParamInline in ct.implicit && subParamInline in ct.implicit[superParamInline]) {
+                                        retv = null;
+                                        valueAction = "CAST";
+                                        result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "CTOR", ...ct.implicit[superParamInline][subParamInline] } });
+                                        pair.subtype = tmpSubRadical;
+                                        pair.supertype = tmpSuperRadical;
+                                    }
                                 }
                             }
                         }
@@ -570,67 +641,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                             if (superParamArray[0] in nonTerm && tmpSuperWc.length > 0 && tmpSuperWc[0] in pair.wildcards && typeof (pair.wildcards[tmpSuperWc[0]]) !== "number") {
                                 superParamArray = pair.wildcards[tmpSuperWc[0]] as string[];
                             } else if (superParamArray[0] === "MEMBERTYPE") {
-                                const memberTypeName = superParamArray[1];
-                                let sourceClass: string[];
-                                if (superParamArray[2] === "Class") {
-                                    sourceClass = pair.wildcards[tmpSuperWc[0]] as string[];
-                                    pair.superwc = pair.superwc.slice(1);
-                                } else {
-                                    throw new TypeParseError("Typecheck: Not yet implemented");
-                                }
-                                if (sourceClass[1] in ct.memberType && memberTypeName in ct.memberType[sourceClass[1]]) {
-                                    for (const xsuperCandidate of ct.memberType[sourceClass[1]][memberTypeName]) {
-                                        const xsuperData = preparse(xsuperCandidate.src);
-                                        const xsubData = preparse(sourceClass);
-                                        const xresult: ParseFunctionMatchInnerResult = {
-                                            valueActions: new Array<"CLONE" | "BORROW" | "CAST">(),
-                                            castActions: new Array<{ index: number, cast: CastAction }>(),
-                                        };
-                                        const xpair: FunctionMatchSigPair = {
-                                            subtype: xsubData.sentence,
-                                            subwc: xsubData.wildcardMap,
-                                            supertype: xsuperData.sentence,
-                                            superwc: xsuperData.wildcardMap,
-                                            wildcards: new Array(),
-                                            paramDepth: 0,
-                                            firstLevelParamBreadth: 0,
-                                        };
-                                        const xretv = parseFunctionMatchInner(parser, 'Class', xpair, ct, xresult);;
-                                        if (xretv) {
-                                            const projectedSuper: string[] = xsuperCandidate.dst.map((x) => {
-                                                if (x.startsWith("?")) {
-                                                    const idx = parseInt(x.substr(1));
-                                                    if (!(idx in xpair.wildcards) || typeof (xpair.wildcards[idx]) === "number") {
-                                                        throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
-                                                    }
-                                                    return xpair.wildcards[idx] as string[];
-                                                } else {
-                                                    return x;
-                                                }
-                                            }).flat();
-                                            const zpair = {
-                                                subtype: pair.subtype,
-                                                subwc: pair.subwc,
-                                                supertype: projectedSuper,
-                                                superwc: pair.superwc,
-                                                wildcards: pair.wildcards,
-                                                paramDepth: 1,
-                                                firstLevelParamBreadth: 0,
-                                            };
-                                            const zresult: ParseFunctionMatchInnerResult = {
-                                                valueActions: [],
-                                                castActions: [],
-                                            }
-                                            if (parseFunctionMatchInner(parser, 'Parametric', zpair, ct, zresult) === true) {
-                                                retv = true;
-                                                valueAction = "CAST";
-                                                result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "MEMBERTYPE", ops: zresult } });
-                                                pair.subtype = zpair.subtype;
-                                                pair.supertype = tmpSuperRadical;
-                                            }
-                                        }
-                                    }
-                                }
+                                tryMatchMemberType(superParamArray, tmpSuperRadical, [], []);
                             }
                             const subParamInline = subParamArray.join(" ");
                             const superParamInline = superParamArray.join(" ");
