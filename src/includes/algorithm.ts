@@ -145,7 +145,7 @@ export = {
 
                 if (cmp1Result !== 0) {
                     if (behaviour.a) {
-                        yield *advanceOutput(elem1)
+                        yield* advanceOutput(elem1)
                     }
                     f1.v.index++;
                 } else {
@@ -157,13 +157,13 @@ export = {
                     if (cmp2Result === 0) {
                         // A & B
                         if (behaviour.ab) {
-                            yield *advanceOutput(elem1)
+                            yield* advanceOutput(elem1)
                         }
                         f1.v.index++;
                     } else {
                         // B
                         if (behaviour.b) {
-                            yield *advanceOutput(elem2)
+                            yield* advanceOutput(elem2)
                         }
                     }
                     f2.v.index++;
@@ -171,22 +171,81 @@ export = {
             }
             while (f1.v.index < l1.v.index) {
                 const elem = rt.unbound(variables.arrayMember(f1.v.pointee, f1.v.index) as MaybeUnboundVariable);
+                // A
                 if (behaviour.a) {
-                    yield *advanceOutput(elem)
+                    yield* advanceOutput(elem)
                 }
                 f1.v.index++;
-                // A
             }
             while (f2.v.index < l2.v.index) {
                 const elem = rt.unbound(variables.arrayMember(f2.v.pointee, f2.v.index) as MaybeUnboundVariable);
                 // B
                 if (behaviour.b) {
-                    yield *advanceOutput(elem)
+                    yield* advanceOutput(elem)
                 }
                 f2.v.index++;
             }
 
             return d_first;
+        }
+        function* set_includes(rt: CRuntime,
+            first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
+            first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+            _ltFun: FunctionCallInstance | PointerVariable<Function>): Gen<InitArithmeticVariable> {
+
+            const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
+            const l1 = variables.asInitIndexPointer(last1) ?? rt.raiseException("set_intersection: expected valid last1 iterator");
+            const f2 = variables.asInitIndexPointer(first2) ?? rt.raiseException("set_intersection: expected valid first2 iterator");
+            const l2 = variables.asInitIndexPointer(last2) ?? rt.raiseException("set_intersection: expected valid last2 iterator");
+
+            if (f1.v.pointee !== l1.v.pointee) {
+                rt.raiseException("set_intersection: first1 and last1 must point to same memory region");
+            }
+            if (f2.v.pointee !== l2.v.pointee) {
+                rt.raiseException("set_intersection: first2 and last2 must point to same memory region");
+            }
+
+            const ltFun: FunctionCallInstance | InitDirectPointerVariable<Function> = ("t" in _ltFun)
+                ? variables.asInitDirectPointer(_ltFun) as InitDirectPointerVariable<Function>
+                ?? rt.raiseException("set_intersection: expected a pointer to a function")
+                : _ltFun;
+            let retv: boolean = true;
+
+            while (f1.v.index < l1.v.index && f2.v.index < l2.v.index) {
+                const elem1 = rt.unbound(variables.arrayMember(f1.v.pointee, f1.v.index) as MaybeUnboundVariable);
+                const elem2 = rt.unbound(variables.arrayMember(f2.v.pointee, f2.v.index) as MaybeUnboundVariable);
+
+                const cmp1Yield = ("t" in ltFun)
+                    ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem1, elem2) as ResultOrGen<ArithmeticVariable>
+                    : rt.invokeCall(ltFun, [], elem1, elem2) as ResultOrGen<ArithmeticVariable>;
+                const cmp1Result = rt.arithmeticValue(asResult(cmp1Yield) ?? (yield* cmp1Yield as Gen<ArithmeticVariable>));
+
+                if (cmp1Result !== 0) {
+                    // A
+                    f1.v.index++;
+                } else {
+                    const cmp2Yield = ("t" in ltFun)
+                        ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem2, elem1) as ResultOrGen<ArithmeticVariable>
+                        : rt.invokeCall(ltFun, [], elem2, elem1) as ResultOrGen<ArithmeticVariable>;
+                    const cmp2Result = rt.arithmeticValue(asResult(cmp2Yield) ?? (yield* cmp2Yield as Gen<ArithmeticVariable>));
+
+                    if (cmp2Result === 0) {
+                        // A & B
+                        f1.v.index++;
+                    } else {
+                        // B
+                        retv = false;
+                        break;
+                    }
+                    f2.v.index++;
+                }
+            }
+            if (f2.v.index < l2.v.index) {
+                // B
+                retv = false;
+            }
+
+            return variables.arithmetic("BOOL", retv ? 1 : 0, null);
         }
 
         // template<typename RandomIt> void sort(RandomIt first, RandomIt last)
@@ -367,7 +426,7 @@ export = {
                     const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
                     const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
                     const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, {a: false, b: false, ab: true});
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, { a: false, b: false, ab: true });
                 }
             },
             {
@@ -377,7 +436,7 @@ export = {
                     first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
                     first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
                     d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, {a: false, b: false, ab: true});
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: false, b: false, ab: true });
                 }
             },
             {
@@ -390,7 +449,7 @@ export = {
                     const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
                     const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
                     const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, {a: true, b: true, ab: true});
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, { a: true, b: true, ab: true });
                 }
             },
             {
@@ -400,7 +459,7 @@ export = {
                     first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
                     first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
                     d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, {a: true, b: true, ab: true});
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: true, ab: true });
                 }
             },
             {
@@ -413,7 +472,7 @@ export = {
                     const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
                     const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
                     const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, {a: true, b: false, ab: false});
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, { a: true, b: false, ab: false });
                 }
             },
             {
@@ -423,7 +482,7 @@ export = {
                     first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
                     first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
                     d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, {a: true, b: false, ab: false});
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: false, ab: false });
                 }
             },
             {
@@ -436,7 +495,7 @@ export = {
                     const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
                     const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
                     const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, {a: true, b: true, ab: false});
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, { a: true, b: true, ab: false });
                 }
             },
             {
@@ -446,7 +505,29 @@ export = {
                     first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
                     first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
                     d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, {a: true, b: true, ab: false});
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: true, ab: false });
+                }
+            },
+            {
+                op: "includes",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[],
+                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
+                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>): Gen<InitArithmeticVariable> {
+                    const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
+                    const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
+                    const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
+                    return yield* set_includes(rt, first1, last1, first2, last2, ltFun);
+                }
+            },
+            {
+                op: "includes",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[],
+                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
+                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+                    comp: PointerVariable<Function>): Gen<InitArithmeticVariable> {
+                    return yield* set_includes(rt, first1, last1, first2, last2, comp);
                 }
             },
         ]);
