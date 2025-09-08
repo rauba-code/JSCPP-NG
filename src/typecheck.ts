@@ -694,7 +694,20 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                 }
                             } else if (subParamInline.startsWith("CLASS __list_prototype < ") && superParamArray[0] === "CLASS" && superParamArray[1] in ct.list) {
                                 const xsuperData = preparse(ct.list[superParamArray[1]].dst);
-                                const xsubData = preparse(superParamArray);
+                                let xsubwc = pair.superwc;
+                                const xsubParamArray: string[] = superParamArray.map((x) => {
+                                    if (x in nonTerm) {
+                                        const idx = xsubwc[0];
+                                        xsubwc = xsubwc.slice(1);
+                                        if (!(idx in pair.wildcards) || typeof (pair.wildcards[idx]) === "number") {
+                                            throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
+                                        }
+                                        return pair.wildcards[idx] as string[];
+                                    } else {
+                                        return x;
+                                    }
+                                }).flat();
+                                const xsubData = preparse(xsubParamArray);
                                 const xresult: ParseFunctionMatchInnerResult = {
                                     valueActions: new Array<"CLONE" | "BORROW" | "CAST">(),
                                     castActions: new Array<{ index: number, cast: CastAction }>(),
@@ -710,7 +723,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                 };
                                 const xretv = parseFunctionMatchInner(parser, 'ParamObject', xpair, ct, xresult);;
                                 if (xretv) {
-                                    for (const src of ct.list[superParamArray[1]].src) {
+                                    for (const src of ct.list[xsubParamArray[1]].src) {
                                         if (retv !== false) {
                                             break;
                                         }
@@ -755,7 +768,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                             pair.supertype = tmpSuperRadical;
                                             pair.subtype = tmpSubRadical;
                                             valueAction = "CAST";
-                                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: false, ops: zresult, targetSig: superParamArray } });
+                                            result.castActions.push({ index: pair.firstLevelParamBreadth, cast: { type: "LIST", isInitList: false, ops: zresult, targetSig: xsubParamArray } });
                                             break;
                                         }
                                     }

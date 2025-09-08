@@ -222,15 +222,17 @@ export = {
                     if (pos.v.pointee !== vec.v.members._ptr.v.pointee) {
                         rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
                     }
+                    const oldptr = variables.indexPointer(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index, false, null);
                     yield* _grow(rt, vec, 1);
+                    const newpos = variables.indexPointer(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index + (pos.v.index - oldptr.v.index), false, null);
                     const pointee = vec.v.members._ptr.v.pointee;
-                    pos.v.pointee = pointee;
+                    newpos.v.pointee = pointee;
                     const _sz: number = vec.v.members._sz.v.value;
-                    for (let i = _sz - 2; i >= Math.max(pos.v.index, 0); i--) {
+                    for (let i = _sz - 2; i >= Math.max(newpos.v.index, 0); i--) {
                         pointee.values[i + 1] = { lvHolder: pointee.values[i + 1], ...pointee.values[i] };
                     }
-                    pointee.values[pos.v.index] = variables.clone(rt, tail, { index: pos.v.index, array: pointee }, false, true).v;
-                    return pos;
+                    pointee.values[newpos.v.index] = variables.clone(rt, tail, { index: newpos.v.index, array: pointee }, false, true).v;
+                    return newpos;
                 }
             },
             {

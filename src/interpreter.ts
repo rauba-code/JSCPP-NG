@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, MemberObject, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable, PointerVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -1113,7 +1113,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const declSpec = s.Initializer.DeclarationSpecifiers;
                         let basetype: MaybeLeft<ObjectType>;
                         let isConst: boolean;
-                        if (declSpec.length === 1 && declSpec[0] === "auto") {
+                        if (declSpec.length > 0 && declSpec[declSpec.length - 1] === "auto") {
                             basetype = elemTmpVar;
                             isConst = iterable.v.isConst;
                             if (!dec.Declarator.Reference) {
@@ -1412,22 +1412,21 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                let ret = yield* interp.visit(interp, s.Expression, param);
-                const retc = variables.asClass(ret);
-                if (retc === null) {
-                    rt.raiseException("Member pointer access error: Expected a class or struct");
-                }
+                const retYield = yield* interp.visit(interp, s.Expression, param);
+                const ret: Variable = rt.expectValue(asResult(retYield) ?? (yield* retYield as Gen<Variable>));
+
                 const maybePtrType = variables.asPointerType(ret.t);
-                if (maybePtrType !== null && variables.asFunctionType(maybePtrType.pointee) === null) {
-                    const { member } = s;
-                    const target = rt.invokeCall(rt.getOpByParams("{global}", "o(_->_)", [retc], []), [], retc) as Generator;
-                    if (isGenerator(ret)) {
-                        return rt.getMember(yield* target as Generator, member);
+                if (maybePtrType !== null) {
+                    const ptc = variables.asClassType(maybePtrType.pointee);
+                    if (ptc !== null) {
+                        const { member } = s;
+                        return rt.getMember(rt.unbound(variables.deref(ret as InitPointerVariable<ClassVariable>) as MaybeUnboundVariable) as ClassVariable, member);
                     } else {
-                        rt.raiseException("Member pointer access error: Expected a generator");
+                        rt.raiseException(`Member pointer access error: Expected a pointer to class or struct, got ${rt.makeTypeStringOfVar(ret)}`);
                     }
                 } else {
-                    const member = yield* interp.visit(interp, {
+                    rt.raiseException(`Member pointer access error: Expected a pointer to class or struct, got ${rt.makeTypeStringOfVar(ret)}`);
+                    /*const member = yield* interp.visit(interp, {
                         type: "IdentifierExpression",
                         Identifier: s.member
                     }, param);
@@ -1436,7 +1435,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         return rt.getMember(yield* target as Generator, member);
                     } else {
                         rt.raiseException("Member pointer access error: Expected a generator");
-                    }
+                    }*/
                 }
             },
             *PostfixExpression_PostIncrement(interp, s, param) {

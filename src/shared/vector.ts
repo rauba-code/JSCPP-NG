@@ -12,6 +12,6 @@ export type VectorVariable<TVar extends Variable> = AbstractVariable<VectorType<
 export interface VectorValue<TVar extends Variable> extends InitValue<VectorVariable<TVar>> {
     members: {
         "_ptr": InitIndexPointerVariable<TVar>
-        "_size": InitArithmeticVariable,
+        "_sz": InitArithmeticVariable,
     }
 }
