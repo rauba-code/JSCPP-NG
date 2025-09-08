@@ -1181,13 +1181,16 @@ export class CRuntime {
 
     /** Safely accesses values.
       * Panics if value is uninitalised. */
-    arithmeticValue(variable: MaybeUnboundArithmeticVariable): number {
+    arithmeticValue(variable: MaybeUnboundVariable): number {
+        if (!(variable.t.sig in variables.arithmeticSig)) {
+            this.raiseException("Expected an arithmetic value");
+        }
         if (variable.v.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value")
         } else if (variable.v.state === "UNBOUND") {
             this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
-        return variable.v.value;
+        return (variable as InitArithmeticVariable).v.value;
     }
 
     expectValue(variable: MaybeUnboundVariable): InitVariable {
