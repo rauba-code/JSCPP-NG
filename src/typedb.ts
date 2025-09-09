@@ -80,7 +80,7 @@ export class TypeDB {
 
     addFunctionOverload(rt: CRuntime, identifier: string, function_type: string | string[], templateTypes: number[], function_id: number): void {
         const sa = abstractFunctionReturnSig(makeStringArr(function_type));
-        const annotation = typecheck.parsePrint(this.parser, makeStringArr(function_type), identifier, "Type", true) ?? rt.raiseException("Failed to make a type annotation");
+        const annotation = typecheck.parsePrint(this.parser, makeStringArr(function_type), identifier, "Type", false) ?? rt.raiseException("Failed to make a type annotation");
         const inline = sa.join(" ");
         if (!(identifier in this.functions)) {
             this.functions[identifier] = { overloads: [{ type: sa, fnid: function_id, templateTypes, annotation }], cache: {}, exactCache: { [inline]: function_id } };

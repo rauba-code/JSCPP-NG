@@ -28,11 +28,12 @@ export = {
 
         const mapSig = "!ParamObject !ParamObject CLASS map < ?0 ?1 >".split(" ");
         rt.defineStruct2("{global}", "map", {
-            numTemplateArgs: 2,
+            numTemplateArgs: 1,
             factory: function*(dataItem: MapType<ObjectType, ObjectType>) {
                 const pairType: __pair["t"] = variables.classType("pair", dataItem.templateSpec, null) as __pair["t"];
                 const vecType = variables.classType("vector", [pairType], null);
                 const vec = yield* rt.defaultValue2(vecType, "SELF") as Gen<VectorVariable<Variable>>;
+                (vec.v as any).lvHolder = "SELF";
                 return [
                     {
                         name: "_data",
@@ -54,18 +55,20 @@ export = {
             op: "o(_ctor)",
             type: "!ParamObject !ParamObject FUNCTION CLASS map < ?0 ?1 > ( CLASS initializer_list < CLASS pair < ?0 ?1 > > )",
             *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<__pair>): Gen<MapVariable<Variable, Variable>> {
-                const thisType = variables.classType("map", list.t.templateSpec, null);
+                debugger;
+                const thisType = variables.classType("map", list.t.templateSpec[0].templateSpec, null);
                 const mapVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<MapVariable<Variable, Variable>>;
                 const listmem = list.v.members._values.v.pointee;
 
                 for (let i = 0; i < listmem.values.length; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable) as __pair;
-                    _insert(rt, mapVar, currentValue);
+                    yield *_insert(rt, mapVar, currentValue);
                 }
 
                 return mapVar;
             }
         };
+        rt.explicitListInitTable["map"] = (map: MapType<ObjectType, ObjectType>) => ({ sig: "CLASS", identifier: "pair", templateSpec: map.templateSpec, memberOf: null });
 
         const ctorHandler2: common.OpHandler = {
             op: "o(_ctor)",
@@ -84,14 +87,13 @@ export = {
 
                 for (let i = begin.v.index; i < end.v.index; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(begin.v.pointee, i) as MaybeUnboundVariable) as __pair;
-                    _insert(rt, mapVar, currentValue);
+                    yield *_insert(rt, mapVar, currentValue);
                 }
 
                 return mapVar;
             }
         };
 
-        //rt.explicitListInitTable["map"] = (mapType: MapType<ObjectType, ObjectType>) => mapType.templateSpec[0];
         rt.regFunc(ctorHandler1.default, variables.classType("map", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1]);
         rt.regFunc(ctorHandler2.default, variables.classType("map", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1]);
 
@@ -125,8 +127,7 @@ export = {
                 }
             }
             {
-                let canInsert : boolean = true;
-                debugger;
+                let canInsert: boolean = true;
                 if (a < sz) {
                     const a_elem: __pair = rt.unbound(variables.arrayMember(dataArray, a) as MaybeUnboundVariable) as __pair;
                     const cmpYield = rt.invokeCall(ltFunc, [], pair.v.members.first, a_elem.v.members.first);
@@ -167,39 +168,52 @@ export = {
             }
         }
 
-        function _find(rt: CRuntime, mapVar: MapVariable<Variable, Variable>, value: Variable): InitIndexPointerVariable<Variable> | null {
+        function* _find(rt: CRuntime, mapVar: MapVariable<Variable, Variable>, key: Variable): Gen<__pair | null> {
             const dataPtr = mapVar.v.members._data;
             const dataArray = dataPtr.v.members._ptr.v.pointee;
             const sz = mapVar.v.members._data.v.members._sz.v.value;
 
-            for (let i = 0; i < sz; i++) {
-                const existingValue = rt.unbound(variables.arrayMember(dataArray, i) as MaybeUnboundVariable);
+            let a = 0;
+            let c = sz;
 
-                let isEqual = false;
 
-                if (!existingValue || !existingValue.t || !value || !value.t) {
-                    continue;
-                }
-
-                const eqFunc = rt.getFuncByParams("{global}", "o(_==_)", [
-                    { t: existingValue.t, v: { isConst: true, lvHolder: "SELF" } },
-                    { t: value.t, v: { isConst: true, lvHolder: "SELF" } }
+            while (a < c) {
+                const b = (a + c) >> 1; // force integer division by 2
+                const b_elem: __pair = rt.unbound(variables.arrayMember(dataArray, b) as MaybeUnboundVariable) as __pair;
+                const ltFunc = rt.getFuncByParams("{global}", "o(_<_)", [
+                    b_elem.v.members.first,
+                    key,
                 ], []);
-
-                if (eqFunc) {
-                    const result = rt.invokeCall(eqFunc, [], existingValue, value);
-                    const r = asResult(result);
-                    if (r && r !== "VOID") {
-                        isEqual = rt.arithmeticValue(rt.unbound(r) as ArithmeticVariable) !== 0;
-                    }
+                const cmpYield = rt.invokeCall(ltFunc, [], b_elem.v.members.first, key);
+                const cmpResult = asResult(cmpYield) ?? (yield* cmpYield as Gen<"VOID" | MaybeUnboundVariable>);
+                if (cmpResult === "VOID") {
+                    rt.raiseException("map::insert(): Unexpected void in comparison result")
                 }
-
-                if (isEqual) {
-                    return variables.indexPointer(dataArray, i, false, null, false);
+                const cmpValue = rt.arithmeticValue(cmpResult);
+                if (cmpValue !== 0) {
+                    a = b + 1;
+                } else {
+                    c = b;
                 }
             }
-
-            return null;
+            {
+                if (a < sz) {
+                    const a_elem: __pair = rt.unbound(variables.arrayMember(dataArray, a) as MaybeUnboundVariable) as __pair;
+                    const ltFunc = rt.getFuncByParams("{global}", "o(_<_)", [
+                        a_elem.v.members.first,
+                        key,
+                    ], []);
+                    const cmpYield = rt.invokeCall(ltFunc, [], key, a_elem.v.members.first);
+                    const cmpResult = asResult(cmpYield) ?? (yield* cmpYield as Gen<"VOID" | MaybeUnboundVariable>);
+                    if (cmpResult === "VOID") {
+                        rt.raiseException("map::insert(): Unexpected void in comparison result")
+                    }
+                    if (rt.arithmeticValue(cmpResult) === 0) {
+                        return a_elem;
+                    }
+                }
+                return null;
+            }
         }
 
         function _end(_rt: CRuntime, mapVar: MapVariable<Variable, Variable>): InitIndexPointerVariable<Variable> {
@@ -224,6 +238,20 @@ export = {
             }
             return false;
         }
+        common.regOps(rt, [
+            {
+                op: "o(_[_])",
+                type: "!ParamObject !ParamObject FUNCTION LREF ?1 ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                *default(_rt: CRuntime, _templateTypes: ObjectType[], mapVar: MapVariable<Variable, Variable>, index: Variable): Gen<Variable> {
+                    const found = yield *_find(rt, mapVar, index);
+                    if (found === null) {
+                        rt.raiseException("map::operator[]: No item at given index")
+                    }
+                    return found.v.members.second;
+                }
+            }
+
+        ]);
 
         common.regMemberFuncs(rt, "map", [
             {
@@ -254,7 +282,7 @@ export = {
 
                     for (let i = 0; i < listmem.values.length; i++) {
                         const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable) as __pair;
-                        yield *_insert(rt, mapVar, currentValue);
+                        yield* _insert(rt, mapVar, currentValue);
                     }
 
                     return "VOID";
@@ -298,7 +326,7 @@ export = {
 
                     for (let i = begin.v.index; i < end.v.index; i++) {
                         const currentValue = rt.unbound(variables.arrayMember(begin.v.pointee, i) as MaybeUnboundVariable) as __pair;
-                        yield *_insert(rt, mapVar, currentValue);
+                        yield* _insert(rt, mapVar, currentValue);
                     }
 
                     return "VOID";

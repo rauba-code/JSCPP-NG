@@ -764,10 +764,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.raiseException(`Initialiser list error: cannot find class named '${classTypeHint.identifier}'`);
                         }
                         const memListFactory = rt.typeMap[classTypeHint.identifier].memberObjectListCreator;
-                        if (memListFactory.numTemplateArgs !== classTypeHint.templateSpec.length) {
+                        /*if (memListFactory.numTemplateArgs !== classTypeHint.templateSpec.length) {
                             rt.raiseException(`Initialiser list error: expected ${memListFactory.numTemplateArgs} template arguments, got ${classTypeHint.templateSpec.length}`);
-                        }
-                        const memListYield: ResultOrGen<MemberObject[]> = memListFactory.factory(...classTypeHint.templateSpec);
+                        }*/
+                        const memListYield: ResultOrGen<MemberObject[]> = memListFactory.factory(classTypeHint);
                         const memList: MemberObject[] = asResult(memListYield) ?? (yield* memListYield as Gen<MemberObject[]>);
                         let resultMembers: { [member: string]: Variable } = {};
                         let i = 0;
@@ -1320,7 +1320,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = (yield* interp.visit(interp, s.Expression, param)) as Variable;
-                const index = variables.asArithmetic(yield* interp.visit(interp, s.index, param)) ?? rt.raiseException("Array access statement error: Expected an arithmetic value");
+                const index = yield* interp.visit(interp, s.index, param);
 
                 param.structType = ret.t;
                 const funsym = rt.getOpByParams("{global}", "o(_[_])", [ret, index], []);

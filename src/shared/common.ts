@@ -45,13 +45,13 @@ export type FunHandler = {
 
 export function regOps(rt: CRuntime, opHandlers: OpHandler[]) {
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), x.templateTypes ?? []);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? []);
     });
 }
 
 export function regGlobalFuncs(rt: CRuntime, opHandlers: FunHandler[]) {
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), x.templateTypes ?? []);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? []);
     });
 }
 
@@ -62,6 +62,6 @@ export function regMemberFuncs(rt: CRuntime, structName: string, opHandlers: Fun
         rt.raiseException(`Type '${structName}' is not a class name`);
     }
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, structType as ClassType, x.op, rt.typeSignature(x.type), x.templateTypes ?? []);
+        rt.regFunc(x.default, structType as ClassType, x.op, rt.typeSignature(x.type, false), x.templateTypes ?? []);
     });
 }

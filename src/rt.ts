@@ -1,6 +1,5 @@
-import { constructTypeParser, LLParser, parse } from './typecheck';
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundArithmeticVariable, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
+import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
 import { TypeDB, FunctionMatchResult, abstractFunctionReturnSig } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
@@ -147,7 +146,7 @@ export type MemberObjectListCreator = {
 };
 
 export class CRuntime {
-    parser: LLParser;
+    parser: typecheck.LLParser;
     config: JSCPPConfig;
     scope: RuntimeScope[];
     namespace: NamespaceScope;
@@ -159,7 +158,7 @@ export class CRuntime {
     explicitListInitTable: { [name: string]: ((type: ObjectType) => ObjectType) };
 
     constructor(config: JSCPPConfig) {
-        this.parser = constructTypeParser();
+        this.parser = typecheck.constructTypeParser();
         this.config = config;
         this.typeMap = {};
         this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => [] }, [], {});
@@ -284,15 +283,15 @@ export class CRuntime {
 
     arrayTypeSignature(array: string[]): TypeSignature {
         const inline: string = array.join(" ");
-        if (!parse(this.parser, array)) {
+        if (!typecheck.parse(this.parser, array)) {
             this.raiseException(`Malformed type signature: '${inline}'`)
         }
         return { inline, array };
     };
 
-    typeSignature(inline: string): TypeSignature {
+    typeSignature(inline: string, strict_order: boolean = true): TypeSignature {
         const array: string[] = inline.split(" ");
-        if (!parse(this.parser, array)) {
+        if (!typecheck.parse(this.parser, array, "Type", strict_order)) {
             this.raiseException(`Malformed type signature: '${inline}'`)
         }
         return { inline, array };
@@ -501,7 +500,7 @@ export class CRuntime {
                             };
                             args[castAction.index] = initList;
                         } else {
-                            const constructedType = typecheck.parseToObjectType(this.parser, castAction.cast.targetSig) ?? this.raiseException(`Implicit object from list construction: Failed to constructed an object from type '${typecheck.parsePrint(this.parser, castAction.cast.targetSig, null)}'`);
+                            const constructedType = typecheck.parseToObjectType(this.parser, castAction.cast.targetSig) ?? this.raiseException(`Implicit object from list construction: Failed to constructed an object from type '${typecheck.parsePrint(this.parser, castAction.cast.targetSig, null, "Type", false)}'`);
                             const constructedClassType = variables.asClassType(constructedType);
                             if (constructedClassType !== null) {
                                 if (!(constructedClassType.identifier in this.typeMap)) {

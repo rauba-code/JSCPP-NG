@@ -7,7 +7,7 @@ import { Gen, ObjectType, Variable, variables } from "../variables";
 export = {
     load(rt: CRuntime) {
         rt.defineStruct2("{global}", "pair", {
-            numTemplateArgs: 2, factory: function*(dataItem: PairType<ObjectType, ObjectType>) {
+            numTemplateArgs: 1, factory: function*(dataItem: PairType<ObjectType, ObjectType>) {
                 const firstVarYield = rt.defaultValue(dataItem.templateSpec[0], "SELF");
                 const secondVarYield = rt.defaultValue(dataItem.templateSpec[1], "SELF");
                 return [
