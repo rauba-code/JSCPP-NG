@@ -2,7 +2,7 @@ import * as prepast from "./prepast";
 // @ts-ignore
 import * as PEGUtil from "pegjs-util";
 import { BaseInterpreter } from "./interpreter";
-import { CRuntime } from "./rt";
+import { CRuntime, CRuntimeError } from "./rt";
 
 interface Macro {
     type: "function" | "simple";
@@ -326,7 +326,9 @@ class Preprocessor extends BaseInterpreter<Statement> {
     parse(code: string) {
         const result = PEGUtil.parse(prepast, code);
         if (result.error != null) {
-            throw new Error("ERROR: Preprocessing Failure:\n" + PEGUtil.errorMessage(result.error, true));
+            const line = result.error.line;
+            const column = result.error.column
+            throw new CRuntimeError(`[line ${line}:${column}] Syntax error`, line, column);
         }
         this.rt.interp = this;
         return this.visit(result.ast, code);

@@ -162,7 +162,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         try {
             while (proceed) {
                 if (_config.stopExecutionCheck?.())
-                    throw new Error("Execution terminated.");
+                    throw new Error("Execution terminated manually.");
 
                 step = mainGen.next();
                 performedSteps++;
@@ -199,16 +199,16 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
 
     code = code.toString();
     const oldCode = code;
-    code = preprocessor.parse(rt, code);
+    const pcode = preprocessor.parse(rt, code);
 
-    const mydebugger = new Debugger(code, oldCode);
+    const mydebugger = new Debugger(pcode, oldCode);
 
-    const result = PEGUtil.parse(ast, code);
+    const result = PEGUtil.parse(ast, pcode);
     if (result.error != null) {
         throw new CRuntimeError(`[line ${result.error.line}:${result.error.column}] Syntax error`, result.error.line, result.error.column);
     }
     const interpreter = new Interpreter(rt);
-    const defGen = interpreter.run(result.ast, code);
+    const defGen = interpreter.run(result.ast, pcode);
     while (true) {
         step = defGen.next();
         if (step.done) { break; }
