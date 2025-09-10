@@ -595,9 +595,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                             rt.defVar(name, initVar);
                         } else {
-                            if (i === 0 && "state" in basetype.v) {
-                                debugger;
-                            }
                             const initVarYield = (initSpec === null) ? rt.defaultValue2(decType.t, "SELF") : ((i === 0 && "state" in basetype.v) ? basetype as MaybeUnboundVariable : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">);
                             const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
                             if (initVarOrVoid === "VOID") {
