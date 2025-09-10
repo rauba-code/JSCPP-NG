@@ -28,7 +28,7 @@ export = {
 
         const mapSig = "!ParamObject !ParamObject CLASS map < ?0 ?1 >".split(" ");
         rt.defineStruct2("{global}", "map", {
-            numTemplateArgs: 1,
+            numTemplateArgs: 2,
             factory: function*(dataItem: MapType<ObjectType, ObjectType>) {
                 const pairType: __pair["t"] = variables.classType("pair", dataItem.templateSpec, null) as __pair["t"];
                 const vecType = variables.classType("vector", [pairType], null);
@@ -62,7 +62,7 @@ export = {
 
                 for (let i = 0; i < listmem.values.length; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable) as __pair;
-                    yield *_insert(rt, mapVar, currentValue);
+                    yield* _insert(rt, mapVar, currentValue);
                 }
 
                 return mapVar;
@@ -87,7 +87,7 @@ export = {
 
                 for (let i = begin.v.index; i < end.v.index; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(begin.v.pointee, i) as MaybeUnboundVariable) as __pair;
-                    yield *_insert(rt, mapVar, currentValue);
+                    yield* _insert(rt, mapVar, currentValue);
                 }
 
                 return mapVar;
@@ -243,9 +243,13 @@ export = {
                 op: "o(_[_])",
                 type: "!ParamObject !ParamObject FUNCTION LREF ?1 ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
                 *default(_rt: CRuntime, _templateTypes: ObjectType[], mapVar: MapVariable<Variable, Variable>, index: Variable): Gen<Variable> {
-                    const found = yield *_find(rt, mapVar, index);
+                    const found = yield* _find(rt, mapVar, index);
                     if (found === null) {
-                        rt.raiseException("map::operator[]: No item at given index")
+                        const defaultMappedYield: ResultOrGen<Variable> = rt.defaultValue2(mapVar.t.templateSpec[1], "SELF");
+                        const defaultMapped: Variable = asResult(defaultMappedYield) ?? (yield* defaultMappedYield as Gen<Variable>);
+                        const insertPair: __pair = { t: { sig: "CLASS", identifier: 'pair', templateSpec: mapVar.t.templateSpec, memberOf: null }, v: { isConst: false, lvHolder: "SELF", state: "INIT", members: { first: index, second: defaultMapped } } };
+                        const inserted = yield* _insert(rt, mapVar, insertPair);
+                        return inserted.v.members.first.v.pointee.values[inserted.v.members.first.v.index].members.second;
                     }
                     return found.v.members.second;
                 }

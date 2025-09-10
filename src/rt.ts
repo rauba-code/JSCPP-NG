@@ -142,7 +142,7 @@ export type MemberObject = {
 
 export type MemberObjectListCreator = {
     numTemplateArgs: number,
-    factory: (...templateArgs: ObjectType[]) => ResultOrGen<MemberObject[]>
+    factory: (template: ObjectType) => ResultOrGen<MemberObject[]>
 };
 
 export class CRuntime {
