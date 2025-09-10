@@ -33,8 +33,7 @@ node_modules
 
 *.exe
 
-dist/*.js
-dist/*.js.map
+dist/*
 lib/
 demo/*.js
 demo/*.js.map
