@@ -506,13 +506,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const stat = s.CompoundStatement;
                 rt.defFunc(typedScope, name, basetype, argTypes, argNames.map(x => x ?? rt.raiseException("Function definition error: expected a named parameter")), optionalArgs, stat, interp);
             },
-            *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeLeft<ObjectType>, node?: XInitializerExpr | XInitializerArray | null, typeHint?: ObjectType | null }): ResultOrGen<void> {
+            *Declaration(interp, s: XDeclaration, param: { deducedType: MaybeLeft<ObjectType>, basetype?: MaybeUnboundVariable | MaybeLeft<ObjectType>, node?: XInitializerExpr | XInitializerArray | null, typeHint?: ObjectType | null }): ResultOrGen<void> {
                 const { rt } = interp;
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
-                const basetypeOrVoid: ResultOrGen<MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeLeft<ObjectType> | "VOID">)) : rt.simpleType(s.DeclarationSpecifiers);
-                const basetype = (basetypeOrVoid === "VOID") ? rt.raiseException("Declaration error: Declared variable cannot have a void type") : basetypeOrVoid;
+                const basetypeOrVoid: ResultOrGen<MaybeUnboundVariable | MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeUnboundVariable | MaybeLeft<ObjectType> | "VOID">)) : rt.simpleType(s.DeclarationSpecifiers);
+                const basetype : MaybeUnboundVariable | MaybeLeft<ObjectType> = (basetypeOrVoid === "VOID") ? rt.raiseException("Declaration error: Declared variable cannot have a void type") : basetypeOrVoid;
 
+                let i = 0;
                 for (const dec of s.InitDeclaratorList) {
                     let visitResult: DeclaratorYield;
                     {
@@ -594,7 +595,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                             rt.defVar(name, initVar);
                         } else {
-                            const initVarYield = (initSpec === null) ? rt.defaultValue2(decType.t, "SELF") : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">;
+                            if (i === 0 && "state" in basetype.v) {
+                                debugger;
+                            }
+                            const initVarYield = (initSpec === null) ? rt.defaultValue2(decType.t, "SELF") : ((i === 0 && "state" in basetype.v) ? basetype as MaybeUnboundVariable : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">);
                             const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
                             if (initVarOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
@@ -643,6 +647,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 rt.defVar(name, initVar);
                             }
                         }
+                        i++;
                     }
                 }
             },
