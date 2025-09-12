@@ -336,6 +336,22 @@ export = {
                     return "VOID";
                 }
             },
+            {
+                op: "find",
+                type: "!ParamObject !ParamObject FUNCTION PTR CLASS pair < ?0 ?1 > ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                    const mapVar = args[0] as MapVariable<Variable, Variable>;
+                    const key = args[1];
+                    const found = yield* _find(rt, mapVar, key);
+                    if (found !== null) {
+                        if (found.v.lvHolder === null || typeof (found.v.lvHolder) !== "object") {
+                            rt.raiseException("map::find(): Expected an array member (internal error)")
+                        }
+                        return variables.indexPointer(found.v.lvHolder.array, found.v.lvHolder.index, false, null);
+                    }
+                    return _end(rt, mapVar);
+                }
+            },
             /*{
                 op: "erase",
                 type: "!ParamObject FUNCTION I32 ( LREF CLASS map < ?0 > CLREF ?0 )",
@@ -348,19 +364,6 @@ export = {
                         return variables.arithmetic("I32", erased ? 1 : 0, null, false);
                     }
                     return variables.arithmetic("I32", 0, null, false);
-                }
-            },
-            {
-                op: "find",
-                type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS map < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const mapVar = args[0] as MapVariable<Variable, Variable>;
-                    const value = args[1];
-                    const found = _find(rt, mapVar, value);
-                    if (found !== null) {
-                        return found;
-                    }
-                    return _end(rt, mapVar);
                 }
             },
             {
