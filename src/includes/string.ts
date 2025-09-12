@@ -18,6 +18,8 @@ export = {
             }
         ], {})
 
+        rt.addToNamespace("std::string", "npos", variables.arithmetic("I32", -1, "SELF", true));
+
         function cmpOverloads(op: OpSignature, fn: (strcmpRetv: number) => boolean): common.OpHandler[] {
             return [{
                 op,
@@ -240,6 +242,21 @@ export = {
                     str.v.members._ptr = variables.indexPointer(lptr.v.pointee, lptr.v.index, false, "SELF");
                     str.v.members._size.v.value = l.v.members._size.v.value;
                     return str;
+                }
+            },
+            {
+                op: "find",
+                type: "FUNCTION I32 ( LREF CLASS string < > I8 )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: InitArithmeticVariable): InitArithmeticVariable {
+                    const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const lsz = l.v.members._size.v.value;
+                    for (let i = 0; i < lsz; i++) {
+                        const chr = rt.arithmeticValue(variables.arrayMember(lptr.v.pointee, lptr.v.index + i));
+                        if (chr === r.v.value) {
+                            return variables.arithmetic("I32", i, null);
+                        }
+                    }
+                    return variables.arithmetic("I32", -1, null);
                 }
             },
             {

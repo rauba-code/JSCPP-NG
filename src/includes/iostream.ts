@@ -5,7 +5,7 @@ import { ArithmeticVariable, ClassVariable, Gen, InitArithmeticValue, InitArithm
 import * as unixapi from "../shared/unixapi";
 import * as utf8 from "../utf8";
 import { IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
-import { StringVariable } from "../shared/string_utils";
+import { sizeUntilNull, StringVariable } from "../shared/string_utils";
 
 export = {
     load(rt: CRuntime) {
@@ -52,7 +52,7 @@ export = {
             rt.addToNamespace("std", "endl", endl);
 
             rt.defineStruct("{global}", "ws_t", [], {});
-            const ws : ClassVariable = {
+            const ws: ClassVariable = {
                 t: {
                     sig: "CLASS",
                     identifier: "ws_t",
@@ -81,7 +81,7 @@ export = {
                     stdio.getInput().then((result) => {
                         variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
                         if (!stdio.isMochaTest) {
-                            unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), l.v.members.buf);
+                            unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), l.v.members.buf, variables.arithmetic("I32", sizeUntilNull(rt, l.v.members.buf), null));
                         }
                         resolve([false, l, retv]);
                     });
@@ -341,7 +341,7 @@ export = {
                 }
 
                 if (!is_raw) {
-                    unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr);
+                    unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr, variables.arithmetic("I32", sizeUntilNull(rt, oldiptr), null));
                 }
 
 
@@ -399,7 +399,7 @@ export = {
                 s.v.members._size.v.value = cnt;
 
                 if (!is_raw) {
-                    unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr);
+                    unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), oldiptr, variables.arithmetic("I32", sizeUntilNull(rt, oldiptr), null));
                 }
 
 

@@ -40,6 +40,21 @@ export function sizeUntil(rt: CRuntime, buf: InitIndexPointerVariable<Arithmetic
     return i;
 };
 
+export function sizeUntilNull(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>): number {
+    if (buf.v.pointee.values.length === 0) {
+        return 0;
+    }
+    let i = 0;
+    while (true) {
+        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i));
+        if (chr === 0) {
+            break;
+        }
+        i++;
+    }
+    return i;
+};
+
 export function read(rt: CRuntime, reg: RegExp, buf: string, type: ObjectType) {
     const r = reg.exec(buf);
     if ((r == null) || (r.length === 0)) {

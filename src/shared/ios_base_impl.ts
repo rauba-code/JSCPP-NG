@@ -3,7 +3,7 @@ import { ArithmeticProperties, ArithmeticVariable, PointerVariable, variables } 
 import * as common from "./common";
 import * as ios_base from "./ios_base";
 import * as unixapi from "../shared/unixapi";
-import { StringVariable } from "./string_utils";
+import { sizeUntilNull, StringVariable } from "./string_utils";
 
 function pad(rt: CRuntime, s: string, pmode: number, width: number, chr: number): string {
     if (width < 0) {
@@ -78,10 +78,12 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
                 rt.raiseException("Variable is not an initialised index pointer");
             if (l.v.members.width.v.value >= 0) {
                 const padded = pad(rt, rt.getStringFromCharArray(iptr), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
-                unixapi.write(rt, [], l.v.members.fd, rt.getCharArrayFromString(padded));
+                const str = rt.getCharArrayFromString(padded);
+                const str_len = variables.arithmetic("I32", str.v.pointee.values.length - 1, null)
+                unixapi.write(rt, [], l.v.members.fd, str, str_len);
                 variables.arithmeticAssign(rt, l.v.members.width, -1);
             } else {
-                unixapi.write(rt, [], l.v.members.fd, iptr);
+                unixapi.write(rt, [], l.v.members.fd, iptr, variables.arithmetic("I32", sizeUntilNull(rt, iptr), null));
             }
             return l;
         }
@@ -96,10 +98,11 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             }
             if (l.v.members.width.v.value >= 0) {
                 const padded = pad(rt, rt.getStringFromCharArray(iptr, r.v.members._size.v.value), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
-                unixapi.write(rt, [], l.v.members.fd, rt.getCharArrayFromString(padded));
+                const carr = rt.getCharArrayFromString(padded);
+                unixapi.write(rt, [], l.v.members.fd, carr, variables.arithmetic("I32", carr.v.pointee.values.length - 1, null));
                 variables.arithmeticAssign(rt, l.v.members.width, -1);
             } else {
-                unixapi.write(rt, [], l.v.members.fd, iptr);
+                unixapi.write(rt, [], l.v.members.fd, iptr, r.v.members._size);
             }
             return l;
         }
@@ -148,7 +151,8 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             const padded = pad(rt, ns, l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
             const str = rt.getCharArrayFromString(padded);
             variables.arithmeticAssign(rt, l.v.members.width, -1);
-            unixapi.write(rt, [], l.v.members.fd, str);
+            const str_len = variables.arithmetic("I32", str.v.pointee.values.length - 1, null)
+            unixapi.write(rt, [], l.v.members.fd, str, str_len);
             return l;
         }
     },
