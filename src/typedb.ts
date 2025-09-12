@@ -148,9 +148,6 @@ export class TypeDB {
         }
         let bestCandidate: FunctionMatchResult | null = null;
         let candidateIndices: number[] = [];
-        if (identifier === "insert") {
-            debugger;
-        }
         for (let i = 0; i < fnobj.overloads.length; i++) {
             if (templateTypes.length > fnobj.overloads[i].templateTypes.length) {
                 continue;

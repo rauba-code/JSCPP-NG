@@ -2,7 +2,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, LValueIndexHolder } from "../variables";
 
 interface VectorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "vector",
@@ -230,9 +230,15 @@ export = {
                     newpos.v.pointee = pointee;
                     const _sz: number = vec.v.members._sz.v.value;
                     for (let i = _sz - 2; i >= Math.max(newpos.v.index, 0); i--) {
-                        pointee.values[i + 1] = { lvHolder: pointee.values[i + 1], ...pointee.values[i] };
+                        pointee.values[i + 1] = pointee.values[i];
+                        (pointee.values[i + 1] as any).lvHolder.index = i + 1;
                     }
                     pointee.values[newpos.v.index] = variables.clone(rt, tail, { index: newpos.v.index, array: pointee }, false, true).v;
+                    /*pointee.values.forEach((x, i) => {
+                        if (x.lvHolder !== null && x.lvHolder !== "SELF" && x.lvHolder.index !== i) {
+                            rt.raiseException("vector::insert(): Bad indexing (internal error)");
+                        }
+                    })*/
                     return newpos;
                 }
             },

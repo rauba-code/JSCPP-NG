@@ -1234,7 +1234,7 @@ export class CRuntime {
         this.raiseException("Not yet implemented");
     };
 
-    *defaultValue2(type: ObjectType, lvHolder: LValueHolder<Variable>): ResultOrGen<Variable> {
+    *defaultValue2(type: ObjectType, lvHolder: LValueHolder<Variable>): Gen<Variable> {
         let classType: ClassType | null;
         let pointerType: PointerType<ObjectType | FunctionType> | null;
         if (type.sig in variables.arithmeticSig) {
@@ -1247,7 +1247,9 @@ export class CRuntime {
             const fnid = this.typeMap[domainName].functionDB.matchExactOverload("o(_stub)", "FUNCTION Return ( )");
             if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
                 const retvYield = (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
-                return interp.asResult(retvYield) ?? (yield* retvYield as Gen<InitClassVariable>);
+                const retv = interp.asResult(retvYield) ?? (yield* retvYield as Gen<InitClassVariable>);
+                (retv.v as any).lvHolder = lvHolder;
+                return retv;
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }
@@ -1262,11 +1264,10 @@ export class CRuntime {
                 if (pointerType.pointee.sig === "FUNCTION") {
                     this.raiseException("Cannot declare an array of functions (perhaps you meant an array of function pointers?)")
                 }
-                const memory = variables.arrayMemory<Variable>(pointerType.pointee as ObjectType, []);
+                const memory = variables.arrayMemory<Variable>(pointerType.pointee, []);
                 for (let i = 0; i < pointerType.sizeConstraint; i++) {
                     // variables.clone() is a shallow clone, do not put defaultVal outside the for-loop
-                    const defaultValueYield = this.defaultValue2(pointerType.pointee as ObjectType, null);
-                    const defaultVal = interp.asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
+                    const defaultVal = yield* this.defaultValue2(pointerType.pointee, null);
                     memory.values.push(variables.clone(this, defaultVal, { array: memory, index: i }, false, true).v);
                 }
                 return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>);

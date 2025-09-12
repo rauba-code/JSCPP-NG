@@ -55,7 +55,6 @@ export = {
             op: "o(_ctor)",
             type: "!ParamObject !ParamObject FUNCTION CLASS map < ?0 ?1 > ( CLASS initializer_list < CLASS pair < ?0 ?1 > > )",
             *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<__pair>): Gen<MapVariable<Variable, Variable>> {
-                debugger;
                 const thisType = variables.classType("map", list.t.templateSpec[0].templateSpec, null);
                 const mapVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<MapVariable<Variable, Variable>>;
                 const listmem = list.v.members._values.v.pointee;
@@ -223,21 +222,6 @@ export = {
             return variables.indexPointer(dataArray, sz, false, null, false);
         }
 
-        function _erase(_rt: CRuntime, mapVar: MapVariable<Variable, Variable>, index: number): boolean {
-            const dataPtr = mapVar.v.members._data;
-            const dataArray = dataPtr.v.members._ptr.v.pointee;
-            const sz = mapVar.v.members._data.v.members._sz.v.value;
-
-            if (index >= 0 && index < sz) {
-                // Pastumti elementus kairėn
-                for (let i = index; i < sz - 1; i++) {
-                    dataArray.values[i] = dataArray.values[i + 1];
-                }
-                mapVar.v.members._data.v.members._sz.v.value--;
-                return true;
-            }
-            return false;
-        }
         common.regOps(rt, [
             {
                 op: "o(_[_])",
@@ -352,21 +336,70 @@ export = {
                     return _end(rt, mapVar);
                 }
             },
-            /*{
-                op: "erase",
-                type: "!ParamObject FUNCTION I32 ( LREF CLASS map < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+            {
+                op: "clear",
+                type: "!ParamObject !ParamObject FUNCTION VOID ( LREF CLASS map < ?0 ?1 > )",
+                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
-                    const value = args[1];
-                    const found = _find(rt, mapVar, value);
-                    if (found !== null) {
-                        const erased = _erase(rt, mapVar, found.v.index);
-                        return variables.arithmetic("I32", erased ? 1 : 0, null, false);
-                    }
-                    return variables.arithmetic("I32", 0, null, false);
+                    mapVar.v.members._data.v.members._sz.v.value = 0;
+                    return "VOID";
                 }
             },
             {
+                op: "size",
+                type: "!ParamObject !ParamObject FUNCTION U64 ( CLREF CLASS map < ?0 ?1 > )",
+                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                    const mapVar = args[0] as MapVariable<Variable, Variable>;
+                    const sz = mapVar.v.members._data.v.members._sz.v.value;
+                    return variables.arithmetic("U64", sz, null, false);
+                }
+            },
+            {
+                op: "empty",
+                type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS map < ?0 ?1 > )",
+                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                    const mapVar = args[0] as MapVariable<Variable, Variable>;
+                    const sz = mapVar.v.members._data.v.members._sz.v.value;
+                    return variables.arithmetic("BOOL", sz === 0 ? 1 : 0, null, false);
+                }
+            },
+            {
+                op: "erase",
+                type: "!ParamObject !ParamObject FUNCTION PTR CLASS pair < ?0 ?1 > ( LREF CLASS map < ?0 ?1 > PTR CLASS pair < ?0 ?1 > )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitIndexPointerVariable<__pair>> {
+                    const mapVar = args[0] as MapVariable<Variable, Variable>;
+                    const value = args[1] as PointerVariable<__pair>;
+                    const ptr = mapVar.v.members._data.v.members._ptr;
+                    if (value.v.state !== "INIT" || value.v.subtype !== "INDEX" || ptr.v.pointee !== value.v.pointee) {
+                        rt.raiseException("map::erase(): Expected an argument to be a member of the given map")
+                    }
+                    const eraseInst = rt.getFuncByParams(mapVar.v.members._data.t, "erase", [mapVar.v.members._data, value], []);
+                    const eraseYield = rt.invokeCall(eraseInst, [], mapVar.v.members._data, value);
+                    const eraseResult = asResult(eraseYield) ?? (yield* eraseYield as Gen<InitIndexPointerVariable<__pair>>);
+                    return eraseResult as InitIndexPointerVariable<__pair>;
+                }
+            },
+            {
+                op: "erase",
+                type: "!ParamObject !ParamObject FUNCTION U64 ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitArithmeticVariable> {
+                    const mapVar = args[0] as MapVariable<Variable, Variable>;
+                    const key = args[1] as Variable;
+                    const found = yield* _find(rt, mapVar, key);
+                    if (found !== null) {
+                        if (found.v.lvHolder === null || typeof (found.v.lvHolder) !== "object") {
+                            rt.raiseException("map::find(): Expected an array member (internal error)")
+                        }
+                        const pairPtr = variables.indexPointer(found.v.lvHolder.array, found.v.lvHolder.index, false, null);
+                        const eraseInst = rt.getFuncByParams(mapVar.v.members._data.t, "erase", [mapVar.v.members._data, pairPtr], []);
+                        const eraseYield = rt.invokeCall(eraseInst, [], mapVar.v.members._data, pairPtr);
+                        asResult(eraseYield) ?? (yield* eraseYield as Gen<Variable>);
+                        return variables.arithmetic("U64", 1, null);
+                    }
+                    return variables.arithmetic("U64", 0, null);
+                }
+            },
+            /*{
                 op: "count",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS map < ?0 > CLREF ?0 )",
                 default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
@@ -386,33 +419,7 @@ export = {
                     return variables.arithmetic("BOOL", found !== null ? 1 : 0, null, false);
                 }
             },
-            {
-                op: "size",
-                type: "!ParamObject FUNCTION I32 ( CLREF CLASS map < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const mapVar = args[0] as MapVariable<Variable, Variable>;
-                    const sz = mapVar.v.members._data.v.members._sz.v.value;
-                    return variables.arithmetic("I32", sz, null, false);
-                }
-            },
-            {
-                op: "empty",
-                type: "!ParamObject FUNCTION BOOL ( CLREF CLASS map < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const mapVar = args[0] as MapVariable<Variable, Variable>;
-                    const sz = mapVar.v.members._data.v.members._sz.v.value;
-                    return variables.arithmetic("BOOL", sz === 0 ? 1 : 0, null, false);
-                }
-            },
-            {
-                op: "clear",
-                type: "!ParamObject FUNCTION VOID ( LREF CLASS map < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
-                    const mapVar = args[0] as MapVariable<Variable, Variable>;
-                    mapVar.v.members._data.v.members._sz.v.value = 0;
-                    return "VOID";
-                }
-            },*/
+            */
         ])
     }
 };

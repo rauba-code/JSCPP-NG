@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, MemberObject, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable, PointerVariable } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -511,7 +511,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const deducedType = s.DeclarationSpecifiers.includes("auto");
                 const isConst = s.DeclarationSpecifiers.some((specifier: any) => ["const", "static"].includes(specifier));
                 const basetypeOrVoid: ResultOrGen<MaybeUnboundVariable | MaybeLeft<ObjectType> | "VOID"> = deducedType ? (param.deducedType ?? (yield* interp.visit(interp, s.InitDeclaratorList[0].Initializers, param) as Gen<MaybeUnboundVariable | MaybeLeft<ObjectType> | "VOID">)) : rt.simpleType(s.DeclarationSpecifiers);
-                const basetype : MaybeUnboundVariable | MaybeLeft<ObjectType> = (basetypeOrVoid === "VOID") ? rt.raiseException("Declaration error: Declared variable cannot have a void type") : basetypeOrVoid;
+                const basetype: MaybeUnboundVariable | MaybeLeft<ObjectType> = (basetypeOrVoid === "VOID") ? rt.raiseException("Declaration error: Declared variable cannot have a void type") : basetypeOrVoid;
 
                 let i = 0;
                 for (const dec of s.InitDeclaratorList) {
