@@ -23,6 +23,7 @@ interface ArrayValue<T extends Variable, N extends number> extends InitValue<Arr
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cstddef");
         rt.defineStruct2("{global}", "array", {
             numTemplateArgs: 2, factory: function*(dataItem: ArrayType<ObjectType, number>) {
                 const size = dataItem.templateSpec[1] as any;

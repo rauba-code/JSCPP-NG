@@ -22,6 +22,7 @@ interface SetValue<T extends Variable> extends InitValue<SetVariable<T>> {
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cstddef");
         const setSig = "!ParamObject CLASS set < ?0 >".split(" ");
         rt.defineStruct2("{global}", "set", {
             numTemplateArgs: 1, factory: (dataItem: SetType<ObjectType>) => {

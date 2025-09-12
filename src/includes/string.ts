@@ -6,6 +6,7 @@ import { ArithmeticVariable, ClassType, Gen, InitArithmeticValue, InitArithmetic
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cstddef");
         rt.defineStruct("{global}", "string", [
             {
                 name: "_ptr",

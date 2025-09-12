@@ -5,6 +5,7 @@ import { ArithmeticVariable, InitArithmeticVariable, InitIndexPointerVariable, P
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cstddef");
         common.regGlobalFuncs(rt, [{
             type: "FUNCTION I64 ( PTR I8 )",
             op: "strlen",

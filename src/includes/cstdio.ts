@@ -21,6 +21,7 @@ interface DivValue extends InitValue<DivVariable> {
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cstddef");
         const ascii_tab: number = 0x7;
         const ascii_newline: number = 0x0A;
         const ascii_space: number = 0x20;

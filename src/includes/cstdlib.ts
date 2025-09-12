@@ -21,6 +21,7 @@ interface DivValue extends InitValue<DivVariable> {
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cstddef");
         const RAND_MAX = 32767;
         const rng = {
             m_w: 123456789,

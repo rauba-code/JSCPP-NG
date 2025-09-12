@@ -4,6 +4,7 @@ import { ArithmeticVariable, InitArithmeticVariable, variables } from "../variab
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cstddef");
         function commonFormat(name: string, fn: ((x: number) => boolean)): common.FunHandler {
             return {
                 op: name,

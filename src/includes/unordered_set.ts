@@ -22,6 +22,7 @@ interface UnorderedSetValue<T extends Variable> extends InitValue<UnorderedSetVa
 
 export = {
     load(rt: CRuntime) {
+        rt.include("cstddef");
         rt.defineStruct2("{global}", "unordered_set", {
             numTemplateArgs: 1, factory: (dataItem: UnorderedSetType<ObjectType>) => {
                 return [

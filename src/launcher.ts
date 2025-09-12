@@ -22,6 +22,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     climits: require("./includes/climits"),
     cmath: require("./includes/cmath"),
     cstdlib: require("./includes/cstdlib"),
+    cstddef: require("./includes/cstddef"),
     cstdio: require("./includes/cstdio"),
     string: require("./includes/string"),
     sstream: require("./includes/sstream"),
@@ -46,7 +47,8 @@ const headerAlias: { [filename: string]: string } = {
     "math.h": "cmath",
     "stdio.h": "cstdio",
     "stdlib.h": "cstdlib",
-    "bits/stdc++.h": "_bits__stdcpp",
+    "stddef.h": "cstddef",
+    //"bits/stdc++.h": "_bits__stdcpp",
     "bits/unixapi.h": "_bits__unixapi",
     "time.h": "ctime"
 };
