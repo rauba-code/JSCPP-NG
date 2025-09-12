@@ -1,13 +1,8 @@
-// TODO: Implement iterator
-// Now it doesn't work at all
-// Signatures are not OK
-
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, ClassType, InitPointerValue, ClassVariable, InitPointerVariable } from "../variables";
+import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitPointerValue, ClassVariable, InitPointerVariable, PointeeVariable, InitIndexPointerVariable } from "../variables";
 
-// Insert iterator type - tik vienas šablono parametras (Container)
 interface InsertIteratorType<ContainerType extends ObjectType> extends AbstractTemplatedClassType<null, [ContainerType]> {
     readonly identifier: "insert_iterator",
 }
@@ -17,7 +12,7 @@ type InsertIteratorVariable<ContainerType extends Variable> = AbstractVariable<I
 interface InsertIteratorValue<ContainerType extends Variable> extends InitValue<InsertIteratorVariable<ContainerType>> {
     members: {
         "_container": PointerVariable<ContainerType>,
-        "_iter": Variable, // bendras Variable tipas iteratoriui
+        "_iter": Variable,
     }
 }
 
@@ -37,7 +32,7 @@ interface BackInsertIteratorValue<ContainerType extends Variable> extends InitVa
 
 export = {
     load(rt: CRuntime) {
-        // Define insert_iterator struct - tik vienas šablono parametras
+        // Define insert_iterator struct
         const insertIteratorSig: string[] = "!Class CLASS insert_iterator < ?0 >".split(" ");
         rt.defineStruct2("{global}", "insert_iterator", {
             numTemplateArgs: 1, factory: (iteratorType: InsertIteratorType<ObjectType>) => {
@@ -71,7 +66,7 @@ export = {
             }
         }, ["_container"], {});*/
 
-        // Constructor for insert_iterator - pakeista ?1 į PTR ?0
+        // Constructor for insert_iterator
         const insertIteratorCtorHandler: common.OpHandler = {
             op: "o(_ctor)",
             type: "!Class FUNCTION CLASS insert_iterator < ?0 > ( LREF ?0 MEMBERTYPE iterator ?0 )",
@@ -248,7 +243,26 @@ export = {
                         return yield* insertIterResult as Gen<InsertIteratorVariable<Variable>>;
                     }
                 }
-            }
+            },
+            {
+                op: "prev",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 )",
+                default(rt: CRuntime, _templateTypes: [], iter: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
+                    const iptr = variables.asInitIndexPointer(iter) ?? rt.raiseException("prev(): Expected an initialised index pointer");
+                    iptr.v.index--;
+                    return iptr;
+                }
+            },
+            {
+                op: "next",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 )",
+                default(rt: CRuntime, _templateTypes: [], iter: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
+                    const iptr = variables.asInitIndexPointer(iter) ?? rt.raiseException("prev(): Expected an initialised index pointer");
+                    iptr.v.index++;
+                    return iptr;
+                }
+            },
+
         ]);
     }
 };

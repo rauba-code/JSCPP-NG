@@ -21,6 +21,7 @@ interface VectorValue<T extends Variable> extends InitValue<VectorVariable<T>> {
 export = {
     load(rt: CRuntime) {
         rt.include("cstddef");
+        rt.include("iterator");
         const vectorSig: string[] = "!ParamObject CLASS vector < ?0 >".split(" ");
         rt.defineStruct2("{global}", "vector", {
             numTemplateArgs: 1, factory: (dataItem: VectorType<ObjectType>) => {
