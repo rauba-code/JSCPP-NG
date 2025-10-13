@@ -41,6 +41,7 @@ export interface JSCPPConfig {
     maxExecutionSteps?: number;
     maxTimeout?: number;
     eventLoopSteps?: number;
+    printStdin?: boolean; // default: false
     stopExecutionCheck?: () => boolean;
 }
 

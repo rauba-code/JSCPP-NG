@@ -34,10 +34,11 @@ const includes: { [fileName: string]: IncludeModule } = {
     numeric: require("./includes/numeric"),
     utility: require("./includes/utility"),
     map: require("./includes/map"),
+    unordered_map: require("./includes/unordered_map"),
+    functional: require("./includes/functional"),
     // array: require("./includes/array"),
     iterator: require("./includes/iterator"),
-    /*functional: require("./includes/functional"),
-    _bits__stdcpp: require("./includes/bits/stdcpp")*/
+    // _bits__stdcpp: require("./includes/bits/stdcpp")
 };
 
 const headerAlias: { [filename: string]: string } = {

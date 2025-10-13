@@ -80,10 +80,18 @@ export = {
                 if (result.v.index + 1 >= result.v.pointee.values.length) {
                     stdio.getInput().then((result) => {
                         variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
-                        if (!stdio.isMochaTest) {
+                        if (rt.config.printStdin === true) {
                             unixapi.write(rt, [], variables.arithmetic("I32", unixapi.FD_STDOUT, null), l.v.members.buf, variables.arithmetic("I32", sizeUntilNull(rt, l.v.members.buf), null));
                         }
                         resolve([false, l, retv]);
+                    }, () => {
+                        l.v.members.eofbit.v.value = 1;
+                        l.v.members.failbit.v.value = 1;
+                        try {
+                            rt.raiseException("Unexpected end of input");
+                        } catch (err) {
+                            stdio.promiseError(err);
+                        }
                     });
                 } else {
                     resolve([true, l, retv]);
@@ -91,9 +99,9 @@ export = {
             });
             inputPromise.then(([_is_raw, l, retv]) => {
                 let buf = l.v.members.buf;
-                if (buf.v.pointee.values.length <= buf.v.index) {
-                    variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
-                    variables.arithmeticAssign(rt, l.v.members.failbit, 1);
+                if (l.v.members.eofbit.v.value === 1 || buf.v.pointee.values.length <= buf.v.index) {
+                    l.v.members.eofbit.v.value = 1;
+                    l.v.members.failbit.v.value = 1;
                     return variables.arithmetic("I32", -1, null);
                 }
                 const topv = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
@@ -209,10 +217,6 @@ export = {
                     failbit.v.value = 1;
                     return l;
                 }
-                /*const stdio = rt.stdio();
-                if (stdio.isMochaTest) {
-                    stdio.write(wordString + "\n");
-                }*/
 
                 return l;
             }
@@ -237,10 +241,6 @@ export = {
                     variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
                 }
 
-                /*const stdio = rt.stdio();
-                if (stdio.isMochaTest) {
-                    stdio.write(wordString + "\n");
-                }*/
 
                 return l;
             }
@@ -284,10 +284,6 @@ export = {
                     failbit.v.value = 1;
                     return l;
                 }
-                /*const stdio = rt.stdio();
-                if (stdio.isMochaTest) {
-                    stdio.write(wordString + "\n");
-                }*/
 
                 return l;
             }
@@ -305,6 +301,14 @@ export = {
                     stdio.getInput().then((result) => {
                         variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
                         resolve([false, l]);
+                    }, () => {
+                        l.v.members.eofbit.v.value = 1;
+                        l.v.members.failbit.v.value = 1;
+                        try {
+                            rt.raiseException("Unexpected end of input");
+                        } catch (err) {
+                            stdio.promiseError(err);
+                        }
                     });
                 } else {
                     resolve([true, l]);
@@ -363,6 +367,14 @@ export = {
                     stdio.getInput().then((result) => {
                         variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
                         resolve([false, l]);
+                    }, () => {
+                        l.v.members.eofbit.v.value = 1;
+                        l.v.members.failbit.v.value = 1;
+                        try {
+                            rt.raiseException("Unexpected end of input");
+                        } catch (err) {
+                            stdio.promiseError(err);
+                        }
                     });
                 } else {
                     resolve([true, l]);
