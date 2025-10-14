@@ -1,7 +1,7 @@
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitPointerValue, ClassVariable, InitPointerVariable, PointeeVariable, InitIndexPointerVariable } from "../variables";
+import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitPointerValue, ClassVariable, InitPointerVariable, InitIndexPointerVariable } from "../variables";
 
 interface InsertIteratorType<ContainerType extends ObjectType> extends AbstractTemplatedClassType<null, [ContainerType]> {
     readonly identifier: "insert_iterator",
@@ -37,16 +37,10 @@ export = {
         rt.defineStruct2("{global}", "insert_iterator", {
             numTemplateArgs: 1, factory: (iteratorType: InsertIteratorType<ObjectType>) => {
                 //const iteratorType = rt
-                return [
-                    {
-                        name: "_container",
-                        variable: variables.uninitPointer(iteratorType.templateSpec[0], null, "SELF")
-                    },
-                    {
-                        name: "_iter",
-                        variable: variables.uninitPointer(variables.arithmeticType("I8"), null, "SELF")
-                    }
-                ]
+                return {
+                    _container: variables.uninitPointer(iteratorType.templateSpec[0], null, "SELF"),
+                    _iter: variables.uninitPointer(variables.arithmeticType("I8"), null, "SELF"),
+                }
             }
         }, ["_container", "_iter"], {
             ["value_type"]: [{ src: insertIteratorSig, dst: ["VOID"] }],
@@ -57,12 +51,9 @@ export = {
         // Define back_insert_iterator struct
         /*rt.defineStruct2("{global}", "back_insert_iterator", {
             numTemplateArgs: 1, factory: (iteratorType: BackInsertIteratorType<ObjectType>) => {
-                return [
-                    {
-                        name: "_container",
-                        variable: variables.uninitPointer(iteratorType.templateSpec[0], null, "SELF")
-                    }
-                ]
+                return {
+                    _container: variables.uninitPointer(iteratorType.templateSpec[0], null, "SELF"),
+                }
             }
         }, ["_container"], {});*/
 

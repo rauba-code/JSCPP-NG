@@ -34,12 +34,9 @@ export = {
                 const vecType = variables.classType("vector", [pairType], null);
                 const vec = yield* rt.defaultValue2(vecType, "SELF") as Gen<VectorVariable<Variable>>;
                 (vec.v as any).lvHolder = "SELF";
-                return [
-                    {
-                        name: "_data",
-                        variable: vec
-                    },
-                ]
+                return {
+                    _data: vec,
+                }
             }
         }, ["_data"], {
             ["key_type"]: [{ src: mapSig, dst: ["?0"] }],

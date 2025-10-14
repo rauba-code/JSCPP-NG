@@ -26,20 +26,11 @@ export = {
         const setSig = "!ParamObject CLASS set < ?0 >".split(" ");
         rt.defineStruct2("{global}", "set", {
             numTemplateArgs: 1, factory: (dataItem: SetType<ObjectType>) => {
-                return [
-                    {
-                        name: "_data",
-                        variable: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF")
-                    },
-                    {
-                        name: "_sz",
-                        variable: variables.arithmetic("I32", 0, "SELF")
-                    },
-                    {
-                        name: "_cap",
-                        variable: variables.arithmetic("I32", 0, "SELF")
-                    }
-                ]
+                return {
+                    _data: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF"),
+                    _sz: variables.arithmetic("I32", 0, "SELF"),
+                    _cap: variables.arithmetic("I32", 0, "SELF"),
+                }
             }
         }, ["_data", "_sz", "_cap"], {
             ["key_type"]: [{ src: setSig, dst: ["?0"] }],

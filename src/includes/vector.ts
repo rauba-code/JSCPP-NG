@@ -25,20 +25,11 @@ export = {
         const vectorSig: string[] = "!ParamObject CLASS vector < ?0 >".split(" ");
         rt.defineStruct2("{global}", "vector", {
             numTemplateArgs: 1, factory: (dataItem: VectorType<ObjectType>) => {
-                return [
-                    {
-                        name: "_ptr",
-                        variable: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF")
-                    },
-                    {
-                        name: "_sz",
-                        variable: variables.arithmetic("I32", 0, "SELF")
-                    },
-                    {
-                        name: "_cap",
-                        variable: variables.arithmetic("I32", 0, "SELF")
-                    }
-                ]
+                return {
+                    _ptr: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF"),
+                    _sz: variables.arithmetic("I32", 0, "SELF"),
+                    _cap: variables.arithmetic("I32", 0, "SELF"),
+                }
             }
         }, ["_ptr", "_sz", "_cap"], {
             ["value_type"]: [{ src: vectorSig, dst: ["?0"] }],

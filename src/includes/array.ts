@@ -36,16 +36,10 @@ export = {
                     memory.values.push(defaultVar.v);
                 }
 
-                return [
-                    {
-                        name: "_data",
-                        variable: variables.indexPointer<Variable>(memory, 0, false, "SELF")
-                    },
-                    {
-                        name: "_size",
-                        variable: variables.arithmetic("I32", sizeValue, "SELF")
-                    }
-                ]
+                return {
+                    _data: variables.indexPointer<Variable>(memory, 0, false, "SELF"),
+                    _size: variables.arithmetic("I32", sizeValue, "SELF"),
+                }
             }
         }, ["_data", "_size"], {});
 

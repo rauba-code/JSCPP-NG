@@ -10,16 +10,10 @@ export = {
             numTemplateArgs: 2, factory: function*(dataItem: PairType<ObjectType, ObjectType>) {
                 const firstVarYield = rt.defaultValue(dataItem.templateSpec[0], "SELF");
                 const secondVarYield = rt.defaultValue(dataItem.templateSpec[1], "SELF");
-                return [
-                    {
-                        name: "first",
-                        variable: asResult(firstVarYield) ?? (yield* firstVarYield as Gen<Variable>),
-                    },
-                    {
-                        name: "second",
-                        variable: asResult(secondVarYield) ?? (yield* secondVarYield as Gen<Variable>),
-                    },
-                ]
+                return {
+                    first: asResult(firstVarYield) ?? (yield* firstVarYield as Gen<Variable>),
+                    second: asResult(secondVarYield) ?? (yield* secondVarYield as Gen<Variable>),
+                }
             }
         }, ["first", "second"], {});
         rt.ct.list["pair"].src.push("CLASS __list_prototype < ?0 ?1 >".split(" "));

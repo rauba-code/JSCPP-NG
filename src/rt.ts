@@ -141,9 +141,11 @@ export type MemberObject = {
     variable: Variable
 };
 
+export type MemberMap = { [member: string]: Variable };
+
 export type MemberObjectListCreator = {
     numTemplateArgs: number,
-    factory: (template: ObjectType) => ResultOrGen<MemberObject[]>
+    factory: (template: ObjectType) => ResultOrGen<MemberMap>
 };
 
 export class CRuntime {
@@ -162,7 +164,7 @@ export class CRuntime {
         this.parser = typecheck.constructTypeParser();
         this.config = config;
         this.typeMap = {};
-        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => [] }, [], {});
+        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => ({}) }, [], {});
         this.fileio = { freefd: 4, files: {} };
 
         this.scope = [{ "$name": "{global}", variables: {} }];
@@ -1115,7 +1117,15 @@ export class CRuntime {
     defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
-        const factory: MemberObjectListCreator = { numTemplateArgs: 0, factory: () => memberList };
+        const factory: MemberObjectListCreator = {
+            numTemplateArgs: 0, factory: () => {
+                let memberMap: MemberMap = {};
+                for (const member of memberList) {
+                    memberMap[member.name] = member.variable;
+                }
+                return memberMap;
+            }
+        };
         const dataMemberNames: string[] = memberList.map(x => x.name);
         this.addTypeDomain(domainInline, factory, dataMemberNames, memberTypes);
 
@@ -1166,9 +1176,9 @@ export class CRuntime {
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function*(_rt: CRuntime, templateArgs: [ClassType]): Gen<InitClassVariable> {
             const members: { [name: string]: Variable } = {};
-            const memListYield: ResultOrGen<MemberObject[]> = memberList.factory(...templateArgs);
-            const memList: MemberObject[] = interp.asResult(memListYield) ?? (yield* memListYield as Gen<MemberObject[]>);
-            memList.forEach((x: MemberObject) => { members[x.name] = x.variable });
+            const memListYield: ResultOrGen<MemberMap> = memberList.factory(...templateArgs);
+            const memList: { [member: string]: Variable } = interp.asResult(memListYield) ?? (yield* memListYield as Gen<MemberMap>);
+            Object.entries(memList).forEach(([member, memvar]) => { members[member] = memvar });
             return variables.class(variables.classType(identifier, templateArgs[0].templateSpec, domain === "{global}" ? null : domain), members, null);
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };

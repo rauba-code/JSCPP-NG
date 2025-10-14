@@ -1,5 +1,5 @@
 import { resolveIdentifier } from "./shared/string_utils";
-import { CRuntime, FunctionCallInstance, MemberObject, OpSignature, RuntimeScope } from "./rt";
+import { CRuntime, FunctionCallInstance, MemberMap, MemberObject, OpSignature, RuntimeScope } from "./rt";
 import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
@@ -765,19 +765,25 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         if (!(classTypeHint.identifier in rt.typeMap)) {
                             rt.raiseException(`Initialiser list error: cannot find class named '${classTypeHint.identifier}'`);
                         }
-                        const memListFactory = rt.typeMap[classTypeHint.identifier].memberObjectListCreator;
+                        const memNames = rt.typeMap[classTypeHint.identifier].dataMemberNames;
                         /*if (memListFactory.numTemplateArgs !== classTypeHint.templateSpec.length) {
                             rt.raiseException(`Initialiser list error: expected ${memListFactory.numTemplateArgs} template arguments, got ${classTypeHint.templateSpec.length}`);
                         }*/
-                        const memListYield: ResultOrGen<MemberObject[]> = memListFactory.factory(classTypeHint);
-                        const memList: MemberObject[] = asResult(memListYield) ?? (yield* memListYield as Gen<MemberObject[]>);
+                        const memMapFactory = rt.typeMap[classTypeHint.identifier].memberObjectListCreator;
+                        const memMapYield: ResultOrGen<MemberMap> = memMapFactory.factory(classTypeHint);
+                        const memMap: MemberMap = asResult(memMapYield) ?? (yield* memMapYield as Gen<MemberMap>);
                         let resultMembers: { [member: string]: Variable } = {};
                         let i = 0;
-                        if (s.Initializers.length > memList.length) {
-                            rt.raiseException(`Initialiser list error: Expected ${memList.length} elements, got ${s.Initializers.length};\nExpected brace-enclosed initialiser layout:\n  {${memList.map((mem) => rt.makeTypeString(mem.variable.t)).join(", ")}}`);
+                        for (const member of memNames) {
+                            if (!(member in memMap)) {
+                                rt.raiseException(`Initialiser list error: Internal error (member '${member}' is defined but not found in factory implementation)`)
+                            }
                         }
-                        for (const member of memList) {
-                            resultMembers[member.name] = (i < s.Initializers.length) ? yield* getListItem(rt, s.Initializers[i], i, member.variable.t) : member.variable;
+                        if (s.Initializers.length > Object.entries(memMap).length) {
+                            rt.raiseException(`Initialiser list error: Expected ${Object.entries(memMap).length} elements, got ${s.Initializers.length};\nExpected brace-enclosed initialiser layout:\n  {${memNames.map((s) => rt.makeTypeString(memMap[s].t)).join(", ")}}`);
+                        }
+                        for (const member of memNames) {
+                            resultMembers[member] = (i < s.Initializers.length) ? yield* getListItem(rt, s.Initializers[i], i, memMap[member].t) : memMap[member];
                             i++;
                         }
                         return variables.class(classTypeHint, resultMembers, null, false);
