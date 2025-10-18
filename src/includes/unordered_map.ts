@@ -75,7 +75,7 @@ export = {
 
         const BITS_HASH: number = 20;
         const BITS_BRANCH: number = 4;
-        const STACK_SIZE: number = (BITS_HASH + BITS_BRANCH - 1) / BITS_BRANCH;
+        const STACK_SIZE: number = ((BITS_HASH + BITS_BRANCH - 1) / BITS_BRANCH) & 0xffffffff;
 
         type __pair = PairVariable<Variable, Variable>;
         type __umap = UMapVariable<Variable, Variable>;
@@ -189,8 +189,8 @@ export = {
                             (thisVar.v.members.link as __dptr_link).v.pointee = ((bstackArr[slen.v.value - 1] as __dptr_branch['v']).pointee.members.leaves.v.pointee.values[i] as __dptr_link['v']).pointee;
                             return "VOID";
                         }
-                        slen.v.value--;
                     }
+                    slen.v.value--;
                 }
             }
         }
@@ -241,7 +241,7 @@ export = {
             },
             {
                 op: "o(_ctor)",
-                type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( PTR CLASS unordered_map_branch_node < ?0 ?1 > )",
+                type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( PTR PTR CLASS unordered_map_branch_node < ?0 ?1 > PTR I32 PTR CLASS unordered_map_link_node < ?0 ?1 > )",
                 default(_rt: CRuntime, templateTypes: [__umap_iter['t']], bstack: InitIndexPointerVariable<PointerVariable<__branch>>, istack: InitIndexPointerVariable<InitArithmeticVariable>, link: PointerVariable<__link>): __umap_iter {
                     const thisType = templateTypes[0];
                     const thisVar: __umap_iter = _createUMapIterVar(thisType);
@@ -509,7 +509,7 @@ export = {
                 if (child.state === "UNINIT") {
                     const newChild: __branch = yield* rt.defaultValue2(bstack[i - 1].t, "SELF") as Gen<__branch>;
                     (child as any).state = "INIT";
-                    (child as any).pointee = newChild;
+                    (child as any).pointee = newChild.v;
                 }
                 bstack[i] = { "t": bstack[i - 1].t, "v": (child as __dptr_branch['v']).pointee };
             }
