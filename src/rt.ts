@@ -329,7 +329,10 @@ export class CRuntime {
                     }
                     argNames.slice(0, args.length).forEach(function(argName, i) {
                         if (argTypes[i].v.lvHolder === null) {
-                            args[i] = variables.clone(rt, args[i], "SELF", false);
+                            const arg = args[i];
+                            if (arg.t.sig !== "PTR" || arg.t.sizeConstraint === null) {
+                                args[i] = variables.clone(this, args[i], "SELF", false);
+                            }
                         }
                         if (args[i].v.isConst && !argTypes[i].v.isConst) {
                             rt.raiseException("Cannot pass a const-value where a volatile value is required")
@@ -537,7 +540,10 @@ export class CRuntime {
         }
         actions.valueActions.forEach((action, i) => {
             if (action === "CLONE") {
-                args[i] = variables.clone(this, this.expectValue(args[i]), "SELF", false);
+                const arg = args[i];
+                if (arg.t.sig !== "PTR" || arg.t.sizeConstraint === null) {
+                    args[i] = variables.clone(this, this.expectValue(args[i]), "SELF", false);
+                }
             }
         })
     }
