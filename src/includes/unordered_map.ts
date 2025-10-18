@@ -3,7 +3,7 @@ import { asResult } from "../interpreter";
 import { CRuntime, MemberMap } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
-import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticVariable, InitDirectPointerVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticVariable, InitDirectPointerVariable, PointerValue } from "../variables";
 
 // unordered_map
 
@@ -116,7 +116,7 @@ export = {
         const _iteratorFactory: (dataItem: __umap_iter['t']) => __umap_iter['v']['members'] = (dataItem: __umap_iter['t']) => {
             const umapBranchType = _createUMapBranchType(dataItem.templateSpec);
             const umapLinkType = _createUMapLinkType(dataItem.templateSpec);
-            let bmem = variables.arrayMemory<PointerVariable<__branch>>(variables.pointerType(umapBranchType, STACK_SIZE), []);
+            let bmem = variables.arrayMemory<PointerVariable<__branch>>(variables.pointerType(umapBranchType, null), []);
             for (let i = 0; i < STACK_SIZE; i++) {
                 bmem.values.push((variables.uninitPointer(bmem.objectType.pointee, null, { array: bmem, index: i }) as PointerVariable<__branch>).v);
             }
@@ -290,7 +290,7 @@ export = {
                 op: "o(_++)",
                 type: "!ParamObject !ParamObject FUNCTION LREF CLASS unordered_map_iterator < ?0 ?1 > ( LREF CLASS unordered_map_iterator < ?0 ?1 > )",
                 default(rt: CRuntime, _templateTypes: [], thisVar: __umap_iter): __umap_iter {
-                    const thatVar = variables.clone(rt, thisVar, null, true);
+                    const thatVar = variables.clone(rt, thisVar, null, false);
                     _iter_next(thisVar);
                     return thatVar;
                 }
@@ -326,7 +326,7 @@ export = {
             factory: function(dataItem: __branch['t']): MemberMap {
                 const umapBranchType = dataItem;
                 const umapLinkType = _createUMapLinkType(dataItem.templateSpec);
-                let bmem = variables.arrayMemory<PointerVariable<__branch>>(variables.pointerType(umapBranchType, (1 << BITS_BRANCH)), []);
+                let bmem = variables.arrayMemory<PointerVariable<__branch>>(variables.pointerType(umapBranchType, null), []);
                 for (let i = 0; i < (1 << BITS_BRANCH); i++) {
                     bmem.values.push((variables.uninitPointer(bmem.objectType.pointee, null, { array: bmem, index: i }) as PointerVariable<__branch>).v);
                 }
@@ -885,19 +885,53 @@ export = {
             },
             {
                 op: "erase",
-                type: "!ParamObject !ParamObject FUNCTION PTR CLASS pair < ?0 ?1 > ( LREF CLASS unordered_map < ?0 ?1 > PTR CLASS pair < ?0 ?1 > )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], ..._args: Variable[]): Gen<InitIndexPointerVariable<__pair>> {
-                    rt.raiseException("unordered_map::erase(): Not yet implemented");
-                    /*const thisVar = args[0] as __umap;
-                    const value = args[1] as PointerVariable<__pair>;
-                    const ptr = thisVar.v.members._data.v.members._ptr;
-                    if (value.v.state !== "INIT" || value.v.subtype !== "INDEX" || ptr.v.pointee !== value.v.pointee) {
-                        rt.raiseException("unordered_map::erase(): Expected an argument to be a member of the given unordered_map")
+                type: "!ParamObject !ParamObject FUNCTION PTR CLASS pair < ?0 ?1 > ( LREF CLASS unordered_map < ?0 ?1 > CLASS unordered_map_iterator < ?0 ?1 > )",
+                *default(rt: CRuntime, _templateTypes: [], _thisVar: __umap, pos: __umap_iter): Gen<__umap_iter> {
+                    if (pos.v.members.link.v.state === "UNINIT") {
+                        rt.raiseException("unordered_map::erase(): Argument error (expected an iterator pointing to a member of a map");
                     }
-                    const eraseInst = rt.getFuncByParams(thisVar.v.members._data.t, "erase", [thisVar.v.members._data, value], []);
-                    const eraseYield = rt.invokeCall(eraseInst, [], thisVar.v.members._data, value);
-                    const eraseResult = asResult(eraseYield) ?? (yield* eraseYield as Gen<InitIndexPointerVariable<__pair>>);
-                    return eraseResult as InitIndexPointerVariable<__pair>;*/
+                    const eit = variables.clone(rt, pos, null, false);
+                    const eit_link = eit.v.members.link as __dptr_link;
+                    _iter_next(pos);
+                    let link: __dptr_link['v'] = (eit.v.members.bstack.v.pointee.values[STACK_SIZE - 1] as __dptr_branch['v']).pointee.members.leaves.v.pointee.values[eit.v.members.istack.v.pointee.values[STACK_SIZE - 1].value] as __dptr_link['v'];
+                    if (link.pointee === eit_link.v.pointee) {
+                        const tail = link.pointee.members.next;
+                        (link.pointee as any).lvHolder = "UNBOUND";
+                        delete (link as any).pointee;
+                        if (tail.v.state === "UNINIT") {
+                            (link as PointerValue<__link>).state = "UNINIT";
+                        } else {
+                            link.state = "INIT";
+                            link.pointee = (tail as __dptr_link).v.pointee;
+                        }
+                    } else {
+                        while (true) {
+                            if ((link.pointee.members.next as __dptr_link).v.pointee === eit_link.v.pointee) {
+                                const tail = (link.pointee.members.next as __dptr_link).v.pointee.members.next;
+                                (link.pointee as any).lvHolder = "UNBOUND";
+                                delete (link as any).pointee;
+                                if (tail.v.state === "UNINIT") {
+                                    link.pointee.members.next.v.state = "UNINIT";
+                                } else {
+                                    link.pointee.members.next.v.state = "INIT";
+                                    (link.pointee.members.next as __dptr_link).v.pointee = (tail as __dptr_link).v.pointee;
+                                }
+                                break;
+                            }
+                            link = link.pointee.members.next.v as __dptr_link['v'];
+                        }
+                    }
+                    for (let i = STACK_SIZE - 1; i > 0; i--) {
+                        (eit.v.members.bstack.v.pointee.values[i] as __dptr_branch['v']).pointee.members.size.v.value--;
+                        if (i > 0 && (eit.v.members.bstack.v.pointee.values[i] as __dptr_branch['v']).pointee.members.size.v.value === 0) {
+                            const parent_branch = (eit.v.members.bstack.v.pointee.values[i - 1] as __dptr_branch['v']).pointee.members.branches.v.pointee.values[eit.v.members.istack.v.pointee.values[i - 1].value];
+                            ((parent_branch as __dptr_branch['v']).pointee as any).lvHolder = "UNBOUND";
+                            delete (parent_branch as any).pointee;
+                            parent_branch.state = "UNINIT";
+                        }
+                    }
+                    (eit.v.members.bstack.v.pointee.values[0] as __dptr_branch['v']).pointee.members.size.v.value--;
+                    return pos;
                 }
             },
             {

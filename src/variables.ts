@@ -429,8 +429,16 @@ export const variables = {
                     const child = variables.derefDirect(x);
                     return variables.directPointer(child, _lvHolder, isConst);
                 } else {
-                    const x = _x as InitIndexPointerVariable<PointeeVariable>;
-                    return variables.indexPointer(x.v.pointee, x.v.index, x.t.sizeConstraint !== null ? true : false, _lvHolder, isConst);
+                    const x = _x as InitIndexPointerVariable<Variable>;
+                    if (x.t.sizeConstraint === null) {
+                        return variables.indexPointer(x.v.pointee, x.v.index, false, _lvHolder, isConst);
+                    } else {
+                        const memory = variables.arrayMemory<Variable>(x.t.pointee, []);
+                        for (let i = 0; i < x.t.sizeConstraint; i++) {
+                            memory.values.push(variables.clone(rt, { t: x.t.pointee, v: x.v.pointee.values[i] } as Variable, { array: memory, index: i }, false, true).v);
+                        }
+                        return variables.indexPointer(memory, x.v.index, true, _lvHolder, isConst);
+                    }
                 }
             },
             "CLASS": (_lvHolder: LValueHolder<InitClassVariable>) => {
