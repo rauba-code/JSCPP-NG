@@ -837,17 +837,23 @@ export = {
             {
                 op: "find",
                 type: "!ParamObject !ParamObject FUNCTION PTR CLASS pair < ?0 ?1 > ( CLREF CLASS unordered_map < ?0 ?1 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<__umap_iter> {
+                    const thisVar = args[0] as __umap;
+                    const key = args[1];
+                    return yield* _find(rt, thisVar, key);
+                }
+            },
+            {
+                op: "at",
+                type: "!ParamObject !ParamObject FUNCTION PTR CLASS pair < ?0 ?1 > ( CLREF CLASS unordered_map < ?0 ?1 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<Variable> {
                     const thisVar = args[0] as __umap;
                     const key = args[1];
                     const found = yield* _find(rt, thisVar, key);
-                    if (found !== null) {
-                        if (found.v.lvHolder === null || typeof (found.v.lvHolder) !== "object") {
-                            rt.raiseException("unordered_map::find(): Expected an array member (internal error)")
-                        }
-                        return variables.indexPointer(found.v.lvHolder.array, found.v.lvHolder.index, false, null);
+                    if (found.v.members.link.v.state === "UNINIT") {
+                        rt.raiseException("unordered_map::at(): No such element (out_of_range)");
                     }
-                    return _end(thisVar);
+                    return (found.v.members.link as __dptr_link).v.pointee.members.child.v.members.second;
                 }
             },
             {
