@@ -73,7 +73,7 @@ export = {
         rt.include("iterator");
         rt.include("utility");
 
-        const BITS_HASH: number = 20;
+        const BITS_HASH: number = 16;
         const BITS_BRANCH: number = 4;
         const STACK_SIZE: number = ((BITS_HASH + BITS_BRANCH - 1) / BITS_BRANCH) & 0xffffffff;
 
@@ -650,7 +650,7 @@ export = {
                     for (const branch of bstack) {
                         branch.v.members.size.v.value++;
                     }
-                    return create_result(newLink, false);
+                    return create_result(newLink, true);
                     // return {iterator(bstack, istack, link->next), true};
                 }
                 link = link.pointee.members.next.v as __dptr_link['v'];
@@ -909,7 +909,7 @@ export = {
                             if ((link.pointee.members.next as __dptr_link).v.pointee === eit_link.v.pointee) {
                                 const tail = (link.pointee.members.next as __dptr_link).v.pointee.members.next;
                                 (link.pointee as any).lvHolder = "UNBOUND";
-                                delete (link as any).pointee;
+                                delete (link.pointee.members.next.v as any).pointee;
                                 if (tail.v.state === "UNINIT") {
                                     link.pointee.members.next.v.state = "UNINIT";
                                 } else {
