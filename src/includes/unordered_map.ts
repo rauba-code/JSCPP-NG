@@ -294,7 +294,27 @@ export = {
                     _iter_next(thisVar);
                     return thatVar;
                 }
-            }
+            },
+            {
+                op: "o(_==_)",
+                type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS unordered_map_iterator < ?0 ?1 > CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
+                default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticVariable {
+                    if (lhs.v.members.link.v.state === "UNINIT" || rhs.v.members.link.v.state === "UNINIT") {
+                        return variables.arithmetic("BOOL", lhs.v.members.link.v.state === rhs.v.members.link.v.state ? 1 : 0, null);
+                    }
+                    return variables.arithmetic("BOOL", lhs.v.members.link.v.pointee === rhs.v.members.link.v.pointee ? 1 : 0, null);
+                }
+            },
+            {
+                op: "o(_!=_)",
+                type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS unordered_map_iterator < ?0 ?1 > CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
+                default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticVariable {
+                    if (lhs.v.members.link.v.state === "UNINIT" || rhs.v.members.link.v.state === "UNINIT") {
+                        return variables.arithmetic("BOOL", (lhs.v.members.link.v.state !== rhs.v.members.link.v.state) ? 1 : 0, null);
+                    }
+                    return variables.arithmetic("BOOL", (lhs.v.members.link.v.pointee !== rhs.v.members.link.v.pointee) ? 1 : 0, null);
+                }
+            },
         ]);
 
         // ---
