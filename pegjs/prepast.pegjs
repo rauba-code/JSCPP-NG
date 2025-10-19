@@ -446,11 +446,11 @@ StringLiteral = a:("L" / "u8" / "u" / "U")? b:(RawStringLiteral / EscapedStringL
   return addPositionInfo({type: 'StringLiteral', prefix:a, value:b});
 };
 
-RawStringLiteral = "R" a:(QUO a:RawStringChar* QUO Spacing {return a.join('');})+ {
+RawStringLiteral = "R" a:("\"" a:RawStringChar* "\"" Spacing {return a.join('');})+ {
   return a.join('');
 };
 
-EscapedStringLiteral = a:(QUO a:StringChar* QUO Spacing {return a.join('');})+ {
+EscapedStringLiteral = a:("\"" a:StringChar* "\"" Spacing {return a.join('');})+ {
   return a.join('');
 };
 
