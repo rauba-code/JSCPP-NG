@@ -2,7 +2,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, LValueIndexHolder } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
 
 interface VectorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "vector",

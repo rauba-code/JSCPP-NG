@@ -1,26 +1,43 @@
-import { CRuntime } from "../rt";
+import { CRuntime, MemberMap } from "../rt";
 import * as common from "../shared/common";
 import { StringVariable } from "../shared/string_utils";
-import { ArithmeticSig, InitArithmeticVariable, InitIndexPointerVariable, variables } from "../variables";
+import { AbstractTemplatedClassType, AbstractVariable, ArithmeticSig, InitArithmeticVariable, InitIndexPointerVariable, InitValue, ObjectType, Variable, variables } from "../variables";
 
-/*interface HashType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
-    readonly identifier: "hash",
+/* 
+ * Generic function object type.
+ */
+interface FOType<TI extends string, T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
+    readonly identifier: TI,
 }
 
-type MapVariable<T extends Variable> = AbstractVariable<HashType<T["t"]>, MapValue<T>>;
+/* 
+ * Generic function object variable.
+ */
+type FOVariable<TI extends string, T extends Variable> = AbstractVariable<FOType<TI, T["t"]>, FOValue<TI, T>>;
 
-interface MapValue<T extends Variable> extends InitValue<MapVariable<T>> {
+/* 
+ * Generic function object value.
+ */
+interface FOValue<TI extends string, T extends Variable> extends InitValue<FOVariable<TI, T>> {
     members: { }
-}*/
+}
 
 export = {
     load(rt: CRuntime) {
         // For now, function objects do not work properly. 
         // Instead, overloaded __hash function is declared.
-        /*rt.defineStruct2("{global}", "hash", {
+        rt.defineStruct2("{global}", "hash", {
             numTemplateArgs: 1,
-            factory(_dataItem: HashType<ObjectType>) { return []; }
-        }, [], {});*/
+            factory(_dataItem: FOType<"hash", ObjectType>) { return {} as MemberMap; }
+        }, [], {});
+        rt.defineStruct2("{global}", "greater", {
+            numTemplateArgs: 1,
+            factory(_dataItem: FOType<"greater", ObjectType>) { return {} as MemberMap; }
+        }, [], {});
+        rt.defineStruct2("{global}", "less", {
+            numTemplateArgs: 1,
+            factory(_dataItem: FOType<"less", ObjectType>) { return {} as MemberMap; }
+        }, [], {});
         function arithmeticHashFn(sig: ArithmeticSig): common.FunHandler {
             return {
                 op: "__hash",
