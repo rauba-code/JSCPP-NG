@@ -110,7 +110,8 @@ function startDebug() {
                     const cmds = line.trim().split(" ");
                     switch (cmds[0]) {
                         case "n": case "next":
-                            done = mydebugger.continue();
+                            done = false;//mydebugger.continue();
+                            mydebugger.continue();
                             break;
                         case "v": case "var": case "variable":
                             console.log(mydebugger.variable(cmds[1]));
@@ -130,7 +131,8 @@ function startDebug() {
                     onPrompt();
                     return rl.prompt();
                 } else {
-                    console.log(`debugger exited with code ${done.v}`);
+                    console.log('debugger exited');
+                    //console.log(`debugger exited with code ${done.v}`);
                     return rl.close();
                 }
             });

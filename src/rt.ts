@@ -12,6 +12,12 @@ export interface IncludeModule {
     load(rt: CRuntime): void;
 }
 
+export type DebugData = {
+    line: number,
+    column: number,
+    variables: { [name: string]: Variable }
+};
+
 export interface Stdio {
     isMochaTest?: boolean;
     promiseError: (promise_error: Error) => void;
@@ -24,7 +30,9 @@ export interface Stdio {
     getInput: () => Promise<string>;
     finishCallback: (ExitCode: number) => void;
     write: (s: string) => void;
+    trap?: (api: ExternRuntimeApi) => void;
 }
+
 
 export interface JSCPPConfig {
     specifiers?: Specifier[];
@@ -148,6 +156,13 @@ export type MemberObjectListCreator = {
     factory: (template: ObjectType) => ResultOrGen<MemberMap>
 };
 
+export type ExternRuntimeApi = {
+    proceed(): void;
+    stop(): void;
+    setLineBreakpoints: (lines: number[]) => void;
+    getVariables: () => { [name: string]: { type: string, value: string } };
+}
+
 export class CRuntime {
     parser: typecheck.LLParser;
     config: JSCPPConfig;
@@ -159,6 +174,9 @@ export class CRuntime {
     fileio: FileManager;
     ct: typecheck.ConversionTables;
     explicitListInitTable: { [name: string]: ((type: ObjectType) => ObjectType) };
+    lineBreakpoints: Set<number>;
+    lastLineBreakpoint: number;
+    eapi: ExternRuntimeApi;
 
     constructor(config: JSCPPConfig) {
         this.parser = typecheck.constructTypeParser();
@@ -171,7 +189,41 @@ export class CRuntime {
         this.namespace = {};
         this.typedefs = {};
         this.ct = { implicit: {}, list: {}, memberType: {} };
+        this.lineBreakpoints = new Set<number>();
+        this.lastLineBreakpoint = -1;
         this.explicitListInitTable = {};
+        const rt = this;
+        this.eapi = {
+            proceed(): void {
+                rt.stdio().cinProceed();
+            },
+            stop(): void {
+                rt.stdio().cinStop();
+            },
+            setLineBreakpoints(lines: number[]): void {
+                rt.lineBreakpoints.clear();
+                for (const line of lines) {
+                    if (!(line in rt.lineBreakpoints)) {
+                        rt.lineBreakpoints.add(line);
+                    }
+                }
+            },
+            getVariables(): ({ [name: string]: { type: string, value: string } }) {
+                let dict: { [name: string]: { type: string, value: string } } = {};
+                for (let i = rt.scope.length - 1; i >= 0; i--) {
+                    let scope = rt.scope[i];
+                    for (const [name, val] of Object.entries(scope.variables)) {
+                        if (!(name in dict) && "t" in val && "v" in val) {
+                            dict[name] = { 
+                                type: rt.makeTypeStringOfVar(val),
+                                value: rt.makeValueString(val)
+                            };
+                        }
+                    }
+                }
+                return dict;
+            }
+        };
     }
 
     openFile(path: InitIndexPointerVariable<ArithmeticVariable>, mode: number): number {

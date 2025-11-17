@@ -1,6 +1,6 @@
 import { StatementMeta } from "./interpreter";
 import { CRuntime } from "./rt";
-import { ArithmeticVariable, MaybeLeft, MaybeLeftCV, ObjectType, variables } from "./variables";
+import { ArithmeticVariable, Gen, MaybeLeftCV, ObjectType, variables } from "./variables";
 
 interface AstNode extends StatementMeta {
     type: string;
@@ -21,9 +21,10 @@ export default class Debugger {
     stopConditions: {
         [condition: string]: boolean;
     };
+    breakpoints: Set<number>;
     rt: CRuntime;
     gen: Generator<any, ArithmeticVariable | false, any>;
-    constructor(src?: string, oldSrc?: string) {
+    constructor(rt: CRuntime, entryPoint: Gen<any>, src?: string, oldSrc?: string) {
         this.src = src || "";
         this.srcByLines = (oldSrc || src || "").split("\n");
         this.prevNode = null;
@@ -39,6 +40,8 @@ export default class Debugger {
                 return (prevNode != null ? prevNode.sLine : undefined) !== newStmt.sLine;
             }
         };
+        this.rt = rt;
+        this.gen = entryPoint;
 
         this.stopConditions = {
             isStatement: false,
@@ -49,37 +52,45 @@ export default class Debugger {
 
     setStopConditions(stopConditions: {
         [condition: string]: boolean;
-    }) {
+    }): void {
         this.stopConditions = stopConditions;
     }
 
-    setCondition(name: string, callback: BreakpointConditionPredicate) {
+    setCondition(name: string, callback: BreakpointConditionPredicate): void {
         this.conditions[name] = callback;
     }
 
-    disableCondition(name: string) {
+    disableCondition(name: string): void {
         this.stopConditions[name] = false;
     }
-    enableCondition(name: string) {
+
+    enableCondition(name: string): void {
         this.stopConditions[name] = true;
     }
 
-    getSource() {
+    addBreakpoint(row: number): void {
+        this.breakpoints.add(row);
+    }
+
+    removeBreakpoint(row: number): void {
+        this.breakpoints.delete(row);
+    }
+
+    getSource(): string {
         return this.src;
     }
 
-    start(rt: CRuntime, gen: Generator<any, ArithmeticVariable | false, any>) {
-        this.rt = rt;
-        return this.gen = gen;
+    start(): Gen<any> {
+        return this.gen;
     }
 
-    async wait() {
+    async wait(): Promise<void> {
         while (!this.rt.config.stdio?.cinState()) {
             await new Promise((resolve) => setImmediate(resolve));
         }
     }
 
-    continue() {
+    continue(): false | number {
         while (true) {
             const done = this.next();
             if (done !== false) { return done; }
@@ -95,12 +106,16 @@ export default class Debugger {
         }
     }
 
-    next() {
+    next(): false | number {
         this.prevNode = this.nextNode();
         const ngen = this.gen.next();
         if (ngen.done) {
             this.done = true;
-            return ngen.value;
+            if (ngen.value === false) {
+                return false;
+            } else {
+                return this.rt.arithmeticValue(ngen.value);
+            }
         } else {
             return false;
         }

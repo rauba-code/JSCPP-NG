@@ -1889,8 +1889,15 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
     *visit(interp: Interpreter, s: any, param?: any) {
         let ret;
-        //const { rt } = interp;
+        const { rt } = interp;
         //console.log(`${s.sLine}: visiting ${s.type}`);
+        if (rt.lastLineBreakpoint !== s.sLine && rt.lineBreakpoints.has(s.sLine)) {
+            if (rt.config.stdio && rt.config.stdio.trap) {
+                rt.config.stdio.cinStop();
+                rt.lastLineBreakpoint = s.sLine;
+                rt.config.stdio.trap(rt.eapi);
+            }
+        }
         if ("type" in s) {
             if (param === undefined) {
                 param = { scope: "{global}" };

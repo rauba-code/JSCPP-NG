@@ -1,5 +1,5 @@
 // logger = require("tracer").colorConsole();
-import { CRuntime, CRuntimeError, IncludeModule, JSCPPConfig, mergeConfig } from "./rt";
+import { CRuntime, CRuntimeError, ExternRuntimeApi, IncludeModule, JSCPPConfig, mergeConfig } from "./rt";
 
 import { Interpreter } from "./interpreter";
 import ast = require("./ast");
@@ -61,10 +61,10 @@ for (const alias of Object.keys(headerAlias)) {
 
 export type InputFunction = () => Promise<string>;
 
-function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger | number | void {
+function run(code: string, input: InputFunction, config: JSCPPConfig, stopped = false): Debugger | number | ExternRuntimeApi {
     let step;
     let inputbuffer = ""; // input.toString();
-    let proceed = true;
+    let proceed = !stopped;
     let startTime: number;
     let readResult = "";
 
@@ -204,8 +204,6 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     const oldCode = code;
     const pcode = preprocessor.parse(rt, code);
 
-    const mydebugger = new Debugger(pcode, oldCode);
-
     const result = PEGUtil.parse(ast, pcode);
     if (result.error != null) {
         throw new CRuntimeError(`[line ${result.error.line}:${result.error.column}] Syntax error`, result.error.line, result.error.column);
@@ -218,8 +216,9 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
     }
     const mainGen = rt.invokeCall(rt.getFuncByParams("{global}", "main", [], []), []) as Generator;
     if (_config.debug) {
-        mydebugger.start(rt, mainGen);
-        return mydebugger;
+        const dbgContext = new Debugger(rt, mainGen, pcode, oldCode);
+        dbgContext.start();
+        return dbgContext;
     } else {
         startTime = Date.now();
         performStep();
@@ -234,6 +233,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig): Debugger 
         */
         // return step.value.v as number;
     }
+    return rt.eapi;
 }
 
 export default {
