@@ -4,13 +4,13 @@ This is a simple C++ interpreter written in JavaScript. It originates from felix
 
 ## Purpose of the project
 
-As far as I know, every public online C++ excuting environment requires backend servers to compile and run the produced executable. A portable and lightweight interpreter that can be run in browsers can be a fine substitute for those who do not intend to pay for such services.
+As far as I know, every public online C++ excuting environment requires backend servers to compile and run the produced executable. A portable and lightweight interpreter that can be run in browsers can be a fine substitute for those who do not intend to support backend servers.
 
-We are using this project to create learning courses for Moodle. Code examples run inside a browser. Also, we created tasks with tests to be run on client browser and the results to be reported to Moodle using SCORM standard.
+We are using this project to create learning courses for Moodle and FGPE++ framework. Code examples run inside a browser. Also, we created tasks with tests to be run on client browser and the results to be reported to Moodle using SCORM standard.
 
 ## Prerequisites
 
-* NodeJS version >= 0.11
+* NodeJS
 * A modern browser
 
 ## Main API: `JSCPP.run(code, input, config)`:
@@ -398,16 +398,14 @@ npm run test
 
 ## Implemented features
 
-* (Most) operators
+* Operators
 * Primitive types
 * Variables
 * Structs
 * Arrays
-    - ~~Multidimensional array with initializers.~~
 * Pointers
 * If...else control flow
 * Switch...case control flow
-    - ~~Declarations inside switch block.~~
 * For loop
 * While loop
 * Do...while loop
@@ -419,12 +417,12 @@ npm run test
 
 ### Not implemented yet
 
-* Goto statements
 * Object-oriented features
+* many useful libraries...
 
 ### Performance
 
-If you want to run C++ programs effciently, compile your C++ code to [LLVM-bitcode](https://en.wikipedia.org/wiki/LLVM) and then use [Emscripten](https://github.com/kripken/emscripten).
+If you want to run C++ programs effciently, compile your C++ code to [LLVM-bitcode](https://en.wikipedia.org/wiki/LLVM) and then use [Emscripten](https://github.com/kripken/emscripten). Currently performance is good enough for teaching/learning purposes.
 
 ## Supported libraries
 
@@ -435,20 +433,42 @@ See current progress in [_includes_](src/includes) folder.
   * find
   * reverse
   * swap
+* array
 * cctype
+* climits
 * cmath
+* cstddef
 * cstdio
 * cstdlib
 * cstring
 * ctime
 * fstream
+* functional
 * ifstream
+* iomanip
 * iostream
+* iterator
+* map
+* numeric
 * ofstream
+* set
 * sstream
 * string
+* unordered_map
+* unordered_set
+* utility
 * vector
 
-## Bug report? Feedback?
+## Acknowledgments
 
-Post it on Issues.
+<table cellspacing="0" cellpadding="0" border=0>
+<tr border=0>
+<td border=0>
+This software has been developed as a part of the FGPE++ Gamified Programming Learning at Scale (https://fgpeplus2.usz.edu.pl/) project, which was co-funded by the European Union.
+</td> 
+<td border=0>
+<img src="logo_FGPE.jpg" alt="Framework for Gamified Programming Education project">
+<img src="logo_erasmus.jpg" alt="Erasmus+">
+</td>
+</tr>
+</table>
