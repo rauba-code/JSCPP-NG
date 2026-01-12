@@ -242,9 +242,11 @@ type DirectDeclaratorResult = {
 }
 
 export class Interpreter extends BaseInterpreter<InterpStatement> {
+    lastLine: number | null;
     visitors: { [name: string]: (interp: Interpreter, s: InterpStatement, param?: any) => any };
     constructor(rt: CRuntime) {
         super(rt);
+        this.lastLine = null;
         this.visitors = {
             *TranslationUnit(interp, s, _param) {
                 ({ rt } = interp);
@@ -1891,11 +1893,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         let ret;
         const { rt } = interp;
         //console.log(`${s.sLine}: visiting ${s.type}`);
-        if (rt.lastLineBreakpoint !== s.sLine && rt.lineBreakpoints.has(s.sLine)) {
-            if (rt.config.stdio && rt.config.stdio.trap) {
-                rt.config.stdio.cinStop();
-                rt.lastLineBreakpoint = s.sLine;
-                rt.config.stdio.trap(rt.eapi);
+        if (interp.lastLine === null || interp.lastLine !== s.sLine) {
+            interp.lastLine = s.sLine;
+            // TBD: additional StepIn/StepOut/StepOver logic here
+            if (rt.lineBreakpoints.has(s.sLine)) {
+                if (rt.config.stdio && rt.config.stdio.trap) {
+                    rt.config.stdio.cinStop();
+                    rt.config.stdio.trap(rt.eapi);
+                }
             }
         }
         if ("type" in s) {
