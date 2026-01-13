@@ -161,6 +161,7 @@ export type ExternRuntimeApi = {
     stop(): void;
     setLineBreakpoints: (lines: number[]) => void;
     getVariables: () => { [name: string]: { type: string, value: string } };
+    getCurrentLine: () => number;
 }
 
 export class CRuntime {
@@ -222,6 +223,9 @@ export class CRuntime {
                     }
                 }
                 return dict;
+            },
+            getCurrentLine(): number {
+                return rt.interp.currentNode.sLine;
             }
         };
     }
