@@ -18,7 +18,7 @@ export = {
             }
         ], {})
 
-        rt.addToNamespace("std::string", "npos", variables.arithmetic("I32", -1, "SELF", true));
+        rt.addToNamespace("std::string", "npos", variables.arithmetic("I32", -1, "SELF", true), true);
 
         function cmpOverloads(op: OpSignature, fn: (strcmpRetv: number) => boolean): common.OpHandler[] {
             return [{

@@ -14,7 +14,7 @@ export = {
 
         if (!rt.varAlreadyDefined("endl")) {
             const endl = rt.getCharArrayFromString("\n");
-            rt.addToNamespace("std", "endl", endl);
+            rt.addToNamespace("std", "endl", endl, true);
         }
 
         for (const structName of ["istringstream", "stringstream"]) {

@@ -38,18 +38,18 @@ export = {
         const cin = variables.clone(rt, rt.defaultValue(cinType.t, "SELF") as IStreamVariable, "SELF", false);
         variables.arithmeticAssign(rt, cin.v.members.fd, unixapi.FD_STDIN);
 
-        rt.addToNamespace("std", "cin", cin);
+        rt.addToNamespace("std", "cin", cin, true);
 
         ios_base_impl.defineOstream(rt, "ostream", []);
         const coutType = rt.simpleType(["ostream"]) as MaybeLeft<OStreamType>;
         const cout = variables.clone(rt, rt.defaultValue(coutType.t, "SELF") as OStreamVariable, "SELF", false);
         variables.arithmeticAssign(rt, cout.v.members.fd, unixapi.FD_STDOUT);
 
-        rt.addToNamespace("std", "cout", cout);
+        rt.addToNamespace("std", "cout", cout, true);
 
         if (!("ws_t" in rt.typeMap)) {
             const endl = rt.getCharArrayFromString("\n");
-            rt.addToNamespace("std", "endl", endl);
+            rt.addToNamespace("std", "endl", endl, true);
 
             rt.defineStruct("{global}", "ws_t", [], {});
             const ws: ClassVariable = {
@@ -66,7 +66,7 @@ export = {
                     state: "INIT"
                 }
             }
-            rt.addToNamespace("std", "ws", ws);
+            rt.addToNamespace("std", "ws", ws, true);
         }
 
         function readChar(rt: CRuntime, l: IStreamVariable): Gen<InitArithmeticVariable> {

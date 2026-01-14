@@ -214,7 +214,7 @@ export class CRuntime {
                 for (let i = rt.scope.length - 1; i >= 0; i--) {
                     let scope = rt.scope[i];
                     for (const [name, val] of Object.entries(scope.variables)) {
-                        if (!(name in dict) && "t" in val && "v" in val) {
+                        if (!(name in dict) && "t" in val && "v" in val && Object.entries(val.v).length > 1 && !("hidden" in val)) {
                             dict[name] = { 
                                 type: rt.makeTypeStringOfVar(val),
                                 value: rt.makeValueString(val)
@@ -1117,7 +1117,7 @@ export class CRuntime {
         this.raiseException("Cast: Type error not yet implemented");
     };
 
-    addToNamespace(namespacePath: string, name: string, obj: any) {
+    addToNamespace(namespacePath: string, name: string, obj: any, hidden: boolean = false) {
         const namespaces = namespacePath.split('::');
         let currentNamespace: any = this.namespace;
 
@@ -1126,6 +1126,10 @@ export class CRuntime {
             if (!currentNamespace[namespace])
                 currentNamespace[namespace] = {};
             currentNamespace = currentNamespace[namespace];
+        }
+
+        if (hidden) {
+            obj.hidden = true;
         }
 
         currentNamespace[name] = obj;

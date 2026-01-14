@@ -125,12 +125,12 @@ export = {
 
         ["fixed", "scientific", "hexfloat", "defaultfloat", "left", "right", "internal", "boolalpha", "noboolalpha"].forEach((x: keyof typeof iomanip_token_mode) => {
             const token = createIOManipToken(rt, iomanip_token_mode[x], null);
-            rt.addToNamespace("std", x, token);
+            rt.addToNamespace("std", x, token, true);
         })
 
-        rt.addToNamespace("std", "oct", createIOManipToken(rt, iomanip_token_mode.setbase, 8));
-        rt.addToNamespace("std", "dec", createIOManipToken(rt, iomanip_token_mode.setbase, 10));
-        rt.addToNamespace("std", "hex", createIOManipToken(rt, iomanip_token_mode.setbase, 16));
+        rt.addToNamespace("std", "oct", createIOManipToken(rt, iomanip_token_mode.setbase, 8), true);
+        rt.addToNamespace("std", "dec", createIOManipToken(rt, iomanip_token_mode.setbase, 10), true);
+        rt.addToNamespace("std", "hex", createIOManipToken(rt, iomanip_token_mode.setbase, 16), true);
 
 
     }

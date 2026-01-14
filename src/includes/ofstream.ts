@@ -18,7 +18,7 @@ export = {
 
         if (!rt.varAlreadyDefined("endl")) {
             const endl = rt.getCharArrayFromString("\n");
-            rt.addToNamespace("std", "endl", endl);
+            rt.addToNamespace("std", "endl", endl, true);
         }
 
         ios_base_impl.defineOstream(rt, "ofstream", [

@@ -16,7 +16,7 @@ export = {
     load(rt: CRuntime) {
         if (!("ws_t" in rt.typeMap)) {
             const endl = rt.getCharArrayFromString("\n");
-            rt.addToNamespace("std", "endl", endl);
+            rt.addToNamespace("std", "endl", endl, true);
 
             rt.defineStruct("{global}", "ws_t", [], {});
             const ws: ClassVariable = {
@@ -33,7 +33,7 @@ export = {
                     state: "INIT"
                 }
             }
-            rt.addToNamespace("std", "ws", ws);
+            rt.addToNamespace("std", "ws", ws, true);
         }
 
         const charType = variables.arithmeticType("I8");

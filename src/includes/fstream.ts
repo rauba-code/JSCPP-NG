@@ -8,7 +8,7 @@ export = {
         rt.include("ofstream");
 
         for (const [flag, bitmask] of Object.entries(ios_base.openmode)) {
-            rt.addToNamespace("std::ios", flag, variables.arithmetic("I32", bitmask, "SELF", true));
+            rt.addToNamespace("std::ios", flag, variables.arithmetic("I32", bitmask, "SELF", true), true);
         }
     }
 };
