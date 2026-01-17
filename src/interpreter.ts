@@ -242,11 +242,9 @@ type DirectDeclaratorResult = {
 }
 
 export class Interpreter extends BaseInterpreter<InterpStatement> {
-    lastLine: number | null;
     visitors: { [name: string]: (interp: Interpreter, s: InterpStatement, param?: any) => any };
     constructor(rt: CRuntime) {
         super(rt);
-        this.lastLine = null;
         this.visitors = {
             *TranslationUnit(interp, s, _param) {
                 ({ rt } = interp);
@@ -1893,10 +1891,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         let ret;
         const { rt } = interp;
         //console.log(`${s.sLine}: visiting ${s.type}`);
-        if (interp.lastLine === null || interp.lastLine !== s.sLine) {
-            interp.lastLine = s.sLine;
+        if (rt.debug.lastLine === null || rt.debug.lastLine !== s.sLine) {
+            rt.debug.lastLine = s.sLine;
             // TBD: additional StepIn/StepOut/StepOver logic here
-            if (rt.lineBreakpoints.has(s.sLine)) {
+            let trigger: boolean = false;
+            trigger = trigger || rt.debug.proceedMode === "stepin";
+            trigger = trigger || rt.debug.lineBreakpoints.has(s.sLine);
+            if (trigger) {
                 if (rt.config.stdio && rt.config.stdio.trap) {
                     rt.config.stdio.cinStop();
                     rt.config.stdio.trap(rt.eapi);

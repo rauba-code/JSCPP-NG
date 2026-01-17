@@ -156,8 +156,10 @@ export type MemberObjectListCreator = {
     factory: (template: ObjectType) => ResultOrGen<MemberMap>
 };
 
+export type ProceedMode = "continue" | "stepin" | "stepover" | "stepout";
+
 export type ExternRuntimeApi = {
-    proceed(): void;
+    proceed(mode?: ProceedMode): void;
     stop(): void;
     setLineBreakpoints: (lines: number[]) => void;
     getVariables: () => { [name: string]: { type: string, value: string } };
@@ -175,9 +177,12 @@ export class CRuntime {
     fileio: FileManager;
     ct: typecheck.ConversionTables;
     explicitListInitTable: { [name: string]: ((type: ObjectType) => ObjectType) };
-    lineBreakpoints: Set<number>;
-    lastLineBreakpoint: number;
     eapi: ExternRuntimeApi;
+    debug: {
+        lineBreakpoints: Set<number>;
+        lastLine: number | null,
+        proceedMode: ProceedMode;
+    }
 
     constructor(config: JSCPPConfig) {
         this.parser = typecheck.constructTypeParser();
@@ -190,22 +195,31 @@ export class CRuntime {
         this.namespace = {};
         this.typedefs = {};
         this.ct = { implicit: {}, list: {}, memberType: {} };
-        this.lineBreakpoints = new Set<number>();
-        this.lastLineBreakpoint = -1;
         this.explicitListInitTable = {};
+        this.debug = {
+            lineBreakpoints: new Set<number>(),
+            lastLine: null,
+            proceedMode: "continue"
+        };
         const rt = this;
         this.eapi = {
-            proceed(): void {
+            proceed(mode: ProceedMode = "continue"): void {
+                const PROCEED_MODES : ProceedMode[] = ["continue", "stepin", "stepover", "stepout"];
+                if (PROCEED_MODES.includes(mode)) {
+                    rt.debug.proceedMode = mode;
+                } else {
+                    rt.raiseException("DEBUGGER: Invalid proceed mode");
+                }
                 rt.stdio().cinProceed();
             },
             stop(): void {
                 rt.stdio().cinStop();
             },
             setLineBreakpoints(lines: number[]): void {
-                rt.lineBreakpoints.clear();
+                rt.debug.lineBreakpoints.clear();
                 for (const line of lines) {
-                    if (!(line in rt.lineBreakpoints)) {
-                        rt.lineBreakpoints.add(line);
+                    if (!(line in rt.debug.lineBreakpoints)) {
+                        rt.debug.lineBreakpoints.add(line);
                     }
                 }
             },
@@ -225,7 +239,7 @@ export class CRuntime {
                 return dict;
             },
             getCurrentLine(): number {
-                return rt.interp.currentNode.sLine;
+                return rt.debug.lastLine ?? 0;
             }
         };
     }
@@ -849,7 +863,7 @@ export class CRuntime {
         this.raiseException("Type lookup: Invalid argument (internal erro)");
     };
 
-    defVar(varname: string, object: Variable, allowRedefine: boolean = false) {
+    defVar(varname: string, object: Variable, allowRedefine: boolean = false, hidden: boolean = false) {
         if (!allowRedefine && this.varAlreadyDefined(varname)) {
             this.raiseException("Variable '" + varname + "' already defined");
         }
@@ -861,6 +875,10 @@ export class CRuntime {
         if (object.v.lvHolder === null) {
             //@ts-ignore
             object.v.lvHolder = "SELF";
+        }
+
+        if (hidden) {
+            (object as any).hidden = true;
         }
 
         vc.variables[varname] = object;
@@ -984,8 +1002,9 @@ export class CRuntime {
                 return val !== 0 ? "true" : "false";
             } else if (!properties.isFloat) {
                 // 160 /* hex = 0xA0 */
-                const signedVal = val >= 0 ? val : properties.maxv + 1 + val;
-                return `${val} /* hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')} */`;
+                return val.toString();
+                //const signedVal = val >= 0 ? val : properties.maxv + 1 + val;
+                //return `${val} /* hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')} */`;
             } else {
                 return val.toString();
             }

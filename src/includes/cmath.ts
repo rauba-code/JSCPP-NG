@@ -4,8 +4,8 @@ import { ArithmeticSig, ArithmeticVariable, InitArithmeticVariable, variables } 
 
 export = {
     load(rt: CRuntime) {
-        rt.defVar("INFINITY", variables.arithmetic("F32", Number.POSITIVE_INFINITY, null, true));
-        rt.defVar("NAN", variables.arithmetic("F32", Number.NaN, null, true));
+        rt.defVar("INFINITY", variables.arithmetic("F32", Number.POSITIVE_INFINITY, null, true), false, true);
+        rt.defVar("NAN", variables.arithmetic("F32", Number.NaN, null, true), false, true);
         function commonUnary(fn: (l: number) => number, sig: ArithmeticSig | null): (rt: CRuntime, _templateTypes: [], l: ArithmeticVariable) => InitArithmeticVariable {
             return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable): InitArithmeticVariable {
                 const l = rt.arithmeticValue(_l);
