@@ -1891,14 +1891,18 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         let ret;
         const { rt } = interp;
         //console.log(`${s.sLine}: visiting ${s.type}`);
-        if (rt.debug.lastLine === null || rt.debug.lastLine !== s.sLine) {
+        if (!rt.debug.isTriggered && (rt.debug.lastLine === null || rt.debug.lastLine !== s.sLine)) {
             rt.debug.lastLine = s.sLine;
             // TBD: additional StepIn/StepOut/StepOver logic here
             let trigger: boolean = false;
+            trigger = trigger || (rt.debug.proceedMode === "stepout" && rt.debug.depth < rt.debug.lastDepth);
+            trigger = trigger || (rt.debug.proceedMode === "stepover" && rt.debug.depth === rt.debug.lastDepth);
             trigger = trigger || rt.debug.proceedMode === "stepin";
             trigger = trigger || rt.debug.lineBreakpoints.has(s.sLine);
             if (trigger) {
                 if (rt.config.stdio && rt.config.stdio.trap) {
+                    rt.debug.isTriggered = true;
+                    rt.debug.lastDepth = rt.debug.depth;
                     rt.config.stdio.cinStop();
                     rt.config.stdio.trap(rt.eapi);
                 }

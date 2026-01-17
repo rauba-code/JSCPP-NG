@@ -182,7 +182,10 @@ export class CRuntime {
         lineBreakpoints: Set<number>;
         lastLine: number | null,
         proceedMode: ProceedMode;
-    }
+        depth: number;
+        lastDepth: number;
+        isTriggered: boolean;
+    };
 
     constructor(config: JSCPPConfig) {
         this.parser = typecheck.constructTypeParser();
@@ -199,7 +202,10 @@ export class CRuntime {
         this.debug = {
             lineBreakpoints: new Set<number>(),
             lastLine: null,
-            proceedMode: "continue"
+            proceedMode: "continue",
+            depth: 0,
+            lastDepth: 0,
+            isTriggered: false,
         };
         const rt = this;
         this.eapi = {
@@ -210,6 +216,7 @@ export class CRuntime {
                 } else {
                     rt.raiseException("DEBUGGER: Invalid proceed mode");
                 }
+                rt.debug.isTriggered = false;
                 rt.stdio().cinProceed();
             },
             stop(): void {
@@ -1186,11 +1193,13 @@ export class CRuntime {
     };
 
     enterScope(scopename: string) {
+        this.debug.depth++;
         this.scope.push({ "$name": scopename, variables: {} });
     };
 
     exitScope(scopename: string) {
         // logger.info("%j", this.scope);
+        this.debug.depth--;
         while (true) {
             const s = this.scope.pop();
             if (!scopename || !(this.scope.length > 1) || ((s as RuntimeScope)["$name"] === scopename)) {
