@@ -51,6 +51,7 @@ export interface JSCPPConfig {
     eventLoopSteps?: number;
     printStdin?: boolean; // default: false
     stopExecutionCheck?: () => boolean;
+    trapAtFirstLine?: boolean;
 }
 
 export class CRuntimeError extends Error {
@@ -179,6 +180,8 @@ export class CRuntime {
     explicitListInitTable: { [name: string]: ((type: ObjectType) => ObjectType) };
     eapi: ExternRuntimeApi;
     debug: {
+        // enabled: boolean;
+        hasPassedFirstLine: boolean;
         lineBreakpoints: Set<number>;
         lastLine: number | null,
         proceedMode: ProceedMode;
@@ -200,6 +203,8 @@ export class CRuntime {
         this.ct = { implicit: {}, list: {}, memberType: {} };
         this.explicitListInitTable = {};
         this.debug = {
+            // enabled: config.debug ?? false,
+            hasPassedFirstLine: (config.trapAtFirstLine ?? false) !== true,
             lineBreakpoints: new Set<number>(),
             lastLine: null,
             proceedMode: "continue",
