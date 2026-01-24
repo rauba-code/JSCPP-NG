@@ -159,11 +159,16 @@ export type MemberObjectListCreator = {
 
 export type ProceedMode = "continue" | "stepin" | "stepover" | "stepout";
 
+export type VariableDisplayValue = {
+    type: string,
+    value: string | { [name: string]: VariableDisplayValue }
+};
+
 export type ExternRuntimeApi = {
     proceed(mode?: ProceedMode): void;
     stop(): void;
     setLineBreakpoints: (lines: number[]) => void;
-    getVariables: () => { [name: string]: { type: string, value: string } };
+    getVariables: () => VariableDisplayValue;
     getCurrentLine: () => number;
 }
 
@@ -215,7 +220,7 @@ export class CRuntime {
         const rt = this;
         this.eapi = {
             proceed(mode: ProceedMode = "continue"): void {
-                const PROCEED_MODES : ProceedMode[] = ["continue", "stepin", "stepover", "stepout"];
+                const PROCEED_MODES: ProceedMode[] = ["continue", "stepin", "stepover", "stepout"];
                 if (PROCEED_MODES.includes(mode)) {
                     rt.debug.proceedMode = mode;
                 } else {
@@ -235,20 +240,20 @@ export class CRuntime {
                     }
                 }
             },
-            getVariables(): ({ [name: string]: { type: string, value: string } }) {
-                let dict: { [name: string]: { type: string, value: string } } = {};
+            getVariables(): VariableDisplayValue {
+                let dict: { [name: string]: VariableDisplayValue } = {};
                 for (let i = rt.scope.length - 1; i >= 0; i--) {
                     let scope = rt.scope[i];
                     for (const [name, val] of Object.entries(scope.variables)) {
                         if (!(name in dict) && "t" in val && "v" in val && Object.entries(val.v).length > 1 && !("hidden" in val)) {
-                            dict[name] = { 
+                            dict[name] = {
                                 type: rt.makeTypeStringOfVar(val),
                                 value: rt.makeValueString(val)
                             };
                         }
                     }
                 }
-                return dict;
+                return { type: "", value: dict };
             },
             getCurrentLine(): number {
                 return rt.debug.lastLine ?? 0;

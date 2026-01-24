@@ -1893,7 +1893,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         //console.log(`${s.sLine}: visiting ${s.type}`);
         if (!rt.debug.isTriggered && (rt.debug.lastLine === null || rt.debug.lastLine !== s.sLine)) {
             rt.debug.lastLine = s.sLine;
-            debugger;
             let trigger: boolean = (!rt.debug.hasPassedFirstLine && rt.debug.depth > 0)
                 || (rt.debug.proceedMode === "stepout" && rt.debug.depth < rt.debug.lastDepth)
                 || (rt.debug.proceedMode === "stepover" && rt.debug.depth === rt.debug.lastDepth)
