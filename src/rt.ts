@@ -218,6 +218,7 @@ export class CRuntime {
             isTriggered: false,
         };
         const rt = this;
+        let vcnt: number = 0;
         this.eapi = {
             proceed(mode: ProceedMode = "continue"): void {
                 const PROCEED_MODES: ProceedMode[] = ["continue", "stepin", "stepover", "stepout"];
@@ -241,19 +242,76 @@ export class CRuntime {
                 }
             },
             getVariables(): VariableDisplayValue {
-                let dict: { [name: string]: VariableDisplayValue } = {};
+                const vbegin = vcnt;
+                let queue: [VariableDisplayValue, Variable][] = [];
+                let qi: number = 0;
+                let rdict: { [name: string]: VariableDisplayValue } = {};
+                function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: Variable): void {
+                    const vid = (val as any)._vid;
+                    if (typeof vid === "number" && vid >= vbegin) {
+                        // circular reference
+                        // TODO: output the name of the variable the circular reference leads to
+                        dict[name] = {
+                            type: rt.makeTypeStringOfVar(val),
+                            value: "<circular reference>"
+                        }
+                    } else {
+                        (val as any)._vid = vcnt++;
+                        // TODO: makeValueString may be overwritten afterwards
+                        // This must be optimised
+                        const valNode: VariableDisplayValue = {
+                            type: rt.makeTypeStringOfVar(val),
+                            value: rt.makeValueString(val)
+                        }
+                        dict[name] = valNode;
+                        queue.push([valNode, val]);
+                    }
+
+                }
                 for (let i = rt.scope.length - 1; i >= 0; i--) {
                     let scope = rt.scope[i];
                     for (const [name, val] of Object.entries(scope.variables)) {
-                        if (!(name in dict) && "t" in val && "v" in val && Object.entries(val.v).length > 1 && !("hidden" in val)) {
-                            dict[name] = {
-                                type: rt.makeTypeStringOfVar(val),
-                                value: rt.makeValueString(val)
-                            };
+                        if (!(name in rdict) && "t" in val && "v" in val && Object.entries(val.v).length > 1 && !("hidden" in val)) {
+                            insertVal(rdict, name, val);
                         }
                     }
                 }
-                return { type: "", value: dict };
+                const rootNode = { type: "", value: rdict };
+
+                const MAX_ENTRIES = 25000;
+                while (qi < queue.length) {
+                    if (qi >= MAX_ENTRIES) {
+                        rt.raiseSoftException(`DEBUG: Maximum variable entry limit of ${MAX_ENTRIES} reached.`)
+                        break;
+                    }
+                    const [parentNode, parentVar] = queue[qi];
+                    let dict: { [name: string]: VariableDisplayValue } = {};
+                    if (parentVar.t.sig === "CLASS" && parentVar.v.state === "INIT") {
+                        const parentClass = parentVar as InitClassVariable;
+                        for (const [name, val] of Object.entries(parentClass.v.members)) {
+                            if (!(name in dict) && !("hidden" in val)) {
+                                insertVal(dict, name, val);
+                            }
+                        }
+                    } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).v.subtype === "INDEX") {
+                        const parentArray = parentVar as InitIndexPointerVariable<Variable>;
+                        const memory = parentArray.v.pointee;
+                        const index = parentArray.v.index;
+                        for (let j = 0; j < parentVar.t.sizeConstraint; j++) {
+                            // Always bound. Even if unbound condition happens, we don't care that much
+                            let val = variables.arrayMember(memory, index + j) as Variable;
+                            if (!("hidden" in val)) {
+                                insertVal(dict, `[${j}]`, val);
+                            }
+                        }
+                    }
+                    if (Object.entries(dict).length > 0) {
+                        parentNode.value = dict;
+                    }
+                    qi++;
+                }
+
+                return rootNode;
             },
             getCurrentLine(): number {
                 return rt.debug.lastLine ?? 0;

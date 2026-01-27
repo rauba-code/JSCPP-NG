@@ -650,6 +650,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             },
             *StructDeclaration(interp, s: XStructDeclaration, param) {
                 ({ rt } = interp);
+                // TODO: handle recursive references
 
                 for (const identifier of s.DeclarationIdentifiers) {
                     const structMemberList: MemberObject[] = [];
