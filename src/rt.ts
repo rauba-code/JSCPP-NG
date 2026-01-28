@@ -243,20 +243,29 @@ export class CRuntime {
             },
             getVariables(): VariableDisplayValue {
                 const vbegin = vcnt;
+                vcnt++;
                 let queue: [VariableDisplayValue, Variable][] = [];
                 let qi: number = 0;
                 let rdict: { [name: string]: VariableDisplayValue } = {};
-                function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: Variable): void {
-                    const vid = (val as any)._vid;
+                let parentList: [string, number][] = [["", 0]];
+                function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: Variable, parentId: number, nameAsChild: string): void {
+                    const vid = (val.v as any)._vid;
                     if (typeof vid === "number" && vid >= vbegin) {
                         // circular reference
                         // TODO: output the name of the variable the circular reference leads to
+                        let x = vid;
+                        let path: string[] = [];
+                        while (x > 0) {
+                            path.push(parentList[x - vbegin][0]);
+                            x = parentList[x - vbegin][1];
+                        }
+                        path.reverse();
                         dict[name] = {
                             type: rt.makeTypeStringOfVar(val),
-                            value: "<circular reference>"
+                            value: path.join('')
                         }
                     } else {
-                        (val as any)._vid = vcnt++;
+                        (val.v as any)._vid = vcnt++;
                         // TODO: makeValueString may be overwritten afterwards
                         // This must be optimised
                         const valNode: VariableDisplayValue = {
@@ -265,6 +274,7 @@ export class CRuntime {
                         }
                         dict[name] = valNode;
                         queue.push([valNode, val]);
+                        parentList.push([nameAsChild, parentId]);
                     }
 
                 }
@@ -272,7 +282,7 @@ export class CRuntime {
                     let scope = rt.scope[i];
                     for (const [name, val] of Object.entries(scope.variables)) {
                         if (!(name in rdict) && "t" in val && "v" in val && Object.entries(val.v).length > 1 && !("hidden" in val)) {
-                            insertVal(rdict, name, val);
+                            insertVal(rdict, name, val, 0, name);
                         }
                     }
                 }
@@ -285,12 +295,13 @@ export class CRuntime {
                         break;
                     }
                     const [parentNode, parentVar] = queue[qi];
+                    const parentId = (parentVar.v as any)._vid as number;
                     let dict: { [name: string]: VariableDisplayValue } = {};
                     if (parentVar.t.sig === "CLASS" && parentVar.v.state === "INIT") {
                         const parentClass = parentVar as InitClassVariable;
                         for (const [name, val] of Object.entries(parentClass.v.members)) {
                             if (!(name in dict) && !("hidden" in val)) {
-                                insertVal(dict, name, val);
+                                insertVal(dict, name, val, parentId, `.${name}`);
                             }
                         }
                     } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).v.subtype === "INDEX") {
@@ -301,8 +312,23 @@ export class CRuntime {
                             // Always bound. Even if unbound condition happens, we don't care that much
                             let val = variables.arrayMember(memory, index + j) as Variable;
                             if (!("hidden" in val)) {
-                                insertVal(dict, `[${j}]`, val);
+                                insertVal(dict, `[${j}]`, val, parentId, `[${j}]`);
                             }
+                        }
+                    } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && parentVar.t.sizeConstraint === null && parentVar.t.pointee.sig !== "I8") {
+                        const parentPtr = parentVar as InitIndexPointerVariable<Variable>;
+                        let parentName = parentList[parentId - vbegin][0];
+                        if (parentName.startsWith(".")) {
+                           parentName = parentName.substr(1); 
+                        }
+                        let nameAsChild = `->${parentName}`;
+                        if (parentName.startsWith("[")) {
+                            nameAsChild = `${parentName}[0]`;
+                            parentName = `<pointer>`;
+                        }
+                        let val = variables.deref(parentPtr) as Variable;
+                        if (!("hidden" in val)) {
+                            insertVal(dict, `*${parentName}`, val, parentList[parentId - vbegin][1], nameAsChild);
                         }
                     }
                     if (Object.entries(dict).length > 0) {

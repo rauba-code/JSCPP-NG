@@ -167,6 +167,7 @@ export = {
                             istackArr[slen.v.value - 1].value = i + 1;
                             istackArr[slen.v.value].value = 0;
                             bstackArr[slen.v.value].state = "INIT";
+                            (bstackArr[slen.v.value] as __dptr_branch['v']).subtype = "DIRECT";
                             (bstackArr[slen.v.value] as __dptr_branch['v']).pointee = ((bstackArr[slen.v.value - 1] as __dptr_branch['v']).pointee.members.branches.v.pointee.values[i] as __dptr_branch['v']).pointee;
                             slen.v.value++;
                             is_any = true;
@@ -186,6 +187,7 @@ export = {
                         if ((bstackArr[slen.v.value - 1] as __dptr_branch['v']).pointee.members.leaves.v.pointee.values[i].state === "INIT") {
                             istackArr[slen.v.value - 1].value = i + 1;
                             thisVar.v.members.link.v.state = "INIT";
+                            (thisVar.v.members.link as __dptr_link).v.subtype = "DIRECT";
                             (thisVar.v.members.link as __dptr_link).v.pointee = ((bstackArr[slen.v.value - 1] as __dptr_branch['v']).pointee.members.leaves.v.pointee.values[i] as __dptr_link['v']).pointee;
                             return "VOID";
                         }
@@ -217,6 +219,7 @@ export = {
                     for (let i = 0; i < STACK_SIZE; i++) {
                         if (x.v.members.bstack.v.pointee.values[i].state === "INIT") {
                             thisVar.v.members.bstack.v.pointee.values[i].state = "INIT";
+                            (thisVar.v.members.bstack.v.pointee.values[i] as any).subtype = "DIRECT";
                             (thisVar.v.members.bstack.v.pointee.values[i] as any).pointee = (x.v.members.bstack.v.pointee.values[i] as __dptr_branch['v']).pointee;
                         }
                         thisVar.v.members.istack.v.pointee.values[i].value = x.v.members.istack.v.pointee.values[i].value;
@@ -233,6 +236,7 @@ export = {
                     const thisVar: __umap_iter = _createUMapIterVar(thisType);
                     thisVar.v.members.slen.v.value = 1;
                     thisVar.v.members.bstack.v.pointee.values[0].state = "INIT";
+                    (thisVar.v.members.bstack.v.pointee.values[0] as __dptr_branch['v']).subtype = "DIRECT";
                     (thisVar.v.members.bstack.v.pointee.values[0] as __dptr_branch['v']).pointee = top.v.pointee;
                     _iter_next(thisVar);
 
@@ -250,12 +254,14 @@ export = {
                     for (let i = 0; i < STACK_SIZE; i++) {
                         if (bstack.v.pointee.values[i].state === "INIT") {
                             thisVar.v.members.bstack.v.pointee.values[i].state = "INIT";
+                            (thisVar.v.members.bstack.v.pointee.values[i] as __dptr_branch['v']).subtype = "DIRECT";
                             (thisVar.v.members.bstack.v.pointee.values[i] as __dptr_branch['v']).pointee = (bstack.v.pointee.values[i] as __dptr_branch['v']).pointee;
                         }
                         thisVar.v.members.istack.v.pointee.values[i].value = istack.v.pointee.values[i].value;
                     }
                     if (link.v.state === "INIT") {
                         thisVar.v.members.link.v.state = "INIT";
+                        (thisVar.v.members.link.v as any).subtype = "DIRECT";
                         (thisVar.v.members.link.v as any).pointee = link.v.pointee;
                     }
 
@@ -330,7 +336,7 @@ export = {
                 for (let i = 0; i < (1 << BITS_BRANCH); i++) {
                     bmem.values.push((variables.uninitPointer(bmem.objectType.pointee, null, { array: bmem, index: i }) as PointerVariable<__branch>).v);
                 }
-                let lmem = variables.arrayMemory<PointerVariable<__link>>(variables.pointerType(umapLinkType, (1 << BITS_BRANCH)), []);
+                let lmem = variables.arrayMemory<PointerVariable<__link>>(variables.pointerType(umapLinkType, null), []);
                 for (let i = 0; i < (1 << BITS_BRANCH); i++) {
                     lmem.values.push((variables.uninitPointer(lmem.objectType.pointee, null, { array: lmem, index: i }) as PointerVariable<__link>).v);
                 }
@@ -572,6 +578,7 @@ export = {
                 if (child.state === "UNINIT") {
                     const newChild: __branch = yield* rt.defaultValue2(bstack[i - 1].t, "SELF") as Gen<__branch>;
                     (child as any).state = "INIT";
+                    (child as any).subtype = "DIRECT";
                     (child as any).pointee = newChild.v;
                 }
                 bstack[i] = { "t": bstack[i - 1].t, "v": (child as __dptr_branch['v']).pointee };
@@ -613,6 +620,7 @@ export = {
                     }
                 };
                 blast.v.members.leaves.v.pointee.values[ilast].state = "INIT";
+                (blast.v.members.leaves.v.pointee.values[ilast] as __dptr_link['v']).subtype = "DIRECT";
                 (blast.v.members.leaves.v.pointee.values[ilast] as __dptr_link['v']).pointee = newLink;
                 for (const branch of bstack) {
                     branch.v.members.size.v.value++;
@@ -646,6 +654,7 @@ export = {
                         }
                     };
                     (link.pointee.members.next as __dptr_link).v.state = "INIT";
+                    (link.pointee.members.next as __dptr_link).v.subtype = "DIRECT";
                     (link.pointee.members.next as __dptr_link).v.pointee = newLink;
                     for (const branch of bstack) {
                         branch.v.members.size.v.value++;
@@ -719,6 +728,7 @@ export = {
             const iter = _createUMapIterVar(_createUMapIterType(thisVar.t.templateSpec));
             iter.v.members.slen.v.value = 1;
             iter.v.members.bstack.v.pointee.values[0].state = "INIT";
+            (iter.v.members.bstack.v.pointee.values[0] as __dptr_branch['v']).subtype = "DIRECT";
             (iter.v.members.bstack.v.pointee.values[0] as __dptr_branch['v']).pointee = thisVar.v.members.tree.v;
             _iter_next(iter);
             return iter;
@@ -902,6 +912,7 @@ export = {
                             (link as PointerValue<__link>).state = "UNINIT";
                         } else {
                             link.state = "INIT";
+                            link.subtype = "DIRECT";
                             link.pointee = (tail as __dptr_link).v.pointee;
                         }
                     } else {
@@ -914,6 +925,7 @@ export = {
                                     link.pointee.members.next.v.state = "UNINIT";
                                 } else {
                                     link.pointee.members.next.v.state = "INIT";
+                                    (link.pointee.members.next as __dptr_link).v.subtype = "DIRECT";
                                     (link.pointee.members.next as __dptr_link).v.pointee = (tail as __dptr_link).v.pointee;
                                 }
                                 break;
