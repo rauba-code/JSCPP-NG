@@ -120,6 +120,7 @@ export type TypeHandlerMap = {
     memberObjectListCreator: MemberObjectListCreator;
     dataMemberNames: string[]
     memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }
+    displayFunction: ((rt: CRuntime, x : ClassVariable) => string) | null,
 };
 
 export type TypeSignature = {
@@ -161,7 +162,8 @@ export type ProceedMode = "continue" | "stepin" | "stepover" | "stepout";
 
 export type VariableDisplayValue = {
     type: string,
-    value: string | { [name: string]: VariableDisplayValue }
+    value: string | { [name: string]: VariableDisplayValue },
+    displayString: string | null,
 };
 
 export type ExternRuntimeApi = {
@@ -199,7 +201,7 @@ export class CRuntime {
         this.parser = typecheck.constructTypeParser();
         this.config = config;
         this.typeMap = {};
-        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => ({}) }, [], {});
+        this.addTypeDomain("{global}", { numTemplateArgs: 0, factory: () => ({}) }, [], {}, null);
         this.fileio = { freefd: 4, files: {} };
 
         this.scope = [{ "$name": "{global}", variables: {} }];
@@ -262,7 +264,8 @@ export class CRuntime {
                         path.reverse();
                         dict[name] = {
                             type: rt.makeTypeStringOfVar(val),
-                            value: path.join('')
+                            value: path.join(''),
+                            displayString: null,
                         }
                     } else {
                         (val.v as any)._vid = vcnt++;
@@ -270,7 +273,8 @@ export class CRuntime {
                         // This must be optimised
                         const valNode: VariableDisplayValue = {
                             type: rt.makeTypeStringOfVar(val),
-                            value: rt.makeValueString(val)
+                            value: rt.makeValueString(val),
+                            displayString: null,
                         }
                         dict[name] = valNode;
                         queue.push([valNode, val]);
@@ -286,7 +290,7 @@ export class CRuntime {
                         }
                     }
                 }
-                const rootNode = { type: "", value: rdict };
+                const rootNode = { type: "", value: rdict, displayString: null };
 
                 const MAX_ENTRIES = 25000;
                 while (qi < queue.length) {
@@ -302,6 +306,13 @@ export class CRuntime {
                         for (const [name, val] of Object.entries(parentClass.v.members)) {
                             if (!(name in dict) && !("hidden" in val)) {
                                 insertVal(dict, name, val, parentId, `.${name}`);
+                            }
+                        }
+                        const domain = rt.domainString(parentClass.t);
+                        if (domain in rt.typeMap) {
+                            let dfunc = rt.typeMap[domain].displayFunction;
+                            if (dfunc) {
+                                parentNode.displayString = dfunc(rt, parentClass);
                             }
                         }
                     } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).v.subtype === "INDEX") {
@@ -378,7 +389,7 @@ export class CRuntime {
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
     }
 
-    addTypeDomain(domain: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }) {
+    addTypeDomain(domain: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction: ((rt: CRuntime, x: ClassVariable) => string) | null) {
         if (domain in this.typeMap) {
             this.raiseException(`Domain ${domain} already exists`);
         }
@@ -388,6 +399,7 @@ export class CRuntime {
             memberObjectListCreator: memberList,
             dataMemberNames,
             memberTypes,
+            displayFunction,
         };
     }
 
@@ -1302,7 +1314,7 @@ export class CRuntime {
         }
     };
 
-    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }) {
+    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction : ((rt: CRuntime, x: ClassVariable) => string) | null = null) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         const factory: MemberObjectListCreator = {
@@ -1315,7 +1327,7 @@ export class CRuntime {
             }
         };
         const dataMemberNames: string[] = memberList.map(x => x.name);
-        this.addTypeDomain(domainInline, factory, dataMemberNames, memberTypes);
+        this.addTypeDomain(domainInline, factory, dataMemberNames, memberTypes, displayFunction);
 
         const members: { [name: string]: Variable } = {};
         memberList.forEach((x: MemberObject) => { members[x.name] = x.variable })
@@ -1337,10 +1349,10 @@ export class CRuntime {
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
-    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }) {
+    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction : ((rt: CRuntime, x: ClassVariable) => string) | null = null) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
-        this.addTypeDomain(domainInline, memberList, dataMemberNames, memberTypes);
+        this.addTypeDomain(domainInline, memberList, dataMemberNames, memberTypes, displayFunction);
 
         let stubClassTypeSig: string[] = [];
         for (let i = 0; i < memberList.numTemplateArgs; i++) {

@@ -16,7 +16,15 @@ export = {
                 name: "_size",
                 variable: variables.arithmetic("I64", 0, "SELF")
             }
-        ], {})
+        ], {}, (rt, x: StringVariable) => {
+            const lptr = variables.asInitIndexPointerOfElem(x.v.members._ptr, variables.uninitArithmetic("I8", null));
+            if (lptr) {
+                return JSON.stringify(rt.getStringFromCharArray(lptr));
+            } else {
+                return "\"\"";
+            }
+
+        })
 
         rt.addToNamespace("std::string", "npos", variables.arithmetic("I32", -1, "SELF", true), true);
 
