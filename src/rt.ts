@@ -1109,8 +1109,11 @@ export class CRuntime {
             const properties = variables.arithmeticProperties[sig];
             if (sig === "I8") {
                 // 31 /* hex = 0x21, ascii = '!' */
+                // '!' /* dec = 31, hex = 0x21 */
                 const signedVal = val >= 0 ? val : properties.maxv + 1 + val;
-                return `${val} /* hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')}, ascii = '${String.fromCharCode(val)}' */`;
+                let cstr = JSON.stringify(String.fromCharCode(val));
+                cstr = cstr.substr(1, cstr.length - 2);
+                return `'${cstr}' /* dec = ${val}, hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')} */`;
             } else if (sig === "BOOL") {
                 return val !== 0 ? "true" : "false";
             } else if (!properties.isFloat) {
