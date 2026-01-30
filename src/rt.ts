@@ -120,7 +120,7 @@ export type TypeHandlerMap = {
     memberObjectListCreator: MemberObjectListCreator;
     dataMemberNames: string[]
     memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }
-    displayFunction: ((rt: CRuntime, x : ClassVariable) => string) | null,
+    displayFunction: ((rt: CRuntime, x: ClassVariable) => string) | null,
 };
 
 export type TypeSignature = {
@@ -253,8 +253,6 @@ export class CRuntime {
                 function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: Variable, parentId: number, nameAsChild: string): void {
                     const vid = (val.v as any)._vid;
                     if (typeof vid === "number" && vid >= vbegin) {
-                        // circular reference
-                        // TODO: output the name of the variable the circular reference leads to
                         let x = vid;
                         let path: string[] = [];
                         while (x > 0) {
@@ -303,16 +301,114 @@ export class CRuntime {
                     let dict: { [name: string]: VariableDisplayValue } = {};
                     if (parentVar.t.sig === "CLASS" && parentVar.v.state === "INIT") {
                         const parentClass = parentVar as InitClassVariable;
-                        for (const [name, val] of Object.entries(parentClass.v.members)) {
-                            if (!(name in dict) && !("hidden" in val)) {
-                                insertVal(dict, name, val, parentId, `.${name}`);
-                            }
-                        }
                         const domain = rt.domainString(parentClass.t);
                         if (domain in rt.typeMap) {
                             let dfunc = rt.typeMap[domain].displayFunction;
                             if (dfunc) {
                                 parentNode.displayString = dfunc(rt, parentClass);
+                            }
+                        }
+                        function getBeginEndVars(rt: CRuntime): [Variable, Variable] | null {
+                            const beginInst = rt.tryGetFuncByParams(parentClass.t, "begin", [parentClass], []);
+                            const endInst = rt.tryGetFuncByParams(parentClass.t, "end", [parentClass], []);
+                            if (beginInst === null || endInst === null) {
+                                return null;
+                            }
+                            const beginYield = rt.invokeCall(beginInst, [], parentClass);
+                            const endYield = rt.invokeCall(endInst, [], parentClass);
+                            const beginResult = yieldBlocking(rt, beginYield);
+                            const endResult = yieldBlocking(rt, endYield);
+                            if (beginResult === null || endResult === null) {
+                                return null;
+                            }
+                            const beginVar = variables.clone(rt, rt.unbound(beginResult), "SELF", false);
+                            const endVar = variables.clone(rt, rt.unbound(endResult), "SELF", false);
+                            return [beginVar, endVar];
+                        }
+                        function yieldBlocking(rt: CRuntime, x: ResultOrGen<MaybeUnboundVariable | "VOID">): Variable | null {
+                            if (interp.asResult(x)) {
+                                if (x === "VOID") {
+                                    return null;
+                                }
+                                return rt.unbound(x as MaybeUnboundVariable);
+                            } else {
+                                const call = x as Gen<MaybeUnboundVariable | "VOID">;
+                                for (let i: number = 0; i < 100_000; i++) {
+                                    const _retv = call.next();
+                                    if (_retv.done === true) {
+                                        if (_retv.value === "VOID") {
+                                            return null;
+                                        }
+                                        return rt.unbound(_retv.value);
+                                    }
+                                }
+                            }
+                            rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
+                        }
+                        function rangeBasedFor(): Variable[] | null {
+                            const maybeBeginEnd = getBeginEndVars(rt);
+                            if (!maybeBeginEnd) {
+                                return null;
+                            }
+                            const [beginVar, endVar] = maybeBeginEnd;
+                            if (!variables.typesEqual(beginVar.t, endVar.t)) {
+                                return null;
+                            }
+                            const derefInst = rt.getOpByParams("{global}", "o(*_)", [beginVar], []);
+                            const derefTestYield = rt.invokeCall(derefInst, [], beginVar);
+                            const derefTestVar = yieldBlocking(rt, derefTestYield);
+                            if (derefTestVar === null) {
+                                return null;
+                            }
+                            const ppInst = rt.getOpByParams("{global}", "o(++_)", [beginVar], []);
+                            const neqInst = rt.getOpByParams("{global}", "o(_!=_)", [beginVar, beginVar], []);
+                            const neqTestYield = rt.invokeCall(neqInst, [], beginVar, beginVar);
+                            const neqTestVar = yieldBlocking(rt, neqTestYield);
+                            if (neqTestVar === null || neqTestVar.t.sig !== "BOOL") {
+                                return null;
+                            }
+                            let resultList: Variable[] = [];
+                            while (true) {
+                                const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
+                                const neqVar = yieldBlocking(rt, neqYield);
+                                if (rt.arithmeticValue(neqVar as ArithmeticVariable) === 0) {
+                                    break;
+                                }
+
+                                const elemYield = rt.invokeCall(derefInst, [], beginVar) as ResultOrGen<MaybeUnboundVariable>;
+                                let elemVar = yieldBlocking(rt, elemYield);
+                                if (elemVar === null) {
+                                    return null;
+                                }
+
+                                /* body goes here */
+                                resultList.push(elemVar);
+
+                                const ppYield = rt.invokeCall(ppInst, [], beginVar);
+                                yieldBlocking(rt, ppYield);
+                            }
+
+                            return resultList;
+                        }
+                        let resultList: Variable[] | null = null;
+                        try {
+                            resultList = rangeBasedFor();
+                        } catch (_e) {
+                            // do nothing; output nothing
+                        }
+                        if (resultList) {
+                            // enumerated values
+                            for (const [ii, iv] of resultList.entries()) {
+                                if (!("hidden" in iv)) {
+                                    insertVal(dict, `[${ii}]`, iv, parentId, `[${ii}]`);
+                                }
+                            }
+                        } else {
+                            // default list of members
+                            for (const [name, val] of Object.entries(parentClass.v.members)) {
+                                if (!(name in dict) && !("hidden" in val)) {
+                                    insertVal(dict, name, val, parentId, `.${name}`);
+                                }
                             }
                         }
                     } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).v.subtype === "INDEX") {
@@ -330,7 +426,7 @@ export class CRuntime {
                         const parentPtr = parentVar as InitIndexPointerVariable<Variable>;
                         let parentName = parentList[parentId - vbegin][0];
                         if (parentName.startsWith(".")) {
-                           parentName = parentName.substr(1); 
+                            parentName = parentName.substr(1);
                         }
                         let nameAsChild = `->${parentName}`;
                         if (parentName.startsWith("[")) {
@@ -1317,7 +1413,7 @@ export class CRuntime {
         }
     };
 
-    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction : ((rt: CRuntime, x: ClassVariable) => string) | null = null) {
+    defineStruct(domain: ClassType | "{global}", identifier: string, memberList: MemberObject[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction: ((rt: CRuntime, x: ClassVariable) => string) | null = null) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         const factory: MemberObjectListCreator = {
@@ -1352,7 +1448,7 @@ export class CRuntime {
         }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
     };
 
-    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction : ((rt: CRuntime, x: ClassVariable) => string) | null = null) {
+    defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction: ((rt: CRuntime, x: ClassVariable) => string) | null = null) {
         const classType = variables.classType(identifier, [], domain === "{global}" ? null : domain);
         const domainInline = this.domainString(classType);
         this.addTypeDomain(domainInline, memberList, dataMemberNames, memberTypes, displayFunction);
