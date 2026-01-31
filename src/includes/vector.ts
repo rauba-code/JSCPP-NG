@@ -2,7 +2,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, ClassType } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
 
 interface VectorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "vector",
@@ -43,7 +43,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( CLASS initializer_list < ?0 > )",
-                *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): Gen<VectorVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes: [VectorType<ObjectType>], list: InitializerListVariable<ArithmeticVariable>): Gen<VectorVariable<Variable>> {
                     const thisType = variables.classType("vector", list.t.templateSpec, null);
                     const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
                     const listmem = list.v.members._values.v.pointee;
@@ -60,7 +60,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( PTR ?0 PTR ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<VectorVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes: [VectorType<ObjectType>], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<VectorVariable<Variable>> {
                     const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("vector constructor: expected valid begin iterator");
                     const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("vector constructor: expected valid end iterator");
 
@@ -93,15 +93,39 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( I32 )",
-                *default(rt: CRuntime, templateTypes: ObjectType[], count: InitArithmeticVariable): Gen<VectorVariable<Variable>> {
+                *default(rt: CRuntime, templateTypes: [VectorType<ObjectType>], count: InitArithmeticVariable): Gen<VectorVariable<Variable>> {
                     // NOTE: This constructor is marked as explicit in standard C++
-                    const thisType = variables.classType("vector", [(templateTypes[0] as ClassType).templateSpec[0]], null);
+                    const thisType = variables.classType("vector", [templateTypes[0].templateSpec[0]], null);
                     const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
                     yield* _grow(rt, vec, count.v.value);
                     // Proceed. _grow fills the array with default members already.
                     return vec;
                 }
-            }
+            },
+            // TODO: Uncomment this when TypeCheck matching is fixed
+            /*{
+                op: "o(_ctor)",
+                type: "!ParamObject FUNCTION CLASS vector < ?0 > ( I32 CLREF ?0 )",
+                *default(rt: CRuntime, templateTypes: [VectorType<ObjectType>], count: InitArithmeticVariable, value: Variable): Gen<VectorVariable<Variable>> {
+                    const thisType = variables.classType("vector", [templateTypes[0].templateSpec[0]], null);
+                    const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
+                    const amount = rt.arithmeticValue(count);
+                    let newcap = Math.max(vec.v.members._cap.v.value * 2, 8);
+                    while (amount > newcap) {
+                        newcap *= 2;
+                    }
+                    const _pointeeType: ObjectType = vec.v.members._ptr.t.pointee;
+                    const newMemory = variables.arrayMemory<Variable>(_pointeeType, []);
+                    for (let i = 0; i < newcap; i++) {
+                        const cell = variables.clone(rt, value, { array: newMemory, index: i });
+                        newMemory.values.push(cell.v);
+                    }
+                    vec.v.members._ptr.v.pointee = newMemory;
+                    vec.v.members._cap.v.value = newcap;
+                    vec.v.members._sz.v.value += amount;
+                    return vec;
+                }
+            }*/
         ];
 
         rt.explicitListInitTable["vector"] = (vec: VectorType<ObjectType>) => vec.templateSpec[0];

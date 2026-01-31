@@ -695,6 +695,7 @@ export class CRuntime {
         const paramSig = params.map((x) => variables.toStringSequence(this, x.t, x.v.lvHolder !== null, x.v.isConst));
         //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
+        debugger;
         const fn = domainMap.functionDB.matchFunctionByParams(this, identifier, paramSig, templateTypes, this.ct);
         if (fn === null) {
             return null;
