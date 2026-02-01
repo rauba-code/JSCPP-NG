@@ -167,7 +167,7 @@ InlineWhiteSpace = a:[ \t\u000B\u000C] {return a;}; // 7.4.1.10
 
 WhiteSpace  = a:[ \n\r\t\u000B\u000C] {return a;}; // 7.4.1.10
 
-LongComment = "/*" a:(!"*/"_)* "*/" {return '';};   // 6.4.9
+LongComment = "/*" a:(!"*/"_)* "*/" {return a.map((x) => x[1]).filter((x) => x === '\n').join('');};   // 6.4.9
 
 LineComment = "//" a:(!"\n" _)*  {return '';};     // 6.4.9
 

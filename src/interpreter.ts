@@ -1892,7 +1892,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
         let ret;
         const { rt } = interp;
         //console.log(`${s.sLine}: visiting ${s.type}`);
-        if (!rt.debug.isTriggered && (rt.debug.lastLine === null || rt.debug.lastLine !== s.sLine)) {
+        if (!rt.debug.isTriggered 
+                && (rt.debug.lastLine === null || rt.debug.lastLine !== s.sLine)
+                && s.type !== "CompoundStatement") {
             rt.debug.lastLine = s.sLine;
             let trigger: boolean = (!rt.debug.hasPassedFirstLine && rt.debug.depth > 0)
                 || (rt.debug.proceedMode === "stepout" && rt.debug.depth < rt.debug.lastDepth)
