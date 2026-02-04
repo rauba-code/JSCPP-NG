@@ -250,7 +250,7 @@ export class CRuntime {
                 let qi: number = 0;
                 let rdict: { [name: string]: VariableDisplayValue } = {};
                 let parentList: [string, number][] = [["", 0]];
-                function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: Variable, parentId: number, nameAsChild: string): void {
+                function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: MaybeUnboundVariable, parentId: number, nameAsChild: string): void {
                     const vid = (val.v as any)._vid;
                     if (typeof vid === "number" && vid >= vbegin) {
                         let x = vid;
@@ -275,7 +275,9 @@ export class CRuntime {
                             displayString: null,
                         }
                         dict[name] = valNode;
-                        queue.push([valNode, val]);
+                        if (val.v.state !== "UNBOUND") {
+                            queue.push([valNode, val as Variable]);
+                        }
                         parentList.push([nameAsChild, parentId]);
                     }
 
@@ -325,7 +327,7 @@ export class CRuntime {
                             const endVar = variables.clone(rt, rt.unbound(endResult), "SELF", false);
                             return [beginVar, endVar];
                         }
-                        function yieldBlocking(rt: CRuntime, x: ResultOrGen<MaybeUnboundVariable | "VOID">): Variable | null {
+                        function yieldBlocking(rt: CRuntime, x: ResultOrGen<MaybeUnboundVariable | "VOID">): MaybeUnboundVariable | null {
                             if (interp.asResult(x)) {
                                 if (x === "VOID") {
                                     return null;
@@ -339,13 +341,13 @@ export class CRuntime {
                                         if (_retv.value === "VOID") {
                                             return null;
                                         }
-                                        return rt.unbound(_retv.value);
+                                        return _retv.value;
                                     }
                                 }
                             }
                             rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
                         }
-                        function rangeBasedFor(): Variable[] | null {
+                        function rangeBasedFor(): MaybeUnboundVariable[] | null {
                             const maybeBeginEnd = getBeginEndVars(rt);
                             if (!maybeBeginEnd) {
                                 return null;
@@ -367,7 +369,7 @@ export class CRuntime {
                             if (neqTestVar === null || neqTestVar.t.sig !== "BOOL") {
                                 return null;
                             }
-                            let resultList: Variable[] = [];
+                            let resultList: MaybeUnboundVariable[] = [];
                             while (true) {
                                 const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
                                 const neqVar = yieldBlocking(rt, neqYield);
@@ -390,7 +392,7 @@ export class CRuntime {
 
                             return resultList;
                         }
-                        let resultList: Variable[] | null = null;
+                        let resultList: MaybeUnboundVariable[] | null = null;
                         try {
                             resultList = rangeBasedFor();
                         } catch (_e) {
@@ -1194,10 +1196,14 @@ export class CRuntime {
         x.v.value = q + info.minv;
     }
 
-    makeValueString(v: Variable | Function, options: MakeValueStringOptions = {}): string {
-        if (v.v.state === "UNINIT") {
+    makeValueString(_v: MaybeUnboundVariable | Function, options: MakeValueStringOptions = {}): string {
+        if (_v.v.state === "UNINIT") {
             return "<uninitialised>";
         }
+        if (_v.v.state === "UNBOUND") {
+            return "<out of bounds>";
+        }
+        const v = _v as Variable | Function;
         const arithmeticVar = variables.asArithmetic(v) as InitArithmeticVariable | null;
         if (arithmeticVar !== null) {
             const val = arithmeticVar.v.value;
@@ -1587,6 +1593,9 @@ export class CRuntime {
     };
 
     raiseException(message: string, currentNode?: any): never {
+        if (this?.debug?.isTriggered) {
+            throw new Error("Error when debugging"); // will be caught
+        }
         if (this?.interp) {
             if (currentNode == null) {
                 ({
