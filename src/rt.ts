@@ -402,12 +402,12 @@ export class CRuntime {
                             if (resultList.length === 0) {
                                 parentNode.value = "{ }";
                             } else {
-                            // enumerated values
-                            for (const [ii, iv] of resultList.entries()) {
-                                if (!("hidden" in iv)) {
-                                    insertVal(dict, `[${ii}]`, iv, parentId, `[${ii}]`);
+                                // enumerated values
+                                for (const [ii, iv] of resultList.entries()) {
+                                    if (!("hidden" in iv)) {
+                                        insertVal(dict, `[${ii}]`, iv, parentId, `[${ii}]`);
+                                    }
                                 }
-                            }
                             }
                         } else {
                             // default list of members
@@ -1216,10 +1216,16 @@ export class CRuntime {
             if (sig === "I8") {
                 // 31 /* hex = 0x21, ascii = '!' */
                 // '!' /* dec = 31, hex = 0x21 */
-                const signedVal = val >= 0 ? val : properties.maxv + 1 + val;
-                let cstr = JSON.stringify(String.fromCharCode(val));
-                cstr = cstr.substr(1, cstr.length - 2);
-                return `'${cstr}' /* dec = ${val}, hex = 0x${signedVal.toString(16).padStart(properties.bytes * 2, '0')} */`;
+                const unsignedVal = val >= 0 ? val : (properties.maxv - properties.minv) + 1 + val;
+                const hexVal = unsignedVal.toString(16).padStart(properties.bytes * 2, '0');
+                let cstr: string;
+                if (unsignedVal >= 127) {
+                    cstr = `\\x${hexVal}`;
+                } else {
+                    cstr = JSON.stringify(String.fromCharCode(unsignedVal));
+                    cstr = cstr.substr(1, cstr.length - 2);
+                }
+                return `'${cstr}' /* dec = ${val}, hex = 0x${hexVal} */`;
             } else if (sig === "BOOL") {
                 return val !== 0 ? "true" : "false";
             } else if (!properties.isFloat) {

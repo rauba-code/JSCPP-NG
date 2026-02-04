@@ -231,6 +231,13 @@ export = {
                 }
             },
             {
+                op: "empty",
+                type: "!ParamObject FUNCTION BOOL ( CLREF CLASS vector < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitArithmeticVariable {
+                    return variables.arithmetic("BOOL", (vec.v.members._sz.v.value === 0) ? 1 : 0, null, false);
+                }
+            },
+            {
                 op: "erase",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 )",
                 default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _pos: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
