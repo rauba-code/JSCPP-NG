@@ -399,11 +399,15 @@ export class CRuntime {
                             // do nothing; output nothing
                         }
                         if (resultList) {
+                            if (resultList.length === 0) {
+                                parentNode.value = "{ }";
+                            } else {
                             // enumerated values
                             for (const [ii, iv] of resultList.entries()) {
                                 if (!("hidden" in iv)) {
                                     insertVal(dict, `[${ii}]`, iv, parentId, `[${ii}]`);
                                 }
+                            }
                             }
                         } else {
                             // default list of members
