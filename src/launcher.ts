@@ -38,7 +38,7 @@ const includes: { [fileName: string]: IncludeModule } = {
     functional: require("./includes/functional"),
     // array: require("./includes/array"),
     iterator: require("./includes/iterator"),
-    // _bits__stdcpp: require("./includes/bits/stdcpp")
+    _bits__stdcpp: require("./includes/bits/stdcpp")
 };
 
 const headerAlias: { [filename: string]: string } = {
@@ -49,7 +49,7 @@ const headerAlias: { [filename: string]: string } = {
     "stdio.h": "cstdio",
     "stdlib.h": "cstdlib",
     "stddef.h": "cstddef",
-    //"bits/stdc++.h": "_bits__stdcpp",
+    "bits/stdc++.h": "_bits__stdcpp",
     "bits/unixapi.h": "_bits__unixapi",
     "time.h": "ctime"
 };
