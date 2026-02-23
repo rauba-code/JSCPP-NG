@@ -11,6 +11,7 @@ export = {
     load(rt: CRuntime) {
         rt.include("cctype"); // gcc-specific
         rt.include("string");
+        rt.include("cstdio"); // gcc-specific
         const charType = variables.arithmeticType("I8");
         rt.defineStruct("{global}", "istream", [
             {
