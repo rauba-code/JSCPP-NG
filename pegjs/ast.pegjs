@@ -84,6 +84,7 @@ DeclarationList
 
 StatementORDeclaration
     = Statement / Declaration
+    ;
 
 Statement
     = Label
@@ -98,6 +99,7 @@ Statement
 Label
     = CASE a:ConstantExpression COLON {return addPositionInfo({type: 'Label_case', ConstantExpression: a});}
     / DEFAULT COLON {return addPositionInfo({type: 'Label_default'});}
+    ;
 
 CompoundStatement
     = LWING a:(UsingDirective / Declaration / Statement)* RWING {
