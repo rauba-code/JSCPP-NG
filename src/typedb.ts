@@ -169,7 +169,7 @@ export class TypeDB {
             }
         }
         if (candidateIndices.length > 1) {
-            rt.raiseException(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n${candidateIndices.map((iv, ii) => (ii + 1).toString() + ") " + fnobj.overloads[iv].type.join(" ")).join("\n")}`);
+            rt.raiseException(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n${candidateIndices.map((iv, ii) => (ii + 1).toString() + ") " + fnobj.overloads[iv].annotation).join("\n")}`);
         }
         fnobj.cache[targetInline] = bestCandidate;
         return bestCandidate;

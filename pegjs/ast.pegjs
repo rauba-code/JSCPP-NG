@@ -8,14 +8,14 @@
   };
 
   function addPositionInfo(r){
-      var posDetails = peg$computePosDetails(peg$currPos);
+      /*var posDetails = peg$computePosDetails(peg$currPos);
       r.eLine = posDetails.line;
       r.eColumn = posDetails.column;
       r.eOffset = peg$currPos;
       posDetails = peg$computePosDetails(peg$savedPos);
       r.sLine = posDetails.line;
       r.sColumn = posDetails.column;
-      r.sOffset = peg$savedPos;
+      r.sOffset = peg$savedPos;*/
       return r;
   }
 }
@@ -25,21 +25,11 @@
 //-------------------------------------------------------------------------
 
 TranslationUnit
-    = Spacing a:ExternalDeclaration+ EOT {return addPositionInfo({type:'TranslationUnit', ExternalDeclarations: a});}
+    = Spacing a:(b:ExternalDeclaration WS { return b; })+ EOT {return addPositionInfo({type:'TranslationUnit', ExternalDeclarations: a});}
     ;
 
 ExternalDeclaration
-    = Namespace / TypedefDeclaration / FunctionDefinition / StructDeclaration / Declaration
-    ;
-
-Namespace
-    =  NamespaceDefinition / UsingDirective / UsingDeclaration / NamespaceAliasDefinition
-    ;
-
-NamespaceDefinition
-    = NAMESPACE a:Identifier LWING b:ExternalDeclaration+ RWING {
-      return addPositionInfo({type: 'NamespaceDefinition', Identifier:a, ExternalDeclarations:b});
-    }
+    = FunctionDefinition / StructDeclaration / SimpleDeclaration
     ;
 
 UsingDirective
@@ -57,12 +47,6 @@ UsingDeclaration
 NamespaceAliasDefinition
     = NAMESPACE a:Identifier EQU b:ScopedIdentifier SEMI {
       return addPositionInfo({type: 'NamespaceAliasDefinition', target: b, Identifier: a})
-    }
-    ;
-
-TypedefDeclaration
-    = TYPEDEF a:DeclarationSpecifiers b:Declarator c:(COMMA ac:Declarator {return ac;})* SEMI {
-      return addPositionInfo({type:'TypedefDeclaration', DeclarationSpecifiers:a, Declarators:[b].concat(c)});
     }
     ;
 
@@ -155,6 +139,34 @@ DeleteStatement
 //  A.2.2  Declarations
 //-------------------------------------------------------------------------
 
+SimpleDeclaration = a:DeclIdentifierSeq WS b:InitDeclaratorList { return addPositionInfo({ type: "SimpleDeclaration", declIdentifierSeq: a, initDeclaratorList: b }) };
+
+DeclIdentifierSeq = a:Identifier { return addPositionInfo({ type: "DeclIdentifierSeq", value: a }); };
+
+InitDeclaratorList = a:(WS b:InitDeclarator {return b;})* ";" { return addPositionInfo({ type: "InitDeclaratorList", values: a }); };
+
+InitDeclarator = a:Declarator WS b:Initializer { return addPositionInfo({ type: "InitDeclarator", declarator: a, initializer: b }); };
+
+Declarator = Identifier;
+
+Initializer = "=" WS a:Expression { return addPositionInfo({ type: "Initializer", value: a }); };
+
+Expression = FnCallOperatorExpression / NoFnCallOperatorExpression;
+
+NoFnCallOperatorExpression = BraceInitExpression / Name / Literal;
+
+Literal "literal" = a:(LiteralDecimal / LiteralFloat / LiteralBoolean) { return addPositionInfo({ type: "Literal", value: a }); };
+
+LiteralDecimal =  a:([0-9]+) { return addPositionInfo({ type: "LiteralDecimal", value: a.join('') }); };
+
+LiteralFloat = a:( [0-9]+ ("." [0-9]+)? ) { return addPositionInfo({ type: "Literal", value: a[0].join('') + (a[1] ?? []).join('') }); };
+
+LiteralBoolean = a:(TRUE / FALSE) { return addPositionInfo({type: "LiteralBoolean", value: a }); };
+
+BraceInitExpression = Name WS "{" WS (ParameterList WS)? "}";
+
+FnCallOperatorExpression = NoFnCallOperatorExpression WS "(" WS (ParameterList WS)? ")";
+
 DeclarationFOREACH
     = a:DeclarationSpecifiers b:InitDeclaratorList? {
       return addPositionInfo({type: 'Declaration', DeclarationSpecifiers:a, InitDeclaratorList:b});
@@ -198,16 +210,6 @@ DeclarationSpecifiers
       )+ {
         return a;
       }
-    ;
-
-InitDeclaratorList
-    = a:InitDeclarator b:(COMMA x:InitDeclarator {return x;})* {
-      return [a].concat(b);
-    }
-    ;
-
-InitDeclarator
-    = a:Declarator b:((EQU x:Initializer {return x;}) / InitializerListExpr)? {return addPositionInfo({type:'InitDeclarator', Declarator:a, Initializers:b});}
     ;
 
 StorageClassSpecifier
@@ -281,17 +283,6 @@ FunctionDirectDeclarator
       }) {
         return addPositionInfo({type:'DirectDeclarator', left:a, right:b});
       }
-    ;
-
-Declarator
-    = ( a:Pointer? b:DirectDeclarator {
-      b.Pointer = a;
-      return b;
-    } )
-    / ( a:Reference? b:DirectDeclarator {
-      b.Reference = a;
-      return b;
-    } )
     ;
 
 TypeScopedMaybeTemplatedIdentifier = (TypeSpecifier)+ / ScopedMaybeTemplatedIdentifier;
@@ -413,12 +404,6 @@ TypedefName
     ;
 
 InitializerListExpr = LWING a:(x:InitializerList COMMA? {return x;})? RWING {return addPositionInfo({type:'Initializer_array', Initializers:a ?? []});}
-
-Initializer
-    = InitializerListExpr 
-    / a:AssignmentExpression {return addPositionInfo({type:'Initializer_expr', Expression:a});}
-    / LWING a:StructInitializerList COMMA? RWING { return addPositionInfo({type:'StructExpression', values:a}); }
-    ;
 
 InitializerList
     = a:Initializer b:(COMMA ac:Initializer {return ac;})* {return [a].concat(b);}
@@ -623,17 +608,10 @@ AssignmentOperator
     / HATEQU
     / OREQU
     ;
-
-Expression
-    = a:AssignmentExpression b:(COMMA AssignmentExpression)* {
-      return buildRecursiveBinop(a, b);
-    }
-    ;
-
+    
 ConstantExpression
     = ConditionalExpression
     ;
-
 
 //-------------------------------------------------------------------------
 //  A.1.1  Lexical elements
@@ -786,18 +764,16 @@ ScopedIdentifier
     }
     ;
 
-Identifier = !Keyword a:IdNondigit b:IdChar* Spacing {return a+b.join('')} ;
+Identifier "identifier" = !Keyword a:IdentifierBegin b:(IdChar*) Spacing? { return addPositionInfo({ type: "Identifier", value: a + b.join('') }); };
 
-IdNondigit
-    = [a-z] / [A-Z] / [_]
-    / UniversalCharacter
-    ;
+IdentifierBegin = [A-Za-z_\p{XID_Start}];
 
-IdChar
-    = [a-z] / [A-Z] / [0-9] / [_]
-    / UniversalCharacter
-    ;
+// alias: IdentifierContinue
+IdChar = [0-9A-Za-z_\p{XID_Start}];
 
+Name "name" = a:(("::" WS)? (a:Identifier WS "::" WS { return a; })* Identifier (WS "<" WS Name WS ">")?) { return addPositionInfo({type: "Name", value: a })};
+
+WS "whitespace" = [ \n\t\r]*;
 
 //-------------------------------------------------------------------------
 //  A.1.4  Universal character names
@@ -1013,3 +989,4 @@ SCOPEOP    =  a:"::"        Spacing {return a;};
 EOT        =  !_    ;
 
 _          =  . ;
+
