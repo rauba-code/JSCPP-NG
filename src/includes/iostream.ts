@@ -12,6 +12,7 @@ export = {
         rt.include("cctype"); // gcc-specific
         rt.include("string");
         rt.include("cstdio"); // gcc-specific
+        rt.include("iomanip"); // ensure manipulators like boolalpha are available via <iostream>
         const charType = variables.arithmeticType("I8");
         rt.defineStruct("{global}", "istream", [
             {
@@ -165,16 +166,30 @@ export = {
                         return l;
                     }
                     const wordString = utf8.fromUtf8CharArray(new Uint8Array(wordValues));
-                    const num = Number.parseFloat(wordString);
                     const stdio = rt.stdio();
                     if (stdio.isMochaTest) {
                         stdio.write(wordString + "\n");
                     }
-                    if (Number.isNaN(num)) {
-                        variables.arithmeticAssign(rt, l.v.members.failbit, 1);
-                        return l;
+
+                    // Special handling for reading into BOOL: accept "true"/"false" (case-insensitive),
+                    // and also numeric 0/1 (or any non-zero as true) for user convenience.
+                    let handled = false;
+                    if (r.t.sig === "BOOL") {
+                        const ws = wordString.trim().toLowerCase();
+                        if (ws === "true" || ws === "false") {
+                            variables.arithmeticAssign(rt, r, ws === "true" ? 1 : 0);
+                            handled = true;
+                        }
                     }
-                    variables.arithmeticAssign(rt, r, num);
+
+                    if (!handled) {
+                        const num = Number.parseFloat(wordString);
+                        if (Number.isNaN(num)) {
+                            variables.arithmeticAssign(rt, l.v.members.failbit, 1);
+                            return l;
+                        }
+                        variables.arithmeticAssign(rt, r, num);
+                    }
 
                 }
                 rt.adjustArithmeticValue((r as InitArithmeticVariable));
