@@ -60,6 +60,21 @@ function overloadIomanip(rt: CRuntime, structName: string) {
 
 }
 
+function overloadIomanipInput(rt: CRuntime, structName: string) {
+    const opHandlers: OpHandler[] = [{
+        op: "o(_>>_)",
+        type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > CLASS iomanip_token < > )`,
+        // No-op: input manipulators like boolalpha are accepted but do not change input parsing yet
+        default(rt: CRuntime, _templateTypes: [], l: any, _r: IOManipTokenVariable): any {
+            return l;
+        }
+    }];
+
+    opHandlers.forEach((x) => {
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), []);
+    });
+}
+
 export = {
     load(rt: CRuntime) {
 
@@ -75,6 +90,7 @@ export = {
         ], {});
 
         ["ostream", "ofstream"].forEach((x) => { if (x in rt.typeMap) { overloadIomanip(rt, x) } });
+        ["istream", "ifstream"].forEach((x) => { if (x in rt.typeMap) { overloadIomanipInput(rt, x) } });
 
         const iomanipTokenType = rt.simpleType(["iomanip_token"]) as MaybeLeft<IOManipTokenType>;
 
