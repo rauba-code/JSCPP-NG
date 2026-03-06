@@ -189,7 +189,7 @@ export = {
                 }
             },
         ]);
-        rt.defVar("RAND_MAX", variables.arithmetic("I32", RAND_MAX, null, true));
+        rt.defVar("RAND_MAX", variables.arithmetic("I32", RAND_MAX, null, true), false, true);
 
     }
 }

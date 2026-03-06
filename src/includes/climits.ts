@@ -37,7 +37,7 @@ export = {
             { sig: i64, name: "LLONG_MAX", val: ap[i64].maxv },
             { sig: u64, name: "ULLONG_MIN", val: ap[u64].minv },
             { sig: u64, name: "ULLONG_MAX", val: ap[u64].maxv },
-        ].map(({sig, name, val}) => rt.defVar(name, variables.arithmetic(sig, val, null, true)))
+        ].map(({sig, name, val}) => rt.defVar(name, variables.arithmetic(sig, val, null, true), false, true))
     }
 }
 
