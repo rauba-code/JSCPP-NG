@@ -619,6 +619,60 @@ export = {
                     }
                 }
             },
+            {
+                op: "remove_if",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 ) )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[],
+                    _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>,
+                    _predicate: PointerVariable<Function>): Gen<InitIndexPointerVariable<Variable>> {
+
+                    const FNAME = 'remove_if';
+                    const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("remove_if(): Expected 'first' to point to an element");
+                    const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("remove_if(): Expected 'last' to point to an element");
+                    if (first.v.pointee !== last.v.pointee) {
+                        rt.raiseException("remove_if(): Expected 'first' and 'last' to point to an element of the same memory region");
+                    }
+
+                    const predicate = variables.asInitDirectPointer(_predicate) as InitDirectPointerVariable<Function>
+                        ?? rt.raiseException("remove(): expected a pointer to a function");
+                    
+                    const predicateDeref : Function = { t: predicate.t.pointee, v: predicate.v.pointee };
+
+                    const i = variables.clone(rt, first, "SELF");
+                    const j = variables.clone(rt, first, "SELF");
+
+                    const ppInst = rt.getOpByParams("{global}", "o(_++)", [i], []);
+                    const eqInst_ref = rt.getOpByParams("{global}", "o(_==_)", [i, i], []);
+                    const derefInst = rt.getOpByParams("{global}", "o(*_)", [i], []);
+                    const derefResult0 = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                    const setInst_deref = rt.getOpByParams("{global}", "o(_=_)", [derefResult0, derefResult0], []);
+
+                    for (; ;) {
+                        const derefResult1 = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                        const predYield = rt.invokeCallFromVariable(predicateDeref, derefResult1) as ResultOrGen<ArithmeticVariable>;
+                        const predResultOrVoid = asResult(predYield) ?? (yield *predYield as Gen<MaybeUnboundVariable | "VOID">);
+                        if (predResultOrVoid === "VOID") {
+                            rt.raiseException("remove_if(): expected predicate function return value of type bool, got void.");
+                        }
+                        const predResult = rt.arithmeticValue(predResultOrVoid);
+                        
+                        if (predResult !== 0) {
+                            yield* _invokePp(rt, FNAME, ppInst, i);
+                            if (yield* _invokeEq(rt, eqInst_ref, i, last)) {
+                                return j;
+                            }
+                        }
+                        const derefResult_i = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                        const derefResult_j = yield* _invokeDeref(rt, FNAME, derefInst, j);
+                        yield* _invokeSet(rt, FNAME, setInst_deref, derefResult_j, derefResult_i);
+                        yield* _invokePp(rt, FNAME, ppInst, i);
+                        yield* _invokePp(rt, FNAME, ppInst, j);
+                        if (yield* _invokeEq(rt, eqInst_ref, i, last)) {
+                            return j;
+                        }
+                    }
+                }
+            },
         ]);
     }
 };
