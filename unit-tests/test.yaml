@@ -328,3 +328,7 @@
       cases:
         cpp: "strcmp.cpp"
         out: "yes\nyes\n"
+    std_remove:
+      cases:
+        cpp: "std_remove.cpp"
+        out: "2 3 5 11 17 23 29 41 47 53 59 71 83 89 97 97 97 97 97 97 97 97 97 97 97"

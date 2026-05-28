@@ -433,6 +433,7 @@ PrimaryExpression
     / a:StringLiteral {return addPositionInfo({type:'StringLiteralExpression', value:a});}
     / LPAR a:Expression RPAR {return addPositionInfo({type:'ParenthesesExpression', Expression:a});}
     / InitializerListExpr
+    / LambdaExpression
     ;
 
 PostfixExpression
@@ -638,6 +639,55 @@ ConstantExpression
     = ConditionalExpression
     ;
 
+LambdaExpression
+	= LambdaIntroducer LambdaDeclarator? CompoundStatement
+    ;
+
+LambdaIntroducer
+	= LBRK LambdaCapture? RBRK
+    ;
+
+// lambda-declarator:
+//     ( parameter-declaration-clause ) decl-specifier-seq? noexcept-specifier? attribute-specifier-seq? trailing-return-type?
+LambdaDeclarator
+	= LPAR ParameterTypeList RPAR TypeSpecifier_generic_cv? TrailingReturnType?
+    ;
+
+LambdaCapture
+	= CaptureDefault COMMA CaptureList
+    / CaptureDefault
+    / CaptureList
+	;
+
+CaptureList
+	= Capture ELLIPSIS? (COMMA Capture ELLIPSIS?)*
+    ;
+
+CaptureDefault
+	= AND
+   	/ EQU
+    ;
+
+Capture
+	= SimpleCapture
+    / InitCapture
+    ;
+
+SimpleCapture
+	= Identifier
+    / AND Identifier
+    / THIS
+    / STAR THIS
+    ;
+
+InitCapture
+	= Identifier Initializer
+    / AND Identifier Initializer
+    ;
+
+TrailingReturnType
+	= PTR TypeId
+    ;
 
 //-------------------------------------------------------------------------
 //  A.1.1  Lexical elements
@@ -1086,4 +1136,3 @@ SCOPEOP    =  a:"::"        Spacing {return a;};
 EOT        =  !_    ;
 
 _          =  . ;
-

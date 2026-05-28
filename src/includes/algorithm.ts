@@ -29,6 +29,44 @@ export = {
             rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
         }
 
+        function* _invokeEq(rt: CRuntime, eqInst: FunctionCallInstance, lhs: Variable, rhs: Variable): Gen<boolean> {
+            const eqYield = rt.invokeCall(eqInst, [], lhs, rhs) as ResultOrGen<ArithmeticVariable>;
+            const eqResult = rt.arithmeticValue(asResult(eqYield) ?? (yield* eqYield as Gen<ArithmeticVariable>))
+            return eqResult !== 0;
+        }
+        function* _invokeDeref(rt: CRuntime, fname: string, derefInst: FunctionCallInstance, reference: InitIndexPointerVariable<Variable>): Gen<Variable> {
+            const derefYield = rt.invokeCall(derefInst, [], reference);
+            const derefResultOrVoid = asResult(derefYield) ?? (yield* derefYield as Gen<MaybeUnboundVariable | "VOID">);
+            if (derefResultOrVoid === "VOID") {
+                const typeOfPpResult = rt.makeTypeStringOfVar(reference);
+                rt.raiseException(`${fname}(): expected '${typeOfPpResult}::operator*' to return an object, got void`);
+            }
+            const derefResult: Variable = rt.unbound(derefResultOrVoid);
+            return derefResult;
+        }
+        function* _invokePp(rt: CRuntime, fname: string, ppInst: FunctionCallInstance, arg: InitIndexPointerVariable<Variable>): Gen<Variable> {
+            const ppYield = rt.invokeCall(ppInst, [], arg);
+            const ppResultOrVoid = asResult(ppYield) ?? (yield* ppYield as Gen<MaybeUnboundVariable | "VOID">);
+            if (ppResultOrVoid === "VOID") {
+                const typeOfFirst = rt.makeTypeStringOfVar(arg);
+                rt.raiseException(`${fname}(): expected '${typeOfFirst}::operator++' to return an object, got void`);
+            }
+            const ppResult: Variable = rt.unbound(ppResultOrVoid);
+            return ppResult;
+        }
+
+
+        function* _invokeSet(rt: CRuntime, fname: string, setInst: FunctionCallInstance, lhs: Variable, rhs: Variable): Gen<Variable> {
+            const setYield = rt.invokeCall(setInst, [], lhs, rhs);
+            const setResultOrVoid = asResult(setYield) ?? (yield* setYield as Gen<MaybeUnboundVariable | "VOID">);
+            if (setResultOrVoid === "VOID") {
+                const typeOfSetResult = rt.makeTypeStringOfVar(lhs);
+                rt.raiseException(`${fname}(): expected '${typeOfSetResult}::operator=' to return an object, got void`);
+            }
+            const setResult: Variable = rt.unbound(setResultOrVoid);
+            return setResult;
+        }
+
         function sort_inner(rt: CRuntime, _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>, _cmp: PointerVariable<Function> | ClassVariable | null = null): "VOID" {
             if (_l.t.pointee.sig === "FUNCTION" || _r.t.pointee.sig === "FUNCTION") {
                 rt.raiseException("sort: invalid argument")
@@ -511,6 +549,7 @@ export = {
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
                     first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
+
                     first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
                     d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: true, ab: false });
@@ -536,6 +575,48 @@ export = {
                     first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
                     comp: PointerVariable<Function>): Gen<InitArithmeticVariable> {
                     return yield* set_includes(rt, first1, last1, first2, last2, comp);
+                }
+            },
+            {
+                op: "remove",
+                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[],
+                    _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>,
+                    value: Variable): Gen<InitIndexPointerVariable<Variable>> {
+
+                    const FNAME = 'remove';
+                    const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("remove(): Expected 'first' to point to an element");
+                    const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("remove(): Expected 'last' to point to an element");
+                    if (first.v.pointee !== last.v.pointee) {
+                        rt.raiseException("remove(): Expected 'first' and 'last' to point to an element of the same memory region");
+                    }
+                    const i = variables.clone(rt, first, "SELF");
+                    const j = variables.clone(rt, first, "SELF");
+
+                    const ppInst = rt.getOpByParams("{global}", "o(_++)", [i], []);
+                    const eqInst_ref = rt.getOpByParams("{global}", "o(_==_)", [i, i], []);
+                    const derefInst = rt.getOpByParams("{global}", "o(*_)", [i], []);
+                    const derefResult0 = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                    const eqInst_deref = rt.getOpByParams("{global}", "o(_==_)", [derefResult0, derefResult0], []);
+                    const setInst_deref = rt.getOpByParams("{global}", "o(_=_)", [derefResult0, derefResult0], []);
+
+                    for (; ;) {
+                        const derefResult1 = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                        if (yield* _invokeEq(rt, eqInst_deref, derefResult1, value)) {
+                            yield* _invokePp(rt, FNAME, ppInst, i);
+                            if (yield* _invokeEq(rt, eqInst_ref, i, last)) {
+                                return j;
+                            }
+                        }
+                        const derefResult_i = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                        const derefResult_j = yield* _invokeDeref(rt, FNAME, derefInst, j);
+                        yield* _invokeSet(rt, FNAME, setInst_deref, derefResult_j, derefResult_i);
+                        yield* _invokePp(rt, FNAME, ppInst, i);
+                        yield* _invokePp(rt, FNAME, ppInst, j);
+                        if (yield* _invokeEq(rt, eqInst_ref, i, last)) {
+                            return j;
+                        }
+                    }
                 }
             },
         ]);
