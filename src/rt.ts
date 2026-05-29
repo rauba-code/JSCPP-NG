@@ -590,15 +590,15 @@ export class CRuntime {
     };
 
     /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeDB-associated functions */
-    createFunctionTypeSignature(domain: ClassType | "{global}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], noThis = false): TypeSignature {
-        const thisSig: string[] = (domain === "{global}" || noThis) ? [] : variables.toStringSequence(this, domain, true, false);
+    createFunctionTypeSignature(domain: ClassType | "{global}" | "{lambda}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], noThis = false): TypeSignature {
+        const thisSig: string[] = (typeof domain === "string" || noThis) ? [] : variables.toStringSequence(this, domain, true, false);
         const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(this, retType.t, retType.v.lvHolder !== null, false);
         const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(this, x.t, x.v.lvHolder !== null, x.v.isConst));
         const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat(2);
         return this.arrayTypeSignature(result);
     }
 
-    defFunc(domain: ClassType | "{global}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
+    defFunc(domain: ClassType | "{global}" | "{lambda}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
         while (true) {
             let f: CFunction | null = null;
             const _optionalArgs = [...optionalArgs]; // cloned array passed to a closure
@@ -864,8 +864,8 @@ export class CRuntime {
     makePrefixOperatorFuncName = (name: string) => `o(${name}_)`;
     makePostfixOperatorFuncName = (name: string) => `o(_${name})`;
 
-    domainString(domain: ClassType | "{global}"): string {
-        if (domain === "{global}") {
+    domainString(domain: ClassType | "{global}" | "{lambda}"): string {
+        if (typeof domain === "string") {
             return domain;
         }
         let seq: string[] = [domain.identifier];
@@ -877,7 +877,7 @@ export class CRuntime {
         return seq.reverse().join(".");
     }
 
-    regFunc(f: CFunction | null, domain: ClassType | "{global}", name: string, fnsig: TypeSignature, templateTypes: number[]): void {
+    regFunc(f: CFunction | null, domain: ClassType | "{global}" | "{lambda}", name: string, fnsig: TypeSignature, templateTypes: number[]): void {
         const domainInlineSig: string = this.domainString(domain);
         if (!(domainInlineSig in this.typeMap)) {
             this.raiseException(`type '${fnsig.inline}' is unknown`);
@@ -898,8 +898,8 @@ export class CRuntime {
             }
         } else {
             if (this.varAlreadyDefined(name)) {
-                if (!(domain === "{global}" && name in this.scope[0].variables && variables.asFunction(this.scope[0].variables[name]) !== null)) {
-                    if (domain === "{global}" && name in this.scope[0].variables) {
+                if (!(typeof domain === "string" && name in this.scope[0].variables && variables.asFunction(this.scope[0].variables[name]) !== null)) {
+                    if (typeof domain === "string" && name in this.scope[0].variables) {
                         this.raiseException(`Global function '${name}' is already declared as a non-function variable of type ${this.makeTypeStringOfVar(this.scope[0].variables[name])}.`)
                     } else {
                         this.raiseException(`Redeclaration of '${domainInlineSig}::${name}' (overloading member functions is not yet implemented)`)
@@ -908,7 +908,7 @@ export class CRuntime {
             }
             domainMap.functionDB.addFunctionOverload(this, name, fnsig.array, templateTypes, domainMap.functionsByID.length);
             domainMap.functionsByID.push({ type: fnsig.array, target: f });
-            if (name === "o(_ctor)" && domain !== "{global}") {
+            if (name === "o(_ctor)" && typeof domain !== "string") {
                 const dstTypeInline = variables.toStringSequence(this, domain, false, false).join(" ");
                 if (!(dstTypeInline in this.ct.implicit)) {
                     this.ct.implicit[dstTypeInline] = {};

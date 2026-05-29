@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, MemberMap, MemberObject, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable, PointerVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -121,9 +121,10 @@ export interface XDirectDeclarator_modifier_IdentifierList extends StatementMeta
     type: "DirectDeclarator_modifier_IdentifierList",
     IdentifierList: any,
 }
+export type LegacyDeclSpecifierSeq = (string | XScopedIdentifier | XScopedMaybeTemplatedIdentifier)[];
 export interface XDeclaration extends StatementMeta {
     type: "Declaration",
-    DeclarationSpecifiers: (string | XScopedIdentifier | XScopedMaybeTemplatedIdentifier)[],
+    DeclarationSpecifiers: LegacyDeclSpecifierSeq,
     InitDeclaratorList: XInitDeclarator[],
 }
 export interface XTypedefDeclaration extends StatementMeta {
@@ -151,6 +152,11 @@ export interface XInitializerExpr extends StatementMeta {
 export interface XInitializerArray extends StatementMeta {
     type: "Initializer_array",
     Initializers: (XInitializerExpr | XInitializerArray)[],
+}
+export type XInitializer = XInitializerExpr | XInitializerArray | XStructExpression;
+export interface XStructExpression extends StatementMeta {
+    type: "StructExpression",
+    values: XInitializer,
 }
 export interface XStructDeclaration extends StatementMeta {
     type: "StructDeclaration",
@@ -234,6 +240,40 @@ export interface XExplicitTypeInitializerExpr extends StatementMeta {
     type: "ExplicitTypeInitializerExpr"
     targetType: XTypeId,
     initializer: XInitializerArray,
+}
+type XSimpleCapture = StatementMeta & {
+    type: "SimpleCapture",
+    subtype: "this" | "*this"
+} | {
+    type: "SimpleCapture",
+    subtype: "id" | "&id",
+    identifier: string,
+}
+type XInitCapture = StatementMeta & {
+    type: "InitCapture",
+    isRef: boolean,
+    identifier: string,
+    initializer: XInitializer,
+}
+type LambdaCaptureListEntry = {
+    ellipsis: boolean,
+    capture: XSimpleCapture | XInitCapture
+}
+type LambdaCapture = {
+    captureDefault: "&" | "=" | null,
+    captureList: LambdaCaptureListEntry[],
+}
+type LambdaDeclarator = {
+    params: XParameterTypeList,
+    declSpecifierSeq: TypeSpecifier | null,
+    returnType: XTypeId,
+}
+export interface XLambdaExpression extends StatementMeta {
+    type: "LambdaExpression",
+    lambdaIntroducer: LambdaCapture,
+    lambdaDeclarator: LambdaDeclarator | null,
+    compundStatement: XCompoundStatement,
+    _id?: string,
 }
 export type TypeSpecifier = TypeSpecifier_basic | TypeSpecifier_decltype | XScopedMaybeTemplatedIdentifier;
 export type TypeSpecifier_basic = {
@@ -992,6 +1032,87 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     param.scope = _scope;
                     return r;
                 }
+            },
+            *LambdaExpression(interp, s: XLambdaExpression, param) {
+                ({
+                    rt
+                } = interp);
+                const LAMBDA_DOMAIN = "{lambda}";
+                const lambdaDeclarator = s.lambdaDeclarator ?? rt.raiseException("Lambda expression error: Not yet implemented");
+                const params: ParameterTypeListResult = yield* interp.visit(interp, lambdaDeclarator.params, param);
+                if (params.optionalArgs.length !== 0) {
+                    rt.raiseException("Lambda expression error: Not yet implemented");
+                }
+                if (!("_id" in s)) {
+                    if (!(LAMBDA_DOMAIN in rt.typeMap)) {
+                        rt.addTypeDomain(LAMBDA_DOMAIN, { numTemplateArgs: 0, factory: () => ({}) }, [], {}, null);
+                    }
+                    const name = `__lambda_${rt.typeMap[LAMBDA_DOMAIN].functionsByID.length}`;
+                    const fnsig = rt.createFunctionTypeSignature(LAMBDA_DOMAIN, "VOID", params.argTypes);
+                    const argTypes = params.argTypes;
+                    const argNames = params.argNames.map(x => x ?? rt.raiseException("Function definition error: expected a named parameter"));
+                    const optionalArgs = params.optionalArgs;
+
+                    // HACK
+                    fnsig.array[1] = "Return";
+                    fnsig.inline = fnsig.array.join(' ');
+
+                    let f = function*(rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) {
+                        if (templateArgs.length > 1) {
+                            rt.raiseException("Not yet implemented");
+                        }
+                        // logger.warn("calling function: %j", name);
+                        rt.enterScope("function " + name);
+                        if (args.length + optionalArgs.length !== argTypes.length) {
+                            rt.raiseException(`Expected ${argTypes.length} arguments, got ${args.length}`)
+                        }
+                        argNames.slice(0, args.length).forEach(function(argName, i) {
+                            if (argTypes[i].v.lvHolder === null) {
+                                const arg = args[i];
+                                if (arg.t.sig !== "PTR" || arg.t.sizeConstraint === null) {
+                                    args[i] = variables.clone(rt, args[i], "SELF", false);
+                                }
+                            }
+                            if (args[i].v.isConst && !argTypes[i].v.isConst) {
+                                rt.raiseException("Cannot pass a const-value where a volatile value is required")
+                            } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
+                                args[i] = variables.clone(rt, args[i], args[i].v.lvHolder, false);
+                                (args[i].v as any).isConst = true;
+                            }
+                            rt.defVar(argName, args[i]);
+                        });
+                        for (const optarg of optionalArgs) {
+                            rt.defVar(optarg.name, variables.clone(rt, optarg.variable, "SELF", false));
+                        }
+                        let ret = yield* interp.run(s.compundStatement, interp.source, { scope: "function" });
+                        /* if (retType === "VOID") {
+                            if (Array.isArray(ret)) {
+                                if ((ret[0] === "return") && ret[1]) {
+                                    rt.raiseException("void function cannot return a value");
+                                }
+                            }
+                            ret = "VOID";
+                        } else */ {
+                            if (ret instanceof Array && (ret[0] === "return")) {
+                                //ret = rt.cast(retType.t, ret[1]);
+                            } else if (name === "main") {
+                                ret = variables.arithmetic("I32", 0, null);
+                            } else {
+                                rt.raiseException("non-void function must return a value");
+                            }
+                        }
+                        rt.exitScope("function " + name);
+                        // logger.warn("function: returning %j", ret);
+                        return ret;
+
+                    }
+
+                    rt.regFunc(f, LAMBDA_DOMAIN, name, fnsig, []);
+                    s._id = name;
+                    const fnptr : PointerVariable<Function> = variables.directPointer(variables.function(fnsig.array, name, f, null, null), null);
+                    return fnptr;
+                }
+                rt.raiseException("Lambda expression error: Not yet implemented");
             },
             *ExpressionStatement(interp, s, param) {
                 ({
