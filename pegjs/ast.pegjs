@@ -640,27 +640,33 @@ ConstantExpression
     ;
 
 LambdaExpression
-	= LambdaIntroducer LambdaDeclarator? CompoundStatement
+	= a:LambdaIntroducer b:LambdaDeclarator? c:CompoundStatement {
+    	return addPositionInfo({type: "LambdaExpression", lambdaIntroducer: a, 
+        						lambdaDeclarator: b, compoundStatement: c});
+    }
     ;
 
 LambdaIntroducer
-	= LBRK LambdaCapture? RBRK
+	= LBRK a:LambdaCapture? RBRK { return a; }
     ;
 
 // lambda-declarator:
 //     ( parameter-declaration-clause ) decl-specifier-seq? noexcept-specifier? attribute-specifier-seq? trailing-return-type?
 LambdaDeclarator
-	= LPAR ParameterTypeList RPAR TypeSpecifier_generic_cv? TrailingReturnType?
+	= LPAR a:ParameterTypeList RPAR b:TypeSpecifier_generic_cv? c:TrailingReturnType? {
+    	return { params: a, declSpecifierSeq: b, returnType: c };
+    }
     ;
 
 LambdaCapture
-	= CaptureDefault COMMA CaptureList
-    / CaptureDefault
-    / CaptureList
+	= a:(x:CaptureDefault COMMA {return x;})? b:CaptureList { return { captureDefault: a, captureList: b } }
+    / a:CaptureDefault { return {captureDefault: a, captureList: null}; }
 	;
 
 CaptureList
-	= Capture ELLIPSIS? (COMMA Capture ELLIPSIS?)*
+	= a:Capture b:ELLIPSIS? c:(COMMA x:Capture y:ELLIPSIS? { return { capture: x, ellipsis: (y != null)}; })* {
+    	return [{capture: a, ellipsis: (b != null)}, ...c];
+    }
     ;
 
 CaptureDefault
@@ -674,19 +680,20 @@ Capture
     ;
 
 SimpleCapture
-	= Identifier
-    / AND Identifier
-    / THIS
-    / STAR THIS
+	= a:Identifier     { return addPositionInfo({type: "SimpleCapture", subtype: "id", identifier: a}); }
+    / AND a:Identifier { return addPositionInfo({type: "SimpleCapture", subtype: "&id", identifier: a}); }
+    / THIS			   { return addPositionInfo({type: "SimpleCapture", subtype: "this"}); }
+    / STAR THIS		   { return addPositionInfo({type: "SimpleCapture", subtype: "*this"}); }
     ;
 
 InitCapture
-	= Identifier Initializer
-    / AND Identifier Initializer
+	= a:AND? b:Identifier c:Initializer { 
+    	return addPositionInfo({type: "InitCapture", isRef: (a !== null), identifier: b, initializer: c}); 
+    } 
     ;
 
 TrailingReturnType
-	= PTR TypeId
+	= PTR a:TypeId { return a; }
     ;
 
 //-------------------------------------------------------------------------

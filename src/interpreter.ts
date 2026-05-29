@@ -266,13 +266,13 @@ type LambdaCapture = {
 type LambdaDeclarator = {
     params: XParameterTypeList,
     declSpecifierSeq: TypeSpecifier | null,
-    returnType: XTypeId,
+    returnType: XTypeId | null,
 }
 export interface XLambdaExpression extends StatementMeta {
     type: "LambdaExpression",
     lambdaIntroducer: LambdaCapture,
     lambdaDeclarator: LambdaDeclarator | null,
-    compundStatement: XCompoundStatement,
+    compoundStatement: XCompoundStatement,
     _id?: string,
 }
 export type TypeSpecifier = TypeSpecifier_basic | TypeSpecifier_decltype | XScopedMaybeTemplatedIdentifier;
@@ -1038,26 +1038,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const LAMBDA_DOMAIN = "{lambda}";
-                const lambdaDeclarator = s.lambdaDeclarator ?? rt.raiseException("Lambda expression error: Not yet implemented");
-                const params: ParameterTypeListResult = yield* interp.visit(interp, lambdaDeclarator.params, param);
-                if (params.optionalArgs.length !== 0) {
-                    rt.raiseException("Lambda expression error: Not yet implemented");
-                }
                 if (!("_id" in s)) {
+                    const lambdaDeclarator = s.lambdaDeclarator ?? rt.raiseException("Lambda expression error: Not yet implemented");
+                    const params: ParameterTypeListResult = yield* interp.visit(interp, lambdaDeclarator.params, param);
+                    const returnType = resolveTypeId(rt, lambdaDeclarator.returnType ?? rt.raiseException("Lambda expression error: Not yet implemented"));
+                    if (returnType === "AUTO") {
+                        rt.raiseException("Lambda expression error: Return type cannot be auto"); // or can it be?
+                    }
+                    if (params.optionalArgs.length !== 0) {
+                        rt.raiseException("Lambda expression error: Not yet implemented");
+                    }
                     if (!(LAMBDA_DOMAIN in rt.typeMap)) {
                         rt.addTypeDomain(LAMBDA_DOMAIN, { numTemplateArgs: 0, factory: () => ({}) }, [], {}, null);
                     }
                     const name = `__lambda_${rt.typeMap[LAMBDA_DOMAIN].functionsByID.length}`;
-                    const fnsig = rt.createFunctionTypeSignature(LAMBDA_DOMAIN, "VOID", params.argTypes);
+                    const fnsig = rt.createFunctionTypeSignature(LAMBDA_DOMAIN, returnType, params.argTypes);
                     const argTypes = params.argTypes;
                     const argNames = params.argNames.map(x => x ?? rt.raiseException("Function definition error: expected a named parameter"));
                     const optionalArgs = params.optionalArgs;
 
-                    // HACK
-                    fnsig.array[1] = "Return";
-                    fnsig.inline = fnsig.array.join(' ');
-
-                    let f = function*(rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) {
+                    /*let f = function*(rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) {
                         if (templateArgs.length > 1) {
                             rt.raiseException("Not yet implemented");
                         }
@@ -1084,17 +1084,17 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         for (const optarg of optionalArgs) {
                             rt.defVar(optarg.name, variables.clone(rt, optarg.variable, "SELF", false));
                         }
-                        let ret = yield* interp.run(s.compundStatement, interp.source, { scope: "function" });
-                        /* if (retType === "VOID") {
+                        let ret = yield* interp.run(s.compoundStatement, interp.source, { scope: "function" });
+                        if (returnType === "VOID") {
                             if (Array.isArray(ret)) {
                                 if ((ret[0] === "return") && ret[1]) {
                                     rt.raiseException("void function cannot return a value");
                                 }
                             }
                             ret = "VOID";
-                        } else */ {
+                        } else {
                             if (ret instanceof Array && (ret[0] === "return")) {
-                                //ret = rt.cast(retType.t, ret[1]);
+                                ret = rt.cast(returnType.t, ret[1]);
                             } else if (name === "main") {
                                 ret = variables.arithmetic("I32", 0, null);
                             } else {
@@ -1105,11 +1105,18 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         // logger.warn("function: returning %j", ret);
                         return ret;
 
-                    }
+                    }*/
 
-                    rt.regFunc(f, LAMBDA_DOMAIN, name, fnsig, []);
+                    rt.defFunc(LAMBDA_DOMAIN, name, returnType, argTypes, argNames, optionalArgs, s.compoundStatement, interp);
                     s._id = name;
-                    const fnptr : PointerVariable<Function> = variables.directPointer(variables.function(fnsig.array, name, f, null, null), null);
+                    const fun = rt.typeMap[LAMBDA_DOMAIN].functionsByID[rt.typeMap[LAMBDA_DOMAIN].functionDB.matchSingleFunction(rt, name)].target;
+                    const fnptr: PointerVariable<Function> = variables.directPointer(variables.function(fnsig.array, name, fun, null, null), null);
+                    return fnptr;
+                }
+                if (s._id) {
+                    const name = s._id;
+                    const fun = rt.typeMap[LAMBDA_DOMAIN].functionsByID[rt.typeMap[LAMBDA_DOMAIN].functionDB.matchSingleFunction(rt, name)];
+                    const fnptr: PointerVariable<Function> = variables.directPointer(variables.function(fun.type, name, fun.target, null, null), null);
                     return fnptr;
                 }
                 rt.raiseException("Lambda expression error: Not yet implemented");
