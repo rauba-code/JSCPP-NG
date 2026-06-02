@@ -652,9 +652,10 @@ LambdaIntroducer
 
 // lambda-declarator:
 //     ( parameter-declaration-clause ) decl-specifier-seq? noexcept-specifier? attribute-specifier-seq? trailing-return-type?
+// where decl-specifier-seq can contain only "mutable" or "constexpr";
 LambdaDeclarator
-	= LPAR a:ParameterTypeList RPAR b:TypeSpecifier_generic_cv? c:TrailingReturnType? {
-    	return { params: a, declSpecifierSeq: b, returnType: c };
+	= LPAR a:ParameterTypeList RPAR b:TrailingReturnType? {
+    	return { params: a, returnType: b };
     }
     ;
 

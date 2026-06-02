@@ -265,12 +265,11 @@ type LambdaCapture = {
 }
 type LambdaDeclarator = {
     params: XParameterTypeList,
-    declSpecifierSeq: TypeSpecifier | null,
     returnType: XTypeId | null,
 }
 export interface XLambdaExpression extends StatementMeta {
     type: "LambdaExpression",
-    lambdaIntroducer: LambdaCapture,
+    lambdaIntroducer: LambdaCapture | null,
     lambdaDeclarator: LambdaDeclarator | null,
     compoundStatement: XCompoundStatement,
     _id?: string,
@@ -1039,14 +1038,27 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 const LAMBDA_DOMAIN = "{lambda}";
                 if (!("_id" in s)) {
-                    const lambdaDeclarator = s.lambdaDeclarator ?? rt.raiseException("Lambda expression error: Not yet implemented");
+                    const lambdaDeclarator: LambdaDeclarator = s.lambdaDeclarator ?? {
+                        params: {
+                            type: "ParameterTypeList",
+                            varargs: false,
+                            ParameterList: [],
+                            eColumn: s.eColumn,
+                            eLine: s.eLine,
+                            eOffset: s.eOffset,
+                            sColumn: s.sColumn,
+                            sLine: s.sLine,
+                            sOffset: s.sOffset
+                        },
+                        returnType: null,
+                    };
                     const params: ParameterTypeListResult = yield* interp.visit(interp, lambdaDeclarator.params, param);
-                    const returnType = resolveTypeId(rt, lambdaDeclarator.returnType ?? rt.raiseException("Lambda expression error: Not yet implemented"));
+                    const returnType = (lambdaDeclarator.returnType !== null) ? resolveTypeId(rt, lambdaDeclarator.returnType) : "AUTO";
                     if (returnType === "AUTO") {
-                        rt.raiseException("Lambda expression error: Return type cannot be auto"); // or can it be?
+                        rt.raiseException("Lambda expression error: Not yet implemented (unspecified or auto return type)");
                     }
                     if (params.optionalArgs.length !== 0) {
-                        rt.raiseException("Lambda expression error: Not yet implemented");
+                        rt.raiseException("Lambda expression error: Not yet implemented (optional arguments)");
                     }
                     if (!(LAMBDA_DOMAIN in rt.typeMap)) {
                         rt.addTypeDomain(LAMBDA_DOMAIN, { numTemplateArgs: 0, factory: () => ({}) }, [], {}, null);
@@ -1054,58 +1066,41 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const name = `__lambda_${rt.typeMap[LAMBDA_DOMAIN].functionsByID.length}`;
                     const fnsig = rt.createFunctionTypeSignature(LAMBDA_DOMAIN, returnType, params.argTypes);
                     const argTypes = params.argTypes;
-                    const argNames = params.argNames.map(x => x ?? rt.raiseException("Function definition error: expected a named parameter"));
+                    const argNames = params.argNames.map(x => x ?? rt.raiseException("Lambda expression error: expected a named parameter"));
                     const optionalArgs = params.optionalArgs;
 
-                    /*let f = function*(rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) {
-                        if (templateArgs.length > 1) {
-                            rt.raiseException("Not yet implemented");
+                    if (s.lambdaIntroducer !== null) {
+                        if (s.lambdaIntroducer.captureDefault !== null) {
+                            // capture-default rule '=' specifies that all implicitly captured entities are captured by copy, whereas all explicitly captured entities are captured by reference (simple-capture instances of '&identifier' or '*this').
+                            // capture-default rule '&' specifies that 
+                            rt.raiseException("Lambda expression error: Not yet implemented (capture-default rule is specified)");
                         }
-                        // logger.warn("calling function: %j", name);
-                        rt.enterScope("function " + name);
-                        if (args.length + optionalArgs.length !== argTypes.length) {
-                            rt.raiseException(`Expected ${argTypes.length} arguments, got ${args.length}`)
-                        }
-                        argNames.slice(0, args.length).forEach(function(argName, i) {
-                            if (argTypes[i].v.lvHolder === null) {
-                                const arg = args[i];
-                                if (arg.t.sig !== "PTR" || arg.t.sizeConstraint === null) {
-                                    args[i] = variables.clone(rt, args[i], "SELF", false);
+                        //let captures: [string, Variable] = [];
+                        for (const captureEntry of s.lambdaIntroducer.captureList) {
+                            if (captureEntry.ellipsis === true) {
+                                rt.raiseException("Lambda expression error: Not yet implemented (ellipsis in capture list)");
+                            }
+                            if (captureEntry.capture.type === "InitCapture") {
+                                rt.raiseException("Lambda expression error: Not yet implemented (init-capture in capture list)");
+                            } else if (captureEntry.capture.subtype === "id") {
+                                if (s.lambdaIntroducer.captureDefault === "=") {
+                                    rt.raiseException("Lambda expression error: Explicit simple capture by copy is forbidden by the capture-default rule '='");
                                 }
-                            }
-                            if (args[i].v.isConst && !argTypes[i].v.isConst) {
-                                rt.raiseException("Cannot pass a const-value where a volatile value is required")
-                            } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
-                                args[i] = variables.clone(rt, args[i], args[i].v.lvHolder, false);
-                                (args[i].v as any).isConst = true;
-                            }
-                            rt.defVar(argName, args[i]);
-                        });
-                        for (const optarg of optionalArgs) {
-                            rt.defVar(optarg.name, variables.clone(rt, optarg.variable, "SELF", false));
-                        }
-                        let ret = yield* interp.run(s.compoundStatement, interp.source, { scope: "function" });
-                        if (returnType === "VOID") {
-                            if (Array.isArray(ret)) {
-                                if ((ret[0] === "return") && ret[1]) {
-                                    rt.raiseException("void function cannot return a value");
+                                // explicit capture by copy
+                                //let ident = captureEntry.capture.identifier;
+                                rt.raiseException("Lambda expression error: Not yet implemented (explicit capture by copy)");
+                            } else if (captureEntry.capture.subtype === "&id") {
+                                if (s.lambdaIntroducer.captureDefault === "&") {
+                                    rt.raiseException("Lambda expression error: Explicit simple capture by reference is forbidden by the capture-default rule '&'");
                                 }
-                            }
-                            ret = "VOID";
-                        } else {
-                            if (ret instanceof Array && (ret[0] === "return")) {
-                                ret = rt.cast(returnType.t, ret[1]);
-                            } else if (name === "main") {
-                                ret = variables.arithmetic("I32", 0, null);
+                                // explicit capture by reference
+                                //let ident = captureEntry.capture.identifier;
+                                rt.raiseException("Lambda expression error: Not yet implemented (explicit capture by reference)");
                             } else {
-                                rt.raiseException("non-void function must return a value");
+                                rt.raiseException("Lambda expression error: Not yet implemented ('this' or '*this' in capture list)");
                             }
                         }
-                        rt.exitScope("function " + name);
-                        // logger.warn("function: returning %j", ret);
-                        return ret;
-
-                    }*/
+                    }
 
                     rt.defFunc(LAMBDA_DOMAIN, name, returnType, argTypes, argNames, optionalArgs, s.compoundStatement, interp);
                     s._id = name;

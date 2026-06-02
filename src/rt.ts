@@ -598,7 +598,7 @@ export class CRuntime {
         return this.arrayTypeSignature(result);
     }
 
-    defFunc(domain: ClassType | "{global}" | "{lambda}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter): void {
+    defFunc(domain: ClassType | "{global}" | "{lambda}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter, locals: {[name: string]: Variable} | null = null): void {
         while (true) {
             let f: CFunction | null = null;
             const _optionalArgs = [...optionalArgs]; // cloned array passed to a closure
@@ -629,6 +629,11 @@ export class CRuntime {
                     });
                     for (const optarg of _optionalArgs) {
                         rt.defVar(optarg.name, variables.clone(rt, optarg.variable, "SELF", false));
+                    }
+                    if (locals !== null) {
+                        for (const [localName, localVar] of Object.entries(locals)) {
+                            rt.defVar(localName, localVar);
+                        }
                     }
                     let ret = yield* interp.run(stmts, interp.source, { scope: "function" });
                     if (retType === "VOID") {
