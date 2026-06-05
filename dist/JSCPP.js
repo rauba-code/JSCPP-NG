@@ -19853,6 +19853,22 @@ module.exports = {
                 }
             },
             {
+                op: "pop_back",
+                type: "FUNCTION VOID ( LREF CLASS string < > )",
+                default(rt, _templateTypes, l) {
+                    const size = l.v.members._size.v.value;
+                    if (size === 0) {
+                        rt.raiseException("string::pop_back(): string is empty");
+                    }
+                    const lptr = variables_1.variables.asInitIndexPointerOfElem(l.v.members._ptr, variables_1.variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const newSize = size - 1;
+                    l.v.members._size.v.value = newSize;
+                    const nullChar = variables_1.variables.arithmetic("I8", 0, { array: lptr.v.pointee, index: lptr.v.index + newSize });
+                    lptr.v.pointee.values[lptr.v.index + newSize] = nullChar.v;
+                    return "VOID";
+                }
+            },
+            {
                 op: "back",
                 type: "FUNCTION LREF I8 ( CLREF CLASS string < > )",
                 default(rt, _templateTypes, l) {
