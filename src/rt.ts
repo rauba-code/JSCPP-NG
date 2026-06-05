@@ -598,7 +598,7 @@ export class CRuntime {
         return this.arrayTypeSignature(result);
     }
 
-    defFunc(domain: ClassType | "{global}" | "{lambda}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter, locals: {[name: string]: Variable} | null = null): void {
+    defFunc(domain: ClassType | "{global}" | "{lambda}", name: string, retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], argNames: string[], optionalArgs: MemberObject[], stmts: interp.XCompoundStatement | null, interp: interp.Interpreter, locals: { [name: string]: Variable } | null = null): void {
         while (true) {
             let f: CFunction | null = null;
             const _optionalArgs = [...optionalArgs]; // cloned array passed to a closure
@@ -1565,12 +1565,16 @@ export class CRuntime {
         this.raiseException("Not yet implemented");
     };
 
-    *defaultValue2(type: ObjectType, lvHolder: LValueHolder<Variable>): Gen<Variable> {
+    *defaultValue2(type: ObjectType, lvHolder: LValueHolder<Variable>, zeroInitialise: boolean = false): Gen<Variable> {
         let classType: ClassType | null;
         let pointerType: PointerType<ObjectType | FunctionType> | null;
         if (type.sig in variables.arithmeticSig) {
-            return variables.uninitArithmetic(type.sig as ArithmeticSig, lvHolder as LValueHolder<ArithmeticVariable>, false);
+            const lvHolder1 = lvHolder as LValueHolder<ArithmeticVariable>;
+            return zeroInitialise
+                ? { t: type as ArithmeticType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0 } }
+                : { t: type as ArithmeticType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } };
         } else if ((classType = variables.asClassType(type)) !== null) {
+            // TODO: zero-initialise class members
             const domainName = classType.identifier;
             if (!(domainName in this.typeMap)) {
                 this.raiseException(`Could not resolve a class named '${domainName}'`)
@@ -1585,6 +1589,7 @@ export class CRuntime {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
+            // TODO: zero-initialise as nullptr_t
             if (pointerType.sizeConstraint === null) {
                 return variables.uninitPointer(pointerType.pointee, null, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);
             } else if (pointerType.sizeConstraint < 0) {
@@ -1598,7 +1603,7 @@ export class CRuntime {
                 const memory = variables.arrayMemory<Variable>(pointerType.pointee, []);
                 for (let i = 0; i < pointerType.sizeConstraint; i++) {
                     // variables.clone() is a shallow clone, do not put defaultVal outside the for-loop
-                    const defaultVal = yield* this.defaultValue2(pointerType.pointee, null);
+                    const defaultVal = yield* this.defaultValue2(pointerType.pointee, null, zeroInitialise);
                     memory.values.push(variables.clone(this, defaultVal, { array: memory, index: i }, false, true).v);
                 }
                 return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>);

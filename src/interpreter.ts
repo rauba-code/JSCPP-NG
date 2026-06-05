@@ -388,24 +388,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 if ("right" in _param.Declarator) {
                                     rt.raiseException("Direct declarator error: Not yet implemented");
                                 }
-                                /*if ((_param.Declarator.right != null) && (_param.Declarator.right.length > 0)) {
-                                    const dimensions = [];
-                                    for (let j = 0; j < _param.Declarator.right.length; j++) {
-                                        let dim = _param.Declarator.right[j];
-                                        if (dim.type !== "DirectDeclarator_modifier_array") {
-                                            rt.raiseException("Direct declarator error: unacceptable array initialization", dim);
-                                        }
-                                        if (dim.Expression !== null) {
-                                            dim = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dim.Expression, param))) as ArithmeticVariable).v.value;
-                                        } else if (j > 0) {
-                                            rt.raiseException("Direct declarator error: multidimensional array must have bounds for all dimensions except the first", dim);
-                                        } else {
-                                            dim = -1;
-                                        }
-                                        dimensions.push(dim);
-                                    }
-                                    _type = interp.arrayType(dimensions, _type);
-                                }*/
                             } else {
                                 _type = _basetype;
                             }
@@ -414,11 +396,16 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                             argTypes.push({ t: _type.t, v: { isConst: false, ..._type.v } });
                         }
-                        basetype = { t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", basetype, argTypes).array), null), v: { lvHolder: null } };
+                        basetype = {
+                            t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", basetype, argTypes).array), null),
+                            v: { lvHolder: null }
+                        };
                         if (s.left.type === "DirectDeclarator" && s.left.Pointer !== null) {
                             s.left = s.left.left;
                         } else {
-                            rt.raiseException("Invalid function pointer type;\nC-like function pointer is declared as follows:\n /*return-value*/ (*/*name-of-a-pointer*/)(/*nameless-arguments*/)");
+                            rt.raiseException("Invalid function pointer type;\n"
+                                + "C-like function pointer is declared as follows:\n"
+                                + " /*return-value*/ (*/*name-of-a-pointer*/)(/*nameless-arguments*/)");
                         }
                     }
                 }
@@ -698,7 +685,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             }
                             rt.defVar(name, initVar);
                         } else {
-                            const initVarYield = (initSpec === null) ? rt.defaultValue2(decType.t, "SELF") : ((i === 0 && "state" in basetype.v) ? basetype as MaybeUnboundVariable : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">);
+                            const isGlobal: boolean = rt.scope.length <= 1;
+                            const initVarYield = (initSpec === null)
+                                ? rt.defaultValue2(decType.t, "SELF", isGlobal)
+                                : ((i === 0 && "state" in basetype.v)
+                                    ? basetype as MaybeUnboundVariable
+                                    : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">
+                                );
                             const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
                             if (initVarOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
