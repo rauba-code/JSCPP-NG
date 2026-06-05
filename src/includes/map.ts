@@ -396,27 +396,26 @@ export = {
                     return variables.arithmetic("U64", 0, null);
                 }
             },
-            /*{
+            {
                 op: "count",
-                type: "!ParamObject FUNCTION I32 ( CLREF CLASS map < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                type: "!ParamObject !ParamObject FUNCTION U64 ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
                     const value = args[1];
-                    const found = _find(rt, mapVar, value);
-                    return variables.arithmetic("I32", found !== null ? 1 : 0, null, false);
+                    const found = yield* _find(rt, mapVar, value);
+                    return variables.arithmetic("U64", found !== null ? 1 : 0, null, false);
                 }
             },
             {
                 op: "contains",
-                type: "!ParamObject FUNCTION BOOL ( CLREF CLASS map < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
                     const value = args[1];
-                    const found = _find(rt, mapVar, value);
+                    const found = yield* _find(rt, mapVar, value);
                     return variables.arithmetic("BOOL", found !== null ? 1 : 0, null, false);
                 }
             },
-            */
         ])
     }
 };

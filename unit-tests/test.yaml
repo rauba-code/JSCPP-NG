@@ -197,6 +197,18 @@
         out: |
           2,1
           world,hello
+    map_count:
+      cases:
+        cpp: "map_count.cpp"
+        out: |
+          1
+          0
+    map_contains:
+      cases:
+        cpp: "map_contains.cpp"
+        out: |
+          contains 10
+          not contains 100
     number_sizeof: 
       after: 
         - "type_conversion"

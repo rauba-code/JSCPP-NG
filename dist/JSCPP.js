@@ -18677,6 +18677,26 @@ module.exports = {
                     return variables_1.variables.arithmetic("U64", 0, null);
                 }
             },
+            {
+                op: "count",
+                type: "!ParamObject !ParamObject FUNCTION U64 ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                *default(rt, _templateTypes, ...args) {
+                    const mapVar = args[0];
+                    const value = args[1];
+                    const found = yield* _find(rt, mapVar, value);
+                    return variables_1.variables.arithmetic("U64", found !== null ? 1 : 0, null, false);
+                }
+            },
+            {
+                op: "contains",
+                type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                *default(rt, _templateTypes, ...args) {
+                    const mapVar = args[0];
+                    const value = args[1];
+                    const found = yield* _find(rt, mapVar, value);
+                    return variables_1.variables.arithmetic("BOOL", found !== null ? 1 : 0, null, false);
+                }
+            },
         ]);
     }
 };
@@ -21853,12 +21873,17 @@ class Interpreter extends BaseInterpreter {
                             }
                             argTypes.push({ t: _type.t, v: { isConst: false, ..._type.v } });
                         }
-                        basetype = { t: variables_1.variables.pointerType(variables_1.variables.functionType(rt.createFunctionTypeSignature("{global}", basetype, argTypes).array), null), v: { lvHolder: null } };
+                        basetype = {
+                            t: variables_1.variables.pointerType(variables_1.variables.functionType(rt.createFunctionTypeSignature("{global}", basetype, argTypes).array), null),
+                            v: { lvHolder: null }
+                        };
                         if (s.left.type === "DirectDeclarator" && s.left.Pointer !== null) {
                             s.left = s.left.left;
                         }
                         else {
-                            rt.raiseException("Invalid function pointer type;\nC-like function pointer is declared as follows:\n /*return-value*/ (*/*name-of-a-pointer*/)(/*nameless-arguments*/)");
+                            rt.raiseException("Invalid function pointer type;\n"
+                                + "C-like function pointer is declared as follows:\n"
+                                + " /*return-value*/ (*/*name-of-a-pointer*/)(/*nameless-arguments*/)");
                         }
                     }
                 }
@@ -22145,7 +22170,12 @@ class Interpreter extends BaseInterpreter {
                             rt.defVar(name, initVar);
                         }
                         else {
-                            const initVarYield = (initSpec === null) ? rt.defaultValue2(decType.t, "SELF") : ((i === 0 && "state" in basetype.v) ? basetype : interp.visit(interp, initSpec.Expression));
+                            const isGlobal = rt.scope.length <= 1;
+                            const initVarYield = (initSpec === null)
+                                ? rt.defaultValue2(decType.t, "SELF", isGlobal)
+                                : ((i === 0 && "state" in basetype.v)
+                                    ? basetype
+                                    : interp.visit(interp, initSpec.Expression));
                             const initVarOrVoid = asResult(initVarYield) ?? (yield* initVarYield);
                             if (initVarOrVoid === "VOID") {
                                 rt.raiseException("Declaration error: Expected a non-void value");
@@ -32242,11 +32272,14 @@ class CRuntime {
         this.raiseException("Not yet implemented");
     }
     ;
-    *defaultValue2(type, lvHolder) {
+    *defaultValue2(type, lvHolder, zeroInitialise = false) {
         let classType;
         let pointerType;
         if (type.sig in variables_1.variables.arithmeticSig) {
-            return variables_1.variables.uninitArithmetic(type.sig, lvHolder, false);
+            const lvHolder1 = lvHolder;
+            return zeroInitialise
+                ? { t: type, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0 } }
+                : { t: type, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } };
         }
         else if ((classType = variables_1.variables.asClassType(type)) !== null) {
             const domainName = classType.identifier;
@@ -32277,7 +32310,7 @@ class CRuntime {
                 }
                 const memory = variables_1.variables.arrayMemory(pointerType.pointee, []);
                 for (let i = 0; i < pointerType.sizeConstraint; i++) {
-                    const defaultVal = yield* this.defaultValue2(pointerType.pointee, null);
+                    const defaultVal = yield* this.defaultValue2(pointerType.pointee, null, zeroInitialise);
                     memory.values.push(variables_1.variables.clone(this, defaultVal, { array: memory, index: i }, false, true).v);
                 }
                 return variables_1.variables.indexPointer(memory, 0, true, lvHolder);
