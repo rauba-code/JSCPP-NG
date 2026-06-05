@@ -21100,6 +21100,18 @@ module.exports = {
         rt.ct.list["pair"].src.push("CLASS __list_prototype < ?0 ?1 >".split(" "));
         common.regGlobalFuncs(rt, [
             {
+                op: "swap",
+                type: "!ParamObject FUNCTION VOID ( LREF ?0 LREF ?0 )",
+                *default(rt, _templateTypes, lhs, rhs) {
+                    const temp = variables_1.variables.clone(rt, lhs, "SELF", false, true);
+                    const assignLhsYield = rt.invokeCall(rt.getOpByParams("{global}", "o(_=_)", [lhs, rhs], []), [], lhs, rhs);
+                    interpreter_1.asResult(assignLhsYield) ?? (yield* assignLhsYield);
+                    const assignRhsYield = rt.invokeCall(rt.getOpByParams("{global}", "o(_=_)", [rhs, temp], []), [], rhs, temp);
+                    interpreter_1.asResult(assignRhsYield) ?? (yield* assignRhsYield);
+                    return "VOID";
+                }
+            },
+            {
                 op: "make_pair",
                 type: "!ParamObject !ParamObject FUNCTION CLASS pair < ?0 ?1 > ( ?0 ?1 )",
                 default(rt, _templateTypes, lhs, rhs) {

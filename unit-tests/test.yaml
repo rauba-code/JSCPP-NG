@@ -191,6 +191,12 @@
       cases:
         cpp: "string_sizeof.cpp"
         out: "2 3 2 3 4 4 "
+    swap:
+      cases:
+        cpp: "swap.cpp"
+        out: |
+          2,1
+          world,hello
     number_sizeof: 
       after: 
         - "type_conversion"
