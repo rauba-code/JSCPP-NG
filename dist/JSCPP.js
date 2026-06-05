@@ -21487,8 +21487,29 @@ module.exports = {
                 }
             },
             {
+                op: "back",
+                type: "!ParamObject FUNCTION LREF ?0 ( LREF CLASS vector < ?0 > )",
+                default(rt, _templateTypes, vec) {
+                    const sz = vec.v.members._sz.v.value;
+                    if (sz === 0) {
+                        rt.raiseException("vector::back(): vector is empty");
+                    }
+                    return variables_1.variables.arrayMember(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index + sz - 1);
+                }
+            },
+            {
                 op: "front",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > )",
+                default(rt, _templateTypes, vec) {
+                    if (vec.v.members._sz.v.value === 0) {
+                        rt.raiseException("vector::front(): vector is empty");
+                    }
+                    return variables_1.variables.arrayMember(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index);
+                }
+            },
+            {
+                op: "front",
+                type: "!ParamObject FUNCTION LREF ?0 ( LREF CLASS vector < ?0 > )",
                 default(rt, _templateTypes, vec) {
                     if (vec.v.members._sz.v.value === 0) {
                         rt.raiseException("vector::front(): vector is empty");
