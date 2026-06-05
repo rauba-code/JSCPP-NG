@@ -330,6 +330,27 @@ export = {
                     return "VOID";
                 }
             },
+            {
+                op: "back",
+                type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > )",
+                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Variable {
+                    const sz = vec.v.members._sz.v.value;
+                    if (sz === 0) {
+                        rt.raiseException("vector::back(): vector is empty");
+                    }
+                    return variables.arrayMember(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index + sz - 1) as Variable;
+                }
+            },
+            {
+                op: "front",
+                type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > )",
+                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Variable {
+                    if (vec.v.members._sz.v.value === 0) {
+                        rt.raiseException("vector::front(): vector is empty");
+                    }
+                    return variables.arrayMember(vec.v.members._ptr.v.pointee, vec.v.members._ptr.v.index) as Variable;
+                }
+            },
         ])
     }
 };
