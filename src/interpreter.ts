@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, MemberMap, MemberObject, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable, PointerVariable } from "./variables";
+import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -418,7 +418,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         let dim: number;
                         if (Xdim.Expression !== null) {
-                            const castResult = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, Xdim.Expression, param))) as ArithmeticVariable);
+                            const castResult = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, Xdim.Expression, param))) as ArithmeticNumVariable);
                             dim = castResult.v.state === "INIT" ? castResult.v.value : -1;
                         } else if (j > 0) {
                             rt.raiseException("Direct declarator error: multidimensional array must have bounds for all dimensions except the first", Xdim);
@@ -530,7 +530,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                         rt.raiseException("Parameter type list error: Unacceptable array initialization", dimObj);
                                     }
                                     if (dimObj.Expression !== null) {
-                                        const sizeConstraint = rt.arithmeticValue(rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticVariable);
+                                        const sizeConstraint = rt.arithmeticNumValue(rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticVariable);
                                         _type = { t: variables.pointerType(_type.t, sizeConstraint), v: { isConst, lvHolder: _type.v.lvHolder } };
                                     } else if (j > 0) {
                                         rt.raiseException("Parameter type list error: Multidimensional array must have bounds for all dimensions except the first", dimObj);
@@ -636,7 +636,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     if (arraySizeArithmeticVar.v.lvHolder !== null && !arraySizeArithmeticVar.v.isConst) {
                                         rt.raiseException("Declaration error: Expected a constant value in an array size expression")
                                     }
-                                    arraySize = rt.arithmeticValue(arraySizeArithmeticVar);
+                                    arraySize = rt.arithmeticNumValue(arraySizeArithmeticVar);
                                     if (arraySize < 0) {
                                         rt.raiseException("Declaration error: Expected a non-negative value in an array size expression")
                                     }
@@ -810,9 +810,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const targetArithmetic = variables.asArithmeticType(childType);
                         const sourceArithmetic = variables.asArithmetic(rawVariable);
                         if (targetArithmetic !== null && sourceArithmetic !== null) {
-                            const result = variables.arithmetic(targetArithmetic.sig, rt.arithmeticValue(sourceArithmetic), null);
-                            rt.adjustArithmeticValue(result);
-                            return result;
+                            if (targetArithmetic.sig in variables.arithmeticNumSig && sourceArithmetic.t.sig in variables.arithmeticNumSig) {
+                                const result = variables.arithmeticNum(targetArithmetic.sig as ArithmeticNumSig, rt.arithmeticNumValue(sourceArithmetic), null);
+                                rt.adjustArithmeticNumValue(result);
+                                return result;
+                            } else {
+                                const result = rt.cast(targetArithmetic, rt.expectValue(sourceArithmetic)) as InitArithmeticVariable;
+                                return result;
+                            }
                         } else {
                             const targetStr = variables.toStringSequence(rt, childType, false, false).join(" ");
                             const sourceStr = variables.toStringSequence(rt, rawVariable.t, false, false).join(" ");
@@ -1719,7 +1724,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
-                return variables.arithmetic("I32", rt.getSizeByType(ret.t), null);
+                return variables.arithmeticNum("I32", rt.getSizeByType(ret.t), null);
             },
             *UnaryExpression_Sizeof_Type(interp, s: XUnaryExpression_Sizeof_Type, param) {
                 ({
@@ -1729,7 +1734,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (type === "VOID") {
                     rt.raiseException("Sizeof statement error: Cannot apply sizeof to void");
                 }
-                return variables.arithmetic("I32", rt.getSizeByType(type.t), null);
+                return variables.arithmeticNum("I32", rt.getSizeByType(type.t), null);
             },
             *CastExpression(interp, s: XCastExpression, param) {
                 ({
@@ -1839,7 +1844,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     lhsVal = leftArithmetic;
                 }
                 if (lhsVal.v.value === 0) {
-                    return variables.arithmetic("BOOL", 0, null);
+                    return variables.arithmeticNum("BOOL", 0, null);
                 }
                 const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
                 const rightArithmetic = variables.asArithmetic(right) as InitArithmeticVariable;
@@ -1851,7 +1856,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     rhsVal = rightArithmetic;
                 }
-                return variables.arithmetic("BOOL", ((lhsVal.v.value & rhsVal.v.value) !== 0) ? 1 : 0, null);
+                return variables.arithmeticNum("BOOL", ((Number(lhsVal.v.value) & Number(rhsVal.v.value)) !== 0) ? 1 : 0, null);
             },
             *LogicalORExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticVariable> {
                 const left = rt.expectValue((yield* interp.visit(interp, s.left, param)) as Variable);
@@ -1865,7 +1870,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     lhsVal = leftArithmetic;
                 }
                 if (lhsVal.v.value === 1) {
-                    return variables.arithmetic("BOOL", 1, null);
+                    return variables.arithmeticNum("BOOL", 1, null);
                 }
                 const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
                 const rightArithmetic = variables.asArithmetic(right) as InitArithmeticVariable;
@@ -1877,7 +1882,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     rhsVal = rightArithmetic;
                 }
-                return variables.arithmetic("BOOL", ((lhsVal.v.value | rhsVal.v.value) !== 0) ? 1 : 0, null);
+                return variables.arithmeticNum("BOOL", ((Number(lhsVal.v.value) | Number(rhsVal.v.value)) !== 0) ? 1 : 0, null);
             },
             *ConditionalExpression(interp, s, param) {
                 ({
@@ -1963,7 +1968,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("BOOL", s.value === "true" ? 1 : 0, null);
+                return variables.arithmeticNum("BOOL", s.value === "true" ? 1 : 0, null);
             },
             CharacterConstant(interp, s, _param) {
                 ({
@@ -1973,40 +1978,45 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (a.length !== 1) {
                     rt.raiseException("Character constant error: a character constant must have and only have one character.");
                 }
-                return variables.arithmetic("I8", a[0].charCodeAt(0), null);
+                return variables.arithmeticNum("I8", a[0].charCodeAt(0), null);
             },
             *FloatConstant(interp, s, param): ResultOrGen<ArithmeticVariable> {
                 ({
                     rt
                 } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
-                return variables.arithmetic("F64", val.v.value, null);
+                return variables.arithmeticNum("F64", val.v.value, null);
             },
             DecimalFloatConstant(interp, s, _param): ArithmeticVariable {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("F64", parseFloat(s.value), null);
+                return variables.arithmeticNum("F64", parseFloat(s.value), null);
             },
             HexFloatConstant(interp, s, _param): ArithmeticVariable {
                 ({
                     rt
                 } = interp);
-                return variables.arithmetic("F64", parseInt(s.value, 16), null);
+                return variables.arithmeticNum("F64", parseInt(s.value, 16), null);
             },
             DecimalConstant(interp, s: XDecimalConstant, _param): ArithmeticVariable {
                 ({
                     rt
                 } = interp);
-                const num = parseInt(s.value, 10);
-                if (Number.isNaN(num)) {
+                let num: bigint;
+                try {
+                    num = BigInt(s.value);
+                }
+                catch (e) {
                     rt.raiseException(`Decimal constant error: '${s.value}' is not a valid decimal constant`);
                 }
                 const sigPriority: ArithmeticSig[] = ["I32", "I64"];
                 for (const sig of sigPriority) {
                     const props = variables.arithmeticProperties[sig];
                     if (num >= props.minv && num <= props.maxv) {
-                        return variables.arithmetic(sig, num, null);
+                        return props.isBig
+                            ? variables.arithmeticBig(sig as ArithmeticBigSig, num, null)
+                            : variables.arithmeticNum(sig as ArithmeticNumSig, Number(num), null);
                     }
                 }
                 rt.raiseException(`Decimal constant error: '${num}' is off the limits`);
@@ -2015,15 +2025,20 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                const num = parseInt(s.value, 16);
-                if (Number.isNaN(num)) {
-                    rt.raiseException(`Hexadecimal constant error: '${s.value}' is not a valid hexadecimal constant`);
+                let num: bigint;
+                try {
+                    num = BigInt(`0x${s.value}`);
+                }
+                catch (e) {
+                    rt.raiseException(`Hexadecimal constant error: '${s.value}' is not a valid decimal constant`);
                 }
                 const sigPriority: ArithmeticSig[] = ["I32", "U32", "I64", "U64"];
                 for (const sig of sigPriority) {
                     const props = variables.arithmeticProperties[sig];
                     if (num >= props.minv && num <= props.maxv) {
-                        return variables.arithmetic(sig, num, null);
+                        return props.isBig
+                            ? variables.arithmeticBig(sig as ArithmeticBigSig, num, null)
+                            : variables.arithmeticNum(sig as ArithmeticNumSig, Number(num), null);
                     }
                 }
                 rt.raiseException(`Hexadecimal constant error: '${num}' is off the limits`);
@@ -2032,15 +2047,20 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 ({
                     rt
                 } = interp);
-                const num = parseInt(s.value, 2);
-                if (Number.isNaN(num)) {
-                    rt.raiseException(`Binary constant error: '${s.value}' is not a valid binary constant`);
+                let num: bigint;
+                try {
+                    num = BigInt(`0x${s.value}`);
+                }
+                catch (e) {
+                    rt.raiseException(`Binary constant error: '${s.value}' is not a valid decimal constant`);
                 }
                 const sigPriority: ArithmeticSig[] = ["I32", "U32", "I64", "U64"];
                 for (const sig of sigPriority) {
                     const props = variables.arithmeticProperties[sig];
                     if (num >= props.minv && num <= props.maxv) {
-                        return variables.arithmetic(sig, num, null);
+                        return props.isBig
+                            ? variables.arithmeticBig(sig as ArithmeticBigSig, num, null)
+                            : variables.arithmeticNum(sig as ArithmeticNumSig, Number(num), null);
                     }
                 }
                 rt.raiseException(`Binary constant error: '${num}' is off the limits`);
@@ -2053,11 +2073,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (Number.isNaN(num)) {
                     rt.raiseException(`Octal constant error: '${s.value}' is not a valid octal constant`);
                 }
-                const sigPriority: ArithmeticSig[] = ["I32", "U32", "I64", "U64"];
+                const sigPriority: ArithmeticNumSig[] = ["I32", "U32"/*, "I64", "U64" not implemented*/];
                 for (const sig of sigPriority) {
                     const props = variables.arithmeticProperties[sig];
                     if (num >= props.minv && num <= props.maxv) {
-                        return variables.arithmetic(sig, num, null);
+                        return variables.arithmeticNum(sig, num, null);
                     }
                 }
                 rt.raiseException(`Octal constant error: '${num}' is off the limits`);

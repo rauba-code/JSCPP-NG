@@ -8,7 +8,7 @@ import Debugger from "./debugger"
 // @ts-ignore;
 import * as PEGUtil from "pegjs-util";
 import * as defaults from "./defaults";
-import { InitArithmeticValue, MaybeUnboundArithmeticValue } from "./variables";
+import { InitArithmeticNumValue, MaybeUnboundArithmeticValue } from "./variables";
 
 const includes: { [fileName: string]: IncludeModule } = {
     iostream: require("./includes/iostream"),
@@ -177,7 +177,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig, stopped = 
                     } else if (exitVal.state === "UNBOUND") {
                         throw new Error("[return statement] Access of an out-of-bounds variable");
                     } else {
-                        const exitCode = (exitVal as InitArithmeticValue).value;
+                        const exitCode = (exitVal as InitArithmeticNumValue).value;
                         (_config.stdio as any).finishCallback(exitCode);
                         return exitCode;
                     }

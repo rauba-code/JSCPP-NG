@@ -1,6 +1,6 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common"
-import { ArithmeticVariable, InitArithmeticVariable, variables } from "../variables";
+import { ArithmeticNumVariable, InitArithmeticNumVariable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -9,8 +9,8 @@ export = {
             return {
                 op: name,
                 type: "FUNCTION I32 ( I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): InitArithmeticVariable {
-                    return variables.arithmetic("I32", fn(rt.arithmeticValue(l)) ? 1 : 0, null);
+                default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): InitArithmeticNumVariable {
+                    return variables.arithmeticNum("I32", fn(rt.arithmeticValue(l) as number) ? 1 : 0, null);
                 }
             };
         }
@@ -18,8 +18,8 @@ export = {
             return {
                 op: name,
                 type: "FUNCTION I32 ( I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): InitArithmeticVariable {
-                    return variables.arithmetic("I32", fn(rt.arithmeticValue(l)), null);
+                default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): InitArithmeticNumVariable {
+                    return variables.arithmeticNum("I32", fn(rt.arithmeticValue(l) as number), null);
                 }
             };
         }

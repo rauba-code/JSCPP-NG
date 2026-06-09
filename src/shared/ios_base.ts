@@ -1,4 +1,4 @@
-import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitIndexPointerVariable, InitValue } from "../variables";
+import { AbstractVariable, ArithmeticNumVariable, InitArithmeticNumVariable, InitIndexPointerVariable, InitValue } from "../variables";
 
 export const openmode = {
     /** Seek to the end of the stream before each write. */
@@ -53,19 +53,19 @@ export type IStreamVariable = AbstractVariable<IStreamType, IStreamValue>;
 export interface IStreamValue extends InitValue<IStreamVariable> {
     members: {
         /** The input buffer. */
-        "buf": InitIndexPointerVariable<ArithmeticVariable>,
+        "buf": InitIndexPointerVariable<ArithmeticNumVariable>,
         /** The UNIX-like input file descriptor (0 for stdin, >=3 for files). */
-        "fd": InitArithmeticVariable,
+        "fd": InitArithmeticNumVariable,
         /** The end-of-file status flag. */
-        "eofbit": InitArithmeticVariable,
+        "eofbit": InitArithmeticNumVariable,
         /** The bad status flag (system-level I/O error). */
-        "badbit": InitArithmeticVariable,
+        "badbit": InitArithmeticNumVariable,
         /** The fail status flag (no or unformatted input, bad file name, etc.) */
-        "failbit": InitArithmeticVariable,
+        "failbit": InitArithmeticNumVariable,
         /** The boolalpha input modifier flag (treat "true", "false" as bool values) */
-        "boolalpha": InitArithmeticVariable,
+        "boolalpha": InitArithmeticNumVariable,
         /** The skipws input modifier flag (skip whitespace) */
-        "skipws": InitArithmeticVariable,
+        "skipws": InitArithmeticNumVariable,
         
     },
 }
@@ -80,35 +80,35 @@ export interface OStreamType {
 export interface OStreamValue extends InitValue<OStreamVariable> {
     members: {
         /** The UNIX-like input file descriptor (1 for stdin, >=3 for files). */
-        "fd": InitArithmeticVariable,
+        "fd": InitArithmeticNumVariable,
         /** The end-of-file status flag. */
-        "eofbit": InitArithmeticVariable,
+        "eofbit": InitArithmeticNumVariable,
         /** The bad status flag (system-level I/O error). */
-        "badbit": InitArithmeticVariable,
+        "badbit": InitArithmeticNumVariable,
         /** The fail status flag (no or unformatted input, bad file name, etc.) */
-        "failbit": InitArithmeticVariable,
+        "failbit": InitArithmeticNumVariable,
         /** The arithmetic base of integers.
           * One of 8, 10 and 16;
           * (default = 10) */
-        "base": InitArithmeticVariable,
+        "base": InitArithmeticNumVariable,
         /** The fill character (default = '\s') */
-        "fill": InitArithmeticVariable,
+        "fill": InitArithmeticNumVariable,
         /** The floating-point precision or -1 (default = -1) */
-        "precision": InitArithmeticVariable,
+        "precision": InitArithmeticNumVariable,
         /** The width of the next input field or -1 (default = -1) */
-        "width": InitArithmeticVariable,
+        "width": InitArithmeticNumVariable,
         /** The floating-point display mode 
           * One of `iomanip_token_mode.(fixed | scientific | hexfloat | defaultfloat)`
           * (default = `iomanip_token_mode.defaultfloat`) */
-        "float_display_mode": InitArithmeticVariable,
+        "float_display_mode": InitArithmeticNumVariable,
         /** The positioning mode. 
           * One of `iomanip_token_mode.(left | right | internal)`
           * (default = `iomanip_token_mode.defaultfloat`) */
-        "position_mode": InitArithmeticVariable,
+        "position_mode": InitArithmeticNumVariable,
         /** The boolalpha status flag. 
           * If false, outputs the values of booleans as 0 or 1;
           * If true, outputs the values of booleans as true or false. */
-        "boolalpha": InitArithmeticVariable,
+        "boolalpha": InitArithmeticNumVariable,
     },
 }
 
@@ -123,8 +123,8 @@ export interface IOManipTokenType {
 
 export interface IOManipTokenValue extends InitValue<IOManipTokenVariable> {
     members: {
-        "mode": InitArithmeticVariable,
-        "param": ArithmeticVariable,
+        "mode": InitArithmeticNumVariable,
+        "param": ArithmeticNumVariable,
     }
 };
 

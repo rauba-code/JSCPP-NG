@@ -1,8 +1,8 @@
 import { asResult } from "../interpreter";
-import { CRuntime, MemberMap } from "../rt";
+import { big, CRuntime, MemberMap } from "../rt";
 import * as common from "../shared/common";
 import { StringVariable } from "../shared/string_utils";
-import { AbstractTemplatedClassType, AbstractVariable, ArithmeticSig, Gen, InitArithmeticVariable, InitIndexPointerVariable, InitValue, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
+import { AbstractTemplatedClassType, AbstractVariable, ArithmeticSig, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitIndexPointerVariable, InitValue, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
 
 /* 
  * Generic function object type.
@@ -43,8 +43,8 @@ export = {
             return {
                 op: "__hash",
                 type: `FUNCTION I64 ( ${sig} )`,
-                default(_rt: CRuntime, _template: [], x: InitArithmeticVariable): InitArithmeticVariable {
-                    return variables.arithmetic("I64", x.v.value & 0x7FFFFFFF, null);
+                default(_rt: CRuntime, _template: [], x: InitArithmeticBigVariable): InitArithmeticBigVariable {
+                    return variables.arithmeticBig("I64", big(x.v.value), null);
                 }
             };
         }
@@ -55,7 +55,7 @@ export = {
                 templateTypes: [0],
                 *default(rt: CRuntime, _templateTypes: ObjectType[], fnobj: FOVariable<"greater", Variable>, lhs: Variable, rhs: Variable) {
                     if (fnobj.t.templateSpec[0].sig in variables.arithmeticSig) {
-                        return variables.arithmetic("BOOL", (rt.arithmeticValue(lhs) > rt.arithmeticValue(rhs)) ? 1 : 0, null);
+                        return variables.arithmeticNum("BOOL", (rt.arithmeticValue(lhs) > rt.arithmeticValue(rhs)) ? 1 : 0, null);
                     }
                     const callInst = rt.tryGetOpByParams("{global}", "o(_>_)", [lhs, rhs], []);
                     if (callInst === null) {
@@ -66,7 +66,7 @@ export = {
                     if (result === "VOID") {
                         rt.raiseException(`${rt.makeTypeString(fnobj.t, false, false)}(): Expected boolean return value from operator >(), got void.`);
                     }
-                    return variables.arithmetic("BOOL", rt.arithmeticValue(result) !== 0 ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", rt.arithmeticValue(result) !== 0 ? 1 : 0, null);
                 }
             },
             {
@@ -75,7 +75,7 @@ export = {
                 templateTypes: [0],
                 *default(rt: CRuntime, _templateTypes: ObjectType[], fnobj: FOVariable<"less", Variable>, lhs: Variable, rhs: Variable) {
                     if (fnobj.t.templateSpec[0].sig in variables.arithmeticSig) {
-                        return variables.arithmetic("BOOL", (rt.arithmeticValue(lhs) < rt.arithmeticValue(rhs)) ? 1 : 0, null);
+                        return variables.arithmeticNum("BOOL", (rt.arithmeticValue(lhs) < rt.arithmeticValue(rhs)) ? 1 : 0, null);
                     }
                     const callInst = rt.tryGetOpByParams("{global}", "o(_<_)", [lhs, rhs], []);
                     if (callInst === null) {
@@ -86,7 +86,7 @@ export = {
                     if (result === "VOID") {
                         rt.raiseException(`${rt.makeTypeString(fnobj.t, false, false)}(): Expected boolean return value from operator <(), got void.`);
                     }
-                    return variables.arithmetic("BOOL", rt.arithmeticValue(result) !== 0 ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", rt.arithmeticValue(result) !== 0 ? 1 : 0, null);
                 }
             },
         ]);
@@ -107,20 +107,20 @@ export = {
             {
                 op: "__hash",
                 type: "FUNCTION I64 ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, _template: [], x: StringVariable): InitArithmeticVariable {
+                default(_rt: CRuntime, _template: [], x: StringVariable): InitArithmeticBigVariable {
                     // NOTE: original function uses copied CLASS string < > 
                     // but to avoid costly copying, CLREF is added.
                     let h: number = 7919;
                     if (x.v.members._ptr.v.state !== "UNINIT") {
-                        const ptr = x.v.members._ptr as InitIndexPointerVariable<InitArithmeticVariable>;
+                        const ptr = x.v.members._ptr as InitIndexPointerVariable<InitArithmeticNumVariable>;
                         for (let i = 0; i < x.v.members._size.v.value; i++) {
-                            const chr = rt.arithmeticValue(variables.arrayMember(ptr.v.pointee, ptr.v.index + i));
+                            const chr = rt.arithmeticValue(variables.arrayMember(ptr.v.pointee, ptr.v.index + i)) as number;
                             h += 97;
                             h += chr * 7907;
                             h %= 1000000009;
                         }
                     }
-                    return variables.arithmetic("I64", h, null);
+                    return variables.arithmeticBig("I64", BigInt(h), null);
 
                 }
             }

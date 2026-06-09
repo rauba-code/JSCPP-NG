@@ -1156,7 +1156,7 @@ function parseToObjectTypeInner(parser: LLParser, scope: NonTerm, inout: { sente
                             localType = null;
                             break;
                         case "CLASS":
-                            if (inout.output.sig !== "VOID" && inout.output.sig !== "FUNCTION") {
+                            if (/*inout.output.sig !== "VOID" &&*/ inout.output.sig !== "FUNCTION") {
                                 if (scope === "Parametric") {
                                     upperType.templateSpec.push(inout.output);
                                 }
@@ -1166,12 +1166,12 @@ function parseToObjectTypeInner(parser: LLParser, scope: NonTerm, inout: { sente
                             }
                             break;
                         case "PTR":
-                            if (inout.output.sig !== "VOID") {
-                                upperType = variables.pointerType(inout.output, null);
-                            } else {
+                            /*if (inout.output.sig !== "VOID") {*/
+                            upperType = variables.pointerType(inout.output, null);
+                            /*} else {
                                 localType = null;
                                 inout.output = null;
-                            }
+                            }*/
                             break;
                         default:
                             localType = null;

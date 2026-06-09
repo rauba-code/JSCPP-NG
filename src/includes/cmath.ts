@@ -1,42 +1,61 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { ArithmeticSig, ArithmeticVariable, InitArithmeticVariable, variables } from "../variables";
+import { ArithmeticBigSig, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
-        rt.defVar("INFINITY", variables.arithmetic("F32", Number.POSITIVE_INFINITY, null, true), false, true);
-        rt.defVar("NAN", variables.arithmetic("F32", Number.NaN, null, true), false, true);
-        function commonUnary(fn: (l: number) => number, sig: ArithmeticSig | null): (rt: CRuntime, _templateTypes: [], l: ArithmeticVariable) => InitArithmeticVariable {
-            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable): InitArithmeticVariable {
-                const l = rt.arithmeticValue(_l);
-                const retv = variables.arithmetic(sig ?? _l.t.sig, fn(l), null, false);
-                rt.adjustArithmeticValue(retv);
+        rt.defVar("INFINITY", variables.arithmeticNum("F32", Number.POSITIVE_INFINITY, null, true), false, true);
+        rt.defVar("NAN", variables.arithmeticNum("F32", Number.NaN, null, true), false, true);
+        function commonUnaryNum(fn: (l: number) => number, sig: ArithmeticNumSig | null): (rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable) => InitArithmeticNumVariable {
+            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable): InitArithmeticNumVariable {
+                const l = rt.arithmeticValue(_l) as number;
+                const retv = variables.arithmeticNum(sig ?? _l.t.sig, fn(l), null, false);
+                rt.adjustArithmeticNumValue(retv);
                 return retv;
             }
         }
-        function commonBinary(fn: (l: number, r: number) => number, sig: ArithmeticSig): (rt: CRuntime, _templateTypes: [], l: ArithmeticVariable, r: ArithmeticVariable) => InitArithmeticVariable {
-            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticVariable, _r: ArithmeticVariable): InitArithmeticVariable {
-                const l = rt.arithmeticValue(_l);
-                const r = rt.arithmeticValue(_r);
-                const retv = variables.arithmetic(sig, fn(l, r), null, false);
-                rt.adjustArithmeticValue(retv);
+        function commonUnaryBig(fn: (l: bigint) => bigint, sig: ArithmeticBigSig | null): (rt: CRuntime, _templateTypes: [], l: ArithmeticBigVariable) => InitArithmeticBigVariable {
+            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable): InitArithmeticBigVariable {
+                const l = rt.arithmeticValue(_l) as bigint;
+                const retv = variables.arithmeticBig(sig ?? _l.t.sig, fn(l), null, false);
+                rt.adjustArithmeticBigValue(retv);
                 return retv;
             }
         }
+        function commonBinaryNum(fn: (l: number, r: number) => number, sig: ArithmeticNumSig): (rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable, r: ArithmeticNumVariable) => InitArithmeticNumVariable {
+            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable): InitArithmeticNumVariable {
+                const l = rt.arithmeticValue(_l) as number;
+                const r = rt.arithmeticValue(_r) as number;
+                const retv = variables.arithmeticNum(sig, fn(l, r), null, false);
+                rt.adjustArithmeticNumValue(retv);
+                return retv;
+            }
+        }
+        /*function commonBinaryBig(fn: (l: bigint, r: bigint) => bigint, sig: ArithmeticBigSig): (rt: CRuntime, _templateTypes: [], l: ArithmeticBigVariable, r: ArithmeticBigVariable) => InitArithmeticBigVariable {
+            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable, _r: ArithmeticBigVariable): InitArithmeticBigVariable {
+                const l = rt.arithmeticValue(_l) as bigint;
+                const r = rt.arithmeticValue(_r) as bigint;
+                const retv = variables.arithmeticBig(sig, fn(l, r), null, false);
+                rt.adjustArithmeticBigValue(retv);
+                return retv;
+            }
+        }*/
         function commonUnaryOverloads(name: string, fn: (l: number) => number): common.FunHandler[] {
             return Object.entries(variables.arithmeticProperties)
-                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} )`, op: name, default: commonUnary(fn, v.isFloat ? k as ArithmeticSig : "F64") }));
+                .filter(([_k, v], _i) => (!v.isBig))
+                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} )`, op: name, default: commonUnaryNum(fn, v.isFloat ? k as ArithmeticNumSig : "F64") }));
         }
         function commonBinaryOverloads(name: string, fn: (l: number, r: number) => number): common.FunHandler[] {
             return Object.entries(variables.arithmeticProperties)
-                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} ${k} )`, op: name, default: commonBinary(fn, v.isFloat ? k as ArithmeticSig : "F64") }));
+                .filter(([_k, v], _i) => (!v.isBig))
+                .map(([k, v], _i) => ({ type: `FUNCTION ${v.isFloat ? k : "F64"} ( ${k} ${k} )`, op: name, default: commonBinaryNum(fn, v.isFloat ? k as ArithmeticNumSig : "F64") }));
         }
         common.regGlobalFuncs(rt, [
             [
-                { type: "FUNCTION I32 ( I32 )", op: "abs", default: commonUnary(Math.abs, null) },
-                { type: "FUNCTION I64 ( I64 )", op: "abs", default: commonUnary(Math.abs, null) },
-                { type: "FUNCTION F32 ( F32 )", op: "abs", default: commonUnary(Math.abs, null) },
-                { type: "FUNCTION F64 ( F64 )", op: "abs", default: commonUnary(Math.abs, null) },
+                { type: "FUNCTION I32 ( I32 )", op: "abs", default: commonUnaryNum(Math.abs, null) },
+                { type: "FUNCTION I64 ( I64 )", op: "abs", default: commonUnaryBig((x) => (x >= 0) ? x : -x, null) },
+                { type: "FUNCTION F32 ( F32 )", op: "abs", default: commonUnaryNum(Math.abs, null) },
+                { type: "FUNCTION F64 ( F64 )", op: "abs", default: commonUnaryNum(Math.abs, null) },
             ],
             commonUnaryOverloads("fabs", Math.abs),
             commonBinaryOverloads("fmod", (l, r) => l % r),
@@ -48,10 +67,10 @@ export = {
             commonUnaryOverloads("log2", Math.log2),
             commonUnaryOverloads("log1p", Math.log1p),
             [
-                { type: "FUNCTION F32 ( F32 F32 )", op: "pow", default: commonBinary(Math.pow, "F32") },
-                { type: "FUNCTION F64 ( F64 F64 )", op: "pow", default: commonBinary(Math.pow, "F64") },
-                { type: "FUNCTION F32 ( F32 F32 )", op: "powf", default: commonBinary(Math.pow, "F32") },
-                { type: "FUNCTION F64 ( F64 F64 )", op: "powl", default: commonBinary(Math.pow, "F64") },
+                { type: "FUNCTION F32 ( F32 F32 )", op: "pow", default: commonBinaryNum(Math.pow, "F32") },
+                { type: "FUNCTION F64 ( F64 F64 )", op: "pow", default: commonBinaryNum(Math.pow, "F64") },
+                { type: "FUNCTION F32 ( F32 F32 )", op: "powf", default: commonBinaryNum(Math.pow, "F32") },
+                { type: "FUNCTION F64 ( F64 F64 )", op: "powl", default: commonBinaryNum(Math.pow, "F64") },
             ],
             commonUnaryOverloads("sqrt", Math.sqrt),
             commonUnaryOverloads("cbrt", Math.cbrt),

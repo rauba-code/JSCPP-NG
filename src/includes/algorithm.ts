@@ -2,18 +2,18 @@ import { asResult } from "../interpreter";
 import { CRuntime, FunctionCallInstance, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ArithmeticVariable, PointerType, ClassVariable } from "../variables";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ArithmeticVariable, PointerType, ClassVariable, InitArithmeticNumVariable } from "../variables";
 
 export = {
     load(rt: CRuntime) {
         rt.include("utility");
 
-        function yieldBlocking(x: ResultOrGen<MaybeUnboundVariable | "VOID">): InitArithmeticVariable {
+        function yieldBlocking(x: ResultOrGen<MaybeUnboundVariable | "VOID">): InitArithmeticNumVariable {
             if (asResult(x)) {
                 if (x === "VOID") {
                     rt.raiseException("sort: expected arithmetic result, got VOID");
                 }
-                return variables.asInitArithmetic(rt.unbound(x as MaybeUnboundVariable)) ?? rt.raiseException("sort: expected arithmetic result");
+                return variables.asInitArithmeticNum(rt.unbound(x as MaybeUnboundVariable)) ?? rt.raiseException("sort: expected arithmetic result");
             } else {
                 const call = x as Gen<MaybeUnboundVariable | "VOID">;
                 for (let i: number = 0; i < 100_000; i++) {
@@ -22,7 +22,7 @@ export = {
                         if (_retv.value === "VOID") {
                             rt.raiseException("sort: expected arithmetic result, got VOID");
                         }
-                        return variables.asInitArithmetic(rt.unbound(_retv.value)) ?? rt.raiseException("sort: expected arithmetic result");
+                        return variables.asInitArithmeticNum(rt.unbound(_retv.value)) ?? rt.raiseException("sort: expected arithmetic result");
                     }
                 }
             }
@@ -286,7 +286,7 @@ export = {
                 retv = false;
             }
 
-            return variables.arithmetic("BOOL", retv ? 1 : 0, null);
+            return variables.arithmeticNum("BOOL", retv ? 1 : 0, null);
         }
 
         // template<typename RandomIt> void sort(RandomIt first, RandomIt last)
@@ -425,7 +425,7 @@ export = {
                     if (first.v.pointee !== last.v.pointee) {
                         rt.raiseException("find(): Expected 'first' and 'last' to point to an element of the same memory region");
                     }
-                    return variables.arithmetic("I32", last.v.index - first.v.index, null);
+                    return variables.arithmeticNum("I32", last.v.index - first.v.index, null);
                 }
             },
             {

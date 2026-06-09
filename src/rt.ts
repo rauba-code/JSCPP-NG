@@ -1,5 +1,5 @@
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticSig, ArithmeticType, ArithmeticValue, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
+import { AnyType, ArithmeticBigSig, ArithmeticBigType, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumType, ArithmeticNumValue, ArithmeticNumVariable, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
 import { TypeDB, FunctionMatchResult, abstractFunctionReturnSig } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
@@ -17,6 +17,15 @@ export type DebugData = {
     column: number,
     variables: { [name: string]: Variable }
 };
+
+export function big(x: number | bigint): bigint {
+    return (typeof x === "number") ? BigInt(x > 0 ? Math.floor(x) : Math.ceil(x)) : x;
+}
+
+export function num(x: number | bigint): number {
+    return (typeof x === "number") ? x : Number(BigInt.asUintN(32, x));
+}
+
 
 export interface Stdio {
     isMochaTest?: boolean;
@@ -472,7 +481,7 @@ export class CRuntime {
         return fileInst.is_open() ? this.fileio.freefd++ : -1;
     }
 
-    fileRead(fd: InitArithmeticVariable): InitIndexPointerVariable<ArithmeticVariable> {
+    fileRead(fd: InitArithmeticNumVariable): InitIndexPointerVariable<ArithmeticVariable> {
         const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
         const readData = fileInst.read("");
         if (readData === undefined) {
@@ -481,14 +490,14 @@ export class CRuntime {
         return this.getCharArrayFromString(readData);
     }
 
-    fileClose(fd: InitArithmeticVariable): void {
+    fileClose(fd: InitArithmeticNumVariable): void {
         const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
         fileInst.close();
     }
 
-    fileWrite(fd: InitArithmeticVariable, data: InitIndexPointerVariable<ArithmeticVariable>): void {
+    fileWrite(fd: InitArithmeticNumVariable, data: InitIndexPointerVariable<ArithmeticVariable>): void {
         const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
-        fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmetic("I8", 0, null))))
+        fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmeticNum("I8", 0, null))))
     }
 
     addTypeDomain(domain: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction: ((rt: CRuntime, x: ClassVariable) => string) | null) {
@@ -531,7 +540,7 @@ export class CRuntime {
                 return this.getSizeByType(pt.pointee) * pt.sizeConstraint;
             }
             this.raiseException("Not yet implemented");
-        } else if ((at = variables.asArithmeticType(t)) !== null) {
+        } else if ((at = variables.asArithmeticNumType(t)) !== null) {
             return variables.arithmeticProperties[at.sig].bytes;
         }
         this.raiseException("Not yet implemented");
@@ -647,7 +656,7 @@ export class CRuntime {
                         if (ret instanceof Array && (ret[0] === "return")) {
                             ret = rt.cast(retType.t, ret[1]);
                         } else if (name === "main") {
-                            ret = variables.arithmetic("I32", 0, null);
+                            ret = variables.arithmeticNum("I32", 0, null);
                         } else {
                             rt.raiseException("non-void function must return a value");
                         }
@@ -1104,7 +1113,7 @@ export class CRuntime {
         vc.variables[varname] = object;
     };
 
-    inrange(x: number, t: ArithmeticType, onError?: () => string) {
+    inrange(x: number | bigint, t: ArithmeticType, onError?: () => string) {
         const properties = variables.arithmeticProperties[t.sig];
         const overflow = !((x <= properties.maxv) && (x >= properties.minv));
         if (onError && overflow) {
@@ -1133,7 +1142,7 @@ export class CRuntime {
         let ptr2: PointerType<ObjectType | FunctionType> | null;
         let class1: ClassType | null;
         let class2: ClassType | null;
-        if (variables.asArithmeticType(type1) !== null && variables.asArithmeticType(type2) !== null) {
+        if (type1.sig in variables.arithmeticSig && type1.sig in variables.arithmeticSig) {
             return true;
         } else if ((ptr1 = variables.asPointerType(type1)) !== null && (ptr2 = variables.asPointerType(type2)) !== null) {
             if (variables.asFunctionType(ptr1.pointee) !== null) {
@@ -1186,7 +1195,7 @@ export class CRuntime {
     /** For integers, performs a two's-complement integer overflow on demand.
       * > Does not really depend on signedness, just on limits set by basic arithmetic types. 
       * For floating-point values, rounds to the nearest precision available.*/
-    adjustArithmeticValue(x: InitArithmeticVariable): void {
+    adjustArithmeticNumValue(x: InitArithmeticNumVariable): void {
         const info = variables.arithmeticProperties[x.t.sig];
         if (!info.isFloat && !Number.isInteger(x.v.value)) {
             x.v.value = Math.sign(x.v.value) * Math.floor(Math.abs(x.v.value));
@@ -1198,11 +1207,30 @@ export class CRuntime {
             }
             return;
         }
-        let q: number = (x.v.value - info.minv) % (info.maxv + 1 - info.minv);
+        let q: number = (x.v.value - (info.minv as number)) % (info.maxv as number + 1 - (info.minv as number));
         if (q < 0) {
-            q += info.maxv + 1 - info.minv;
+            q += info.maxv as number + 1 - (info.minv as number);
         }
-        x.v.value = q + info.minv;
+        x.v.value = q + (info.minv as number);
+    }
+
+    adjustArithmeticBigValue(x: InitArithmeticBigVariable): void {
+        const info = variables.arithmeticProperties[x.t.sig];
+        if (x.v.value >= info.minv && x.v.value <= info.maxv) {
+            return;
+        }
+        if (info.isSigned) { 
+            x.v.value = BigInt.asIntN(info.bytes * 8, x.v.value);
+        } else {
+            x.v.value = BigInt.asUintN(info.bytes * 8, x.v.value);
+        }
+        /*const minv = BigInt(info.minv);
+        const maxv = BigInt(info.maxv);
+        let q: bigint = (x.v.value - minv) % (maxv + 1n - minv);
+        if (q < 0) {
+            q += maxv + 1n - minv;
+        }
+        x.v.value = q + minv;*/
     }
 
     makeValueString(_v: MaybeUnboundVariable | Function, options: MakeValueStringOptions = {}): string {
@@ -1221,7 +1249,7 @@ export class CRuntime {
             if (sig === "I8") {
                 // 31 /* hex = 0x21, ascii = '!' */
                 // '!' /* dec = 31, hex = 0x21 */
-                const unsignedVal = val >= 0 ? val : (properties.maxv - properties.minv) + 1 + val;
+                const unsignedVal: number = val >= 0 ? (val as number) : ((properties.maxv as number) - (properties.minv as number)) + 1 + (val as number);
                 const hexVal = unsignedVal.toString(16).padStart(properties.bytes * 2, '0');
                 let cstr: string;
                 if (unsignedVal >= 127) {
@@ -1288,22 +1316,22 @@ export class CRuntime {
         if (len === null) {
             len = src.v.pointee.values.length - src.v.index;
         }
-        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index, src.v.index + len).map((x: ArithmeticValue) => x.state === "INIT" ? x.value : 0));
+        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index, src.v.index + len).map((x: ArithmeticNumValue) => x.state === "INIT" ? x.value : 0));
         // remove trailing null-terminators '\0' from the end
         return fromUtf8CharArray(byteArray).replace(/\0+$/, "");
     }
 
-    getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticVariable> {
+    getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticNumVariable> {
         let array = toUtf8CharArray(src);
         //console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; }).join(""));
-        let memoryObject = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), new Array<ArithmeticValue>())
+        let memoryObject = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), new Array<ArithmeticNumValue>())
         array.forEach((iv, ii) => {
-            const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: ii };
-            memoryObject.values.push(variables.arithmetic("I8", iv, lvHolder, false).v);
+            const lvHolder: LValueIndexHolder<ArithmeticNumVariable> = { array: memoryObject, index: ii };
+            memoryObject.values.push(variables.arithmeticNum("I8", iv, lvHolder, false).v);
         })
         // add a null-terminator ('\0')
-        const lvHolder: LValueIndexHolder<ArithmeticVariable> = { array: memoryObject, index: array.length };
-        memoryObject.values.push(variables.arithmetic("I8", 0, lvHolder, false).v);
+        const lvHolder: LValueIndexHolder<ArithmeticNumVariable> = { array: memoryObject, index: array.length };
+        memoryObject.values.push(variables.arithmeticNum("I8", 0, lvHolder, false).v);
 
         return variables.indexPointer(memoryObject, 0, true, null, false);
     }
@@ -1320,35 +1348,66 @@ export class CRuntime {
             const fromInfo = variables.arithmeticProperties[arithmeticVar.t.sig];
             const arithmeticValue = this.arithmeticValue(arithmeticVar);
             if (target.sig === "BOOL") {
-                return variables.arithmetic(target.sig, arithmeticValue === 0 ? 0 : 1, null);
+                return variables.arithmeticNum(target.sig, arithmeticValue === 0 ? 0 : 1, null);
             } else if (targetInfo.isFloat) {
                 const onErr = () => `overflow when casting '${this.makeValueString(v)}' of type '${this.makeTypeStringOfVar(v)}' to '${this.makeTypeString(target)}'`;
                 if (this.inrange(arithmeticValue, arithmeticTarget, onErr)) {
-                    return variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
+                    return variables.arithmeticNum(arithmeticTarget.sig as ArithmeticNumSig, Number(arithmeticValue), null);
                 }
             } else {
                 const conversionErrorMsg: () => string = () => `${this.makeValueString(v)} of type ${this.makeTypeStringOfVar(v)} to type ${this.makeTypeString(target)}`;
-                if (!targetInfo.isSigned) {
-                    if (arithmeticValue < 0) {
-                        const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
-                        this.adjustArithmeticValue(newVar);
-                        //if (this.inrange(newVar.v.value as number, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
-                        return newVar;
-                        //}
+                if (!targetInfo.isBig) {
+                    const targetValue = (typeof arithmeticValue === "number") ? arithmeticValue : Number(arithmeticValue % 0xFFFFFFFFn);
+                    const sig = arithmeticTarget.sig as ArithmeticNumSig;
+                    if (!targetInfo.isSigned) {
+                        if (targetValue < 0) {
+                            const newVar = variables.arithmeticNum(sig, targetValue, null);
+                            this.adjustArithmeticNumValue(newVar);
+                            //if (this.inrange(newVar.v.value as number, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
+                            return newVar;
+                            //}
+                        }
                     }
-                }
-                if (fromInfo.isFloat) {
-                    const intVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue), null);
-                    if (this.inrange(intVar.v.value as number, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
-                        this.adjustArithmeticValue(intVar);
-                        return intVar;
+                    if (fromInfo.isFloat) {
+                        const intVar = variables.arithmeticNum(sig, targetValue > 0 ? Math.floor(targetValue) : Math.ceil(targetValue), null);
+                        if (this.inrange(intVar.v.value, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                            this.adjustArithmeticNumValue(intVar);
+                            return intVar;
+                        }
+                    } else {
+                        const newVar = variables.arithmeticNum(sig, targetValue, null);
+                        if (allowUToSOverflow || this.inrange(newVar.v.value, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                            this.adjustArithmeticNumValue(newVar);
+                            return newVar;
+                        }
                     }
                 } else {
-                    const newVar = variables.arithmetic(arithmeticTarget.sig, arithmeticValue, null);
-                    if (allowUToSOverflow || this.inrange(newVar.v.value as number, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
-                        this.adjustArithmeticValue(newVar);
-                        return newVar;
+                    const sig = arithmeticTarget.sig as ArithmeticBigSig;
+                    if (!targetInfo.isSigned) {
+                        const targetValue = BigInt(arithmeticValue);
+                        if (targetValue < 0) {
+                            const newVar = variables.arithmeticBig(sig, targetValue, null);
+                            //if (this.inrange(newVar.v.value as number, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
+                            return newVar;
+                            //}
+                        }
                     }
+                    if (fromInfo.isFloat) {
+                        const targetValue = (typeof arithmeticValue === "number")
+                            ? BigInt(arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue))
+                            : arithmeticValue;
+                        const intVar = variables.arithmeticBig(sig, targetValue, null);
+                        if (this.inrange(intVar.v.value, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                            return intVar;
+                        }
+                    } else {
+                        const targetValue = BigInt(arithmeticValue);
+                        const newVar = variables.arithmeticBig(sig, targetValue, null);
+                        if (allowUToSOverflow || this.inrange(newVar.v.value, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                            return newVar;
+                        }
+                    }
+
                 }
             }
         }
@@ -1511,7 +1570,7 @@ export class CRuntime {
 
     /** Safely accesses values.
       * Panics if value is uninitalised. */
-    arithmeticValue(variable: MaybeUnboundVariable): number {
+    arithmeticValue(variable: MaybeUnboundVariable): number | bigint {
         if (!(variable.t.sig in variables.arithmeticSig)) {
             this.raiseException("Expected an arithmetic value");
         }
@@ -1521,6 +1580,29 @@ export class CRuntime {
             this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
         return (variable as InitArithmeticVariable).v.value;
+    }
+
+    /** Safely accesses values.
+      * Panics if value is uninitalised. 
+      * Casts to 32-bit signed integer of 'number' type if 'bigint' is found */
+    arithmeticNumValue(variable: MaybeUnboundVariable): number {
+        if (!(variable.t.sig in variables.arithmeticSig)) {
+            this.raiseException("Expected an arithmetic value");
+        }
+        if (variable.v.state === "UNINIT") {
+            this.raiseException("Access of an uninitialised value")
+        } else if (variable.v.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        }
+        const value = (variable as InitArithmeticVariable).v.value;
+        if (typeof value === "number") {
+            return value;
+        }
+        const {minv, maxv} = variables.arithmeticProperties["I32"];
+        if (value < minv || value > maxv) {
+            this.raiseException(`Expected 32-bit signed integer, got ${value} (integer overflow)`);
+        }
+        return Number(value);
     }
 
     expectValue(variable: MaybeUnboundVariable): InitVariable {
@@ -1568,11 +1650,16 @@ export class CRuntime {
     *defaultValue2(type: ObjectType, lvHolder: LValueHolder<Variable>, zeroInitialise: boolean = false): Gen<Variable> {
         let classType: ClassType | null;
         let pointerType: PointerType<ObjectType | FunctionType> | null;
-        if (type.sig in variables.arithmeticSig) {
-            const lvHolder1 = lvHolder as LValueHolder<ArithmeticVariable>;
+        if (type.sig in variables.arithmeticNumSig) {
+            const lvHolder1 = lvHolder as LValueHolder<ArithmeticNumVariable>;
             return zeroInitialise
-                ? { t: type as ArithmeticType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0 } }
-                : { t: type as ArithmeticType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } };
+                ? { t: type as ArithmeticNumType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0 } }
+                : { t: type as ArithmeticNumType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } };
+        } else if (type.sig in variables.arithmeticBigSig) {
+            const lvHolder1 = lvHolder as LValueHolder<ArithmeticBigVariable>;
+            return zeroInitialise
+                ? { t: type as ArithmeticBigType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0n } }
+                : { t: type as ArithmeticBigType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } };
         } else if ((classType = variables.asClassType(type)) !== null) {
             // TODO: zero-initialise class members
             const domainName = classType.identifier;

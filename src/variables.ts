@@ -14,13 +14,31 @@ const arithmeticSig = {
     "BOOL": {},
 } as const;
 
+const arithmeticNumSig = {
+    "I8": {},
+    "U8": {},
+    "I16": {},
+    "U16": {},
+    "I32": {},
+    "U32": {},
+    "U64": {},
+    "F32": {},
+    "BOOL": {},
+} as const;
+
+const arithmeticBigSig = {
+    "I64": {},
+    "U64": {},
+} as const;
+
 export interface ArithmeticProperties {
     readonly name: string,
     readonly isSigned: boolean,
     readonly isFloat: boolean,
+    readonly isBig: boolean,
     readonly bytes: number,
-    readonly minv: number,
-    readonly maxv: number,
+    readonly minv: number | BigInt,
+    readonly maxv: number | BigInt,
     readonly asSigned: ArithmeticSig
 }
 
@@ -29,6 +47,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "char",
         isSigned: true,
         isFloat: false,
+        isBig: false,
         bytes: 1,
         minv: -128,
         maxv: 127,
@@ -38,6 +57,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "unsigned char",
         isSigned: false,
         isFloat: false,
+        isBig: false,
         bytes: 1,
         minv: 0,
         maxv: 255,
@@ -47,6 +67,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "short",
         isSigned: true,
         isFloat: false,
+        isBig: false,
         bytes: 2,
         minv: -32768,
         maxv: 32767,
@@ -56,6 +77,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "unsigned short",
         isSigned: false,
         isFloat: false,
+        isBig: false,
         bytes: 2,
         minv: 0,
         maxv: 65535,
@@ -65,6 +87,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "int",
         isSigned: true,
         isFloat: false,
+        isBig: false,
         bytes: 4,
         minv: -2147483648,
         maxv: 2147483647,
@@ -74,6 +97,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "unsigned int",
         isSigned: false,
         isFloat: false,
+        isBig: false,
         bytes: 4,
         minv: 0,
         maxv: 4294967295,
@@ -83,24 +107,27 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "long long",
         isSigned: true,
         isFloat: false,
+        isBig: true,
         bytes: 8,
-        minv: -9223372036854775808,
-        maxv: 9223372036854775807,
+        minv: -9223372036854775808n,
+        maxv: 9223372036854775807n,
         asSigned: "I64",
     },
     "U64": {
         name: "unsigned long long",
         isSigned: false,
         isFloat: false,
+        isBig: true,
         bytes: 8,
         minv: 0,
-        maxv: 18446744073709551615,
+        maxv: 18446744073709551615n,
         asSigned: "I64",
     },
     "F32": {
         name: "float",
         isSigned: true,
         isFloat: true,
+        isBig: false,
         bytes: 4,
         minv: -3.4028235E+38,
         maxv: 3.4028235E+38,
@@ -110,6 +137,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "double",
         isSigned: true,
         isFloat: true,
+        isBig: false,
         bytes: 8,
         minv: -10E+308,
         maxv: 10E+308,
@@ -119,6 +147,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         name: "bool",
         isSigned: false,
         isFloat: false,
+        isBig: false,
         bytes: 1,
         minv: 0,
         maxv: 1,
@@ -161,25 +190,29 @@ const defaultArithmeticResolutionMap: { [x: string]: ArithmeticSig } = {
     "long double": "F64",
 }
 
-// convenience specialisation types of the ArithmeticType
+// convenience specialisation types of the ArithmeticNumType
 
-export interface I8Type { readonly sig: "I8" };
-export interface I16Type { readonly sig: "I16" };
-export interface I32Type { readonly sig: "I32" };
-export interface I64Type { readonly sig: "I64" };
-export interface U8Type { readonly sig: "U8" };
-export interface U16Type { readonly sig: "U16" };
-export interface U32Type { readonly sig: "U32" };
-export interface U64Type { readonly sig: "U64" };
-export interface F32Type { readonly sig: "F32" };
-export interface F64Type { readonly sig: "F64" };
-export interface BoolType { readonly sig: "BOOL" };
-export type IntegerType = I8Type | I16Type | I32Type | I64Type | U8Type | U16Type | U32Type | U64Type;
+export type I8Type = { readonly sig: "I8" };
+export type I16Type = { readonly sig: "I16" };
+export type I32Type = { readonly sig: "I32" };
+export type I64Type = { readonly sig: "I64" };
+export type U8Type = { readonly sig: "U8" };
+export type U16Type = { readonly sig: "U16" };
+export type U32Type = { readonly sig: "U32" };
+export type U64Type = { readonly sig: "U64" };
+export type F32Type = { readonly sig: "F32" };
+export type F64Type = { readonly sig: "F64" };
+export type BoolType = { readonly sig: "BOOL" };
+
+export type NumIntegerType = I8Type | I16Type | I32Type | U8Type | U16Type | U32Type;
+export type BigIntegerType = I64Type | U64Type;
 export type FloatType = F32Type | F64Type;
 
-export interface ArithmeticType {
-    readonly sig: ArithmeticSig,
-}
+export type ArithmeticNumType = NumIntegerType | FloatType | BoolType;
+export type ArithmeticBigType = BigIntegerType;
+export type ArithmeticNumSig = ArithmeticNumType["sig"];
+export type ArithmeticBigSig = ArithmeticBigType["sig"];
+export type ArithmeticType = ArithmeticNumType | ArithmeticBigType;
 
 /** This includes both "class" and "struct" types */
 export interface ClassType {
@@ -210,16 +243,12 @@ export interface PointerType<TElem extends ObjectType | FunctionType> {
     readonly sizeConstraint: number | null,
 }
 
-export interface VoidType {
-    readonly sig: "VOID",
-}
-
 /** Any type that a variable can have */
 export type ObjectType = ArithmeticType | ClassType | PointerType<ArithmeticType | ClassType | FunctionType | PointerType<any>>;
 
-/** Any type that a variable can have + direct function type + void type.
+/** Any type that a variable can have + direct function type.
   * Do not use this for checking variables, use `ObjectType` instead. */
-export type AnyType = ObjectType | FunctionType | VoidType;
+export type AnyType = ObjectType | FunctionType;
 
 /** Variable type with specified value type (lvalue or non-lvalue).
   * Intended to be implicitly cast from Variable | Function types. */
@@ -258,8 +287,12 @@ export type LValueIndexHolder<VSelf extends Variable> = { readonly array: ArrayM
 
 export type LValueHolder<VSelf extends Variable> = LValueIndexHolder<VSelf> | "SELF" | null;
 
-export interface InitArithmeticValue extends InitValue<ArithmeticVariable> {
+export interface InitArithmeticNumValue extends InitValue<ArithmeticNumVariable> {
     value: number;
+}
+
+export interface InitArithmeticBigValue extends InitValue<ArithmeticBigVariable> {
+    value: bigint;
 }
 
 export interface ArrayMemory<VElem extends PointeeVariable> {
@@ -286,13 +319,17 @@ export type PointeeVariable = Function | ArithmeticVariable | ClassVariable | Po
 
 export type InitPointerValue<VElem extends PointeeVariable> = InitDirectPointerValue<VElem> | InitIndexPointerValue<VElem>;
 
-export type ArithmeticValue = InitArithmeticValue | UninitValue<ArithmeticVariable>;
+export type ArithmeticNumValue = InitArithmeticNumValue | UninitValue<ArithmeticNumVariable>;
+export type ArithmeticBigValue = InitArithmeticBigValue | UninitValue<ArithmeticBigVariable>;
+export type ArithmeticValue = InitArithmeticNumValue | InitArithmeticBigValue | UninitValue<ArithmeticNumVariable | ArithmeticBigVariable | ArithmeticVariable> | ArithmeticNumValue | ArithmeticBigValue;
 
 export type PointerValue<VElem extends PointeeVariable> = InitPointerValue<VElem> | UninitValue<PointerVariable<VElem>>;
 export type DirectPointerValue<VElem extends PointeeVariable> = InitDirectPointerValue<VElem> | UninitValue<PointerVariable<VElem>>;
 export type IndexPointerValue<VElem extends PointeeVariable> = InitIndexPointerValue<VElem> | UninitValue<PointerVariable<VElem>>;
 
-export type MaybeUnboundArithmeticValue = ArithmeticValue | UnboundValue<ArithmeticVariable>;
+export type MaybeUnboundArithmeticNumValue = ArithmeticNumValue | UnboundValue<ArithmeticNumVariable>;
+export type MaybeUnboundArithmeticBigValue = ArithmeticBigValue | UnboundValue<ArithmeticBigVariable>;
+export type MaybeUnboundArithmeticValue = MaybeUnboundArithmeticNumValue | MaybeUnboundArithmeticBigValue | ArithmeticValue | UnboundValue<ArithmeticVariable>;
 
 export type MaybeUnboundClassValue = ClassValue | UnboundValue<ClassVariable>;
 
@@ -307,9 +344,9 @@ export interface FunctionValue {
     bindThis: ClassVariable | null;
 }
 
-export type ObjectValue = ArithmeticValue | ClassValue | PointerValue<PointeeVariable>;
-export type InitObjectValue = InitArithmeticValue | ClassValue | InitPointerValue<PointeeVariable>;
-export type MaybeUnboundObjectValue = MaybeUnboundArithmeticValue | MaybeUnboundClassValue | MaybeUnboundPointerValue<PointeeVariable>;
+export type ObjectValue = ArithmeticNumValue | ClassValue | PointerValue<PointeeVariable>;
+export type InitObjectValue = InitArithmeticNumValue | ClassValue | InitPointerValue<PointeeVariable>;
+export type MaybeUnboundObjectValue = MaybeUnboundArithmeticNumValue | MaybeUnboundClassValue | MaybeUnboundPointerValue<PointeeVariable>;
 
 /** Determiner of referee. 
   * > `null` for non-lvalues, e.g., `6`, `"hello"`, `{ 2, -3 }` `(int)x`, `sin(x)`, etc.;
@@ -326,18 +363,24 @@ export interface AbstractVariable<TType, TValue> {
     v: TValue,
 }
 
-export type ArithmeticVariable = AbstractVariable<ArithmeticType, ArithmeticValue>;
+export type ArithmeticNumVariable = AbstractVariable<ArithmeticNumType, ArithmeticNumValue>;
+export type ArithmeticBigVariable = AbstractVariable<ArithmeticBigType, ArithmeticBigValue>;
+export type ArithmeticVariable = AbstractVariable<ArithmeticType, ArithmeticValue | ArithmeticNumValue | ArithmeticBigValue>;
 export type Function = AbstractVariable<FunctionType, FunctionValue>;
 export type ClassVariable = AbstractVariable<ClassType, ClassValue>;
 export type PointerVariable<VElem extends PointeeVariable> = AbstractVariable<PointerType<VElem["t"]>, PointerValue<VElem>>;
 
-export type InitArithmeticVariable = AbstractVariable<ArithmeticType, InitArithmeticValue>;
+export type InitArithmeticNumVariable = AbstractVariable<ArithmeticNumType, InitArithmeticNumValue>;
+export type InitArithmeticBigVariable = AbstractVariable<ArithmeticBigType, InitArithmeticBigValue>;
+export type InitArithmeticVariable = AbstractVariable<ArithmeticType, InitArithmeticNumValue | InitArithmeticBigValue>;
 export type InitClassVariable = AbstractVariable<ClassType, ClassValue>;
 export type InitDirectPointerVariable<VElem extends PointeeVariable> = AbstractVariable<PointerType<VElem["t"]>, InitDirectPointerValue<VElem>>;
 export type InitIndexPointerVariable<VElem extends PointeeVariable> = AbstractVariable<PointerType<VElem["t"]>, InitIndexPointerValue<VElem>>;
 export type InitPointerVariable<VElem extends PointeeVariable> = AbstractVariable<PointerType<VElem["t"]>, InitPointerValue<VElem>>;
 
-export type MaybeUnboundArithmeticVariable = AbstractVariable<ArithmeticType, MaybeUnboundArithmeticValue>;
+export type MaybeUnboundArithmeticNumVariable = AbstractVariable<ArithmeticNumType, MaybeUnboundArithmeticNumValue>;
+export type MaybeUnboundArithmeticBigVariable = AbstractVariable<ArithmeticBigType, MaybeUnboundArithmeticBigValue>;
+export type MaybeUnboundArithmeticVariable = AbstractVariable<ArithmeticType, MaybeUnboundArithmeticValue> | MaybeUnboundArithmeticNumVariable | MaybeUnboundArithmeticBigVariable;
 export type MaybeUnboundClassVariable = AbstractVariable<ClassType, MaybeUnboundClassValue>;
 export type MaybeUnboundPointerVariable<VElem extends Variable | Function> = AbstractVariable<PointerType<VElem["t"]>, MaybeUnboundPointerValue<VElem>>;
 
@@ -349,13 +392,16 @@ export type MaybeUnboundVariable = MaybeUnboundArithmeticVariable | MaybeUnbound
 export type Gen<T> = Generator<unknown, T, unknown>;
 export type ResultOrGen<T> = T | Gen<T>;
 export type CFunction = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<MaybeUnboundVariable | "VOID">;
-export type CFunctionBool = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<InitArithmeticVariable>;
+export type CFunctionBool = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<InitArithmeticNumVariable>;
 
 export const variables = {
-    voidType(): VoidType {
-        return { sig: "VOID" };
-    },
     arithmeticType(sig: ArithmeticSig): ArithmeticType {
+        return { sig };
+    },
+    arithmeticNumType(sig: ArithmeticNumSig): ArithmeticNumType {
+        return { sig };
+    },
+    arithmeticBigType(sig: ArithmeticBigSig): ArithmeticBigType {
         return { sig };
     },
     pointerType<TElem extends ObjectType | FunctionType>(pointee: TElem, sizeConstraint: number | null): PointerType<TElem> {
@@ -368,10 +414,19 @@ export const variables = {
         return { sig: "FUNCTION", fulltype };
     },
     uninitArithmetic(sig: ArithmeticSig, lvHolder: LValueHolder<ArithmeticVariable>, isConst: boolean = false): ArithmeticVariable {
-        return { t: variables.arithmeticType(sig), v: { lvHolder, state: "UNINIT", isConst } };
+        return { t: { sig }, v: { lvHolder, state: "UNINIT", isConst } };
     },
-    arithmetic(sig: ArithmeticSig, value: number, lvHolder: LValueHolder<ArithmeticVariable>, isConst: boolean = false): InitArithmeticVariable {
-        return { t: variables.arithmeticType(sig), v: { lvHolder, state: "INIT", value, isConst } };
+    uninitArithmeticNum(sig: ArithmeticNumSig, lvHolder: LValueHolder<ArithmeticNumVariable>, isConst: boolean = false): ArithmeticNumVariable {
+        return { t: { sig }, v: { lvHolder, state: "UNINIT", isConst } };
+    },
+    arithmeticNum(sig: ArithmeticNumSig, value: number, lvHolder: LValueHolder<ArithmeticNumVariable>, isConst: boolean = false): InitArithmeticNumVariable {
+        return { t: { sig }, v: { lvHolder, state: "INIT", value, isConst } };
+    },
+    uninitArithmeticBig(sig: ArithmeticBigSig, lvHolder: LValueHolder<ArithmeticBigVariable>, isConst: boolean = false): ArithmeticBigVariable {
+        return { t: { sig }, v: { lvHolder, state: "UNINIT", isConst } };
+    },
+    arithmeticBig(sig: ArithmeticBigSig, value: bigint, lvHolder: LValueHolder<ArithmeticBigVariable>, isConst: boolean = false): InitArithmeticBigVariable {
+        return { t: { sig }, v: { lvHolder, state: "INIT", value, isConst } };
     },
     uninitPointer(object: ObjectType | FunctionType, sizeConstraint: number | null, lvHolder: LValueHolder<PointerVariable<PointeeVariable>>, isConst: boolean = false): PointerVariable<PointeeVariable> {
         return { t: variables.pointerType(object, sizeConstraint), v: { lvHolder, state: "UNINIT", isConst } };
@@ -420,7 +475,7 @@ export const variables = {
         let branch: { [sig in BranchKey]: (x: LValueHolder<Variable>) => Variable } = {
             "ARITHMETIC": (_lvHolder: LValueHolder<InitArithmeticVariable>) => {
                 const x = object as InitArithmeticVariable;
-                return variables.arithmetic(x.t.sig, x.v.value, _lvHolder, isConst)
+                return { t: { sig: x.t.sig }, v: { value: x.v.value, lvHolder: _lvHolder, isConst: isConst} } as InitArithmeticVariable;
             },
             "PTR": (_lvHolder: LValueHolder<InitPointerVariable<PointeeVariable>>) => {
                 const _x = object as InitPointerVariable<PointeeVariable>;
@@ -455,8 +510,8 @@ export const variables = {
                 rt.raiseException("Attempted clone of an uninitialised value");
             }
             branch = {
-                "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticVariable>) => {
-                    const x = object as ArithmeticVariable;
+                "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticNumVariable>) => {
+                    const x = object as ArithmeticNumVariable;
                     return variables.uninitArithmetic(x.t.sig, _lvHolder, isConst)
                 },
                 "PTR": (_lvHolder: LValueHolder<PointerVariable<PointeeVariable>>) => {
@@ -477,11 +532,14 @@ export const variables = {
         const where: BranchKey = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig as BranchKey;
         return branch[where](lvHolder) as TVar;
     },
-    asVoidType(type: AnyType): VoidType | null {
-        return (type.sig === "VOID") ? type as VoidType : null;
-    },
     asArithmeticType(type: AnyType): ArithmeticType | null {
         return (type.sig in arithmeticSig) ? type as ArithmeticType : null;
+    },
+    asArithmeticNumType(type: AnyType): ArithmeticNumType | null {
+        return (type.sig in arithmeticNumSig) ? type as ArithmeticNumType : null;
+    },
+    asArithmeticBigType(type: AnyType): ArithmeticBigType | null {
+        return (type.sig in arithmeticBigSig) ? type as ArithmeticBigType : null;
     },
     asPointerType(type: AnyType): PointerType<ObjectType | FunctionType> | null {
         return (type.sig === "PTR") ? type as PointerType<ObjectType | FunctionType> : null;
@@ -500,6 +558,18 @@ export const variables = {
     },
     asInitArithmetic(x: Variable | Function): InitArithmeticVariable | null {
         return (x.t.sig in arithmeticSig && x.v.state === "INIT") ? x as InitArithmeticVariable : null;
+    },
+    asArithmeticNum(x: Variable | Function): ArithmeticNumVariable | null {
+        return (x.t.sig in arithmeticNumSig) ? x as ArithmeticNumVariable : null;
+    },
+    asInitArithmeticNum(x: Variable | Function): InitArithmeticNumVariable | null {
+        return (x.t.sig in arithmeticNumSig && x.v.state === "INIT") ? x as InitArithmeticNumVariable : null;
+    },
+    asArithmeticBig(x: Variable | Function): ArithmeticBigVariable | null {
+        return (x.t.sig in arithmeticBigSig) ? x as ArithmeticBigVariable : null;
+    },
+    asInitArithmeticBig(x: Variable | Function): InitArithmeticBigVariable | null {
+        return (x.t.sig in arithmeticBigSig && x.v.state === "INIT") ? x as InitArithmeticBigVariable : null;
     },
     asPointer(x: Variable | Function): PointerVariable<PointeeVariable> | null {
         return (x.t.sig === "PTR") ? x as PointerVariable<PointeeVariable> : null;
@@ -573,7 +643,7 @@ export const variables = {
         if (lhs.sig !== rhs.sig) {
             return false;
         }
-        if (lhs.sig in arithmeticSig || lhs.sig === "VOID") {
+        if (lhs.sig in arithmeticSig) {
             return true;
         }
         type BranchKey = "PTR" | "CLASS" | "FUNCTION";
@@ -590,15 +660,15 @@ export const variables = {
         }
         return branch[lhs.sig as BranchKey]();
     },
-    arithmeticAssign(rt: CRuntime, lhs: ArithmeticVariable, value: number): void {
+    arithmeticAssign(rt: CRuntime, lhs: ArithmeticNumVariable, value: number): void {
         checkAssignable(rt, lhs.v);
         lhs.v.state = "INIT";
-        (lhs.v as InitArithmeticValue).value = value;
+        (lhs.v as InitArithmeticNumValue).value = value;
     },
-    arithmeticValueAssign(rt: CRuntime, lv: ArithmeticValue, value: number): void {
+    arithmeticValueAssign(rt: CRuntime, lv: ArithmeticNumValue, value: number): void {
         checkAssignable(rt, lv);
         lv.state = "INIT";
-        (lv as InitArithmeticValue).value = value;
+        (lv as InitArithmeticNumValue).value = value;
     },
     directPointerAssign<VElem extends PointeeVariable>(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, pointee: VElem): void {
         checkAssignable(rt, lhs.v);
@@ -636,6 +706,8 @@ export const variables = {
         return result;
     },
     arithmeticSig: arithmeticSig,
+    arithmeticNumSig: arithmeticNumSig,
+    arithmeticBigSig: arithmeticBigSig,
     arithmeticProperties: arithmeticProperties,
     defaultArithmeticResolutionMap: defaultArithmeticResolutionMap,
 } as const;
@@ -650,7 +722,7 @@ function checkAssignable(rt: CRuntime, v: ObjectValue): void {
 }
 
 function toStringSequenceInner(rt: CRuntime, type: AnyType, result: string[]): void {
-    if (type.sig in arithmeticSig || type.sig === "VOID") {
+    if (type.sig in arithmeticSig) {
         result.push(type.sig);
         return;
     }

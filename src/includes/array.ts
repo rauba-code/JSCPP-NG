@@ -5,7 +5,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, InitArithmeticNumVariable, ArithmeticNumVariable } from "../variables";
 
 interface ArrayType<T extends ObjectType, N extends number> extends AbstractTemplatedClassType<null, [T, ObjectType]> {
     readonly identifier: "array",
@@ -17,7 +17,7 @@ type ArrayVariable<T extends Variable, N extends number> = AbstractVariable<Arra
 interface ArrayValue<T extends Variable, N extends number> extends InitValue<ArrayVariable<T, N>> {
     members: {
         "_data": InitIndexPointerVariable<T>,
-        "_size": InitArithmeticVariable,
+        "_size": InitArithmeticNumVariable,
     }
 }
 
@@ -38,7 +38,7 @@ export = {
 
                 return {
                     _data: variables.indexPointer<Variable>(memory, 0, false, "SELF"),
-                    _size: variables.arithmetic("I32", sizeValue, "SELF"),
+                    _size: variables.arithmeticNum("I32", sizeValue, "SELF"),
                 }
             }
         }, ["_data", "_size"], {});
@@ -68,8 +68,8 @@ export = {
             {
                 op: "o(_[_])",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: ArrayVariable<Variable, number>, _idx: ArithmeticVariable): Variable {
-                    const idx = rt.arithmeticValue(_idx);
+                default(rt: CRuntime, _templateTypes: [], l: ArrayVariable<Variable, number>, _idx: ArithmeticNumVariable): Variable {
+                    const idx = rt.arithmeticValue(_idx) as number;
                     if (idx < 0 || idx >= l.v.members._size.v.value) {
                         rt.raiseException("array::operator[]: index out of range error");
                     }
@@ -97,14 +97,14 @@ export = {
                 op: "size",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS array < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticVariable {
-                    return variables.arithmetic("I32", arr.v.members._size.v.value, null, false);
+                    return variables.arithmeticNum("I32", arr.v.members._size.v.value, null, false);
                 }
             },
             {
                 op: "at",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > I32 )",
-                default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>, _idx: ArithmeticVariable): Variable {
-                    const idx = rt.arithmeticValue(_idx);
+                default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>, _idx: ArithmeticNumVariable): Variable {
+                    const idx = rt.arithmeticValue(_idx) as number;
                     if (idx < 0 || idx >= arr.v.members._size.v.value) {
                         rt.raiseException("array::at(): index out of range error");
                     }
@@ -134,15 +134,15 @@ export = {
             {
                 op: "empty",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS array < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticVariable {
-                    return variables.arithmetic("BOOL", arr.v.members._size.v.value === 0 ? 1 : 0, null, false);
+                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticNumVariable {
+                    return variables.arithmeticNum("BOOL", arr.v.members._size.v.value === 0 ? 1 : 0, null, false);
                 }
             },
             {
                 op: "max_size",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS array < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticVariable {
-                    return variables.arithmetic("I32", arr.v.members._size.v.value, null, false);
+                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticNumVariable {
+                    return variables.arithmeticNum("I32", arr.v.members._size.v.value, null, false);
                 }
             },
             {

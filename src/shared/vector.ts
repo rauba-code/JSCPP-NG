@@ -1,4 +1,4 @@
-import { AbstractVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitValue, ObjectType, Variable } from "../variables";
+import { AbstractVariable, ClassType, InitArithmeticNumVariable, InitIndexPointerVariable, InitValue, ObjectType, Variable } from "../variables";
 
 export interface VectorType<TType extends ObjectType> extends ClassType {
     readonly sig: "CLASS",
@@ -12,6 +12,6 @@ export type VectorVariable<TVar extends Variable> = AbstractVariable<VectorType<
 export interface VectorValue<TVar extends Variable> extends InitValue<VectorVariable<TVar>> {
     members: {
         "_ptr": InitIndexPointerVariable<TVar>
-        "_sz": InitArithmeticVariable,
+        "_sz": InitArithmeticNumVariable,
     }
 }

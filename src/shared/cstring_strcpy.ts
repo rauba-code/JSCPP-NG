@@ -1,10 +1,10 @@
 import { CRuntime } from "../rt";
-import { ArithmeticVariable, InitIndexPointerVariable, variables } from "../variables";
+import { ArithmeticNumVariable, InitIndexPointerVariable, variables } from "../variables";
 
-export = function (rt: CRuntime, _dest: InitIndexPointerVariable<ArithmeticVariable>, _src: InitIndexPointerVariable<ArithmeticVariable>): InitIndexPointerVariable<ArithmeticVariable> {
-    const _arithmetic = variables.uninitArithmetic("I8", null);
-    const dest: InitIndexPointerVariable<ArithmeticVariable> | null = variables.asInitIndexPointerOfElem(_dest, _arithmetic);
-    const src: InitIndexPointerVariable<ArithmeticVariable> | null = variables.asInitIndexPointerOfElem(_src, _arithmetic);
+export = function (rt: CRuntime, _dest: InitIndexPointerVariable<ArithmeticNumVariable>, _src: InitIndexPointerVariable<ArithmeticNumVariable>): InitIndexPointerVariable<ArithmeticNumVariable> {
+    const _arithmetic = variables.uninitArithmeticNum("I8", null);
+    const dest: InitIndexPointerVariable<ArithmeticNumVariable> | null = variables.asInitIndexPointerOfElem(_dest, _arithmetic);
+    const src: InitIndexPointerVariable<ArithmeticNumVariable> | null = variables.asInitIndexPointerOfElem(_src, _arithmetic);
     if (src !== null && dest !== null) {
         const srcarr = src.v.pointee.values;
         let i = src.v.index;

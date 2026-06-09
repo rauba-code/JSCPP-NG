@@ -1,6 +1,6 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { AbstractVariable, ArithmeticVariable, InitArithmeticVariable, InitPointerVariable, InitValue, MaybeUnboundVariable, PointerVariable, Variable, variables } from "../variables";
+import { AbstractVariable, ArithmeticNumVariable, InitArithmeticNumVariable, InitPointerVariable, InitValue, MaybeUnboundVariable, PointerVariable, Variable, variables } from "../variables";
 import * as utf8 from "../utf8";
 
 interface DivType {
@@ -14,8 +14,8 @@ type DivVariable = AbstractVariable<DivType, DivValue>;
 
 interface DivValue extends InitValue<DivVariable> {
     members: {
-        "quot": InitArithmeticVariable,
-        "rem": InitArithmeticVariable,
+        "quot": InitArithmeticNumVariable,
+        "rem": InitArithmeticNumVariable,
     }
 }
 
@@ -47,8 +47,8 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 FunctionParamOrEnd",
                 op: "printf",
-                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>, ...args: Variable[]): InitArithmeticVariable {
-                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>, ...args: Variable[]): InitArithmeticNumVariable {
+                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     let chr: number;
                     type FormatOptions = {
                         flagAlternateForm: boolean;
@@ -68,20 +68,26 @@ export = {
                         length: null,
                         precision: null,
                     }
-                    function formatNumeric(category: "d" | "f", options: FormatOptions, value: number): number[] {
+                    function formatNumeric(category: "d" | "f", options: FormatOptions, value: number | bigint): number[] {
                         if (options.flagAlternateForm) {
                             rt.raiseException("printf format: Not yet implemented");
                         }
-                        let sign = Math.sign(value);
-                        value = Math.abs(value);
-                        let rem = value - Math.floor(value);
+                        let sign = (value == 0) ? 0 : (value < 0) ? -1 : 1;
+                        value = value >= 0 ? value : -value;
                         let output: number[] = [];
                         if (sign === 0) {
                             output.push(ascii_0);
                         } else {
-                            while (value !== 0) {
-                                output.push((value % 10) + ascii_0);
-                                value = Math.floor(value / 10);
+                            if (typeof value === "number") {
+                                while (value !== 0) {
+                                    output.push((value % 10) + ascii_0);
+                                    value = Math.floor(value / 10);
+                                }
+                            } else {
+                                while (value !== 0n) {
+                                    output.push(Number(value % 10n) + ascii_0);
+                                    value /= 10n;
+                                }
                             }
                             if (sign < 0) {
                                 output.push(ascii_minusSign);
@@ -101,6 +107,7 @@ export = {
                         }
                         output = output.reverse();
                         if (category === "f") {
+                            let rem = value as number - Math.floor(value as number);
                             output.push(ascii_fullStop);
                             let remOutput: number[] = [];
                             let fraction = Math.round(rem * Math.exp(precision * Math.LN10));
@@ -121,7 +128,7 @@ export = {
                     let formatOptions: FormatOptions = { ...defaultFormatOptions };
                     let output: number[] = [];
                     let state: "NORMAL" | "PERCENT" | "FLAGS" | "LENGTH" | "PRECISION" = "NORMAL";
-                    for (let i = 0; (chr = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + i))) !== 0; i++) {
+                    for (let i = 0; (chr = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + i)) as number) !== 0; i++) {
                         switch (state) {
                             case "PERCENT":
                                 switch (chr) {
@@ -161,15 +168,15 @@ export = {
                                         state = "PRECISION";
                                         break;
                                     case ascii_c:
-                                        const arithmeticVar3 = variables.asArithmetic(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
+                                        const arithmeticVar3 = variables.asArithmeticNum(args[0]) ?? rt.raiseException("printf: Expected an arithmetic variable");
                                         args = args.slice(1);
-                                        output.push(Math.floor(rt.arithmeticValue(arithmeticVar3)))
+                                        output.push(Math.floor(rt.arithmeticValue(arithmeticVar3) as number))
                                         state = "NORMAL";
                                         break;
                                     case ascii_s:
-                                        const strVar = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index char pointer");
+                                        const strVar = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index char pointer");
                                         let schr: number;
-                                        for (let j = 0; (schr = rt.arithmeticValue(variables.arrayMember(strVar.v.pointee, strVar.v.index + j))) !== 0; j++) {
+                                        for (let j = 0; (schr = (rt.arithmeticValue(variables.arrayMember(strVar.v.pointee, strVar.v.index + j))) as number) !== 0; j++) {
                                             output.push(schr);
                                         }
                                         args = args.slice(1);
@@ -320,19 +327,19 @@ export = {
                     const stdio = rt.stdio();
                     stdio.write(str);
 
-                    return variables.arithmetic("I32", output.length, null);
+                    return variables.arithmeticNum("I32", output.length, null);
                 }
             },
             {
                 type: "FUNCTION I32 ( I32 )",
                 op: "putchar",
-                default(rt: CRuntime, _templateTypes: [], l: ArithmeticVariable): InitArithmeticVariable {
-                    const chr = rt.arithmeticValue(l);
+                default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): InitArithmeticNumVariable {
+                    const chr = rt.arithmeticValue(l) as number;
                     const bytes = new Uint8Array([chr]);
                     const str = utf8.fromUtf8CharArray(bytes);
                     const stdio = rt.stdio();
                     stdio.write(str);
-                    return variables.arithmetic(l.t.sig, chr, null);
+                    return variables.arithmeticNum(l.t.sig, chr, null);
 
                 }
 
@@ -340,33 +347,33 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 )",
                 op: "puts",
-                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
                     const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     const str = rt.getStringFromCharArray(l);
                     const stdio = rt.stdio();
                     stdio.write(str);
-                    return variables.arithmetic("I32", 0, null);
+                    return variables.arithmeticNum("I32", 0, null);
                 }
 
             },
             {
                 type: "FUNCTION I32 ( PTR I8 PTR I8 FunctionParamOrEnd",
                 op: "sscanf",
-                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticVariable>, _fmt: PointerVariable<ArithmeticVariable>, ...args: Variable[]): InitArithmeticVariable {
-                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
-                    const fmt = variables.asInitIndexPointerOfElem(_fmt, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>, _fmt: PointerVariable<ArithmeticNumVariable>, ...args: Variable[]): InitArithmeticNumVariable {
+                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    const fmt = variables.asInitIndexPointerOfElem(_fmt, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     let li = 0;
-                    let lc: number = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                    let lc: number = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
                     let fc: number;
                     let state: "NORMAL" | "PERCENT" = "NORMAL";
                     const whitespace = [ascii_space, ascii_newline, ascii_tab];
-                    for (let fi = 0; (fc = rt.arithmeticValue(variables.arrayMember(fmt.v.pointee, fmt.v.index + fi))) !== 0; fi++) {
+                    for (let fi = 0; (fc = rt.arithmeticValue(variables.arrayMember(fmt.v.pointee, fmt.v.index + fi)) as number) !== 0; fi++) {
                         if (lc === 0) {
                             rt.raiseException("sscanf: not yet implemented (bad input)");
                         }
                         if (state === "NORMAL") {
                             if (whitespace.includes(fc)) {
-                                while (whitespace.includes(lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)))) {
+                                while (whitespace.includes(lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number)) {
                                     li++;
                                 }
                             } else if (fc === ascii_percentSign) {
@@ -376,7 +383,7 @@ export = {
                                     rt.raiseException("sscanf: not yet implemented (bad input)");
                                 } else {
                                     li++;
-                                    lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                                    lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
                                 }
                             }
                         } else { // state === "PERCENT"
@@ -386,20 +393,20 @@ export = {
                                         rt.raiseException("sscanf: not yet implemented (bad input)");
                                     } else {
                                         li++;
-                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
                                     }
                                     break;
                                 case ascii_s:
-                                    const vstr = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                                    const vstr = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                                     let vi = 0;
                                     args = args.slice(1);
                                     while (!whitespace.includes(lc) && lc !== 0) {
-                                        variables.arithmeticAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticVariable, lc);
+                                        variables.arithmeticAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticNumVariable, lc);
                                         vi++;
                                         li++;
-                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
                                     }
-                                    variables.arithmeticAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticVariable, 0);
+                                    variables.arithmeticAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticNumVariable, 0);
                                     break
                                 case ascii_d:
                                     let vtnum = 0;
@@ -407,14 +414,14 @@ export = {
                                         vtnum *= 10;
                                         vtnum += lc - ascii_0;
                                         li++;
-                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li));
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
                                     }
                                     const vptr = variables.asInitPointer(args[0]) ?? rt.raiseException("sscanf: Variable a is not an initialised index pointer");
                                     args = args.slice(1);
                                     if (vptr.t.pointee.sig === "FUNCTION") {
                                         rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
                                     }
-                                    const vpointee = variables.asArithmetic(rt.unbound(variables.deref(vptr as InitPointerVariable<Variable>) as MaybeUnboundVariable)) ?? rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
+                                    const vpointee = variables.asArithmeticNum(rt.unbound(variables.deref(vptr as InitPointerVariable<Variable>) as MaybeUnboundVariable)) ?? rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
                                     variables.arithmeticAssign(rt, vpointee, vtnum);
                                     break
                                 default:
@@ -424,7 +431,7 @@ export = {
                         }
                     }
 
-                    return variables.arithmetic("I32", 0, null);
+                    return variables.arithmeticNum("I32", 0, null);
                 }
             }
         ]);

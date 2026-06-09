@@ -2,7 +2,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, InitArithmeticNumVariable, ArithmeticNumVariable } from "../variables";
 
 interface VectorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "vector",
@@ -13,8 +13,8 @@ type VectorVariable<T extends Variable> = AbstractVariable<VectorType<T["t"]>, V
 interface VectorValue<T extends Variable> extends InitValue<VectorVariable<T>> {
     members: {
         "_ptr": InitIndexPointerVariable<T>,
-        "_sz": InitArithmeticVariable,
-        "_cap": InitArithmeticVariable,
+        "_sz": InitArithmeticNumVariable,
+        "_cap": InitArithmeticNumVariable,
     }
 }
 
@@ -27,8 +27,8 @@ export = {
             numTemplateArgs: 1, factory: (dataItem: VectorType<ObjectType>) => {
                 return {
                     _ptr: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF"),
-                    _sz: variables.arithmetic("I32", 0, "SELF"),
-                    _cap: variables.arithmetic("I32", 0, "SELF"),
+                    _sz: variables.arithmeticNum("I32", 0, "SELF"),
+                    _cap: variables.arithmeticNum("I32", 0, "SELF"),
                 }
             }
         }, ["_ptr", "_sz", "_cap"], {
@@ -93,7 +93,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( I32 )",
-                *default(rt: CRuntime, templateTypes: [VectorType<ObjectType>], count: InitArithmeticVariable): Gen<VectorVariable<Variable>> {
+                *default(rt: CRuntime, templateTypes: [VectorType<ObjectType>], count: InitArithmeticNumVariable): Gen<VectorVariable<Variable>> {
                     // NOTE: This constructor is marked as explicit in standard C++
                     const thisType = variables.classType("vector", [templateTypes[0].templateSpec[0]], null);
                     const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
@@ -161,8 +161,8 @@ export = {
             {
                 op: "o(_[_])",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: VectorVariable<Variable>, _idx: ArithmeticVariable): Variable {
-                    const idx = rt.arithmeticValue(_idx);
+                default(rt: CRuntime, _templateTypes: [], l: VectorVariable<Variable>, _idx: ArithmeticNumVariable): Variable {
+                    const idx = rt.arithmeticValue(_idx) as number;
                     if (idx < 0 || idx >= l.v.members._sz.v.value) {
                         rt.raiseException("vector::operator[]: index out of range error");
                     }
@@ -198,8 +198,8 @@ export = {
             {
                 op: "resize",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > I32 CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _size: ArithmeticVariable, tail: Variable): Gen<"VOID"> {
-                    const size = rt.arithmeticValue(_size);
+                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _size: ArithmeticNumVariable, tail: Variable): Gen<"VOID"> {
+                    const size = rt.arithmeticValue(_size) as number;
                     const oldSize = vec.v.members._sz.v.value;
                     if (size <= oldSize) {
                         vec.v.members._sz.v.value = size;
@@ -226,15 +226,15 @@ export = {
             {
                 op: "size",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS vector < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitArithmeticVariable {
-                    return variables.arithmetic("I32", vec.v.members._sz.v.value, null, false);
+                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitArithmeticNumVariable {
+                    return variables.arithmeticNum("I32", vec.v.members._sz.v.value, null, false);
                 }
             },
             {
                 op: "empty",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS vector < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitArithmeticVariable {
-                    return variables.arithmetic("BOOL", (vec.v.members._sz.v.value === 0) ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", (vec.v.members._sz.v.value === 0) ? 1 : 0, null, false);
                 }
             },
             {

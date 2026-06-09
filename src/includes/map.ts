@@ -410,6 +410,7 @@ export = {
                 op: "contains",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                    // NOTE: This is a C++20 function.
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
                     const value = args[1];
                     const found = yield* _find(rt, mapVar, value);

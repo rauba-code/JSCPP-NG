@@ -1,7 +1,7 @@
 import { CRuntime } from "../rt";
-import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, InitValue, ObjectType, PointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticNumVariable, ArithmeticVariable, ClassType, InitArithmeticNumVariable, InitArithmeticVariable, InitIndexPointerVariable, InitValue, ObjectType, PointerVariable, variables } from "../variables";
 
-export function skipSpace(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>): void {
+export function skipSpace(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticNumVariable>): void {
     if (buf.v.pointee.values.length === 0) {
         return;
     }
@@ -10,13 +10,13 @@ export function skipSpace(rt: CRuntime, buf: InitIndexPointerVariable<Arithmetic
     }
 };
 
-export function sizeNonSpace(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>): number {
+export function sizeNonSpace(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticNumVariable>): number {
     if (buf.v.pointee.values.length === 0) {
         return 0;
     }
     let i = 0;
     while (true) {
-        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i));
+        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i)) as number;
         if (chr === 0 || chr === 32 || chr === 9 || chr === 10) {
             break;
         }
@@ -25,13 +25,13 @@ export function sizeNonSpace(rt: CRuntime, buf: InitIndexPointerVariable<Arithme
     return i;
 };
 
-export function sizeUntil(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>, delim: InitArithmeticVariable): number {
+export function sizeUntil(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticNumVariable>, delim: InitArithmeticVariable): number {
     if (buf.v.pointee.values.length === 0) {
         return 0;
     }
     let i = 0;
     while (true) {
-        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i));
+        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i)) as number;
         if (chr === delim.v.value || chr === 0) {
             break;
         }
@@ -40,13 +40,13 @@ export function sizeUntil(rt: CRuntime, buf: InitIndexPointerVariable<Arithmetic
     return i;
 };
 
-export function sizeUntilNull(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticVariable>): number {
+export function sizeUntilNull(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticNumVariable>): number {
     if (buf.v.pointee.values.length === 0) {
         return 0;
     }
     let i = 0;
     while (true) {
-        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i));
+        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i)) as number;
         if (chr === 0) {
             break;
         }
@@ -134,7 +134,7 @@ export type StringVariable = AbstractVariable<StringType, StringValue>;
 
 export interface StringValue extends InitValue<StringVariable> {
     members: {
-        "_ptr": PointerVariable<ArithmeticVariable>
-        "_size": InitArithmeticVariable,
+        "_ptr": PointerVariable<ArithmeticNumVariable>
+        "_size": InitArithmeticNumVariable,
     }
 }
