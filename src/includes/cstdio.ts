@@ -334,7 +334,7 @@ export = {
                 type: "FUNCTION I32 ( I32 )",
                 op: "putchar",
                 default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): InitArithmeticNumVariable {
-                    const chr = rt.arithmeticValue(l) as number;
+                    const chr = rt.arithmeticNumValue(l);
                     const bytes = new Uint8Array([chr]);
                     const str = utf8.fromUtf8CharArray(bytes);
                     const stdio = rt.stdio();
@@ -348,7 +348,7 @@ export = {
                 type: "FUNCTION I32 ( PTR I8 )",
                 op: "puts",
                 default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
-                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     const str = rt.getStringFromCharArray(l);
                     const stdio = rt.stdio();
                     stdio.write(str);
@@ -401,12 +401,12 @@ export = {
                                     let vi = 0;
                                     args = args.slice(1);
                                     while (!whitespace.includes(lc) && lc !== 0) {
-                                        variables.arithmeticAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticNumVariable, lc);
+                                        variables.arithmeticNumAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticNumVariable, lc);
                                         vi++;
                                         li++;
                                         lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
                                     }
-                                    variables.arithmeticAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticNumVariable, 0);
+                                    variables.arithmeticNumAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticNumVariable, 0);
                                     break
                                 case ascii_d:
                                     let vtnum = 0;

@@ -344,7 +344,7 @@ export interface FunctionValue {
     bindThis: ClassVariable | null;
 }
 
-export type ObjectValue = ArithmeticNumValue | ClassValue | PointerValue<PointeeVariable>;
+export type ObjectValue = ArithmeticValue | ClassValue | PointerValue<PointeeVariable>;
 export type InitObjectValue = InitArithmeticNumValue | ClassValue | InitPointerValue<PointeeVariable>;
 export type MaybeUnboundObjectValue = MaybeUnboundArithmeticNumValue | MaybeUnboundClassValue | MaybeUnboundPointerValue<PointeeVariable>;
 
@@ -395,9 +395,6 @@ export type CFunction = (rt: CRuntime, templateArgs: ObjectType[], ...args: Vari
 export type CFunctionBool = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<InitArithmeticNumVariable>;
 
 export const variables = {
-    arithmeticType(sig: ArithmeticSig): ArithmeticType {
-        return { sig };
-    },
     arithmeticNumType(sig: ArithmeticNumSig): ArithmeticNumType {
         return { sig };
     },
@@ -412,9 +409,6 @@ export const variables = {
     },
     functionType(fulltype: string[]): FunctionType {
         return { sig: "FUNCTION", fulltype };
-    },
-    uninitArithmetic(sig: ArithmeticSig, lvHolder: LValueHolder<ArithmeticVariable>, isConst: boolean = false): ArithmeticVariable {
-        return { t: { sig }, v: { lvHolder, state: "UNINIT", isConst } };
     },
     uninitArithmeticNum(sig: ArithmeticNumSig, lvHolder: LValueHolder<ArithmeticNumVariable>, isConst: boolean = false): ArithmeticNumVariable {
         return { t: { sig }, v: { lvHolder, state: "UNINIT", isConst } };
@@ -475,7 +469,7 @@ export const variables = {
         let branch: { [sig in BranchKey]: (x: LValueHolder<Variable>) => Variable } = {
             "ARITHMETIC": (_lvHolder: LValueHolder<InitArithmeticVariable>) => {
                 const x = object as InitArithmeticVariable;
-                return { t: { sig: x.t.sig }, v: { value: x.v.value, lvHolder: _lvHolder, isConst: isConst} } as InitArithmeticVariable;
+                return { t: { sig: x.t.sig }, v: { value: x.v.value, lvHolder: _lvHolder, isConst: isConst, state: "INIT"} } as InitArithmeticVariable;
             },
             "PTR": (_lvHolder: LValueHolder<InitPointerVariable<PointeeVariable>>) => {
                 const _x = object as InitPointerVariable<PointeeVariable>;
@@ -510,9 +504,9 @@ export const variables = {
                 rt.raiseException("Attempted clone of an uninitialised value");
             }
             branch = {
-                "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticNumVariable>) => {
+                "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticVariable>) => {
                     const x = object as ArithmeticNumVariable;
-                    return variables.uninitArithmetic(x.t.sig, _lvHolder, isConst)
+                    return { t: { sig: x.t.sig }, v: { state: "UNINIT", lvHolder: _lvHolder, isConst} } as ArithmeticVariable;
                 },
                 "PTR": (_lvHolder: LValueHolder<PointerVariable<PointeeVariable>>) => {
                     const x = object as PointerVariable<PointeeVariable>;
@@ -660,15 +654,25 @@ export const variables = {
         }
         return branch[lhs.sig as BranchKey]();
     },
-    arithmeticAssign(rt: CRuntime, lhs: ArithmeticNumVariable, value: number): void {
+    arithmeticNumAssign(rt: CRuntime, lhs: ArithmeticNumVariable, value: number): void {
         checkAssignable(rt, lhs.v);
         lhs.v.state = "INIT";
         (lhs.v as InitArithmeticNumValue).value = value;
     },
-    arithmeticValueAssign(rt: CRuntime, lv: ArithmeticNumValue, value: number): void {
+    arithmeticBigAssign(rt: CRuntime, lhs: ArithmeticBigVariable, value: bigint): void {
+        checkAssignable(rt, lhs.v);
+        lhs.v.state = "INIT";
+        (lhs.v as InitArithmeticBigValue).value = value;
+    },
+    arithmeticNumValueAssign(rt: CRuntime, lv: ArithmeticNumValue, value: number): void {
         checkAssignable(rt, lv);
         lv.state = "INIT";
         (lv as InitArithmeticNumValue).value = value;
+    },
+    arithmeticBigValueAssign(rt: CRuntime, lv: ArithmeticBigValue, value: bigint): void {
+        checkAssignable(rt, lv);
+        lv.state = "INIT";
+        (lv as InitArithmeticBigValue).value = value;
     },
     directPointerAssign<VElem extends PointeeVariable>(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, pointee: VElem): void {
         checkAssignable(rt, lhs.v);

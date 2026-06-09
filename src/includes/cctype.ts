@@ -10,7 +10,7 @@ export = {
                 op: name,
                 type: "FUNCTION I32 ( I32 )",
                 default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): InitArithmeticNumVariable {
-                    return variables.arithmeticNum("I32", fn(rt.arithmeticValue(l) as number) ? 1 : 0, null);
+                    return variables.arithmeticNum("I32", fn(rt.arithmeticNumValue(l)) ? 1 : 0, null);
                 }
             };
         }
@@ -19,7 +19,7 @@ export = {
                 op: name,
                 type: "FUNCTION I32 ( I32 )",
                 default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): InitArithmeticNumVariable {
-                    return variables.arithmeticNum("I32", fn(rt.arithmeticValue(l) as number), null);
+                    return variables.arithmeticNum("I32", fn(rt.arithmeticNumValue(l)), null);
                 }
             };
         }

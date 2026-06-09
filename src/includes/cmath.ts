@@ -8,7 +8,7 @@ export = {
         rt.defVar("NAN", variables.arithmeticNum("F32", Number.NaN, null, true), false, true);
         function commonUnaryNum(fn: (l: number) => number, sig: ArithmeticNumSig | null): (rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable) => InitArithmeticNumVariable {
             return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable): InitArithmeticNumVariable {
-                const l = rt.arithmeticValue(_l) as number;
+                const l = rt.arithmeticNumValue(_l);
                 const retv = variables.arithmeticNum(sig ?? _l.t.sig, fn(l), null, false);
                 rt.adjustArithmeticNumValue(retv);
                 return retv;
@@ -24,8 +24,8 @@ export = {
         }
         function commonBinaryNum(fn: (l: number, r: number) => number, sig: ArithmeticNumSig): (rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable, r: ArithmeticNumVariable) => InitArithmeticNumVariable {
             return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable): InitArithmeticNumVariable {
-                const l = rt.arithmeticValue(_l) as number;
-                const r = rt.arithmeticValue(_r) as number;
+                const l = rt.arithmeticNumValue(_l);
+                const r = rt.arithmeticNumValue(_r);
                 const retv = variables.arithmeticNum(sig, fn(l, r), null, false);
                 rt.adjustArithmeticNumValue(retv);
                 return retv;

@@ -41,7 +41,7 @@ export = {
             }
         };
         function getWordString(rt: CRuntime, _l: PointerVariable<ArithmeticNumVariable>): string {
-        const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+        const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
             let char = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index)) as number;
             while ([9, 10, 32].includes(char)) {
                 l.v.index++;
@@ -57,7 +57,7 @@ export = {
 
         }
         function abs(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable): InitArithmeticNumVariable {
-            const l = rt.arithmeticValue(_l) as number;
+            const l = rt.arithmeticNumValue(_l);
             const retv = variables.arithmeticNum(_l.t.sig, Math.abs(l), null);
             rt.adjustArithmeticNumValue(retv);
             return retv;
@@ -65,31 +65,31 @@ export = {
         rt.defineStruct("{global}", "div_t", [
             {
                 name: "quot",
-                variable: variables.uninitArithmetic("I32", "SELF"),
+                variable: variables.uninitArithmeticNum("I32", "SELF"),
             },
             {
                 name: "rem",
-                variable: variables.uninitArithmetic("I32", "SELF"),
+                variable: variables.uninitArithmeticNum("I32", "SELF"),
             },
         ], {});
         rt.defineStruct("{global}", "ldiv_t", [
             {
                 name: "quot",
-                variable: variables.uninitArithmetic("I32", "SELF"),
+                variable: variables.uninitArithmeticNum("I32", "SELF"),
             },
             {
                 name: "rem",
-                variable: variables.uninitArithmetic("I32", "SELF"),
+                variable: variables.uninitArithmeticNum("I32", "SELF"),
             },
         ], {});
         rt.defineStruct("{global}", "lldiv_t", [
             {
                 name: "quot",
-                variable: variables.uninitArithmetic("I64", "SELF"),
+                variable: variables.uninitArithmeticBig("I64", "SELF"),
             },
             {
                 name: "rem",
-                variable: variables.uninitArithmetic("I64", "SELF"),
+                variable: variables.uninitArithmeticBig("I64", "SELF"),
             },
         ], {});
         common.regGlobalFuncs(rt, [
@@ -125,8 +125,8 @@ export = {
                 type: "FUNCTION CLASS div_t < > ( I32 I32 )",
                 op: "div",
                 default(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable): DivVariable {
-                    const l = rt.arithmeticValue(_l) as number;
-                    const r = rt.arithmeticValue(_r) as number;
+                    const l = rt.arithmeticNumValue(_l);
+                    const r = rt.arithmeticNumValue(_r);
                     if (r === 0) {
                         rt.raiseException("Integer division by zero");
                     }
@@ -142,8 +142,8 @@ export = {
                 type: "FUNCTION CLASS ldiv_t < > ( I32 I32 )",
                 op: "ldiv",
                 default(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable): DivVariable {
-                    const l = rt.arithmeticValue(_l) as number;
-                    const r = rt.arithmeticValue(_r) as number;
+                    const l = rt.arithmeticNumValue(_l);
+                    const r = rt.arithmeticNumValue(_r);
                     if (r === 0) {
                         rt.raiseException("Integer division by zero");
                     }
@@ -179,7 +179,7 @@ export = {
                 type: "FUNCTION VOID ( U32 )",
                 op: "srand",
                 default(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable): "VOID" {
-                    const l = rt.arithmeticValue(_l) as number;
+                    const l = rt.arithmeticNumValue(_l);
                     rng.seed(l);
                     return "VOID";
                 }

@@ -1,14 +1,14 @@
-import { CRuntime } from "../rt";
+import { big, CRuntime } from "../rt";
 import { StringVariable } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
 import * as common from "../shared/common";
 import * as utf8 from "../utf8";
-import { AbstractVariable, ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, ClassType, ClassVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 import { IOManipTokenVariable, iomanip_token_mode } from "../shared/ios_base";
 
 type IfstreamValue = ios_base.IStreamValue & {
     members: {
-        _is_open: InitArithmeticVariable,
+        _is_open: InitArithmeticNumVariable,
     }
 };
 type IfStreamVariable = AbstractVariable<ios_base.OStreamType, IfstreamValue>;
@@ -37,39 +37,39 @@ export = {
             rt.addToNamespace("std", "ws", ws, true);
         }
 
-        const charType = variables.arithmeticType("I8");
+        const charType = variables.arithmeticNumType("I8");
         rt.defineStruct("{global}", "ifstream", [
             {
                 name: "buf",
-                variable: variables.indexPointer<ArithmeticVariable>(variables.arrayMemory(charType, []), 0, false, "SELF")
+                variable: variables.indexPointer<ArithmeticNumVariable>(variables.arrayMemory(charType, []), 0, false, "SELF")
             },
             {
                 name: "fd",
-                variable: variables.uninitArithmetic("I32", "SELF"),
+                variable: variables.uninitArithmeticNum("I32", "SELF"),
             },
             {
                 name: "eofbit",
-                variable: variables.arithmetic("BOOL", 0, "SELF"),
+                variable: variables.arithmeticNum("BOOL", 0, "SELF"),
             },
             {
                 name: "badbit",
-                variable: variables.arithmetic("BOOL", 0, "SELF"),
+                variable: variables.arithmeticNum("BOOL", 0, "SELF"),
             },
             {
                 name: "failbit",
-                variable: variables.arithmetic("BOOL", 0, "SELF"),
+                variable: variables.arithmeticNum("BOOL", 0, "SELF"),
             },
             {
                 name: "_is_open",
-                variable: variables.arithmetic("BOOL", 0, "SELF"),
+                variable: variables.arithmeticNum("BOOL", 0, "SELF"),
             },
             {
                 name: "boolalpha",
-                variable: variables.arithmetic("BOOL", 0, "SELF"),
+                variable: variables.arithmeticNum("BOOL", 0, "SELF"),
             },
             {
                 name: "skipws",
-                variable: variables.arithmetic("BOOL", 1, "SELF"),
+                variable: variables.arithmeticNum("BOOL", 1, "SELF"),
             }
         ], {});
 
@@ -82,22 +82,22 @@ export = {
                 default(_rt: CRuntime, _templateTypes: [], _this: IfStreamVariable) {
                     const failbit = _this.v.members.failbit.v.value;
                     const badbit = _this.v.members.badbit.v.value;
-                    return variables.arithmetic("BOOL", failbit | badbit, null);
+                    return variables.arithmeticNum("BOOL", failbit | badbit, null);
                 }
             },
             {
                 op: "o(_bool)",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, _templateTypes: [], _this: IfStreamVariable): ArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], _this: IfStreamVariable): ArithmeticNumVariable {
                     const failbit = _this.v.members.failbit.v.value;
                     const badbit = _this.v.members.badbit.v.value;
-                    return variables.arithmetic("BOOL", (failbit !== 0 || badbit !== 0) ? 0 : 1, null);
+                    return variables.arithmeticNum("BOOL", (failbit !== 0 || badbit !== 0) ? 0 : 1, null);
                 }
             },
             {
                 op: "o(_>>_)",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > LREF Arithmetic )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, r: ArithmeticVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, r: ArithmeticNumVariable | ArithmeticBigVariable): IfStreamVariable {
                     // TODO: this and istream functions share equal code. Merge into a single shared function
                     const buf = l.v.members.buf;
                     //const fd = l.v.members.fd;
@@ -115,14 +115,14 @@ export = {
                             eofbit.v.value = 1;
                             return l;
                         }
-                        char = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
+                        char = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as number;
                         if (l.v.members.skipws.v.value === 0 || !(whitespaceChars.includes(char))) {
                             break;
                         }
                         buf.v.index++;
                     }
                     if (r.t.sig === "I8") {
-                        variables.arithmeticAssign(rt, r, char);
+                        variables.arithmeticNumAssign(rt, r as ArithmeticNumVariable, char);
                         buf.v.index++;
                     } else {
                         let wordValues: number[] = [];
@@ -133,7 +133,7 @@ export = {
                                 eofbit.v.value = 1;
                                 break;
                             }
-                            char = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index));
+                            char = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as number;
                             if (failbit.v.value === 1) {
                                 return l;
                             }
@@ -147,10 +147,14 @@ export = {
                         if (Number.isNaN(num)) {
                             failbit.v.value = 1;
                             return l;
+                        } 
+                        if (r.t.sig in variables.arithmeticNumSig) {
+                            variables.arithmeticNumAssign(rt, r as ArithmeticNumVariable, num);
+                        } else {
+                            variables.arithmeticBigAssign(rt, r as ArithmeticBigVariable, big(num));
                         }
-                        variables.arithmeticAssign(rt, r, num);
                     }
-                    rt.adjustArithmeticValue((r as InitArithmeticVariable));
+                    rt.adjustArithmeticAnyValue(r as InitArithmeticVariable);
                     return l;
                 },
             },
@@ -161,9 +165,9 @@ export = {
                     const eofbit = l.v.members.eofbit;
                     const failbit = l.v.members.failbit;
                     const buf = l.v.members.buf;
-                    let char: InitArithmeticVariable;
+                    let char: InitArithmeticNumVariable;
                     while (true) {
-                        char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
+                        char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticNumVariable;
                         if (char.v.value === 0) {
                             eofbit.v.value = 1;
                             failbit.v.value = 1;
@@ -176,18 +180,18 @@ export = {
                     }
 
                     let i = 0;
-                    const memory = variables.arrayMemory<ArithmeticVariable>(variables.arithmeticType("I8"), []);
+                    const memory = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), []);
                     while (!(whitespaceChars.includes(char.v.value))) {
-                        memory.values.push(variables.arithmetic("I8", char.v.value, { array: memory, index: i }).v);
+                        memory.values.push(variables.arithmeticNum("I8", char.v.value, { array: memory, index: i }).v);
                         buf.v.index++;
-                        char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
+                        char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticNumVariable;
                         i++;
                         if (char.v.value === 0) {
                             eofbit.v.value = 1;
                             break;
                         }
                     }
-                    memory.values.push(variables.arithmetic("I8", 0, { array: memory, index: i }).v);
+                    memory.values.push(variables.arithmeticNum("I8", 0, { array: memory, index: i }).v);
 
                     variables.indexPointerAssign(rt, r.v.members._ptr, memory, 0);
                     r.v.members._size.v.value = i;
@@ -207,9 +211,9 @@ export = {
                     const eofbit = l.v.members.eofbit;
                     const failbit = l.v.members.failbit;
                     const buf = l.v.members.buf;
-                    let char: InitArithmeticVariable;
+                    let char: InitArithmeticNumVariable;
                     while (true) {
-                        char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticVariable;
+                        char = rt.expectValue(variables.arrayMember(buf.v.pointee, buf.v.index)) as InitArithmeticNumVariable;
                         if (char.v.value === 0) {
                             eofbit.v.value = 1;
                             failbit.v.value = 1;
@@ -233,11 +237,11 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS ifstream < > ( PTR I8 )",
-                default(_rt: CRuntime, _templateTypes: [ClassType], _path: PointerVariable<ArithmeticVariable>): IfStreamVariable {
-                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                default(_rt: CRuntime, _templateTypes: [ClassType], _path: PointerVariable<ArithmeticNumVariable>): IfStreamVariable {
+                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
-                    variables.arithmeticAssign(rt, result.v.members.fd, _open(_rt, result, pathPtr));
+                    variables.arithmeticNumAssign(rt, result.v.members.fd, _open(_rt, result, pathPtr));
                     return result;
                 }
             },
@@ -245,10 +249,10 @@ export = {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS ifstream < > ( CLREF CLASS string < > )",
                 default(_rt: CRuntime, _templateTypes: [ClassType], _path: StringVariable): IfStreamVariable {
-                    const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
-                    variables.arithmeticAssign(rt, result.v.members.fd, _open(_rt, result, pathPtr));
+                    variables.arithmeticNumAssign(rt, result.v.members.fd, _open(_rt, result, pathPtr));
                     return result;
                 }
             },
@@ -258,33 +262,33 @@ export = {
             rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
         }
 
-        function _get(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable, consumeDelimiter: boolean): IfStreamVariable {
+        function _get(rt: CRuntime, l: IfStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable, _delim: ArithmeticNumVariable, consumeDelimiter: boolean): IfStreamVariable {
             let b = l.v.members.buf;
             const count = rt.arithmeticValue(_count);
             const delim = rt.arithmeticValue(_delim);
-            const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmetic("I8", null));
+            const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
             if (s === null) {
                 rt.raiseException("Not an index pointer");
             }
             if (b.v.index >= b.v.pointee.values.length) {
-                variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
+                variables.arithmeticNumAssign(rt, l.v.members.eofbit, 1);
             }
             let cnt = 0;
             while (cnt < count) {
-                const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticVariable;
+                const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticNumVariable;
                 if (cnt + 1 === count) {
-                    variables.arithmeticAssign(rt, si, 0);
+                    variables.arithmeticNumAssign(rt, si, 0);
                     break;
                 }
-                const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index)) as number;
                 if (bi === delim || bi === 0) {
                     if (consumeDelimiter && bi === delim) {
                         b.v.index++;
                     }
-                    variables.arithmeticAssign(rt, si, 0);
+                    variables.arithmeticNumAssign(rt, si, 0);
                     break;
                 }
-                variables.arithmeticAssign(rt, si, bi);
+                variables.arithmeticNumAssign(rt, si, bi);
                 b.v.index++;
                 cnt++;
             }
@@ -293,7 +297,7 @@ export = {
             }
             return l;
         }
-        function _ignore(rt: CRuntime, l: IfStreamVariable, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+        function _ignore(rt: CRuntime, l: IfStreamVariable, _count: ArithmeticNumVariable, _delim: ArithmeticNumVariable): IfStreamVariable {
             let b = l.v.members.buf;
             const count = rt.arithmeticValue(_count);
             const delim = rt.arithmeticValue(_delim);
@@ -307,7 +311,7 @@ export = {
             }
             return l;
         }
-        function _getlineStr(rt: CRuntime, l: IfStreamVariable, s: StringVariable, _delim: ArithmeticVariable): void {
+        function _getlineStr(rt: CRuntime, l: IfStreamVariable, s: StringVariable, _delim: ArithmeticNumVariable): void {
             let b = l.v.members.buf;
             const delim = rt.arithmeticValue(_delim);
             const i8type = s.v.members._ptr.t.pointee;
@@ -317,9 +321,9 @@ export = {
                 return;
             }
             let cnt = 0;
-            const memory = variables.arrayMemory<ArithmeticVariable>(i8type, []);
+            const memory = variables.arrayMemory<ArithmeticNumVariable>(i8type, []);
             while (true) {
-                const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                const bi = rt.arithmeticNumValue2(variables.arrayMember(b.v.pointee, b.v.index));
                 if (bi === delim || bi === 0) {
                     // consume the delimiter
                     b.v.index++;
@@ -329,13 +333,13 @@ export = {
                     //variables.arithmeticAssign(rt, si, 0);
                     break;
                 }
-                memory.values.push(variables.arithmetic(i8type.sig, bi, { array: memory, index: cnt }).v);
+                memory.values.push(variables.arithmeticNum(i8type.sig, bi, { array: memory, index: cnt }).v);
                 b.v.index++;
                 cnt++;
             }
-            memory.values.push(variables.arithmetic(i8type.sig, 0, { array: memory, index: cnt }).v);
+            memory.values.push(variables.arithmeticNum(i8type.sig, 0, { array: memory, index: cnt }).v);
             if (cnt === 0) {
-                variables.arithmeticAssign(rt, l.v.members.failbit, 1);
+                variables.arithmeticNumAssign(rt, l.v.members.failbit, 1);
             }
             variables.indexPointerAssign(rt, s.v.members._ptr, memory, 0);
             s.v.members._size.v.value = cnt;
@@ -348,28 +352,28 @@ export = {
                     let b = l.v.members.buf;
                     if ((l.v.members.eofbit.v.value | l.v.members.failbit.v.value | l.v.members.badbit.v.value) === 0) {
                         const top = variables.arrayMember(b.v.pointee, b.v.index);
-                        const retv = variables.arithmetic("I32", rt.arithmeticValue(top), null, false);
-                        rt.adjustArithmeticValue(retv);
+                        const retv = variables.arithmeticNum("I32", rt.arithmeticNumValue2(top), null, false);
+                        rt.adjustArithmeticNumValue(retv);
                         return retv;
                     } else {
-                        return variables.arithmetic("I32", -1, null);
+                        return variables.arithmeticNum("I32", -1, null);
                     }
                 }
             },
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS ifstream < > )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticNumVariable {
                     let b = l.v.members.buf;
                     if (b.v.pointee.values.length <= b.v.index) {
-                        variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
-                        variables.arithmeticAssign(rt, l.v.members.failbit, 1);
-                        return variables.arithmetic("I32", -1, null);
+                        l.v.members.eofbit.v.value = 1;
+                        l.v.members.failbit.v.value = 1;
+                        return variables.arithmeticNum("I32", -1, null);
                     }
                     const top = variables.arrayMember(b.v.pointee, b.v.index);
                     variables.indexPointerAssignIndex(rt, l.v.members.buf, l.v.members.buf.v.index + 1);
-                    const retv = variables.arithmetic("I32", rt.arithmeticValue(top), null, false);
-                    rt.adjustArithmeticValue(retv);
+                    const retv = variables.arithmeticNum("I32", rt.arithmeticNumValue2(top), null, false);
+                    rt.adjustArithmeticNumValue(retv);
                     return retv;
                 }
             },

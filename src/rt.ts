@@ -1,5 +1,5 @@
 import * as interp from "./interpreter";
-import { AnyType, ArithmeticBigSig, ArithmeticBigType, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumType, ArithmeticNumValue, ArithmeticNumVariable, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, Variable, variables } from "./variables";
+import { AbstractVariable, AnyType, ArithmeticBigSig, ArithmeticBigType, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumType, ArithmeticNumValue, ArithmeticNumVariable, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, UnboundValue, Variable, variables } from "./variables";
 import { TypeDB, FunctionMatchResult, abstractFunctionReturnSig } from "./typedb";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
@@ -495,7 +495,7 @@ export class CRuntime {
         fileInst.close();
     }
 
-    fileWrite(fd: InitArithmeticNumVariable, data: InitIndexPointerVariable<ArithmeticVariable>): void {
+    fileWrite(fd: InitArithmeticNumVariable, data: InitIndexPointerVariable<ArithmeticNumVariable>): void {
         const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmeticNum("I8", 0, null))))
     }
@@ -944,18 +944,18 @@ export class CRuntime {
         const rProperties = variables.arithmeticProperties[r.sig];
         if (variables.arithmeticTypesEqual(l, r)) {
             if (l.sig === "BOOL") {
-                return variables.arithmeticType("I32");
+                return variables.arithmeticNumType("I32");
             }
             if (l.sig === "I8") {
-                return variables.arithmeticType("I32");
+                return variables.arithmeticNumType("I32");
             }
             if (l.sig === "U8") {
-                return variables.arithmeticType("U32");
+                return variables.arithmeticNumType("U32");
             }
             return l;
         } else if (!lProperties.isFloat && !rProperties.isFloat) {
-            const sl = variables.arithmeticType(lProperties.asSigned);
-            const sr = variables.arithmeticType(rProperties.asSigned);
+            const sl = { sig: lProperties.asSigned };
+            const sr = { sig: rProperties.asSigned };
             if (variables.arithmeticTypesEqual(sl, sr)) {
                 return sl;
             } else {
@@ -970,7 +970,7 @@ export class CRuntime {
         } else if (!lProperties.isFloat && rProperties.isFloat) {
             return r;
         } else {
-            return variables.arithmeticType("F64");
+            return variables.arithmeticNumType("F64");
         }
     };
 
@@ -1232,6 +1232,16 @@ export class CRuntime {
         }
         x.v.value = q + minv;*/
     }
+
+    adjustArithmeticAnyValue(x: InitArithmeticVariable): void {
+        // TODO: rename as 'adjustArithmeticValue' after refactoring
+        if (x.t.sig in variables.arithmeticNumSig) {
+            this.adjustArithmeticNumValue(x as InitArithmeticNumVariable);
+        } else {
+            this.adjustArithmeticBigValue(x as InitArithmeticBigVariable);
+        }
+    }
+
 
     makeValueString(_v: MaybeUnboundVariable | Function, options: MakeValueStringOptions = {}): string {
         if (_v.v.state === "UNINIT") {
@@ -1584,8 +1594,9 @@ export class CRuntime {
 
     /** Safely accesses values.
       * Panics if value is uninitalised. 
-      * Casts to 32-bit signed integer of 'number' type if 'bigint' is found */
-    arithmeticNumValue(variable: MaybeUnboundVariable): number {
+      * Casts to 32-bit signed integer of 'number' type if 'bigint' is found
+      * Panics if bigint is outside 32-bit signed integer bounds */
+    arithmeticExpectNumValue(variable: MaybeUnboundVariable): number {
         if (!(variable.t.sig in variables.arithmeticSig)) {
             this.raiseException("Expected an arithmetic value");
         }
@@ -1603,6 +1614,30 @@ export class CRuntime {
             this.raiseException(`Expected 32-bit signed integer, got ${value} (integer overflow)`);
         }
         return Number(value);
+    }
+
+    /** Safely accesses values.
+      * Panics if value is uninitalised. 
+      * Accepts only variables known to be bound by default.
+      * This function performs less checks compared to arithmeticValue, arithmeticNumExpectValue or arithmeticNumValue2 */
+    arithmeticNumValue(variable: ArithmeticNumVariable): number {
+        if (variable.v.state === "UNINIT") {
+            this.raiseException("Access of an uninitialised value")
+        }
+        return (variable as InitArithmeticNumVariable).v.value;
+    }
+
+    /** Safely accesses values.
+      * Panics if value is uninitalised. 
+      * Accepts only variables known to be bound by default.
+      * This function performs less checks compared to arithmeticValue and arithmeticNumExpectValue */
+    arithmeticNumValue2(variable: ArithmeticNumVariable | AbstractVariable<ArithmeticNumType, UnboundValue<ArithmeticNumVariable>>): number {
+        if (variable.v.state === "UNINIT") {
+            this.raiseException("Access of an uninitialised value")
+        } else if (variable.v.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        }
+        return (variable as InitArithmeticNumVariable).v.value;
     }
 
     expectValue(variable: MaybeUnboundVariable): InitVariable {
@@ -1625,7 +1660,11 @@ export class CRuntime {
         let classType: ClassType | null;
         let pointerType: PointerType<ObjectType | FunctionType> | null;
         if (type.sig in variables.arithmeticSig) {
-            return variables.uninitArithmetic(type.sig as ArithmeticSig, lvHolder as LValueHolder<ArithmeticVariable>, false);
+            if (type.sig in variables.arithmeticNumSig) {
+                return variables.uninitArithmeticNum(type.sig as ArithmeticNumSig, lvHolder as LValueHolder<ArithmeticNumVariable>, false);
+            } else {
+                return variables.uninitArithmeticBig(type.sig as ArithmeticBigSig, lvHolder as LValueHolder<ArithmeticBigVariable>, false);
+            }
         } else if ((classType = variables.asClassType(type)) !== null) {
             const domainName = classType.identifier;
             if (!(domainName in this.typeMap)) {

@@ -69,7 +69,7 @@ export = {
                 op: "o(_[_])",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > I32 )",
                 default(rt: CRuntime, _templateTypes: [], l: ArrayVariable<Variable, number>, _idx: ArithmeticNumVariable): Variable {
-                    const idx = rt.arithmeticValue(_idx) as number;
+                    const idx = rt.arithmeticNumValue(_idx);
                     if (idx < 0 || idx >= l.v.members._size.v.value) {
                         rt.raiseException("array::operator[]: index out of range error");
                     }
@@ -104,7 +104,7 @@ export = {
                 op: "at",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > I32 )",
                 default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>, _idx: ArithmeticNumVariable): Variable {
-                    const idx = rt.arithmeticValue(_idx) as number;
+                    const idx = rt.arithmeticNumValue(_idx);
                     if (idx < 0 || idx >= arr.v.members._size.v.value) {
                         rt.raiseException("array::at(): index out of range error");
                     }

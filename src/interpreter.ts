@@ -418,7 +418,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         }
                         let dim: number;
                         if (Xdim.Expression !== null) {
-                            const castResult = (rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, Xdim.Expression, param))) as ArithmeticNumVariable);
+                            const castResult = (rt.cast(variables.arithmeticNumType("I32"), (yield* interp.visit(interp, Xdim.Expression, param))) as ArithmeticNumVariable);
                             dim = castResult.v.state === "INIT" ? castResult.v.value : -1;
                         } else if (j > 0) {
                             rt.raiseException("Direct declarator error: multidimensional array must have bounds for all dimensions except the first", Xdim);
@@ -530,7 +530,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                         rt.raiseException("Parameter type list error: Unacceptable array initialization", dimObj);
                                     }
                                     if (dimObj.Expression !== null) {
-                                        const sizeConstraint = rt.arithmeticNumValue(rt.cast(variables.arithmeticType("I32"), (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticVariable);
+                                        const sizeConstraint = rt.arithmeticExpectNumValue(rt.cast({ sig: "I32" }, (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticVariable);
                                         _type = { t: variables.pointerType(_type.t, sizeConstraint), v: { isConst, lvHolder: _type.v.lvHolder } };
                                     } else if (j > 0) {
                                         rt.raiseException("Parameter type list error: Multidimensional array must have bounds for all dimensions except the first", dimObj);
