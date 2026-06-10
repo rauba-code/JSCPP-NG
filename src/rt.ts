@@ -542,6 +542,8 @@ export class CRuntime {
             this.raiseException("Not yet implemented");
         } else if ((at = variables.asArithmeticNumType(t)) !== null) {
             return variables.arithmeticProperties[at.sig].bytes;
+        } else if ((at = variables.asArithmeticBigType(t)) !== null) {
+            return variables.arithmeticProperties[at.sig].bytes;
         }
         this.raiseException("Not yet implemented");
     };

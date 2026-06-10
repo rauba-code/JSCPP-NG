@@ -2049,7 +2049,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } = interp);
                 let num: bigint;
                 try {
-                    num = BigInt(`0x${s.value}`);
+                    num = BigInt(`0b${s.value}`);
                 }
                 catch (e) {
                     rt.raiseException(`Binary constant error: '${s.value}' is not a valid decimal constant`);

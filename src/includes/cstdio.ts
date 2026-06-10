@@ -72,6 +72,10 @@ export = {
                         if (options.flagAlternateForm) {
                             rt.raiseException("printf format: Not yet implemented");
                         }
+                        let rem : number = 0;
+                        if (category === "f" && typeof value === "number") {
+                            rem = value as number - Math.floor(value as number);
+                        }
                         let sign = (value == 0) ? 0 : (value < 0) ? -1 : 1;
                         value = value >= 0 ? value : -value;
                         let output: number[] = [];
@@ -107,7 +111,6 @@ export = {
                         }
                         output = output.reverse();
                         if (category === "f") {
-                            let rem = value as number - Math.floor(value as number);
                             output.push(ascii_fullStop);
                             let remOutput: number[] = [];
                             let fraction = Math.round(rem * Math.exp(precision * Math.LN10));
