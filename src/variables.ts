@@ -21,8 +21,8 @@ const arithmeticNumSig = {
     "U16": {},
     "I32": {},
     "U32": {},
-    "U64": {},
     "F32": {},
+    "F64": {},
     "BOOL": {},
 } as const;
 
