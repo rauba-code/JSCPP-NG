@@ -543,20 +543,6 @@ export = {
                     return yield* integer_to_string(rt, l);
                 }
             },
-            {
-                op: "to_string",
-                type: "FUNCTION CLASS string < > ( I32 )",
-                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): Gen<StringVariable> {
-                    return yield* integer_to_string(rt, l);
-                }
-            },
-            {
-                op: "to_string",
-                type: "FUNCTION CLASS string < > ( U32 )",
-                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): Gen<StringVariable> {
-                    return yield* integer_to_string(rt, l);
-                }
-            }
         ])
 
     }
