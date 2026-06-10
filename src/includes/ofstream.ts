@@ -3,11 +3,11 @@ import { FunHandler, OpHandler } from "../shared/common";
 import * as ios_base from "../shared/ios_base";
 import * as ios_base_impl from "../shared/ios_base_impl"
 import { StringVariable } from "../shared/string_utils";
-import { AbstractVariable, ArithmeticVariable, ClassType, InitArithmeticVariable, InitIndexPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticNumVariable, ClassType, InitArithmeticNumVariable, InitIndexPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 
 type OfstreamValue = ios_base.OStreamValue & {
     members: {
-        _is_open: InitArithmeticVariable
+        _is_open: InitArithmeticNumVariable
     }
 };
 type OfStreamVariable = AbstractVariable<ios_base.OStreamType, OfstreamValue>;
@@ -24,7 +24,7 @@ export = {
         ios_base_impl.defineOstream(rt, "ofstream", [
             {
                 name: "_is_open",
-                variable: variables.arithmetic("BOOL", 0, "SELF"),
+                variable: variables.arithmeticNum("BOOL", 0, "SELF"),
             }
         ]);
 
@@ -33,8 +33,8 @@ export = {
         const ctorHandlers: OpHandler[] = [{
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( PTR I8 )",
-            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticVariable>): OfStreamVariable {
-                const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticNumVariable>): OfStreamVariable {
+                const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
                 _open(_rt, result, pathPtr, ios_base.openmode.out);
@@ -44,11 +44,11 @@ export = {
         {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( PTR I8 I32 )",
-            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticVariable>, mode: ArithmeticVariable): OfStreamVariable {
-                const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticNumVariable>, mode: ArithmeticNumVariable): OfStreamVariable {
+                const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
-                _open(_rt, result, pathPtr, rt.arithmeticValue(mode));
+                _open(_rt, result, pathPtr, rt.arithmeticNumValue(mode));
                 return result;
             }
         },
@@ -56,7 +56,7 @@ export = {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > )",
             default(_rt: CRuntime, _templateTypes: [], _path: StringVariable): OfStreamVariable {
-                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
                 _open(_rt, result, pathPtr, ios_base.openmode.out);
@@ -66,11 +66,11 @@ export = {
         {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > I32 )",
-            default(_rt: CRuntime, _templateTypes: [], _path: StringVariable, mode: ArithmeticVariable): OfStreamVariable {
-                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+            default(_rt: CRuntime, _templateTypes: [], _path: StringVariable, mode: ArithmeticNumVariable): OfStreamVariable {
+                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
-                _open(_rt, result, pathPtr, rt.arithmeticValue(mode));
+                _open(_rt, result, pathPtr, rt.arithmeticNumValue(mode));
                 return result;
             }
         },
@@ -80,10 +80,10 @@ export = {
             rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
         }
 
-        const _open = function(_rt: CRuntime, _this: OfStreamVariable, right: InitIndexPointerVariable<ArithmeticVariable>, mode: number): void {
+        const _open = function(_rt: CRuntime, _this: OfStreamVariable, right: InitIndexPointerVariable<ArithmeticNumVariable>, mode: number): void {
             const fd = _rt.openFile(right, mode);
             if (fd !== -1) {
-                variables.arithmeticAssign(rt, _this.v.members.fd, fd);
+                variables.arithmeticNumAssign(rt, _this.v.members.fd, fd);
                 _this.v.members._is_open.v.value = 1;
             } else {
                 _this.v.members.failbit.v.value = 1;
@@ -103,8 +103,8 @@ export = {
             {
                 op: "open",
                 type: "FUNCTION VOID ( LREF CLASS ofstream < > PTR I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable, _path: PointerVariable<ArithmeticVariable>): "VOID" {
-                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable, _path: PointerVariable<ArithmeticNumVariable>): "VOID" {
+                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     _open(rt, l, pathPtr, ios_base.openmode.out);
                     return "VOID";
                 }
@@ -112,8 +112,8 @@ export = {
             {
                 op: "is_open",
                 type: "FUNCTION BOOL ( LREF CLASS ofstream < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: OfStreamVariable): InitArithmeticVariable {
-                    return variables.arithmetic("BOOL", l.v.members._is_open.v.value, null);
+                default(_rt: CRuntime, _templateTypes: [], l: OfStreamVariable): InitArithmeticNumVariable {
+                    return variables.arithmeticNum("BOOL", l.v.members._is_open.v.value, null);
                 }
             },
         ];

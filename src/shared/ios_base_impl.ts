@@ -25,7 +25,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
     rt.defineStruct("{global}", name, [
         {
             name: "fd",
-            variable: variables.uninitArithmetic("I32", "SELF"),
+            variable: variables.uninitArithmeticNum("I32", "SELF"),
         },
         {
             name: "eofbit",
@@ -81,7 +81,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
                 const str = rt.getCharArrayFromString(padded);
                 const str_len = variables.arithmeticNum("I32", str.v.pointee.values.length - 1, null)
                 unixapi.write(rt, [], l.v.members.fd, str, str_len);
-                variables.arithmeticAssign(rt, l.v.members.width, -1);
+                l.v.members.width.v.value = -1;
             } else {
                 unixapi.write(rt, [], l.v.members.fd, iptr, variables.arithmeticNum("I32", sizeUntilNull(rt, iptr), null));
             }
@@ -100,7 +100,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
                 const padded = pad(rt, rt.getStringFromCharArray(iptr, r.v.members._size.v.value), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
                 const carr = rt.getCharArrayFromString(padded);
                 unixapi.write(rt, [], l.v.members.fd, carr, variables.arithmeticNum("I32", carr.v.pointee.values.length - 1, null));
-                variables.arithmeticAssign(rt, l.v.members.width, -1);
+                l.v.members.width.v.value = -1;
             } else {
                 unixapi.write(rt, [], l.v.members.fd, iptr, r.v.members._size);
             }
@@ -150,7 +150,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             const ns = numstr(rt, l, num, numProperties);
             const padded = pad(rt, ns, l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
             const str = rt.getCharArrayFromString(padded);
-            variables.arithmeticAssign(rt, l.v.members.width, -1);
+            l.v.members.width.v.value = -1;
             const str_len = variables.arithmeticNum("I32", str.v.pointee.values.length - 1, null)
             unixapi.write(rt, [], l.v.members.fd, str, str_len);
             return l;

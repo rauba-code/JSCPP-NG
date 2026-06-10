@@ -1,10 +1,9 @@
-import { big, CRuntime } from "../rt";
+import { CRuntime } from "../rt";
 import { StringVariable } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
 import * as common from "../shared/common";
 import * as utf8 from "../utf8";
-import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, ClassType, ClassVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
-import { IOManipTokenVariable, iomanip_token_mode } from "../shared/ios_base";
+import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, ClassType, ClassVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 
 type IfstreamValue = ios_base.IStreamValue & {
     members: {
@@ -143,18 +142,25 @@ export = {
                             return l;
                         }
                         const wordString = utf8.fromUtf8CharArray(new Uint8Array(wordValues));
-                        const num = Number.parseFloat(wordString);
-                        if (Number.isNaN(num)) {
-                            failbit.v.value = 1;
-                            return l;
-                        } 
                         if (r.t.sig in variables.arithmeticNumSig) {
+                            const num = Number.parseFloat(wordString);
+                            if (Number.isNaN(num)) {
+                                l.v.members.failbit.v.value = 1;
+                                return l;
+                            }
                             variables.arithmeticNumAssign(rt, r as ArithmeticNumVariable, num);
                         } else {
-                            variables.arithmeticBigAssign(rt, r as ArithmeticBigVariable, big(num));
+                            let num: bigint;
+                            try {
+                                num = BigInt(wordString);
+                            } catch (e) {
+                                l.v.members.failbit.v.value = 1;
+                                return l;
+                            }
+                            variables.arithmeticBigAssign(rt, r as ArithmeticBigVariable, num);
                         }
                     }
-                    rt.adjustArithmeticAnyValue(r as InitArithmeticVariable);
+                    rt.adjustArithmeticAnyValue(r as InitArithmeticNumVariable | InitArithmeticBigVariable);
                     return l;
                 },
             },
@@ -348,7 +354,7 @@ export = {
             {
                 op: "peek",
                 type: "FUNCTION I32 ( LREF CLASS ifstream < > )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticNumVariable {
                     let b = l.v.members.buf;
                     if ((l.v.members.eofbit.v.value | l.v.members.failbit.v.value | l.v.members.badbit.v.value) === 0) {
                         const top = variables.arrayMember(b.v.pointee, b.v.index);
@@ -380,30 +386,30 @@ export = {
             {
                 op: "get",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable, _delim: ArithmeticNumVariable): IfStreamVariable {
                     return _get(rt, l, _s, _count, _delim, false);
                 }
             },
             {
                 op: "get",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IfStreamVariable {
-                    return _get(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"), false);
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable): IfStreamVariable {
+                    return _get(rt, l, _s, _count, variables.arithmeticNum("I8", 10, "SELF"), false);
                 }
             },
             {
                 op: "get",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > LREF I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, ch: ArithmeticVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, ch: ArithmeticNumVariable): IfStreamVariable {
                     let b = l.v.members.buf;
                     if (b.v.pointee.values.length <= b.v.index) {
-                        variables.arithmeticAssign(rt, l.v.members.eofbit, 1);
-                        variables.arithmeticAssign(rt, l.v.members.failbit, 1);
+                        l.v.members.eofbit.v.value = 1;
+                        l.v.members.failbit.v.value = 1;
                     } else {
                         const top = variables.arrayMember(b.v.pointee, b.v.index);
                         variables.indexPointerAssignIndex(rt, l.v.members.buf, l.v.members.buf.v.index + 1);
-                        variables.arithmeticAssign(rt, ch, rt.arithmeticValue(top));
-                        rt.adjustArithmeticValue(ch as InitArithmeticVariable);
+                        variables.arithmeticNumAssign(rt, ch, rt.arithmeticNumValue2(top));
+                        rt.adjustArithmeticNumValue(ch as InitArithmeticNumVariable);
                     }
                     return l;
                 }
@@ -411,36 +417,36 @@ export = {
             {
                 op: "ignore",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > I32 I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _count: ArithmeticNumVariable, _delim: ArithmeticNumVariable): IfStreamVariable {
                     return _ignore(rt, l, _count, _delim);
                 }
             },
             {
                 op: "ignore",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _count: ArithmeticVariable): IfStreamVariable {
-                    return _ignore(rt, l, _count, variables.arithmetic("I8", 10, null));
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _count: ArithmeticNumVariable): IfStreamVariable {
+                    return _ignore(rt, l, _count, variables.arithmeticNum("I8", 10, null));
                 }
             },
             {
                 op: "ignore",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > )",
                 default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable): IfStreamVariable {
-                    return _ignore(rt, l, variables.arithmetic("I32", 1, null), variables.arithmetic("I8", 10, null));
+                    return _ignore(rt, l, variables.arithmeticNum("I32", 1, null), variables.arithmeticNum("I8", 10, null));
                 }
             },
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable, _delim: ArithmeticVariable): IfStreamVariable {
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable, _delim: ArithmeticNumVariable): IfStreamVariable {
                     return _get(rt, l, _s, _count, _delim, true);
                 }
             },
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > PTR I8 I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticVariable>, _count: ArithmeticVariable): IfStreamVariable {
-                    return _get(rt, l, _s, _count, variables.arithmetic("I8", 10, "SELF"), true);
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable): IfStreamVariable {
+                    return _get(rt, l, _s, _count, variables.arithmeticNum("I8", 10, "SELF"), true);
                 }
             },
             {
@@ -454,8 +460,8 @@ export = {
             {
                 op: "open",
                 type: "FUNCTION VOID ( LREF CLASS ifstream < > PTR I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _path: PointerVariable<ArithmeticVariable>): "VOID" {
-                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmetic("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _path: PointerVariable<ArithmeticNumVariable>): "VOID" {
+                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     _open(rt, l, pathPtr);
                     return "VOID";
                 }
@@ -463,43 +469,43 @@ export = {
             {
                 op: "is_open",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
-                    return variables.arithmetic("BOOL", l.v.members._is_open.v.value, null);
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticNumVariable {
+                    return variables.arithmeticNum("BOOL", l.v.members._is_open.v.value, null);
                 }
             },
             {
                 op: "good",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticNumVariable {
                     const eofbit = l.v.members.eofbit.v.value;
                     const failbit = l.v.members.failbit.v.value;
                     const badbit = l.v.members.badbit.v.value;
-                    return variables.arithmetic("BOOL", 1 - (eofbit | failbit | badbit), null);
+                    return variables.arithmeticNum("BOOL", 1 - (eofbit | failbit | badbit), null);
                 }
             },
             {
                 op: "fail",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticNumVariable {
                     const failbit = l.v.members.failbit.v.value;
                     const badbit = l.v.members.badbit.v.value;
-                    return variables.arithmetic("BOOL", failbit | badbit, null);
+                    return variables.arithmeticNum("BOOL", failbit | badbit, null);
                 }
             },
             {
                 op: "bad",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticNumVariable {
                     const badbit = l.v.members.badbit.v.value;
-                    return variables.arithmetic("BOOL", badbit, null);
+                    return variables.arithmeticNum("BOOL", badbit, null);
                 }
             },
             {
                 op: "eof",
                 type: "FUNCTION BOOL ( LREF CLASS ifstream < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], l: IfStreamVariable): InitArithmeticNumVariable {
                     const eofbit = l.v.members.eofbit.v.value;
-                    return variables.arithmetic("BOOL", eofbit, null);
+                    return variables.arithmeticNum("BOOL", eofbit, null);
                 }
             },
         ]);
@@ -508,7 +514,7 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > CLREF CLASS string < > I8 )",
-                default(rt: CRuntime, _templateTypes: [], input: IfStreamVariable, str: StringVariable, delim: ArithmeticVariable) {
+                default(rt: CRuntime, _templateTypes: [], input: IfStreamVariable, str: StringVariable, delim: ArithmeticNumVariable) {
                     _getlineStr(rt, input, str, delim);
                     return input;
                 }
@@ -517,17 +523,17 @@ export = {
                 op: "getline",
                 type: "FUNCTION LREF CLASS ifstream < > ( LREF CLASS ifstream < > CLREF CLASS string < > )",
                 default(rt: CRuntime, _templateTypes: [], input: IfStreamVariable, str: StringVariable) {
-                    _getlineStr(rt, input, str, variables.arithmetic("I8", 10, null));
+                    _getlineStr(rt, input, str, variables.arithmeticNum("I8", 10, null));
                     return input;
                 }
             },
         ]);
 
-        const _open = function(_rt: CRuntime, _this: IfStreamVariable, right: InitIndexPointerVariable<ArithmeticVariable>): number {
+        const _open = function(_rt: CRuntime, _this: IfStreamVariable, right: InitIndexPointerVariable<ArithmeticNumVariable>): number {
             const fd = _rt.openFile(right, ios_base.openmode.in);
 
             if (fd !== -1) {
-                variables.arithmeticAssign(rt, _this.v.members.fd, fd);
+                variables.arithmeticNumAssign(rt, _this.v.members.fd, fd);
                 _this.v.members._is_open.v.value = 1;
                 variables.indexPointerAssign(rt, _this.v.members.buf, _rt.fileRead(_this.v.members.fd).v.pointee, 0);
             } else {

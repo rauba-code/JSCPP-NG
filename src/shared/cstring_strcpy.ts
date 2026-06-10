@@ -15,7 +15,7 @@ export = function (rt: CRuntime, _dest: InitIndexPointerVariable<ArithmeticNumVa
             if (srcval.state !== "INIT") {
                 rt.raiseException("source array contains uninitialised values");
             }
-            variables.arithmeticValueAssign(rt, destarr[j], srcval.value);
+            variables.arithmeticNumValueAssign(rt, destarr[j], srcval.value);
             if (srcval.value === 0) {
                 break;
             }
@@ -27,7 +27,7 @@ export = function (rt: CRuntime, _dest: InitIndexPointerVariable<ArithmeticNumVa
         } else if (j === destarr.length) {
             rt.raiseException("destination array is not big enough");
         } else {
-            variables.arithmeticValueAssign(rt, destarr[j], 0);
+            variables.arithmeticNumValueAssign(rt, destarr[j], 0);
         }
         return dest;
     } else {

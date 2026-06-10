@@ -1121,7 +1121,7 @@ function parseToObjectTypeInner(parser: LLParser, scope: NonTerm, inout: { sente
                     case "CLREF":
                         break;
                     case "PTR":
-                        localType = variables.pointerType(variables.arithmeticType("I8"), null);
+                        localType = variables.pointerType(variables.arithmeticNumType("I8"), null);
                         break;
                     case "I8":
                     case "U8":
@@ -1129,14 +1129,14 @@ function parseToObjectTypeInner(parser: LLParser, scope: NonTerm, inout: { sente
                     case "U16":
                     case "I32":
                     case "U32":
-                    case "I64":
-                    case "U64":
                     case "F32":
-                    case "F32":
-                    case "F64":
                     case "F64":
                     case "BOOL":
-                        localType = variables.arithmeticType(head);
+                        localType = variables.arithmeticNumType(head);
+                        break;
+                    case "I64":
+                    case "U64":
+                        localType = variables.arithmeticBigType(head);
                         break;
                 }
             } else {

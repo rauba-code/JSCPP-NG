@@ -4,7 +4,7 @@ import { CRuntime } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
 import { VectorVariable } from "../shared/vector";
-import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, ResultOrGen, InitArithmeticVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, ResultOrGen, InitArithmeticNumVariable } from "../variables";
 
 interface MapType<TKey extends ObjectType, TVal extends ObjectType> extends AbstractTemplatedClassType<null, [TKey, TVal]> {
     readonly identifier: "map",
@@ -24,7 +24,7 @@ export = {
         rt.include("utility");
 
         type __pair = PairVariable<Variable, Variable>;
-        type __pair_iterator_bool = PairVariable<InitIndexPointerVariable<__pair>, InitArithmeticVariable>
+        type __pair_iterator_bool = PairVariable<InitIndexPointerVariable<__pair>, InitArithmeticNumVariable>
 
         const mapSig = "!ParamObject !ParamObject CLASS map < ?0 ?1 >".split(" ");
         rt.defineStruct2("{global}", "map", {
@@ -143,7 +143,7 @@ export = {
                         v: {
                             isConst: false, lvHolder: null, state: "INIT", members: {
                                 first: insertResult,
-                                second: variables.arithmetic("BOOL", 1, "SELF")
+                                second: variables.arithmeticNum("BOOL", 1, "SELF")
                             }
                         }
                     };
@@ -155,7 +155,7 @@ export = {
                         v: {
                             isConst: false, lvHolder: null, state: "INIT", members: {
                                 first: a_ref,
-                                second: variables.arithmetic("BOOL", 0, "SELF")
+                                second: variables.arithmeticNum("BOOL", 0, "SELF")
                             }
                         }
                     };
@@ -344,11 +344,11 @@ export = {
             },
             {
                 op: "size",
-                type: "!ParamObject !ParamObject FUNCTION U64 ( CLREF CLASS map < ?0 ?1 > )",
+                type: "!ParamObject !ParamObject FUNCTION U32 ( CLREF CLASS map < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
                     const sz = mapVar.v.members._data.v.members._sz.v.value;
-                    return variables.arithmetic("U64", sz, null, false);
+                    return variables.arithmeticNum("U32", sz, null, false);
                 }
             },
             {
@@ -357,7 +357,7 @@ export = {
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
                     const sz = mapVar.v.members._data.v.members._sz.v.value;
-                    return variables.arithmetic("BOOL", sz === 0 ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", sz === 0 ? 1 : 0, null, false);
                 }
             },
             {
@@ -378,8 +378,8 @@ export = {
             },
             {
                 op: "erase",
-                type: "!ParamObject !ParamObject FUNCTION U64 ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitArithmeticVariable> {
+                type: "!ParamObject !ParamObject FUNCTION U32 ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitArithmeticNumVariable> {
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
                     const key = args[1] as Variable;
                     const found = yield* _find(rt, mapVar, key);
@@ -391,19 +391,19 @@ export = {
                         const eraseInst = rt.getFuncByParams(mapVar.v.members._data.t, "erase", [mapVar.v.members._data, pairPtr], []);
                         const eraseYield = rt.invokeCall(eraseInst, [], mapVar.v.members._data, pairPtr);
                         asResult(eraseYield) ?? (yield* eraseYield as Gen<Variable>);
-                        return variables.arithmetic("U64", 1, null);
+                        return variables.arithmeticNum("U32", 1, null);
                     }
-                    return variables.arithmetic("U64", 0, null);
+                    return variables.arithmeticNum("U32", 0, null);
                 }
             },
             {
                 op: "count",
-                type: "!ParamObject !ParamObject FUNCTION U64 ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
+                type: "!ParamObject !ParamObject FUNCTION U32 ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
                     const value = args[1];
                     const found = yield* _find(rt, mapVar, value);
-                    return variables.arithmetic("U64", found !== null ? 1 : 0, null, false);
+                    return variables.arithmeticNum("U32", found !== null ? 1 : 0, null, false);
                 }
             },
             {
@@ -414,7 +414,7 @@ export = {
                     const mapVar = args[0] as MapVariable<Variable, Variable>;
                     const value = args[1];
                     const found = yield* _find(rt, mapVar, value);
-                    return variables.arithmetic("BOOL", found !== null ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", found !== null ? 1 : 0, null, false);
                 }
             },
         ])

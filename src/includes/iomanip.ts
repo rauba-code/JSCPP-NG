@@ -1,5 +1,5 @@
 import { CRuntime } from "../rt";
-import { InitArithmeticVariable, MaybeLeft, variables } from "../variables";
+import { InitArithmeticNumVariable, MaybeLeft, variables } from "../variables";
 import { IOManipTokenType, IOManipTokenVariable, iomanip_token_mode, IStreamVariable, OStreamVariable } from "../shared/ios_base";
 import { FunHandler, OpHandler } from "../shared/common";
 
@@ -18,13 +18,13 @@ function overloadIomanip(rt: CRuntime, structName: string) {
                     }
                     break;
                 case iomanip_token_mode.setfill:
-                    l.v.members.fill.v.value = rt.arithmeticValue(r.v.members.param);
+                    l.v.members.fill.v.value = rt.arithmeticNumValue(r.v.members.param);
                     break;
                 case iomanip_token_mode.setprecision:
-                    l.v.members.precision.v.value = rt.arithmeticValue(r.v.members.param);
+                    l.v.members.precision.v.value = rt.arithmeticNumValue(r.v.members.param);
                     break;
                 case iomanip_token_mode.setw:
-                    l.v.members.width.v.value = rt.arithmeticValue(r.v.members.param);
+                    l.v.members.width.v.value = rt.arithmeticNumValue(r.v.members.param);
                     break;
                 case iomanip_token_mode.fixed:
                 case iomanip_token_mode.scientific:
@@ -132,11 +132,11 @@ export = {
         rt.defineStruct("{global}", "iomanip_token", [
             {
                 name: "mode",
-                variable: variables.uninitArithmetic("I32", "SELF"),
+                variable: variables.uninitArithmeticNum("I32", "SELF"),
             },
             {
                 name: "param",
-                variable: variables.uninitArithmetic("I32", "SELF"),
+                variable: variables.uninitArithmeticNum("I32", "SELF"),
             },
         ], {});
 
@@ -147,9 +147,9 @@ export = {
 
         function createIOManipToken(rt: CRuntime, mode: number, param: number | null): IOManipTokenVariable {
             const iomanip_token = rt.defaultValue(iomanipTokenType.t, null) as IOManipTokenVariable;
-            variables.arithmeticAssign(rt, iomanip_token.v.members.mode, mode);
+            variables.arithmeticNumAssign(rt, iomanip_token.v.members.mode, mode);
             if (param !== null) {
-                variables.arithmeticAssign(rt, iomanip_token.v.members.param, param);
+                variables.arithmeticNumAssign(rt, iomanip_token.v.members.param, param);
             }
             return iomanip_token;
 
@@ -159,28 +159,28 @@ export = {
             {
                 op: "setbase",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
-                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticVariable): IOManipTokenVariable {
+                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
                     return createIOManipToken(rt, iomanip_token_mode.setbase, r.v.value);
                 }
             },
             {
                 op: "setfill",
                 type: "FUNCTION CLASS iomanip_token < > ( I8 )",
-                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticVariable): IOManipTokenVariable {
+                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
                     return createIOManipToken(rt, iomanip_token_mode.setfill, r.v.value);
                 }
             },
             {
                 op: "setprecision",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
-                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticVariable): IOManipTokenVariable {
+                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
                     return createIOManipToken(rt, iomanip_token_mode.setprecision, r.v.value);
                 }
             },
             {
                 op: "setw",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
-                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticVariable): IOManipTokenVariable {
+                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
                     return createIOManipToken(rt, iomanip_token_mode.setw, r.v.value);
                 }
             },

@@ -2,7 +2,7 @@ import { asResult } from "../interpreter";
 import { CRuntime, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { PairType, PairVariable } from "../shared/utility";
-import { Gen, InitArithmeticVariable, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
+import { Gen, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -60,7 +60,7 @@ export = {
             const opYield = rt.invokeCall(opInst, [], lhs, rhs);
             const opResultOrVoid = asResult(opYield) ?? (yield* opYield as Gen<MaybeUnboundVariable | "VOID">);
             const opResult = (opYield !== "VOID") ? opResultOrVoid : rt.raiseException(`operator${op}: Expected a non-void value`);
-            return rt.arithmeticValue(opResult as MaybeUnboundVariable);
+            return rt.arithmeticExpectNumValue(opResult as MaybeUnboundVariable);
         }
         function* lex_cmp(rt: CRuntime, lhs: __pair, rhs: __pair): Gen<-1 | 0 | 1> {
             // side note: zero does not mean equality
@@ -89,42 +89,42 @@ export = {
                 op: "o(_<_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
                 *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
-                    return variables.arithmetic("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) < 0) ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) < 0) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_>_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
                 *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
-                    return variables.arithmetic("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) > 0) ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) > 0) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_<=_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
                 *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
-                    return variables.arithmetic("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) < 0 || (yield* lex_eq(rt, lhs, rhs))) ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) < 0 || (yield* lex_eq(rt, lhs, rhs))) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_>=_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
                 *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
-                    return variables.arithmetic("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) > 0 || (yield* lex_eq(rt, lhs, rhs))) ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) > 0 || (yield* lex_eq(rt, lhs, rhs))) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_==_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
                 *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
-                    return variables.arithmetic("BOOL", (yield* lex_eq(rt, lhs, rhs)) ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", (yield* lex_eq(rt, lhs, rhs)) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_!=_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
                 *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
-                    return variables.arithmetic("BOOL", (yield* lex_eq(rt, lhs, rhs)) ? 0 : 1, null);
+                    return variables.arithmeticNum("BOOL", (yield* lex_eq(rt, lhs, rhs)) ? 0 : 1, null);
                 }
             },
         ])

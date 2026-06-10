@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, MemberMap, MemberObject, OpSignature, RuntimeScope } from "./rt";
-import { ArithmeticVariable, ClassType, ClassVariable, InitArithmeticVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, ArithmeticSig, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig } from "./variables";
+import { ClassType, ClassVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig, InitArithmeticBigVariable, InitArithmeticNumVariable, ArithmeticBigVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -147,7 +147,6 @@ export interface XConstantExpression extends StatementMeta {
 export interface XInitializerExpr extends StatementMeta {
     type: "Initializer_expr",
     Expression: XConstantExpression | XStringLiteralExpression,
-    shorthand?: InitArithmeticVariable,
 }
 export interface XInitializerArray extends StatementMeta {
     type: "Initializer_array",
@@ -530,7 +529,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                         rt.raiseException("Parameter type list error: Unacceptable array initialization", dimObj);
                                     }
                                     if (dimObj.Expression !== null) {
-                                        const sizeConstraint = rt.arithmeticExpectNumValue(rt.cast({ sig: "I32" }, (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticVariable);
+                                        const sizeConstraint = rt.arithmeticExpectNumValue(rt.cast({ sig: "I32" }, (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticNumVariable);
                                         _type = { t: variables.pointerType(_type.t, sizeConstraint), v: { isConst, lvHolder: _type.v.lvHolder } };
                                     } else if (j > 0) {
                                         rt.raiseException("Parameter type list error: Multidimensional array must have bounds for all dimensions except the first", dimObj);
@@ -636,7 +635,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     if (arraySizeArithmeticVar.v.lvHolder !== null && !arraySizeArithmeticVar.v.isConst) {
                                         rt.raiseException("Declaration error: Expected a constant value in an array size expression")
                                     }
-                                    arraySize = rt.arithmeticNumValue(arraySizeArithmeticVar);
+                                    arraySize = rt.arithmeticExpectNumValue(arraySizeArithmeticVar);
                                     if (arraySize < 0) {
                                         rt.raiseException("Declaration error: Expected a non-negative value in an array size expression")
                                     }
@@ -712,11 +711,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                         } else if (decSize < 1 && initSize !== null && initSize >= 0) {
                                             // pass
                                         } else if (initSpec !== null && initSpec.Expression.type === "StringLiteralExpression" && initSize !== null && initSize <= decSize) {
-                                            const decArithmeticPointee = variables.asArithmeticType(ptrDecType.pointee) ?? rt.raiseException("Declaration error: Expected a pointer to a char values");
-                                            const iptr = variables.asInitIndexPointerOfElem(ptrInitVar, variables.uninitArithmetic(decArithmeticPointee.sig, null)) ?? rt.raiseException("Declaration error: Expected an initialiser to be an initialised arithmetic pointer");
+                                            const decArithmeticPointee = variables.asArithmeticNumType(ptrDecType.pointee) ?? rt.raiseException("Declaration error: Expected a pointer to a char values");
+                                            const iptr = variables.asInitIndexPointerOfElem(ptrInitVar, variables.uninitArithmeticNum(decArithmeticPointee.sig, null)) ?? rt.raiseException("Declaration error: Expected an initialiser to be an initialised arithmetic pointer");
                                             const memory = iptr.v.pointee;
                                             for (let i = memory.values.length - iptr.v.index; i < decSize; i++) {
-                                                memory.values.push(variables.uninitArithmetic(decArithmeticPointee.sig, { array: memory, index: iptr.v.index + i }).v);
+                                                memory.values.push(variables.uninitArithmeticNum(decArithmeticPointee.sig, { array: memory, index: iptr.v.index + i }).v);
                                             }
                                         } else {
                                             rt.raiseException("Declaration error: Array size mismatch");
@@ -811,11 +810,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         const sourceArithmetic = variables.asArithmetic(rawVariable);
                         if (targetArithmetic !== null && sourceArithmetic !== null) {
                             if (targetArithmetic.sig in variables.arithmeticNumSig && sourceArithmetic.t.sig in variables.arithmeticNumSig) {
-                                const result = variables.arithmeticNum(targetArithmetic.sig as ArithmeticNumSig, rt.arithmeticNumValue(sourceArithmetic), null);
+                                const result = variables.arithmeticNum(targetArithmetic.sig as ArithmeticNumSig, rt.arithmeticExpectNumValue(sourceArithmetic), null);
                                 rt.adjustArithmeticNumValue(result);
                                 return result;
                             } else {
-                                const result = rt.cast(targetArithmetic, rt.expectValue(sourceArithmetic)) as InitArithmeticVariable;
+                                const result = rt.cast(targetArithmetic, rt.expectValue(sourceArithmetic)) as InitArithmeticNumVariable | InitArithmeticBigVariable;
+                                rt.adjustArithmeticAnyValue(result);
                                 return result;
                             }
                         } else {
@@ -1131,8 +1131,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 rt.enterScope(param.scope);
                 const e = yield* interp.visit(interp, s.Expression, param);
                 let ret;
-                let castYield = rt.cast(variables.arithmeticType("BOOL"), e) as ResultOrGen<ArithmeticVariable>;
-                if (rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>))) {
+                let castYield = rt.cast(variables.arithmeticNumType("BOOL"), e) as ResultOrGen<ArithmeticNumVariable>;
+                if (rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticNumVariable>))) {
                     ret = yield* interp.visit(interp, s.Statement, param);
                 } else if (s.ElseStatement) {
                     ret = yield* interp.visit(interp, s.ElseStatement, param);
@@ -1174,8 +1174,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 while (true) {
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
-                        const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
-                        const castBool = rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
+                        const castYield = rt.cast(variables.arithmeticNumType("BOOL"), cond) as ResultOrGen<ArithmeticNumVariable>;
+                        const castBool = rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticNumVariable>));
                         if (!castBool) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
@@ -1226,7 +1226,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
-                        const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<MaybeUnboundArithmeticVariable>;
+                        const castYield = rt.cast(variables.arithmeticNumType("BOOL"), cond) as ResultOrGen<MaybeUnboundArithmeticVariable>;
                         const castBool = rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<MaybeUnboundArithmeticVariable>));
                         if (!castBool) { break; }
                     }
@@ -1307,8 +1307,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
 
                 while (true) {
-                    const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
-                    const neqVar = asResult(neqYield) ?? (yield* neqYield as Gen<ArithmeticVariable>);
+                    const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticNumVariable>;
+                    const neqVar = asResult(neqYield) ?? (yield* neqYield as Gen<ArithmeticNumVariable>);
                     if (rt.arithmeticValue(neqVar) === 0) {
                         break;
                     }
@@ -1425,8 +1425,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 while (true) {
                     if (s.Expression != null) {
                         const cond = yield* interp.visit(interp, s.Expression, param);
-                        const castYield = rt.cast(variables.arithmeticType("BOOL"), cond) as ResultOrGen<ArithmeticVariable>;
-                        const castBool = rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticVariable>));
+                        const castYield = rt.cast(variables.arithmeticNumType("BOOL"), cond) as ResultOrGen<ArithmeticNumVariable>;
+                        const castBool = rt.arithmeticValue(asResult(castYield) ?? (yield* castYield as Gen<ArithmeticNumVariable>));
                         if (!castBool) { break; }
                     }
                     const r = yield* interp.visit(interp, s.Statement, param);
@@ -1832,14 +1832,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                 }
             },
-            *LogicalANDExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticVariable> {
+            *LogicalANDExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticNumVariable> {
                 const left = rt.expectValue((yield* interp.visit(interp, s.left, param)) as Variable);
-                const leftArithmetic = variables.asArithmetic(left) as InitArithmeticVariable;
-                let lhsVal: InitArithmeticVariable;
+                const leftArithmetic = variables.asArithmetic(left) as InitArithmeticNumVariable | InitArithmeticBigVariable;
+                let lhsVal: InitArithmeticNumVariable | InitArithmeticBigVariable;
                 if (leftArithmetic === null) {
-                    const boolType = variables.arithmeticType("BOOL");
+                    const boolType = variables.arithmeticNumType("BOOL");
                     const lhsBoolYield = rt.cast(boolType, left);
-                    lhsVal = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>)) as InitArithmeticVariable;
+                    lhsVal = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticNumVariable>)) as InitArithmeticNumVariable;
                 } else {
                     lhsVal = leftArithmetic;
                 }
@@ -1847,25 +1847,25 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return variables.arithmeticNum("BOOL", 0, null);
                 }
                 const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
-                const rightArithmetic = variables.asArithmetic(right) as InitArithmeticVariable;
-                let rhsVal: InitArithmeticVariable;
+                const rightArithmetic = variables.asArithmetic(right) as InitArithmeticNumVariable | InitArithmeticBigVariable;
+                let rhsVal: InitArithmeticNumVariable | InitArithmeticBigVariable;
                 if (rightArithmetic === null) {
-                    const boolType = variables.arithmeticType("BOOL");
+                    const boolType = variables.arithmeticNumType("BOOL");
                     const rhsBoolYield = rt.cast(boolType, right);
-                    rhsVal = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>)) as InitArithmeticVariable;
+                    rhsVal = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticNumVariable>)) as InitArithmeticNumVariable;
                 } else {
                     rhsVal = rightArithmetic;
                 }
-                return variables.arithmeticNum("BOOL", ((Number(lhsVal.v.value) & Number(rhsVal.v.value)) !== 0) ? 1 : 0, null);
+                return variables.arithmeticNum("BOOL", ((Number(lhsVal.v.value) & Number(rhsVal.v.value)) != 0) ? 1 : 0, null);
             },
-            *LogicalORExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticVariable> {
+            *LogicalORExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticNumVariable> {
                 const left = rt.expectValue((yield* interp.visit(interp, s.left, param)) as Variable);
-                const leftArithmetic = variables.asArithmetic(left) as InitArithmeticVariable;
-                let lhsVal: InitArithmeticVariable;
+                const leftArithmetic = variables.asArithmetic(left) as InitArithmeticNumVariable;
+                let lhsVal: InitArithmeticNumVariable | InitArithmeticBigVariable;
                 if (leftArithmetic === null) {
-                    const boolType = variables.arithmeticType("BOOL");
+                    const boolType = variables.arithmeticNumType("BOOL");
                     const lhsBoolYield = rt.cast(boolType, left);
-                    lhsVal = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticVariable>)) as InitArithmeticVariable;
+                    lhsVal = rt.expectValue(asResult(lhsBoolYield) ?? (yield* lhsBoolYield as Gen<ArithmeticNumVariable>)) as InitArithmeticNumVariable;
                 } else {
                     lhsVal = leftArithmetic;
                 }
@@ -1873,26 +1873,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     return variables.arithmeticNum("BOOL", 1, null);
                 }
                 const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
-                const rightArithmetic = variables.asArithmetic(right) as InitArithmeticVariable;
-                let rhsVal: InitArithmeticVariable;
+                const rightArithmetic = variables.asArithmetic(right) as InitArithmeticNumVariable;
+                let rhsVal: InitArithmeticNumVariable | InitArithmeticBigVariable;
                 if (rightArithmetic === null) {
-                    const boolType = variables.arithmeticType("BOOL");
+                    const boolType = variables.arithmeticNumType("BOOL");
                     const rhsBoolYield = rt.cast(boolType, right);
-                    rhsVal = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticVariable>)) as InitArithmeticVariable;
+                    rhsVal = rt.expectValue(asResult(rhsBoolYield) ?? (yield* rhsBoolYield as Gen<ArithmeticNumVariable>)) as InitArithmeticNumVariable;
                 } else {
                     rhsVal = rightArithmetic;
                 }
-                return variables.arithmeticNum("BOOL", ((Number(lhsVal.v.value) | Number(rhsVal.v.value)) !== 0) ? 1 : 0, null);
+                return variables.arithmeticNum("BOOL", ((Number(lhsVal.v.value) | Number(rhsVal.v.value)) != 0) ? 1 : 0, null);
             },
             *ConditionalExpression(interp, s, param) {
                 ({
                     rt
                 } = interp);
                 const obj = yield* interp.visit(interp, s.cond, param);
-                const boolType = variables.arithmeticType("BOOL");
-                const boolYield = rt.cast(boolType, obj) as ResultOrGen<ArithmeticVariable>;
-                const cond = rt.expectValue((asResult(boolYield) ?? (yield* boolYield as Gen<ArithmeticVariable>)));
-                return yield* interp.visit(interp, rt.arithmeticValue(cond as ArithmeticVariable) ? s.t : s.f, param);
+                const boolType = variables.arithmeticNumType("BOOL");
+                const boolYield = rt.cast(boolType, obj) as ResultOrGen<ArithmeticNumVariable>;
+                const cond = rt.expectValue((asResult(boolYield) ?? (yield* boolYield as Gen<ArithmeticNumVariable>)));
+                return yield* interp.visit(interp, rt.arithmeticValue(cond as ArithmeticNumVariable) ? s.t : s.f, param);
             },
             *ConstantExpression(interp, s: XConstantExpression, param) {
                 ({
@@ -1941,7 +1941,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                 return valuesToStruct(arrayValues);
             },
-            StringLiteral(interp, s: XStringLiteral, _param): InitIndexPointerVariable<ArithmeticVariable> {
+            StringLiteral(interp, s: XStringLiteral, _param): InitIndexPointerVariable<ArithmeticNumVariable> {
                 ({
                     rt
                 } = interp);
@@ -1980,26 +1980,26 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 return variables.arithmeticNum("I8", a[0].charCodeAt(0), null);
             },
-            *FloatConstant(interp, s, param): ResultOrGen<ArithmeticVariable> {
+            *FloatConstant(interp, s, param): ResultOrGen<ArithmeticNumVariable> {
                 ({
                     rt
                 } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
                 return variables.arithmeticNum("F64", val.v.value, null);
             },
-            DecimalFloatConstant(interp, s, _param): ArithmeticVariable {
+            DecimalFloatConstant(interp, s, _param): ArithmeticNumVariable {
                 ({
                     rt
                 } = interp);
                 return variables.arithmeticNum("F64", parseFloat(s.value), null);
             },
-            HexFloatConstant(interp, s, _param): ArithmeticVariable {
+            HexFloatConstant(interp, s, _param): ArithmeticNumVariable {
                 ({
                     rt
                 } = interp);
                 return variables.arithmeticNum("F64", parseInt(s.value, 16), null);
             },
-            DecimalConstant(interp, s: XDecimalConstant, _param): ArithmeticVariable {
+            DecimalConstant(interp, s: XDecimalConstant, _param): ArithmeticNumVariable | ArithmeticBigVariable {
                 ({
                     rt
                 } = interp);
@@ -2010,7 +2010,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 catch (e) {
                     rt.raiseException(`Decimal constant error: '${s.value}' is not a valid decimal constant`);
                 }
-                const sigPriority: ArithmeticSig[] = ["I32", "I64"];
+                const sigPriority: (ArithmeticNumSig | ArithmeticBigSig)[] = ["I32", "I64"];
                 for (const sig of sigPriority) {
                     const props = variables.arithmeticProperties[sig];
                     if (num >= props.minv && num <= props.maxv) {
@@ -2032,7 +2032,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 catch (e) {
                     rt.raiseException(`Hexadecimal constant error: '${s.value}' is not a valid decimal constant`);
                 }
-                const sigPriority: ArithmeticSig[] = ["I32", "U32", "I64", "U64"];
+                const sigPriority: (ArithmeticNumSig | ArithmeticBigSig)[] = ["I32", "U32", "I64", "U64"];
                 for (const sig of sigPriority) {
                     const props = variables.arithmeticProperties[sig];
                     if (num >= props.minv && num <= props.maxv) {
@@ -2054,7 +2054,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 catch (e) {
                     rt.raiseException(`Binary constant error: '${s.value}' is not a valid decimal constant`);
                 }
-                const sigPriority: ArithmeticSig[] = ["I32", "U32", "I64", "U64"];
+                const sigPriority: (ArithmeticNumSig | ArithmeticBigSig)[] = ["I32", "U32", "I64", "U64"];
                 for (const sig of sigPriority) {
                     const props = variables.arithmeticProperties[sig];
                     if (num >= props.minv && num <= props.maxv) {

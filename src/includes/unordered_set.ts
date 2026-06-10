@@ -4,7 +4,7 @@
 import { InitializerListVariable } from "../initializer_list";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticNumVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticNumVariable, PointerVariable } from "../variables";
 
 interface UnorderedSetType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "unordered_set",
@@ -15,8 +15,8 @@ type UnorderedSetVariable<T extends Variable> = AbstractVariable<UnorderedSetTyp
 interface UnorderedSetValue<T extends Variable> extends InitValue<UnorderedSetVariable<T>> {
     members: {
         "_data": InitIndexPointerVariable<T>,
-        "_sz": InitArithmeticVariable,
-        "_cap": InitArithmeticVariable,
+        "_sz": InitArithmeticNumVariable,
+        "_cap": InitArithmeticNumVariable,
     }
 }
 
@@ -27,8 +27,8 @@ export = {
             numTemplateArgs: 1, factory: (dataItem: UnorderedSetType<ObjectType>) => {
                 return {
                     _data: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF"),
-                    _sz: variables.arithmetic("I32", 0, "SELF"),
-                    _cap: variables.arithmetic("I32", 0, "SELF"),
+                    _sz: variables.arithmeticNum("I32", 0, "SELF"),
+                    _cap: variables.arithmeticNum("I32", 0, "SELF"),
                 }
             }
         }, ["_data", "_sz", "_cap"], {});
@@ -37,7 +37,7 @@ export = {
         const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS unordered_set < ?0 > ( CLASS initializer_list < ?0 > )",
-            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): Gen<UnorderedSetVariable<Variable>> {
+            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticNumVariable>): Gen<UnorderedSetVariable<Variable>> {
                 const thisType = variables.classType("unordered_set", list.t.templateSpec, null);
                 const usetVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<UnorderedSetVariable<Variable>>;
                 const listmem = list.v.members._values.v.pointee;
@@ -89,7 +89,7 @@ export = {
             // Check if element already exists
             for (let i = 0; i < dataArray.values.length; i++) {
                 const existingValue = rt.unbound(variables.arrayMember(dataArray, i) as MaybeUnboundVariable);
-                if (rt.arithmeticValue(existingValue as ArithmeticVariable) === rt.arithmeticValue(value as ArithmeticVariable)) {
+                if (rt.arithmeticValue(existingValue as ArithmeticNumVariable) === rt.arithmeticValue(value as ArithmeticNumVariable)) {
                     // Element already exists, return iterator to existing element
                     return [variables.indexPointer(dataArray, i, false, null, false), false];
                 }
@@ -108,10 +108,10 @@ export = {
             const dataArray = dataPtr.v.pointee;
             
             // Linear search (unordered)
-            const valueNum = rt.arithmeticValue(value as ArithmeticVariable);
+            const valueNum = rt.arithmeticValue(value as ArithmeticNumVariable);
             for (let i = 0; i < dataArray.values.length; i++) {
                 const existingValue = rt.unbound(variables.arrayMember(dataArray, i) as MaybeUnboundVariable);
-                const existingNum = rt.arithmeticValue(existingValue as ArithmeticVariable);
+                const existingNum = rt.arithmeticValue(existingValue as ArithmeticNumVariable);
                 
                 if (existingNum === valueNum) {
                     return variables.indexPointer(dataArray, i, false, null, false);
@@ -121,13 +121,13 @@ export = {
             return null;
         }
 
-        function _end(rt: CRuntime, usetVar: UnorderedSetVariable<Variable>): InitIndexPointerVariable<Variable> {
+        function _end(usetVar: UnorderedSetVariable<Variable>): InitIndexPointerVariable<Variable> {
             const dataPtr = usetVar.v.members._data;
             const dataArray = dataPtr.v.pointee;
             return variables.indexPointer(dataArray, usetVar.v.members._sz.v.value, false, null, false);
         }
 
-        function _erase(rt: CRuntime, usetVar: UnorderedSetVariable<Variable>, index: number): boolean {
+        function _erase(usetVar: UnorderedSetVariable<Variable>, index: number): boolean {
             const dataPtr = usetVar.v.members._data;
             const dataArray = dataPtr.v.pointee;
             const size = usetVar.v.members._sz.v.value;
@@ -147,7 +147,7 @@ export = {
             {
                 op: "begin",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS unordered_set < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
                     const dataPtr = usetVar.v.members._data;
                     const dataArray = dataPtr.v.pointee;
@@ -157,15 +157,15 @@ export = {
             {
                 op: "end",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS unordered_set < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
-                    return _end(rt, usetVar);
+                    return _end(usetVar);
                 }
             },
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS unordered_set < ?0 > CLASS initializer_list < ?0 > )",
-                *default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
                     const list = args[1] as InitializerListVariable<Variable>;
                     const listmem = list.v.members._values.v.pointee;
@@ -173,27 +173,27 @@ export = {
                     let lastInserted: InitIndexPointerVariable<Variable> | null = null;
                     for (let i = 0; i < listmem.values.length; i++) {
                         const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable);
-                        const [iterator, _inserted] = _insert(rt, usetVar, currentValue);
+                        const [iterator] = _insert(rt, usetVar, currentValue);
                         lastInserted = iterator;
                     }
                     
-                    return lastInserted ?? _end(rt, usetVar);
+                    return lastInserted ?? _end(usetVar);
                 }
             },
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS unordered_set < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]) {
+                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
                     const value = args[1];
-                    const [iterator, _inserted] = _insert(rt, usetVar, value);
+                    const [iterator] = _insert(rt, usetVar, value);
                     return iterator;
                 }
             },
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS unordered_set < ?0 > PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
+                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
                     const beginPtr = args[1] as PointerVariable<Variable>;
                     const endPtr = args[2] as PointerVariable<Variable>;
@@ -221,10 +221,10 @@ export = {
                     const value = args[1];
                     const found = _find(rt, usetVar, value);
                     if (found !== null) {
-                        const erased = _erase(rt, usetVar, found.v.index);
-                        return variables.arithmetic("I32", erased ? 1 : 0, null, false);
+                        const erased = _erase(usetVar, found.v.index);
+                        return variables.arithmeticNum("I32", erased ? 1 : 0, null, false);
                     }
-                    return variables.arithmetic("I32", 0, null, false);
+                    return variables.arithmeticNum("I32", 0, null, false);
                 }
             },
             {
@@ -237,7 +237,7 @@ export = {
                     if (found !== null) {
                         return found;
                     }
-                    return _end(rt, usetVar);
+                    return _end(usetVar);
                 }
             },
             {
@@ -247,7 +247,7 @@ export = {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
                     const value = args[1];
                     const found = _find(rt, usetVar, value);
-                    return variables.arithmetic("I32", found !== null ? 1 : 0, null, false);
+                    return variables.arithmeticNum("I32", found !== null ? 1 : 0, null, false);
                 }
             },
             {
@@ -257,7 +257,7 @@ export = {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
                     const value = args[1];
                     const found = _find(rt, usetVar, value);
-                    return variables.arithmetic("BOOL", found !== null ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", found !== null ? 1 : 0, null, false);
                 }
             },
             {
@@ -265,7 +265,7 @@ export = {
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS unordered_set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
-                    return variables.arithmetic("I32", usetVar.v.members._sz.v.value, null, false);
+                    return variables.arithmeticNum("I32", usetVar.v.members._sz.v.value, null, false);
                 }
             },
             {
@@ -273,7 +273,7 @@ export = {
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS unordered_set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
-                    return variables.arithmetic("BOOL", usetVar.v.members._sz.v.value === 0 ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", usetVar.v.members._sz.v.value === 0 ? 1 : 0, null, false);
                 }
             },
             {

@@ -39,7 +39,7 @@ export = {
                 //const iteratorType = rt
                 return {
                     _container: variables.uninitPointer(iteratorType.templateSpec[0], null, "SELF"),
-                    _iter: variables.uninitPointer(variables.arithmeticType("I8"), null, "SELF"),
+                    _iter: variables.uninitPointer(variables.arithmeticNumType("I8"), null, "SELF"),
                 }
             }
         }, ["_container", "_iter"], {

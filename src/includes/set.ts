@@ -4,7 +4,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, ArithmeticBigVariable, ArithmeticNumVariable } from "../variables";
 
 interface SetType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "set",
@@ -15,8 +15,8 @@ type SetVariable<T extends Variable> = AbstractVariable<SetType<T["t"]>, SetValu
 interface SetValue<T extends Variable> extends InitValue<SetVariable<T>> {
     members: {
         "_data": InitIndexPointerVariable<T>,
-        "_sz": InitArithmeticVariable,
-        "_cap": InitArithmeticVariable,
+        "_sz": InitArithmeticNumVariable,
+        "_cap": InitArithmeticNumVariable,
     }
 }
 
@@ -28,8 +28,8 @@ export = {
             numTemplateArgs: 1, factory: (dataItem: SetType<ObjectType>) => {
                 return {
                     _data: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF"),
-                    _sz: variables.arithmetic("I32", 0, "SELF"),
-                    _cap: variables.arithmetic("I32", 0, "SELF"),
+                    _sz: variables.arithmeticNum("I32", 0, "SELF"),
+                    _cap: variables.arithmeticNum("I32", 0, "SELF"),
                 }
             }
         }, ["_data", "_sz", "_cap"], {
@@ -120,8 +120,8 @@ export = {
         function _compareStrings(rt: CRuntime, str1: any, str2: any): number {
             try {
                 // Bandyti gauti string pointer ir size
-                const str1Ptr = variables.asInitIndexPointerOfElem(str1.v.members._ptr, variables.uninitArithmetic("I8", null));
-                const str2Ptr = variables.asInitIndexPointerOfElem(str2.v.members._ptr, variables.uninitArithmetic("I8", null));
+                const str1Ptr = variables.asInitIndexPointerOfElem(str1.v.members._ptr, variables.uninitArithmeticNum("I8", null));
+                const str2Ptr = variables.asInitIndexPointerOfElem(str2.v.members._ptr, variables.uninitArithmeticNum("I8", null));
 
                 if (!str1Ptr || !str2Ptr) {
                     throw new Error("Invalid string pointers");
@@ -176,10 +176,10 @@ export = {
                     }
                 }
                 else if (variables.asArithmetic(value) && variables.asArithmetic(existingValue)) {
-                    const existingNum = rt.arithmeticValue(existingValue as ArithmeticVariable);
-                    const valueNum = rt.arithmeticValue(value as ArithmeticVariable);
+                    const existingNum = rt.arithmeticValue(existingValue as ArithmeticNumVariable | ArithmeticBigVariable);
+                    const valueNum = rt.arithmeticValue(value as ArithmeticNumVariable | ArithmeticBigVariable);
 
-                    if (existingNum === valueNum) {
+                    if (existingNum == valueNum) {
                         comparison = 0;
                     } else if (existingNum < valueNum) {
                         comparison = -1;
@@ -201,8 +201,8 @@ export = {
                             const r2 = asResult(result2);
 
                             if (r1 && r1 !== "VOID" && r2 && r2 !== "VOID") {
-                                const val1 = rt.arithmeticValue(rt.unbound(r1) as ArithmeticVariable);
-                                const val2 = rt.arithmeticValue(rt.unbound(r2) as ArithmeticVariable);
+                                const val1 = rt.arithmeticValue(rt.unbound(r1) as ArithmeticNumVariable);
+                                const val2 = rt.arithmeticValue(rt.unbound(r2) as ArithmeticNumVariable);
 
                                 if (val1 && !val2) comparison = -1;
                                 else if (!val1 && val2) comparison = 1;
@@ -264,8 +264,8 @@ export = {
                     }
                 }
                 else if (variables.asArithmetic(value) && variables.asArithmetic(existingValue)) {
-                    const existingNum = rt.arithmeticValue(existingValue as ArithmeticVariable);
-                    const valueNum = rt.arithmeticValue(value as ArithmeticVariable);
+                    const existingNum = rt.arithmeticValue(existingValue as ArithmeticNumVariable);
+                    const valueNum = rt.arithmeticValue(value as ArithmeticNumVariable);
                     isEqual = existingNum === valueNum;
                 } else {
                     try {
@@ -278,7 +278,7 @@ export = {
                             const result = rt.invokeCall(eqFunc, [], existingValue, value);
                             const r = asResult(result);
                             if (r && r !== "VOID") {
-                                isEqual = rt.arithmeticValue(rt.unbound(r) as ArithmeticVariable) !== 0;
+                                isEqual = rt.arithmeticValue(rt.unbound(r) as ArithmeticNumVariable) !== 0;
                             }
                         }
                     } catch (e) {
@@ -294,13 +294,13 @@ export = {
             return null;
         }
 
-        function _end(rt: CRuntime, setVar: SetVariable<Variable>): InitIndexPointerVariable<Variable> {
+        function _end(setVar: SetVariable<Variable>): InitIndexPointerVariable<Variable> {
             const dataPtr = setVar.v.members._data;
             const dataArray = dataPtr.v.pointee;
             return variables.indexPointer(dataArray, setVar.v.members._sz.v.value, false, null, false);
         }
 
-        function _erase(rt: CRuntime, setVar: SetVariable<Variable>, index: number): boolean {
+        function _erase(setVar: SetVariable<Variable>, index: number): boolean {
             const dataPtr = setVar.v.members._data;
             const dataArray = dataPtr.v.pointee;
             const size = setVar.v.members._sz.v.value;
@@ -320,7 +320,7 @@ export = {
             {
                 op: "begin",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS set < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const setVar = args[0] as SetVariable<Variable>;
                     const dataPtr = setVar.v.members._data;
                     const dataArray = dataPtr.v.pointee;
@@ -330,15 +330,15 @@ export = {
             {
                 op: "end",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS set < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const setVar = args[0] as SetVariable<Variable>;
-                    return _end(rt, setVar);
+                    return _end(setVar);
                 }
             },
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS set < ?0 > CLASS initializer_list < ?0 > )",
-                *default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
                     const setVar = args[0] as SetVariable<Variable>;
                     const list = args[1] as InitializerListVariable<Variable>;
                     const listmem = list.v.members._values.v.pointee;
@@ -346,38 +346,38 @@ export = {
                     let lastInserted: InitIndexPointerVariable<Variable> | null = null;
                     for (let i = 0; i < listmem.values.length; i++) {
                         const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable);
-                        const [iterator, _inserted] = _insert(rt, setVar, currentValue);
+                        const [iterator] = _insert(rt, setVar, currentValue);
                         lastInserted = iterator;
                     }
 
-                    return lastInserted ?? _end(rt, setVar);
+                    return lastInserted ?? _end(setVar);
                 }
             },
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS set < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]) {
+                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const setVar = args[0] as SetVariable<Variable>;
                     const value = args[1];
-                    const [iterator, _inserted] = _insert(rt, setVar, value);
+                    const [iterator] = _insert(rt, setVar, value);
                     return iterator;
                 }
             },
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS set < ?0 > PTR ?0 CLREF ?0 )",
-                default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]) {
+                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     // same as above, ignoring the iterator
                     const setVar = args[0] as SetVariable<Variable>;
                     const value = args[2];
-                    const [iterator, _inserted] = _insert(rt, setVar, value);
+                    const [iterator] = _insert(rt, setVar, value);
                     return iterator;
                 }
             },
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
+                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
                     const setVar = args[0] as SetVariable<Variable>;
                     const beginPtr = args[1] as PointerVariable<Variable>;
                     const endPtr = args[2] as PointerVariable<Variable>;
@@ -405,10 +405,10 @@ export = {
                     const value = args[1];
                     const found = _find(rt, setVar, value);
                     if (found !== null) {
-                        const erased = _erase(rt, setVar, found.v.index);
-                        return variables.arithmetic("I32", erased ? 1 : 0, null, false);
+                        const erased = _erase(setVar, found.v.index);
+                        return variables.arithmeticNum("I32", erased ? 1 : 0, null, false);
                     }
-                    return variables.arithmetic("I32", 0, null, false);
+                    return variables.arithmeticNum("I32", 0, null, false);
                 }
             },
             {
@@ -421,7 +421,7 @@ export = {
                     if (found !== null) {
                         return found;
                     }
-                    return _end(rt, setVar);
+                    return _end(setVar);
                 }
             },
             {
@@ -431,7 +431,7 @@ export = {
                     const setVar = args[0] as SetVariable<Variable>;
                     const value = args[1];
                     const found = _find(rt, setVar, value);
-                    return variables.arithmetic("I32", found !== null ? 1 : 0, null, false);
+                    return variables.arithmeticNum("I32", found !== null ? 1 : 0, null, false);
                 }
             },
             {
@@ -441,7 +441,7 @@ export = {
                     const setVar = args[0] as SetVariable<Variable>;
                     const value = args[1];
                     const found = _find(rt, setVar, value);
-                    return variables.arithmetic("BOOL", found !== null ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", found !== null ? 1 : 0, null, false);
                 }
             },
             {
@@ -449,7 +449,7 @@ export = {
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const setVar = args[0] as SetVariable<Variable>;
-                    return variables.arithmetic("I32", setVar.v.members._sz.v.value, null, false);
+                    return variables.arithmeticNum("I32", setVar.v.members._sz.v.value, null, false);
                 }
             },
             {
@@ -457,7 +457,7 @@ export = {
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const setVar = args[0] as SetVariable<Variable>;
-                    return variables.arithmetic("BOOL", setVar.v.members._sz.v.value === 0 ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", setVar.v.members._sz.v.value === 0 ? 1 : 0, null, false);
                 }
             },
             {

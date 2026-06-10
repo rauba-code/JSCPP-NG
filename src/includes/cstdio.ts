@@ -422,7 +422,7 @@ export = {
                                         rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
                                     }
                                     const vpointee = variables.asArithmeticNum(rt.unbound(variables.deref(vptr as InitPointerVariable<Variable>) as MaybeUnboundVariable)) ?? rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
-                                    variables.arithmeticAssign(rt, vpointee, vtnum);
+                                    variables.arithmeticNumAssign(rt, vpointee, vtnum);
                                     break
                                 default:
                                     rt.raiseException("sscanf: invalid format");

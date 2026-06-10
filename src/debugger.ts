@@ -114,7 +114,7 @@ export default class Debugger {
             if (ngen.value === false) {
                 return false;
             } else {
-                return this.rt.arithmeticNumValue(ngen.value);
+                return this.rt.arithmeticExpectNumValue(ngen.value);
             }
         } else {
             return false;

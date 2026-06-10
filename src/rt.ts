@@ -727,7 +727,7 @@ export class CRuntime {
             switch (castAction.cast.type) {
                 case "ARITHMETIC":
                     {
-                        const castYield = this.cast(variables.arithmeticType(castAction.cast.targetSig), this.expectValue(args[castAction.index]));
+                        const castYield = this.cast({ sig: castAction.cast.targetSig }, this.expectValue(args[castAction.index]));
                         args[castAction.index] = interp.asResult(castYield) ?? (yield* castYield as Gen<InitVariable>);
                     }
                     break;

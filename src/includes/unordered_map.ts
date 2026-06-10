@@ -1,9 +1,9 @@
 import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
-import { CRuntime, MemberMap } from "../rt";
+import { CRuntime, MemberMap, num } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
-import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticVariable, InitDirectPointerVariable, PointerValue } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, InitDirectPointerVariable, PointerValue } from "../variables";
 
 // unordered_map
 
@@ -30,8 +30,8 @@ type UMapIteratorVariable<TKey extends Variable, TVal extends Variable> = Abstra
 interface UMapIteratorValue<TKey extends Variable, TVal extends Variable> extends InitValue<UMapIteratorVariable<TKey, TVal>> {
     members: {
         "bstack": InitIndexPointerVariable<PointerVariable<UMapBranchVariable<TKey, TVal>>>,
-        "istack": InitIndexPointerVariable<InitArithmeticVariable>,
-        "slen": InitArithmeticVariable,
+        "istack": InitIndexPointerVariable<InitArithmeticNumVariable>,
+        "slen": InitArithmeticNumVariable,
         "link": PointerVariable<UMapLinkVariable<TKey, TVal>>,
     }
 }
@@ -48,7 +48,7 @@ interface UMapBranchValue<TKey extends Variable, TVal extends Variable> extends 
     members: {
         "branches": InitIndexPointerVariable<PointerVariable<UMapBranchVariable<TKey, TVal>>>,
         "leaves": InitIndexPointerVariable<PointerVariable<UMapLinkVariable<TKey, TVal>>>,
-        "size": InitArithmeticVariable,
+        "size": InitArithmeticNumVariable,
     }
 }
 
@@ -84,7 +84,7 @@ export = {
         type __dptr_branch = InitDirectPointerVariable<__branch>;
         type __link = UMapLinkVariable<Variable, Variable>;
         type __dptr_link = InitDirectPointerVariable<__link>;
-        type __pair_iterator_bool = PairVariable<__umap_iter, InitArithmeticVariable>
+        type __pair_iterator_bool = PairVariable<__umap_iter, InitArithmeticNumVariable>
 
         const _createUMapBranchType: (templateSpec: [ObjectType, ObjectType]) => __branch['t'] = (templateSpec) => ({
             "sig": "CLASS",
@@ -120,14 +120,14 @@ export = {
             for (let i = 0; i < STACK_SIZE; i++) {
                 bmem.values.push((variables.uninitPointer(bmem.objectType.pointee, null, { array: bmem, index: i }) as PointerVariable<__branch>).v);
             }
-            let imem = variables.arrayMemory<InitArithmeticVariable>(variables.arithmeticType("I64"), []);
+            let imem = variables.arrayMemory<InitArithmeticNumVariable>(variables.arithmeticNumType("I32"), []);
             for (let i = 0; i < STACK_SIZE; i++) {
-                imem.values.push((variables.arithmetic("I64", 0, { array: imem, index: i })).v);
+                imem.values.push((variables.arithmeticNum("I32", 0, { array: imem, index: i })).v);
             }
             return {
                 bstack: variables.indexPointer(bmem, 0, true, "SELF"),
                 istack: variables.indexPointer(imem, 0, true, "SELF"),
-                slen: variables.arithmetic("I64", 0, "SELF"),
+                slen: variables.arithmeticNum("I32", 0, "SELF"),
                 link: variables.uninitPointer(umapLinkType, null, "SELF"),
             } as __umap_iter['v']['members'];
         };
@@ -246,7 +246,7 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( PTR PTR CLASS unordered_map_branch_node < ?0 ?1 > PTR I32 PTR CLASS unordered_map_link_node < ?0 ?1 > )",
-                default(_rt: CRuntime, templateTypes: [__umap_iter['t']], bstack: InitIndexPointerVariable<PointerVariable<__branch>>, istack: InitIndexPointerVariable<InitArithmeticVariable>, link: PointerVariable<__link>): __umap_iter {
+                default(_rt: CRuntime, templateTypes: [__umap_iter['t']], bstack: InitIndexPointerVariable<PointerVariable<__branch>>, istack: InitIndexPointerVariable<InitArithmeticNumVariable>, link: PointerVariable<__link>): __umap_iter {
                     const thisType = templateTypes[0];
                     const thisVar: __umap_iter = _createUMapIterVar(thisType);
                     thisVar.v.members.slen.v.value = STACK_SIZE;
@@ -304,21 +304,21 @@ export = {
             {
                 op: "o(_==_)",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS unordered_map_iterator < ?0 ?1 > CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticNumVariable {
                     if (lhs.v.members.link.v.state === "UNINIT" || rhs.v.members.link.v.state === "UNINIT") {
-                        return variables.arithmetic("BOOL", lhs.v.members.link.v.state === rhs.v.members.link.v.state ? 1 : 0, null);
+                        return variables.arithmeticNum("BOOL", lhs.v.members.link.v.state === rhs.v.members.link.v.state ? 1 : 0, null);
                     }
-                    return variables.arithmetic("BOOL", lhs.v.members.link.v.pointee === rhs.v.members.link.v.pointee ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", lhs.v.members.link.v.pointee === rhs.v.members.link.v.pointee ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_!=_)",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS unordered_map_iterator < ?0 ?1 > CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticNumVariable {
                     if (lhs.v.members.link.v.state === "UNINIT" || rhs.v.members.link.v.state === "UNINIT") {
-                        return variables.arithmetic("BOOL", (lhs.v.members.link.v.state !== rhs.v.members.link.v.state) ? 1 : 0, null);
+                        return variables.arithmeticNum("BOOL", (lhs.v.members.link.v.state !== rhs.v.members.link.v.state) ? 1 : 0, null);
                     }
-                    return variables.arithmetic("BOOL", (lhs.v.members.link.v.pointee !== rhs.v.members.link.v.pointee) ? 1 : 0, null);
+                    return variables.arithmeticNum("BOOL", (lhs.v.members.link.v.pointee !== rhs.v.members.link.v.pointee) ? 1 : 0, null);
                 }
             },
         ]);
@@ -343,7 +343,7 @@ export = {
                 return {
                     branches: variables.indexPointer(bmem, 0, true, "SELF"),
                     leaves: variables.indexPointer(lmem, 0, true, "SELF"),
-                    size: variables.arithmetic("I64", 0, "SELF"),
+                    size: variables.arithmeticNum("I32", 0, "SELF"),
                 };
             }
         }, ["branches", "leaves", "size"], {});
@@ -527,11 +527,11 @@ export = {
             }
 
             const bstackVar: InitIndexPointerVariable<__dptr_branch> = variables.indexPointer(bstackMemory, 0, true, "SELF");
-            const istackMemory = variables.arrayMemory<InitArithmeticVariable>({ sig: "I64" }, []);
+            const istackMemory = variables.arrayMemory<InitArithmeticNumVariable>({ sig: "I32" }, []);
             for (let i = 0; i < STACK_SIZE; i++) {
                 istackMemory.values.push({ isConst: false, lvHolder: { array: istackMemory, index: i }, state: "INIT", value: istack[i] });
             }
-            const istackVar: InitIndexPointerVariable<InitArithmeticVariable> = variables.indexPointer(istackMemory, 0, true, "SELF");
+            const istackVar: InitIndexPointerVariable<InitArithmeticNumVariable> = variables.indexPointer(istackMemory, 0, true, "SELF");
 
             const iterType: __umap_iter['t'] = _createUMapIterType(linkType.templateSpec);
             const iter: __umap_iter = {
@@ -544,7 +544,7 @@ export = {
                         bstack: bstackVar,
                         istack: istackVar,
                         link,
-                        slen: variables.arithmetic("I64", STACK_SIZE, "SELF")
+                        slen: variables.arithmeticNum("I32", STACK_SIZE, "SELF")
                     }
                 }
             };
@@ -565,7 +565,7 @@ export = {
                 if (hashOrVoid === "VOID") {
                     rt.raiseException("unordered_map::insert(): call to __hash() unexpectedly returned void");
                 }
-                let h = rt.arithmeticValue(hashOrVoid);
+                let h = num(rt.arithmeticValue(hashOrVoid));
                 h &= (1 << BITS_HASH) - 1;
                 for (let i = BITS_BRANCH; i < BITS_HASH; i += BITS_BRANCH) {
                     istack[(i / BITS_BRANCH) - 1] = h & ((1 << BITS_BRANCH) - 1);
@@ -602,7 +602,7 @@ export = {
                         state: "INIT",
                         members: {
                             first: _createIterDirectly(bstack, istack, linkType, linkPointeeVal),
-                            second: variables.arithmetic("BOOL", second ? 1 : 0, "SELF")
+                            second: variables.arithmeticNum("BOOL", second ? 1 : 0, "SELF")
                         }
                     }
                 };
@@ -679,7 +679,7 @@ export = {
                 if (hashOrVoid === "VOID") {
                     rt.raiseException("unordered_map::insert(): call to __hash() unexpectedly returned void");
                 }
-                let h = rt.arithmeticValue(hashOrVoid);
+                let h = num(rt.arithmeticValue(hashOrVoid));
                 h &= (1 << BITS_HASH) - 1;
                 for (let i = BITS_BRANCH; i < BITS_HASH; i += BITS_BRANCH) {
                     istack[(i / BITS_BRANCH) - 1] = h & ((1 << BITS_BRANCH) - 1);
@@ -877,11 +877,11 @@ export = {
             },
             {
                 op: "size",
-                type: "!ParamObject !ParamObject FUNCTION I64 ( CLREF CLASS unordered_map < ?0 ?1 > )",
+                type: "!ParamObject !ParamObject FUNCTION I32 ( CLREF CLASS unordered_map < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const thisVar = args[0] as __umap;
                     const sz = thisVar.v.members.tree.v.members.size.v.value;
-                    return variables.arithmetic("I64", sz, null, false);
+                    return variables.arithmeticNum("I32", sz, null, false);
                 }
             },
             {
@@ -890,7 +890,7 @@ export = {
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const thisVar = args[0] as __umap;
                     const sz = thisVar.v.members.tree.v.members.size.v.value;
-                    return variables.arithmetic("BOOL", sz === 0 ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", sz === 0 ? 1 : 0, null, false);
                 }
             },
             {
@@ -948,8 +948,8 @@ export = {
             },
             {
                 op: "erase",
-                type: "!ParamObject !ParamObject FUNCTION U64 ( LREF CLASS unordered_map < ?0 ?1 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], ..._args: Variable[]): Gen<InitArithmeticVariable> {
+                type: "!ParamObject !ParamObject FUNCTION U32 ( LREF CLASS unordered_map < ?0 ?1 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ..._args: Variable[]): Gen<InitArithmeticNumVariable> {
                     rt.raiseException("unordered_map::erase(): Not yet implemented");
                     /*const thisVar = args[0] as __umap;
                     const key = args[1] as Variable;
@@ -962,9 +962,9 @@ export = {
                         const eraseInst = rt.getFuncByParams(thisVar.v.members._data.t, "erase", [thisVar.v.members._data, pairPtr], []);
                         const eraseYield = rt.invokeCall(eraseInst, [], thisVar.v.members._data, pairPtr);
                         asResult(eraseYield) ?? (yield* eraseYield as Gen<Variable>);
-                        return variables.arithmetic("U64", 1, null);
+                        return variables.arithmetic("U32", 1, null);
                     }
-                    return variables.arithmetic("U64", 0, null);*/
+                    return variables.arithmetic("U32", 0, null);*/
                 }
             },
             /*{
@@ -974,7 +974,7 @@ export = {
                     const thisVar = args[0] as __umap;
                     const value = args[1];
                     const found = _find(rt, thisVar, value);
-                    return variables.arithmetic("I32", found !== null ? 1 : 0, null, false);
+                    return variables.arithmeticNum("I32", found !== null ? 1 : 0, null, false);
                 }
             },
             {
@@ -984,7 +984,7 @@ export = {
                     const thisVar = args[0] as __umap;
                     const value = args[1];
                     const found = _find(rt, thisVar, value);
-                    return variables.arithmetic("BOOL", found !== null ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", found !== null ? 1 : 0, null, false);
                 }
             },
             */
