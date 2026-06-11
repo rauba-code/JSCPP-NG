@@ -142,7 +142,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
                     if (base === 10 || num >= 0) {
                         return num.toString(base);
                     } else {
-                        return ((BigInt(numProperties.maxv) + 1n - BigInt(numProperties.minv)) + BigInt(num)).toString(base);
+                        return ((BigInt(numProperties.maxv) + BigInt(1) - BigInt(numProperties.minv)) + BigInt(num)).toString(base);
                     }
                 }
             }

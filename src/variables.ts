@@ -109,8 +109,8 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         isFloat: false,
         isBig: true,
         bytes: 8,
-        minv: -9223372036854775808n,
-        maxv: 9223372036854775807n,
+        minv: BigInt("-9223372036854775808"),
+        maxv: BigInt("9223372036854775807"),
         asSigned: "I64",
     },
     "U64": {
@@ -120,7 +120,7 @@ const arithmeticProperties: { [x in ArithmeticSig]: ArithmeticProperties } = {
         isBig: true,
         bytes: 8,
         minv: 0,
-        maxv: 18446744073709551615n,
+        maxv: BigInt("18446744073709551615"),
         asSigned: "I64",
     },
     "F32": {

@@ -88,9 +88,9 @@ export = {
                                     value = Math.floor(value / 10);
                                 }
                             } else {
-                                while (value !== 0n) {
-                                    output.push(Number(value % 10n) + ascii_0);
-                                    value /= 10n;
+                                while (value !== BigInt(0)) {
+                                    output.push(Number(value % BigInt(10)) + ascii_0);
+                                    value /= BigInt(10);
                                 }
                             }
                             if (sign < 0) {

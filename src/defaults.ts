@@ -360,7 +360,7 @@ const defaultOpHandler: OpHandler[] = [
             } else {
                 const l = _l as InitArithmeticBigVariable;
                 const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint, null);
-                l.v.value = ret.v.value as bigint + 1n;
+                l.v.value = ret.v.value as bigint + BigInt(1);
                 if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticBigValue(l);
                     return ret;
@@ -385,7 +385,7 @@ const defaultOpHandler: OpHandler[] = [
             } else {
                 const l = _l as InitArithmeticBigVariable;
                 const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint, null);
-                l.v.value = ret.v.value as bigint - 1n;
+                l.v.value = ret.v.value as bigint - BigInt(1);
                 if (rt.inrange(l.v.value, l.t, () => `overflow during post-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticBigValue(l);
                     return ret;
@@ -409,7 +409,7 @@ const defaultOpHandler: OpHandler[] = [
                 }
             } else {
                 const l = _l as InitArithmeticBigVariable;
-                const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint + 1n, null);
+                const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint + BigInt(1), null);
                 if (rt.inrange(l.v.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticBigValue(ret);
                     l.v.value = ret.v.value;
@@ -434,7 +434,7 @@ const defaultOpHandler: OpHandler[] = [
                 }
             } else {
                 const l = _l as InitArithmeticBigVariable;
-                const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint - 1n, null);
+                const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint - BigInt(1), null);
                 if (rt.inrange(l.v.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticBigValue(ret);
                     l.v.value = ret.v.value;

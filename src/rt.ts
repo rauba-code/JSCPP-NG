@@ -1228,9 +1228,9 @@ export class CRuntime {
         }
         /*const minv = BigInt(info.minv);
         const maxv = BigInt(info.maxv);
-        let q: bigint = (x.v.value - minv) % (maxv + 1n - minv);
+        let q: bigint = (x.v.value - minv) % (maxv + BigInt(1) - minv);
         if (q < 0) {
-            q += maxv + 1n - minv;
+            q += maxv + BigInt(1) - minv;
         }
         x.v.value = q + minv;*/
     }
@@ -1369,7 +1369,7 @@ export class CRuntime {
             } else {
                 const conversionErrorMsg: () => string = () => `${this.makeValueString(v)} of type ${this.makeTypeStringOfVar(v)} to type ${this.makeTypeString(target)}`;
                 if (!targetInfo.isBig) {
-                    const targetValue = (typeof arithmeticValue === "number") ? arithmeticValue : Number(arithmeticValue % 0xFFFFFFFFn);
+                    const targetValue = (typeof arithmeticValue === "number") ? arithmeticValue : Number(arithmeticValue % BigInt(0xFFFFFFFF));
                     const sig = arithmeticTarget.sig as ArithmeticNumSig;
                     if (!targetInfo.isSigned) {
                         if (targetValue < 0) {
@@ -1699,7 +1699,7 @@ export class CRuntime {
         } else if (type.sig in variables.arithmeticBigSig) {
             const lvHolder1 = lvHolder as LValueHolder<ArithmeticBigVariable>;
             return zeroInitialise
-                ? { t: type as ArithmeticBigType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0n } }
+                ? { t: type as ArithmeticBigType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: BigInt(0) } }
                 : { t: type as ArithmeticBigType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } };
         } else if ((classType = variables.asClassType(type)) !== null) {
             // TODO: zero-initialise class members

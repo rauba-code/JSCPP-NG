@@ -161,10 +161,10 @@ export = {
                 default(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable, _r: ArithmeticBigVariable): DivVariable {
                     const l = rt.arithmeticValue(_l) as bigint;
                     const r = rt.arithmeticValue(_r) as bigint;
-                    if (r === 0n) {
+                    if (r === BigInt(0)) {
                         rt.raiseException("Integer division by zero");
                     }
-                    const sign = ((l >= 0) == (r >= 0)) ? 1n : -1n;
+                    const sign = ((l >= 0) == (r >= 0)) ? BigInt(1) : BigInt(-1);
                     const la = (l >= 0) ? l : -l;
                     const ra = (r >= 0) ? r : -r;
                     const quot = sign * (la / ra);
