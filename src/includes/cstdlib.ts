@@ -1,6 +1,6 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, InitArithmeticNumVariable, InitValue, PointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, InitValue, PointerVariable, variables } from "../variables";
 import * as utf8 from "../utf8";
 
 interface DivType {
@@ -62,6 +62,12 @@ export = {
             rt.adjustArithmeticNumValue(retv);
             return retv;
         }
+        function llabs(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable): InitArithmeticBigVariable {
+            const l = rt.arithmeticValue(_l) as bigint;
+            const retv = variables.arithmeticBig(_l.t.sig, (l >= 0) ? l : -l, null);
+            rt.adjustArithmeticBigValue(retv);
+            return retv;
+        }
         rt.defineStruct("{global}", "div_t", [
             {
                 name: "quot",
@@ -120,7 +126,7 @@ export = {
             { type: "FUNCTION I32 ( I32 )", op: "abs", default: abs },
             { type: "FUNCTION I64 ( I64 )", op: "abs", default: abs },
             { type: "FUNCTION I32 ( I32 )", op: "labs", default: abs },
-            { type: "FUNCTION I64 ( I64 )", op: "llabs", default: abs },
+            { type: "FUNCTION I64 ( I64 )", op: "llabs", default: llabs },
             {
                 type: "FUNCTION CLASS div_t < > ( I32 I32 )",
                 op: "div",

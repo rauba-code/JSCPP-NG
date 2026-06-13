@@ -56,7 +56,7 @@ export = {
                         flagLeftAdjust: boolean;
                         flagSpaceBeforePositive: boolean;
                         flagAlwaysDisplaySign: boolean;
-                        length: number | null;
+                        width: number | null;
                         precision: number | null;
                     }
                     const defaultFormatOptions: FormatOptions = {
@@ -65,7 +65,7 @@ export = {
                         flagLeftAdjust: false, //          '-'
                         flagSpaceBeforePositive: false, // ' '
                         flagAlwaysDisplaySign: false, //   '+'
-                        length: null,
+                        width: null,
                         precision: null,
                     }
                     function formatNumeric(category: "d" | "f", options: FormatOptions, value: number | bigint): number[] {
@@ -98,14 +98,14 @@ export = {
                             } else if (options.flagAlwaysDisplaySign) {
                                 output.push(ascii_plusSign);
                             }
-                            else if (options.flagSpaceBeforePositive && (options.length === null || output.length >= options.length)) {
+                            else if (options.flagSpaceBeforePositive && (options.width === null || output.length >= options.width)) {
                                 output.push(ascii_space);
                             }
                         }
                         const precision = options.precision ?? 6;
-                        if (options.length !== null && !options.flagLeftAdjust) {
+                        if (options.width !== null && !options.flagLeftAdjust) {
                             const precisionBytes = (category === "f") ? precision + 1 : 0;
-                            while (options.length > output.length + precisionBytes) {
+                            while (options.width > output.length + precisionBytes) {
                                 output.push(options.flagZeroPad ? ascii_0 : ascii_space);
                             }
                         }
@@ -121,8 +121,8 @@ export = {
                             output.push(...remOutput.reverse());
 
                         }
-                        if (options.length !== null && options.flagLeftAdjust) {
-                            while (options.length > output.length) {
+                        if (options.width !== null && options.flagLeftAdjust) {
+                            while (options.width > output.length) {
                                 output.push(ascii_space);
                             }
                         }
@@ -130,7 +130,7 @@ export = {
                     }
                     let formatOptions: FormatOptions = { ...defaultFormatOptions };
                     let output: number[] = [];
-                    let state: "NORMAL" | "PERCENT" | "FLAGS" | "LENGTH" | "PRECISION" = "NORMAL";
+                    let state: "NORMAL" | "PERCENT" | "FLAGS" | "WIDTH" | "PRECISION" = "NORMAL";
                     for (let i = 0; (chr = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + i)) as number) !== 0; i++) {
                         switch (state) {
                             case "PERCENT":
@@ -164,8 +164,8 @@ export = {
                                     case ascii_7:
                                     case ascii_8:
                                     case ascii_9:
-                                        formatOptions.length = chr - ascii_0;
-                                        state = "LENGTH";
+                                        formatOptions.width = chr - ascii_0;
+                                        state = "WIDTH";
                                         break;
                                     case ascii_fullStop:
                                         state = "PRECISION";
@@ -229,8 +229,8 @@ export = {
                                     case ascii_7:
                                     case ascii_8:
                                     case ascii_9:
-                                        formatOptions.length = chr - ascii_0;
-                                        state = "LENGTH";
+                                        formatOptions.width = chr - ascii_0;
+                                        state = "WIDTH";
                                         break;
                                     case ascii_fullStop:
                                         state = "PRECISION";
@@ -251,7 +251,7 @@ export = {
                                         rt.raiseException("Malformed printf format sequence");
                                 }
                                 break;
-                            case "LENGTH":
+                            case "WIDTH":
                                 switch (chr) {
                                     case ascii_0:
                                     case ascii_1:
@@ -263,7 +263,7 @@ export = {
                                     case ascii_7:
                                     case ascii_8:
                                     case ascii_9:
-                                        formatOptions.length = ((formatOptions.length ?? 0) * 10) + (chr - ascii_0);
+                                        formatOptions.width = ((formatOptions.width ?? 0) * 10) + (chr - ascii_0);
                                         break;
                                     case ascii_fullStop:
                                         state = "PRECISION";

@@ -1,7 +1,7 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
 import * as ios_base_impl from "../shared/ios_base_impl";
-import { ArithmeticBigVariable, ArithmeticNumVariable, ClassVariable, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { ArithmeticBigVariable, ArithmeticNumVariable, ClassVariable, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 import * as utf8 from "../utf8";
 import { IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
@@ -213,7 +213,7 @@ export = {
                     }
 
                 }
-                rt.adjustArithmeticNumValue((r as InitArithmeticNumVariable));
+                rt.adjustArithmeticAnyValue((r as InitArithmeticVariable));
                 return l;
             }
         },
