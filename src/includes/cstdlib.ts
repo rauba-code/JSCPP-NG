@@ -41,7 +41,7 @@ export = {
             }
         };
         function getWordString(rt: CRuntime, _l: PointerVariable<ArithmeticNumVariable>): string {
-        const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+            const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
             let char = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index)) as number;
             while ([9, 10, 32].includes(char)) {
                 l.v.index++;
@@ -54,7 +54,6 @@ export = {
                 char = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index)) as number;
             }
             return utf8.fromUtf8CharArray(new Uint8Array(wordValues));
-
         }
         function abs(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable): InitArithmeticNumVariable {
             const l = rt.arithmeticNumValue(_l);
@@ -67,6 +66,35 @@ export = {
             const retv = variables.arithmeticBig(_l.t.sig, (l >= 0) ? l : -l, null);
             rt.adjustArithmeticBigValue(retv);
             return retv;
+        }
+        function div(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable, ctype: "div_t" | "ldiv_t"): DivVariable {
+            const l = rt.arithmeticNumValue(_l);
+            const r = rt.arithmeticNumValue(_r);
+            if (r === 0) {
+                rt.raiseException("Integer division by zero");
+            }
+            const quot = Math.sign(l * r) * Math.floor(Math.abs(l / r));
+            const rem = l - (quot * r);
+            return variables.class(variables.classType(ctype, [], null), {
+                "quot": variables.arithmeticNum("I32", quot, null),
+                "rem": variables.arithmeticNum("I32", rem, null),
+            }, null) as DivVariable
+        }
+        function lldiv(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable, _r: ArithmeticBigVariable): DivVariable {
+            const l = rt.arithmeticValue(_l) as bigint;
+            const r = rt.arithmeticValue(_r) as bigint;
+            if (r === BigInt(0)) {
+                rt.raiseException("Integer division by zero");
+            }
+            const sign = ((l >= 0) == (r >= 0)) ? BigInt(1) : BigInt(-1);
+            const la = (l >= 0) ? l : -l;
+            const ra = (r >= 0) ? r : -r;
+            const quot = sign * (la / ra);
+            const rem = l - (quot * r);
+            return variables.class(variables.classType("lldiv_t", [], null), {
+                "quot": variables.arithmeticBig("I64", quot, null),
+                "rem": variables.arithmeticBig("I64", rem, null),
+            }, null) as DivVariable
         }
         rt.defineStruct("{global}", "div_t", [
             {
@@ -112,7 +140,7 @@ export = {
                 op: "atoi",
                 default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
                     const num = Number.parseInt(getWordString(rt, l));
-                    return variables.arithmeticNum("I32", num, null);
+                    return variables.arithmeticNum("I32", (Number.isNaN(num)) ? 0 : num, null);
                 }
             },
             {
@@ -120,66 +148,49 @@ export = {
                 op: "atol",
                 default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
                     const num = Number.parseInt(getWordString(rt, l));
-                    return variables.arithmeticNum("I32", num, null);
+                    return variables.arithmeticNum("I32", (Number.isNaN(num)) ? 0 : num, null);
+                }
+            },
+            {
+                type: "FUNCTION I64 ( PTR I8 )",
+                op: "atoll",
+                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticNumVariable>): InitArithmeticBigVariable {
+                    let num: bigint;
+                    try {
+                        num = BigInt(getWordString(rt, l));
+                        return variables.arithmeticBig("I64", num, null);
+                    } catch (e) {
+                        return variables.arithmeticBig("I64", BigInt(0), null);
+                    }
                 }
             },
             { type: "FUNCTION I32 ( I32 )", op: "abs", default: abs },
-            { type: "FUNCTION I64 ( I64 )", op: "abs", default: abs },
+            { type: "FUNCTION I64 ( I64 )", op: "abs", default: llabs },
             { type: "FUNCTION I32 ( I32 )", op: "labs", default: abs },
             { type: "FUNCTION I64 ( I64 )", op: "llabs", default: llabs },
             {
                 type: "FUNCTION CLASS div_t < > ( I32 I32 )",
                 op: "div",
-                default(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable): DivVariable {
-                    const l = rt.arithmeticNumValue(_l);
-                    const r = rt.arithmeticNumValue(_r);
-                    if (r === 0) {
-                        rt.raiseException("Integer division by zero");
-                    }
-                    const quot = Math.sign(l * r) * Math.floor(Math.abs(l / r));
-                    const rem = l - (quot * r);
-                    return variables.class(variables.classType("div_t", [], null), {
-                        "quot": variables.arithmeticNum("I32", quot, null),
-                        "rem": variables.arithmeticNum("I32", rem, null),
-                    }, null) as DivVariable
+                default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable, r: ArithmeticNumVariable): DivVariable { 
+                    return div(rt, _templateTypes, l, r, "div_t");
                 }
+            },
+            {
+                type: "FUNCTION CLASS lldiv_t < > ( I64 I64 )",
+                op: "div",
+                default: lldiv
             },
             {
                 type: "FUNCTION CLASS ldiv_t < > ( I32 I32 )",
                 op: "ldiv",
-                default(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable): DivVariable {
-                    const l = rt.arithmeticNumValue(_l);
-                    const r = rt.arithmeticNumValue(_r);
-                    if (r === 0) {
-                        rt.raiseException("Integer division by zero");
-                    }
-                    const quot = Math.sign(l * r) * Math.floor(Math.abs(l / r));
-                    const rem = l - (quot * r);
-                    return variables.class(variables.classType("ldiv_t", [], null), {
-                        "quot": variables.arithmeticNum("I32", quot, null),
-                        "rem": variables.arithmeticNum("I32", rem, null),
-                    }, null) as DivVariable
+                default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable, r: ArithmeticNumVariable): DivVariable {
+                    return div(rt, _templateTypes, l, r, "ldiv_t");
                 }
             },
             {
                 type: "FUNCTION CLASS lldiv_t < > ( I64 I64 )",
                 op: "lldiv",
-                default(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable, _r: ArithmeticBigVariable): DivVariable {
-                    const l = rt.arithmeticValue(_l) as bigint;
-                    const r = rt.arithmeticValue(_r) as bigint;
-                    if (r === BigInt(0)) {
-                        rt.raiseException("Integer division by zero");
-                    }
-                    const sign = ((l >= 0) == (r >= 0)) ? BigInt(1) : BigInt(-1);
-                    const la = (l >= 0) ? l : -l;
-                    const ra = (r >= 0) ? r : -r;
-                    const quot = sign * (la / ra);
-                    const rem = l - (quot * r);
-                    return variables.class(variables.classType("lldiv_t", [], null), {
-                        "quot": variables.arithmeticBig("I64", quot, null),
-                        "rem": variables.arithmeticBig("I64", rem, null),
-                    }, null) as DivVariable
-                }
+                default: lldiv
             },
             {
                 type: "FUNCTION VOID ( U32 )",
@@ -194,7 +205,7 @@ export = {
                 type: "FUNCTION I32 ( )",
                 op: "rand",
                 default(_rt: CRuntime, _templateTypes: []): InitArithmeticNumVariable {
-                     return variables.arithmeticNum("I32", rng.random(), null, false);
+                    return variables.arithmeticNum("I32", rng.random(), null, false);
                 }
             },
         ]);

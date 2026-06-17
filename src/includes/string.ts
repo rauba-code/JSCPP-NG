@@ -2,7 +2,7 @@ import { asResult } from "../interpreter";
 import { CRuntime, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { strcmp, StringType, StringVariable, strncmp } from "../shared/string_utils";
-import { ArithmeticNumVariable, ClassType, Gen, InitArithmeticNumValue, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, ResultOrGen, variables } from "../variables";
+import { ArithmeticBigVariable, ArithmeticNumVariable, ClassType, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, ResultOrGen, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -385,7 +385,7 @@ export = {
         const ascii_fullStop: number = 0x2E;
         const ascii_e: number = 0x65;
 
-        function stox(rt: CRuntime, l: StringVariable, mode: "I32" | "I32" | "F32" | "F32"): InitArithmeticNumVariable | null {
+        function stox(rt: CRuntime, l: StringVariable, mode: "I32" | "U32" | "F32" | "F64"): InitArithmeticNumVariable | null {
             const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
             const limits = variables.arithmeticProperties[mode];
             let chr: number;
@@ -405,6 +405,9 @@ export = {
                     mult = 1;
                     break;
                 case ascii_minusSign:
+                    if (!limits.isSigned) {
+                        return null;
+                    }
                     chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
                     mult = -1;
                     break;
@@ -456,7 +459,85 @@ export = {
             if (x >= limits.minv && x <= limits.maxv) {
                 return variables.arithmeticNum(mode, x, null);
             } else {
-                rt.raiseException("stoi/stof/stod: The number is out of range.")
+                rt.raiseException("stoi/stol/stoul/stof/stod: The number is out of range.")
+            }
+        }
+
+        function stox_big(rt: CRuntime, l: StringVariable, mode: "I64" | "U64"): InitArithmeticBigVariable | null {
+            const lptr = variables.asInitIndexPointerOfElem(l.v.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+            const limits = variables.arithmeticProperties[mode];
+            let chr: number;
+            let ci: number = -1;
+            while ((chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci))) !== 0) {
+                if (!whitespaceChars.includes(chr)) {
+                    break;
+                }
+            }
+            if (chr === 0) {
+                return null;
+            }
+            let mult: number = 1;
+            switch (chr) {
+                case ascii_plusSign:
+                    chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                    mult = 1;
+                    break;
+                case ascii_minusSign:
+                    if (!limits.isSigned) {
+                        return null;
+                    }
+                    chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                    mult = -1;
+                    break;
+                case 0:
+                    return null;
+            }
+            let x: bigint = BigInt(0);
+            while (chr >= ascii_0 && chr <= ascii_9) {
+                x *= BigInt(10);
+                x += BigInt(chr - ascii_0);
+                chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+            }
+            if (limits.isFloat && chr === ascii_fullStop) {
+                chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                let q = 0.1;
+                while (chr >= ascii_0 && chr <= ascii_9) {
+                    x += BigInt(q * (chr - ascii_0));
+                    q *= 0.1;
+                    chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                }
+            }
+            if (limits.isFloat && chr === ascii_e) {
+                let emul = 1;
+                chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                switch (chr) {
+                    case ascii_plusSign:
+                        chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                        emul = 1;
+                        break;
+                    case ascii_minusSign:
+                        chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                        emul = -1;
+                        break;
+                    case 0:
+                        return null;
+                }
+                let ex = 0;
+                while (chr >= ascii_0 && chr <= ascii_9) {
+                    ex *= 10;
+                    ex += chr - ascii_0;
+                    chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.v.pointee, lptr.v.index + ++ci));
+                }
+                if (ex === 0) {
+                    return null;
+                }
+                x *= BigInt(10) ** BigInt(ex * emul);
+            }
+            x *= BigInt(mult);
+            if (x >= limits.minv && x <= limits.maxv) {
+                return variables.arithmeticBig(mode, x, null);
+            } else {
+                rt.raiseException("stoll/stoull: The number is out of range.")
             }
         }
 
@@ -485,7 +566,32 @@ export = {
             str.v.members._ptr = variables.indexPointer(memory, 0, false, "SELF");
             str.v.members._size.v.value = memory.values.length - 1;
             return str;
-
+        }
+        function* integer_to_string_big(rt: CRuntime, l: ArithmeticBigVariable): Gen<StringVariable> {
+            const memory = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), []);
+            let x : bigint = rt.arithmeticValue(l) as bigint;
+            if (x < 0) {
+                memory.values.push(variables.arithmeticNum("I8", ascii_minusSign, { array: memory, index: memory.values.length }).v);
+                x = -x;
+            }
+            if (x === BigInt(0)) {
+                memory.values.push(variables.arithmeticNum("I8", ascii_0, { array: memory, index: memory.values.length }).v);
+            } else {
+                let digits = new Array<number>();
+                while (x > 0) {
+                    digits.push(Number(x % BigInt(10)));
+                    x /= BigInt(10);
+                }
+                for (const d of digits.reverse()) {
+                    memory.values.push(variables.arithmeticNum("I8", ascii_0 + d, { array: memory, index: memory.values.length }).v);
+                }
+            }
+            memory.values.push(variables.arithmeticNum("I8", 0, { array: memory, index: memory.values.length }).v);
+            const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
+            const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
+            str.v.members._ptr = variables.indexPointer(memory, 0, false, "SELF");
+            str.v.members._size.v.value = memory.values.length - 1;
+            return str;
         }
 
         common.regGlobalFuncs(rt, [
@@ -506,10 +612,26 @@ export = {
                 }
             },
             {
-                op: "stoll",
-                type: "FUNCTION I32 ( CLREF CLASS string < > )",
+                op: "stoul",
+                type: "FUNCTION U32 ( CLREF CLASS string < > )",
                 default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
-                    return stox(rt, l, "I32") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
+                    return stox(rt, l, "U32") ?? rt.raiseException("stol: Invalid argument (expected a string containing a number)");
+
+                }
+            },
+            {
+                op: "stoll",
+                type: "FUNCTION I64 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticBigVariable {
+                    return stox_big(rt, l, "I64") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
+
+                }
+            },
+            {
+                op: "stoull",
+                type: "FUNCTION U64 ( CLREF CLASS string < > )",
+                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticBigVariable {
+                    return stox_big(rt, l, "U64") ?? rt.raiseException("stoull: Invalid argument (expected a string containing a number)");
 
                 }
             },
@@ -523,9 +645,9 @@ export = {
             },
             {
                 op: "stod",
-                type: "FUNCTION F32 ( CLREF CLASS string < > )",
+                type: "FUNCTION F64 ( CLREF CLASS string < > )",
                 default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
-                    return stox(rt, l, "F32") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
+                    return stox(rt, l, "F64") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
 
                 }
             },
@@ -541,6 +663,20 @@ export = {
                 type: "FUNCTION CLASS string < > ( U32 )",
                 *default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): Gen<StringVariable> {
                     return yield* integer_to_string(rt, l);
+                }
+            },
+            {
+                op: "to_string",
+                type: "FUNCTION CLASS string < > ( I64 )",
+                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticBigVariable): Gen<StringVariable> {
+                    return yield* integer_to_string_big(rt, l);
+                }
+            },
+            {
+                op: "to_string",
+                type: "FUNCTION CLASS string < > ( U64 )",
+                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticBigVariable): Gen<StringVariable> {
+                    return yield* integer_to_string_big(rt, l);
                 }
             },
         ])

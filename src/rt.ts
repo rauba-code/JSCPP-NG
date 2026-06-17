@@ -19,7 +19,7 @@ export type DebugData = {
 };
 
 export function big(x: number | bigint): bigint {
-    return (typeof x === "number") ? BigInt(x > 0 ? Math.floor(x) : Math.ceil(x)) : x;
+    return (typeof x === "number") ? BigInt(x & 0xFFFFFFFF) : x;
 }
 
 export function num(x: number | bigint): number {
