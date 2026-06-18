@@ -1221,7 +1221,7 @@ export class CRuntime {
         if (x.v.value >= info.minv && x.v.value <= info.maxv) {
             return;
         }
-        if (info.isSigned) { 
+        if (info.isSigned) {
             x.v.value = BigInt.asIntN(info.bytes * 8, x.v.value);
         } else {
             x.v.value = BigInt.asUintN(info.bytes * 8, x.v.value);
@@ -1396,13 +1396,8 @@ export class CRuntime {
                 } else {
                     const sig = arithmeticTarget.sig as ArithmeticBigSig;
                     if (!targetInfo.isSigned) {
-                        const targetValue = BigInt(arithmeticValue);
-                        if (targetValue < 0) {
-                            const newVar = variables.arithmeticBig(sig, targetValue, null);
-                            //if (this.inrange(newVar.v.value as number, newVar.t, () => "cannot cast negative value " + conversionErrorMsg())) {
-                            return newVar;
-                            //}
-                        }
+                        const targetValue = BigInt.asUintN(targetInfo.bytes * 8, BigInt(arithmeticValue));
+                        return variables.arithmeticBig(sig, targetValue, null);
                     }
                     if (fromInfo.isFloat) {
                         const targetValue = (typeof arithmeticValue === "number")
@@ -1414,9 +1409,8 @@ export class CRuntime {
                         }
                     } else {
                         const targetValue = BigInt(arithmeticValue);
-                        const newVar = variables.arithmeticBig(sig, targetValue, null);
-                        if (allowUToSOverflow || this.inrange(newVar.v.value, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
-                            return newVar;
+                        if (allowUToSOverflow || this.inrange(targetValue, { sig }, () => "overflow when casting value " + conversionErrorMsg())) {
+                            return variables.arithmeticBig(sig, BigInt.asIntN(targetInfo.bytes * 8, targetValue), null);
                         }
                     }
 
@@ -1611,7 +1605,7 @@ export class CRuntime {
         if (typeof value === "number") {
             return value;
         }
-        const {minv, maxv} = variables.arithmeticProperties["I32"];
+        const { minv, maxv } = variables.arithmeticProperties["I32"];
         if (value < minv || value > maxv) {
             this.raiseException(`Expected 32-bit signed integer, got ${value} (integer overflow)`);
         }
