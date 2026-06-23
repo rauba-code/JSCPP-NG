@@ -359,3 +359,7 @@
       cases:
         cpp: "longlongint2.cpp"
         out: "-7431748451693704736\n-7431748451693704736\n14863496903387409472\n14863496903387409472"
+    switch:
+      cases:
+        cpp: "switch.cpp"
+        exitcode: 152352323
