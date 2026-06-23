@@ -854,10 +854,10 @@ TypeId
 
 TypeSpecifier_generic_cv
     =
-    CONST TypeSpecifier_generic { a.mod_cv = "c"; return a; } /
-    TypeSpecifier_generic CONST { a.mod_cv = "c"; return a; } /
-    VOLATILE TypeSpecifier_generic { a.mod_cv = "v"; return a; } /
-    TypeSpecifier_generic VOLATILE { a.mod_cv = "v"; return a; } /
+    CONST a:TypeSpecifier_generic { a.mod_cv = "c"; return a; } /
+    a:TypeSpecifier_generic CONST { a.mod_cv = "c"; return a; } /
+    VOLATILE a:TypeSpecifier_generic { a.mod_cv = "v"; return a; } /
+    a:TypeSpecifier_generic VOLATILE { a.mod_cv = "v"; return a; } /
     TypeSpecifier_generic 
     ;
 
