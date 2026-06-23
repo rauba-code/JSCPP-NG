@@ -963,7 +963,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (param.scope === "SelectionStatement_switch_cs") {
                     return [
                         "switch",
-                        (rt.cast(ce.t, param["switch"]) as Variable).v === ce.v
+                        rt.arithmeticValue(rt.cast(ce.t, param["switch"]) as Variable) == rt.arithmeticValue(ce)
                     ];
                 } else {
                     rt.raiseException("Label 'case' error: you can only use case directly in a switch block");

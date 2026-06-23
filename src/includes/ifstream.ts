@@ -309,9 +309,8 @@ export = {
             const delim = rt.arithmeticValue(_delim);
             for (let i = 0; i < count; i++) {
                 const bi = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index));
+                b.v.index++;
                 if (bi === delim) {
-                    b.v.index++;
-                } else {
                     break;
                 }
             }
