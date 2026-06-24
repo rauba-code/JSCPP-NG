@@ -1336,7 +1336,7 @@ export class CRuntime {
     getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticNumVariable> {
         let array = toUtf8CharArray(src);
         //console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; }).join(""));
-        let memoryObject = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), new Array<ArithmeticNumValue>())
+        let memoryObject = variables.arrayMemory<ArithmeticNumVariable>({ sig: "I8" }, new Array<ArithmeticNumValue>())
         array.forEach((iv, ii) => {
             const lvHolder: LValueIndexHolder<ArithmeticNumVariable> = { array: memoryObject, index: ii };
             memoryObject.values.push(variables.arithmeticNum("I8", iv, lvHolder, false).v);

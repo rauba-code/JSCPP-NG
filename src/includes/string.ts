@@ -2,7 +2,7 @@ import { asResult } from "../interpreter";
 import { CRuntime, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { strcmp, StringType, StringVariable, strncmp } from "../shared/string_utils";
-import { ArithmeticBigVariable, ArithmeticNumVariable, ClassType, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, ResultOrGen, variables } from "../variables";
+import { ArithmeticBigVariable, ArithmeticNumValue, ArithmeticNumVariable, ClassType, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, LValueIndexHolder, MaybeLeft, PointerVariable, ResultOrGen, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -185,6 +185,28 @@ export = {
                     }
                     l.v.members._size.v.value = i;
                     variables.indexPointerAssign(rt, l.v.members._ptr, r.v.pointee, r.v.index);
+
+                    return l;
+                }
+            },
+            {
+                op: "o(_ctor)",
+                type: "FUNCTION CLASS string < > ( I32 I8 )",
+                *default(rt: CRuntime, _templateTypes: [ClassType], _count: InitArithmeticNumVariable, _ch: InitArithmeticNumVariable): Gen<StringVariable> {
+                    const count = _count.v.value;
+                    if (count < 0) {
+                        rt.raiseException("string::string(): invalid size");
+                    }
+                    const ch = _ch.v.value;
+                    const lYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
+                    const l = asResult(lYield) ?? (yield* lYield as Gen<StringVariable>);
+                    let memoryObject = variables.arrayMemory<ArithmeticNumVariable>({ sig: "I8" }, new Array<ArithmeticNumValue>());
+                    for (let i = 0; i < count; i++) {
+                        const lvHolder: LValueIndexHolder<ArithmeticNumVariable> = { array: memoryObject, index: i };
+                        memoryObject.values.push(variables.arithmeticNum("I8", ch, lvHolder, false).v);
+                    }
+                    l.v.members._size.v.value = count;
+                    l.v.members._ptr = variables.indexPointer(memoryObject, 0, true, null, false);
 
                     return l;
                 }
@@ -569,7 +591,7 @@ export = {
         }
         function* integer_to_string_big(rt: CRuntime, l: ArithmeticBigVariable): Gen<StringVariable> {
             const memory = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), []);
-            let x : bigint = rt.arithmeticValue(l) as bigint;
+            let x: bigint = rt.arithmeticValue(l) as bigint;
             if (x < 0) {
                 memory.values.push(variables.arithmeticNum("I8", ascii_minusSign, { array: memory, index: memory.values.length }).v);
                 x = -x;
