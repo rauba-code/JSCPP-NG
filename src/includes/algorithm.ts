@@ -104,7 +104,8 @@ export = {
             }
             indexRegion.sort(sortCmp);
             indexRegion.forEach((ri, ci) => {
-                l.v.pointee.values[l.v.index + ci] = { lvHolder: { array: l.v.pointee.values, index: l.v.index + ci }, ...region[ri].v }
+                l.v.pointee.values[l.v.index + ci] = region[ri].v;
+                (l.v.pointee.values[l.v.index + ci] as any).lvHolder.index = l.v.index + ci;
             });
             return "VOID";
         }
