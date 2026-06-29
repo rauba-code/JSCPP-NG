@@ -29,10 +29,10 @@ export = {
             rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
         }
 
-        function* _invokeEq(rt: CRuntime, eqInst: FunctionCallInstance, lhs: Variable, rhs: Variable): Gen<boolean> {
-            const eqYield = rt.invokeCall(eqInst, [], lhs, rhs) as ResultOrGen<ArithmeticVariable>;
-            const eqResult = rt.arithmeticValue(asResult(eqYield) ?? (yield* eqYield as Gen<ArithmeticVariable>))
-            return eqResult !== 0;
+        function* _invokeCmp(rt: CRuntime, cmpInst: FunctionCallInstance, lhs: Variable, rhs: Variable): Gen<boolean> {
+            const cmpYield = rt.invokeCall(cmpInst, [], lhs, rhs) as ResultOrGen<ArithmeticVariable>;
+            const cmpResult = rt.arithmeticValue(asResult(cmpYield) ?? (yield* cmpYield as Gen<ArithmeticVariable>))
+            return cmpResult !== 0;
         }
         function* _invokeDeref(rt: CRuntime, fname: string, derefInst: FunctionCallInstance, reference: InitIndexPointerVariable<Variable>): Gen<Variable> {
             const derefYield = rt.invokeCall(derefInst, [], reference);
@@ -603,9 +603,9 @@ export = {
 
                     for (; ;) {
                         const derefResult1 = yield* _invokeDeref(rt, FNAME, derefInst, i);
-                        if (yield* _invokeEq(rt, eqInst_deref, derefResult1, value)) {
+                        if (yield* _invokeCmp(rt, eqInst_deref, derefResult1, value)) {
                             yield* _invokePp(rt, FNAME, ppInst, i);
-                            if (yield* _invokeEq(rt, eqInst_ref, i, last)) {
+                            if (yield* _invokeCmp(rt, eqInst_ref, i, last)) {
                                 return j;
                             }
                         }
@@ -614,7 +614,7 @@ export = {
                         yield* _invokeSet(rt, FNAME, setInst_deref, derefResult_j, derefResult_i);
                         yield* _invokePp(rt, FNAME, ppInst, i);
                         yield* _invokePp(rt, FNAME, ppInst, j);
-                        if (yield* _invokeEq(rt, eqInst_ref, i, last)) {
+                        if (yield* _invokeCmp(rt, eqInst_ref, i, last)) {
                             return j;
                         }
                     }
@@ -636,8 +636,8 @@ export = {
 
                     const predicate = variables.asInitDirectPointer(_predicate) as InitDirectPointerVariable<Function>
                         ?? rt.raiseException("remove(): expected a pointer to a function");
-                    
-                    const predicateDeref : Function = { t: predicate.t.pointee, v: predicate.v.pointee };
+
+                    const predicateDeref: Function = { t: predicate.t.pointee, v: predicate.v.pointee };
 
                     const i = variables.clone(rt, first, "SELF");
                     const j = variables.clone(rt, first, "SELF");
@@ -651,15 +651,15 @@ export = {
                     for (; ;) {
                         const derefResult1 = yield* _invokeDeref(rt, FNAME, derefInst, i);
                         const predYield = rt.invokeCallFromVariable(predicateDeref, derefResult1) as ResultOrGen<ArithmeticVariable>;
-                        const predResultOrVoid = asResult(predYield) ?? (yield *predYield as Gen<MaybeUnboundVariable | "VOID">);
+                        const predResultOrVoid = asResult(predYield) ?? (yield* predYield as Gen<MaybeUnboundVariable | "VOID">);
                         if (predResultOrVoid === "VOID") {
                             rt.raiseException("remove_if(): expected predicate function return value of type bool, got void.");
                         }
                         const predResult = rt.arithmeticValue(predResultOrVoid);
-                        
+
                         if (predResult !== 0) {
                             yield* _invokePp(rt, FNAME, ppInst, i);
-                            if (yield* _invokeEq(rt, eqInst_ref, i, last)) {
+                            if (yield* _invokeCmp(rt, eqInst_ref, i, last)) {
                                 return j;
                             }
                         }
@@ -668,10 +668,28 @@ export = {
                         yield* _invokeSet(rt, FNAME, setInst_deref, derefResult_j, derefResult_i);
                         yield* _invokePp(rt, FNAME, ppInst, i);
                         yield* _invokePp(rt, FNAME, ppInst, j);
-                        if (yield* _invokeEq(rt, eqInst_ref, i, last)) {
+                        if (yield* _invokeCmp(rt, eqInst_ref, i, last)) {
                             return j;
                         }
                     }
+                }
+            },
+            {
+                op: "min",
+                type: "!ParamObject FUNCTION ?0 ( CLREF ?0 CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], lhs: Variable, rhs: Variable) {
+                    const ltInst = rt.getOpByParams("{global}", "o(_<_)", [lhs, rhs], []);
+                    const ltResult = yield* _invokeCmp(rt, ltInst, lhs, rhs);
+                    return (ltResult) ? lhs : rhs;
+                }
+            },
+            {
+                op: "max",
+                type: "!ParamObject FUNCTION ?0 ( CLREF ?0 CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], lhs: Variable, rhs: Variable) {
+                    const ltInst = rt.getOpByParams("{global}", "o(_<_)", [lhs, rhs], []);
+                    const ltResult = yield* _invokeCmp(rt, ltInst, lhs, rhs);
+                    return (ltResult) ? rhs : lhs;
                 }
             },
         ]);
