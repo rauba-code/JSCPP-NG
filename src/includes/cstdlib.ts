@@ -22,6 +22,7 @@ interface DivValue extends InitValue<DivVariable> {
 export = {
     load(rt: CRuntime) {
         rt.include("cstddef");
+        rt.include("bits/abs.h")
         const RAND_MAX = 32767;
         const rng = {
             m_w: 123456789,
@@ -164,8 +165,6 @@ export = {
                     }
                 }
             },
-            { type: "FUNCTION I32 ( I32 )", op: "abs", default: abs },
-            { type: "FUNCTION I64 ( I64 )", op: "abs", default: llabs },
             { type: "FUNCTION I32 ( I32 )", op: "labs", default: abs },
             { type: "FUNCTION I64 ( I64 )", op: "llabs", default: llabs },
             {
