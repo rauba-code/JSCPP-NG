@@ -4,7 +4,37 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, ArithmeticBigVariable, ArithmeticNumVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, ArithmeticBigVariable, ArithmeticNumVariable, InitDirectPointerVariable, InitArithmeticBigValue, InitArithmeticBigVariable } from "../variables";
+
+
+interface SetNodeType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
+    readonly identifier: "set_node",
+}
+
+type SetNodeVariable<T extends Variable> = AbstractVariable<SetNodeType<T["t"]>, SetNodeValue<T>>;
+
+interface SetNodeValue<T extends Variable> extends InitValue<SetNodeVariable<T>> {
+    members: {
+        "lhs": PointerVariable<SetNodeVariable<T>>,
+        "rhs": PointerVariable<SetNodeVariable<T>>,
+        "parent": PointerVariable<SetNodeVariable<T>>,
+        "is_red": InitArithmeticNumVariable,
+        "key": T,
+    }
+}
+
+interface SetIteratorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
+    readonly identifier: "set_iterator",
+}
+
+type SetIteratorVariable<T extends Variable> = AbstractVariable<SetIteratorType<T["t"]>, SetIteratorValue<T>>;
+
+interface SetIteratorValue<T extends Variable> extends InitValue<SetIteratorVariable<T>> {
+    members: {
+        "node": PointerVariable<SetNodeVariable<T>>,
+    }
+}
+
 
 interface SetType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "set",
@@ -14,31 +44,207 @@ type SetVariable<T extends Variable> = AbstractVariable<SetType<T["t"]>, SetValu
 
 interface SetValue<T extends Variable> extends InitValue<SetVariable<T>> {
     members: {
-        "_data": InitIndexPointerVariable<T>,
-        "_sz": InitArithmeticNumVariable,
-        "_cap": InitArithmeticNumVariable,
+        "root": PointerVariable<SetNodeVariable<T>>,
+        "_size": InitArithmeticBigVariable,
     }
 }
 
 export = {
     load(rt: CRuntime) {
         rt.include("cstddef");
+
+        type __set = SetVariable<Variable>;
+        type __set_node = SetNodeVariable<Variable>;
+        type __set_iter = SetIteratorVariable<Variable>;
+        type __dptr_node = InitDirectPointerVariable<__set_node>;
+
+        const _createSetNodeType: (templateSpec: [ObjectType]) => __set_node['t'] = (templateSpec) => ({
+            "sig": "CLASS",
+            "identifier": "set_node",
+            "memberOf": null,
+            templateSpec
+        });
+
+        const _createSetIterType: (templateSpec: [ObjectType]) => __set_iter['t'] = (templateSpec) => ({
+            "sig": "CLASS",
+            "identifier": "set_iterator",
+            "memberOf": null,
+            templateSpec
+        });
+
+        // --
+        // -- set_node
+        // --
+
+        rt.defineStruct2("{global}", "set_node", {
+            numTemplateArgs: 1, *factory(dataItem: __set_node['t']) {
+                const default_key: Variable = yield* rt.defaultValue2(dataItem.templateSpec[0], "SELF");
+                return {
+                    lhs: variables.uninitPointer(dataItem, null, "SELF"),
+                    rhs: variables.uninitPointer(dataItem, null, "SELF"),
+                    parent: variables.uninitPointer(dataItem, null, "SELF"),
+                    is_red: variables.arithmeticNum("BOOL", 0, "SELF"),
+                    key: default_key
+
+                };
+            }
+        }, ["lhs", "rhs", "parent", "is_red", "key"], {});
+
+        function _node_delete(thisVal: __set_node['v']): void {
+            if (thisVal.members.lhs.v.state !== "UNINIT") {
+                _node_delete((thisVal.members.lhs as __dptr_node).v.pointee);
+                delete (thisVal.members as any).lhs;
+            }
+            if (thisVal.members.rhs.v.state !== "UNINIT") {
+                _node_delete((thisVal.members.rhs as __dptr_node).v.pointee);
+                delete (thisVal.members as any).rhs;
+            }
+        }
+
+        // --
+        // -- set_iterator
+        // --
+
+        function _createSetIterMembers(setIterType: __set_iter['t']): __set_iter['v']['members'] {
+            return {
+                node: variables.uninitPointer(setIterType, null, "SELF") as PointerVariable<__set_node>,
+            };
+        }
+
+        function _createSetIterVar(setIterType: __set_iter['t']): __set_iter {
+            return {
+                t: setIterType,
+                v: {
+                    isConst: false,
+                    state: "INIT",
+                    lvHolder: "SELF",
+                    members: _createSetIterMembers(setIterType)
+                }
+            };
+        }
+
+        // const setIteratorSig = "!ParamObject CLASS set_iterator < ?0 >".split(" ");
+        rt.defineStruct2("{global}", "set_iterator", {
+            numTemplateArgs: 1, factory: _createSetIterMembers
+        }, ["node"], {
+            // ["value_type"]: [{ src: setIteratorSig, dst: ["?0"]}],
+            // ["pointer"]: [{ src: setIteratorSig, dst: ["PTR", "?0"]}],
+            // ["reference"]: [{ src: setIteratorSig, dst: ["LREF", "?0"]}],
+        });
+
+        function _iter_next(thisVar: __set_iter): "VOID" {
+            let node: __dptr_node | null = variables.asInitDirectPointer(thisVar) as __dptr_node | null;
+            if (node === null) {
+                return "VOID";
+            }
+            const rhs: __dptr_node | null = variables.asInitDirectPointer(node.v.pointee.members.rhs) as __dptr_node | null;
+            if (rhs !== null) {
+                node.v = rhs.v;
+                let lhs: __dptr_node | null = variables.asInitDirectPointer(node.v.pointee.members.lhs) as __dptr_node | null;
+                while (lhs !== null) {
+                    node.v = lhs.v;
+                    lhs = variables.asInitDirectPointer(node.v.pointee.members.lhs) as __dptr_node | null;
+                }
+            } else {
+                for (; ;) {
+                    const parent: __dptr_node | null = variables.asInitDirectPointer(node.v.pointee.members.parent) as __dptr_node | null;
+                    if (parent === null) {
+                        (node as any).v = { isConst: false, state: "UNINIT", lvHolder: "SELF" };
+                        break;
+                    }
+                    if (node.v === parent.v.pointee.members.lhs.v) {
+                        node.v = parent.v;
+                        break;
+                    }
+                    node.v = parent.v;
+                }
+            }
+            return "VOID";
+        }
+
+        function _createSetIterVarFromRoot(setIterType: __set_iter['t'], _top: PointerVariable<__set_node>): __set_iter {
+            const result: __set_iter = _createSetIterVar(setIterType);
+            const topOrNull: __dptr_node | null = variables.asInitDirectPointer(_top) as __dptr_node | null;
+            if (topOrNull === null) {
+                return result;
+            }
+            let top: __dptr_node = topOrNull;
+            let lhs: __dptr_node | null = variables.asInitDirectPointer(top.v.pointee.members.lhs) as __dptr_node | null;
+            while (lhs !== null) {
+                top = lhs;
+                lhs = variables.asInitDirectPointer(top.v.pointee.members.lhs) as __dptr_node | null;
+            }
+            variables.directPointerAssignValue(rt, result.v.members.node, top.v.pointee);
+            return result;
+        }
+
+        common.regOps(rt, [
+            {
+                op: "o(*_)",
+                type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS set_iterator < ?0 > )",
+                default(rt: CRuntime, _templateTypes: [], thisVar: __set_iter): Variable {
+                    if (thisVar.v.members.node.v.state === "INIT") {
+                        return (thisVar.v.members.node as __dptr_node).v.pointee.members.key;
+                    }
+                    rt.raiseException("set_iterator::operator*(): Attempted dereference of a null-iterator");
+                }
+            },
+            {
+                op: "o(++_)",
+                type: "!ParamObject FUNCTION LREF CLASS set_iterator < ?0 > ( LREF CLASS set_iterator < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], thisVar: __set_iter): __set_iter {
+                    _iter_next(thisVar);
+                    return thisVar;
+                }
+            },
+            {
+                op: "o(_++)",
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set_iterator < ?0 > )",
+                default(rt: CRuntime, _templateTypes: [], thisVar: __set_iter): __set_iter {
+                    const thatVar = variables.clone(rt, thisVar, null, false);
+                    _iter_next(thisVar);
+                    return thatVar;
+                }
+            },
+            {
+                op: "o(_==_)",
+                type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set_iterator < ?0 > CLREF CLASS set_iterator < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], lhs: __set_iter, rhs: __set_iter): InitArithmeticNumVariable {
+                    const isEq: boolean = (lhs.v.members.node.v.state === "UNINIT") ? (rhs.v.members.node.v.state === "UNINIT") : (lhs.v === rhs.v);
+                    return variables.arithmeticNum("BOOL", isEq ? 1 : 0, null);
+                }
+            },
+            {
+                op: "o(_!=_)",
+                type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set_iterator < ?0 > CLREF CLASS set_iterator < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: [], lhs: __set_iter, rhs: __set_iter): InitArithmeticNumVariable {
+                    const isEq: boolean = (lhs.v.members.node.v.state === "UNINIT") ? (rhs.v.members.node.v.state === "UNINIT") : (lhs.v === rhs.v);
+                    return variables.arithmeticNum("BOOL", isEq ? 0 : 1, null);
+                }
+            },
+
+        ])
+
+        // --
+        // -- set
+        // --
+
         const setSig = "!ParamObject CLASS set < ?0 >".split(" ");
         rt.defineStruct2("{global}", "set", {
             numTemplateArgs: 1, factory: (dataItem: SetType<ObjectType>) => {
                 return {
-                    _data: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF"),
-                    _sz: variables.arithmeticNum("I32", 0, "SELF"),
-                    _cap: variables.arithmeticNum("I32", 0, "SELF"),
+                    root: variables.uninitPointer(_createSetNodeType(dataItem.templateSpec), null, "SELF"),
+                    _size: variables.arithmeticBig("U64", BigInt(0), "SELF"),
                 }
             }
         }, ["_data", "_sz", "_cap"], {
             ["key_type"]: [{ src: setSig, dst: ["?0"] }],
             ["value_type"]: [{ src: setSig, dst: ["?0"] }],
-            ["iterator"]: [{ src: setSig, dst: ["PTR", "?0"] }], // implementation-dependent
-            ["const_iterator"]: [{ src: setSig, dst: ["PTR", "?0"] }], // implementation-dependent
+            ["iterator"]: [{ src: setSig, dst: ["CLASS", "set_iterator", "<", "?0", ">"] }], // implementation-dependent
+            ["const_iterator"]: [{ src: setSig, dst: ["CLASS", "set_iterator", "<", "?0", ">"] }], // implementation-dependent
             ["pointer"]: [{ src: setSig, dst: ["PTR", "?0"] }],
             ["reference"]: [{ src: setSig, dst: ["LREF", "?0"] }],
+            ["size_type"]: [{ src: setSig, dst: ["U64"] }],
         });
 
         // Constructor from initializer_list
@@ -87,64 +293,148 @@ export = {
         rt.regFunc(ctorHandler1.default, variables.classType("set", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1]);
         rt.regFunc(ctorHandler2.default, variables.classType("set", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1]);
 
-        function _ensureCapacity(setVar: SetVariable<Variable>, requiredCapacity: number): void {
-            const currentCapacity = setVar.v.members._data.v.pointee.values.length;
-            if (currentCapacity < requiredCapacity) {
-                let newCapacity = Math.max(currentCapacity * 2, 8);
-                while (newCapacity < requiredCapacity) {
-                    newCapacity *= 2;
-                }
-
-                const currentArray = setVar.v.members._data.v.pointee;
-                const elementType = currentArray.objectType;
-                const newArray = variables.arrayMemory<Variable>(elementType, []);
-
-                for (let i = 0; i < currentArray.values.length; i++) {
-                    if (i < setVar.v.members._sz.v.value) {
-                        newArray.values[i] = currentArray.values[i];
-                    }
-                }
-
-                for (let i = currentArray.values.length; i < newCapacity; i++) {
-                    const defaultVal = asResult(rt.defaultValue(elementType, { array: newArray, index: i }));
-                    if (defaultVal) {
-                        newArray.values[i] = defaultVal.v;
-                    }
-                }
-
-                setVar.v.members._data.v.pointee = newArray;
-                setVar.v.members._cap.v.value = newCapacity;
+        function _rotate_right(rt: CRuntime, g: __dptr_node, g_ref: PointerVariable<__set_node>): void {
+            // Case 6a.
+            // [((n), p=R, [b?]), g=B, [u?]]
+            // Rotate right.
+            // ((n), p=R, [[b?], g=b, [u?]])
+            // ; set_node<Key> *p = g->lhs;
+            // ; set_node<Key> *n = p->lhs;      // opt
+            // ; set_node<Key> *b = p->rhs;      // opt
+            // ; set_node<Key> *ggp = g->parent; // opt
+            const p = variables.clone(rt, g.v.pointee.members.lhs, null, false, true) as __dptr_node;
+            //const n = variables.clone(rt, p.v.pointee.members.lhs, null, false, true) as PointerVariable<__set_node>;
+            const b = variables.clone(rt, p.v.pointee.members.rhs, null, false, true) as PointerVariable<__set_node>;
+            const ggp = variables.clone(rt, g.v.pointee.members.parent, null, false, true) as PointerVariable<__set_node>;
+            // ; g->lhs = b;
+            const b_dptr = variables.asInitDirectPointer(b) as __dptr_node | null;
+            if (b_dptr === null) {
+                g.v.pointee.members.lhs.v.state = "UNINIT";
+            } else {
+                // because b_dptr is an init direct pointer
+                (g.v.pointee.members.lhs as __dptr_node).v.pointee = b_dptr.v.pointee;
             }
+            // ; if (b) {
+            // ;   b->parent = g;
+            // ; }
+            if (b_dptr !== null) {
+                variables.directPointerAssignValue(rt, b_dptr.v.pointee.members.parent, g.v.pointee);
+            }
+            // ((n), p=R, !)    [[b?], g=B, [u?]]
+            // g->rhs and u?->parent do not change
+            // p->lhs and n?->parent do not change
+            // ; p->rhs = g;
+            variables.directPointerAssignValue(rt, p.v.pointee.members.rhs, g.v.pointee);
+            // ; g->parent = p;
+            variables.directPointerAssignValue(rt, g.v.pointee.members.parent, g.v.pointee);
+            // ; p->parent = ggp;
+            const ggp_dptr = variables.asInitDirectPointer(ggp) as __dptr_node | null;
+            if (ggp_dptr === null) {
+                p.v.pointee.members.parent.v.state = "UNINIT";
+            } else {
+                variables.directPointerAssignValue(rt, p.v.pointee.members.parent, ggp_dptr.v.pointee);
+            }
+            // ; *g_ref = p;
+            variables.directPointerAssignValue(rt, g_ref, p.v.pointee);
         }
 
-        function _compareStrings(rt: CRuntime, str1: any, str2: any): number {
-            try {
-                // Bandyti gauti string pointer ir size
-                const str1Ptr = variables.asInitIndexPointerOfElem(str1.v.members._ptr, variables.uninitArithmeticNum("I8", null));
-                const str2Ptr = variables.asInitIndexPointerOfElem(str2.v.members._ptr, variables.uninitArithmeticNum("I8", null));
+        function _rotate_left(rt: CRuntime, g: __dptr_node, g_ref: PointerVariable<__set_node>): void {
+            // Case 6b.
+            // [[u?], g=B, ([b?], p=R, (n))]
+            // Rotate left.
+            // ([[u?], g=b, [b?]], p=R, (n))
+            // ; set_node<Key> *p = g->rhs;
+            // ; set_node<Key> *n = p->rhs;      // opt
+            // ; set_node<Key> *b = p->lhs;      // opt
+            // ; set_node<Key> *ggp = g->parent; // opt
 
-                if (!str1Ptr || !str2Ptr) {
-                    throw new Error("Invalid string pointers");
-                }
-
-                const str1Size = str1.v.members._size.v.value;
-                const str2Size = str2.v.members._size.v.value;
-
-                const minSize = Math.min(str1Size, str2Size);
-                for (let i = 0; i < minSize; i++) {
-                    const char1 = rt.arithmeticValue(variables.arrayMember(str1Ptr.v.pointee, str1Ptr.v.index + i));
-                    const char2 = rt.arithmeticValue(variables.arrayMember(str2Ptr.v.pointee, str2Ptr.v.index + i));
-
-                    if (char1 < char2) return -1;
-                    if (char1 > char2) return 1;
-                }
-
-                if (str1Size < str2Size) return -1;
-                if (str1Size > str2Size) return 1;
-                return 0;
-            } catch (e) {
-                throw new Error("Failed to compare strings: " + e);
+            const p = variables.clone(rt, g.v.pointee.members.rhs, null, false, true) as __dptr_node;
+            //const n = variables.clone(rt, p.v.pointee.members.rhs, null, false, true) as PointerVariable<__set_node>;
+            const b = variables.clone(rt, p.v.pointee.members.lhs, null, false, true) as PointerVariable<__set_node>;
+            const ggp = variables.clone(rt, g.v.pointee.members.parent, null, false, true) as PointerVariable<__set_node>;
+            // ; g->rhs = b;
+            const b_dptr = variables.asInitDirectPointer(b) as __dptr_node | null;
+            if (b_dptr === null) {
+                g.v.pointee.members.rhs.v.state = "UNINIT";
+            } else {
+                // because b_dptr is an init direct pointer
+                (g.v.pointee.members.rhs as __dptr_node).v.pointee = b_dptr.v.pointee;
             }
+            // ; if (b) {
+            // ;   b->parent = g;
+            // ; }
+            if (b_dptr !== null) {
+                variables.directPointerAssignValue(rt, b_dptr.v.pointee.members.parent, g.v.pointee);
+            }
+            // ((n), p=R, !)    [[b?], g=B, [u?]]
+            // g->lhs and u?->parent do not change
+            // p->rhs and n?->parent do not change
+            // ; p->lhs = g;
+            variables.directPointerAssignValue(rt, p.v.pointee.members.lhs, g.v.pointee);
+            // ; g->parent = p;
+            variables.directPointerAssignValue(rt, g.v.pointee.members.parent, g.v.pointee);
+            // ; p->parent = ggp;
+            const ggp_dptr = variables.asInitDirectPointer(ggp) as __dptr_node | null;
+            if (ggp_dptr === null) {
+                p.v.pointee.members.parent.v.state = "UNINIT";
+            } else {
+                variables.directPointerAssignValue(rt, p.v.pointee.members.parent, ggp_dptr.v.pointee);
+            }
+            // ; *g_ref = p;
+            variables.directPointerAssignValue(rt, g_ref, p.v.pointee);
+        }
+
+        function _find(rt: CRuntime, setVar: SetVariable<Variable>, value: Variable): InitIndexPointerVariable<Variable> | null {
+            const dataPtr = setVar.v.members._data;
+            const dataArray = dataPtr.v.pointee;
+            const sz = setVar.v.members._sz.v.value;
+
+            for (let i = 0; i < sz; i++) {
+                const existingValue = rt.unbound(variables.arrayMember(dataArray, i) as MaybeUnboundVariable);
+
+                let isEqual = false;
+
+                if (!existingValue || !existingValue.t || !value || !value.t) {
+                    continue;
+                }
+
+                if (value.t.sig === "CLASS" && (value.t as any).identifier === "string" &&
+                    existingValue.t.sig === "CLASS" && (existingValue.t as any).identifier === "string") {
+                    try {
+                        isEqual = _compareStrings(rt, existingValue, value) === 0;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                else if (variables.asArithmetic(value) && variables.asArithmetic(existingValue)) {
+                    const existingNum = rt.arithmeticValue(existingValue as ArithmeticNumVariable);
+                    const valueNum = rt.arithmeticValue(value as ArithmeticNumVariable);
+                    isEqual = existingNum === valueNum;
+                } else {
+                    try {
+                        const eqFunc = rt.getFuncByParams("{global}", "o(_==_)", [
+                            { t: existingValue.t, v: { isConst: true, lvHolder: "SELF" } },
+                            { t: value.t, v: { isConst: true, lvHolder: "SELF" } }
+                        ], []);
+
+                        if (eqFunc) {
+                            const result = rt.invokeCall(eqFunc, [], existingValue, value);
+                            const r = asResult(result);
+                            if (r && r !== "VOID") {
+                                isEqual = rt.arithmeticValue(rt.unbound(r) as ArithmeticNumVariable) !== 0;
+                            }
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+
+                if (isEqual) {
+                    return variables.indexPointer(dataArray, i, false, null, false);
+                }
+            }
+
+            return null;
         }
 
         function _insert(rt: CRuntime, setVar: SetVariable<Variable>, value: Variable): [InitIndexPointerVariable<Variable>, boolean] {
@@ -241,58 +531,6 @@ export = {
             return [variables.indexPointer(updatedArray, insertPos, false, null, false), true];
         }
 
-        function _find(rt: CRuntime, setVar: SetVariable<Variable>, value: Variable): InitIndexPointerVariable<Variable> | null {
-            const dataPtr = setVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
-            const sz = setVar.v.members._sz.v.value;
-
-            for (let i = 0; i < sz; i++) {
-                const existingValue = rt.unbound(variables.arrayMember(dataArray, i) as MaybeUnboundVariable);
-
-                let isEqual = false;
-
-                if (!existingValue || !existingValue.t || !value || !value.t) {
-                    continue;
-                }
-
-                if (value.t.sig === "CLASS" && (value.t as any).identifier === "string" &&
-                    existingValue.t.sig === "CLASS" && (existingValue.t as any).identifier === "string") {
-                    try {
-                        isEqual = _compareStrings(rt, existingValue, value) === 0;
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                else if (variables.asArithmetic(value) && variables.asArithmetic(existingValue)) {
-                    const existingNum = rt.arithmeticValue(existingValue as ArithmeticNumVariable);
-                    const valueNum = rt.arithmeticValue(value as ArithmeticNumVariable);
-                    isEqual = existingNum === valueNum;
-                } else {
-                    try {
-                        const eqFunc = rt.getFuncByParams("{global}", "o(_==_)", [
-                            { t: existingValue.t, v: { isConst: true, lvHolder: "SELF" } },
-                            { t: value.t, v: { isConst: true, lvHolder: "SELF" } }
-                        ], []);
-
-                        if (eqFunc) {
-                            const result = rt.invokeCall(eqFunc, [], existingValue, value);
-                            const r = asResult(result);
-                            if (r && r !== "VOID") {
-                                isEqual = rt.arithmeticValue(rt.unbound(r) as ArithmeticNumVariable) !== 0;
-                            }
-                        }
-                    } catch (e) {
-                        continue;
-                    }
-                }
-
-                if (isEqual) {
-                    return variables.indexPointer(dataArray, i, false, null, false);
-                }
-            }
-
-            return null;
-        }
 
         function _end(setVar: SetVariable<Variable>): InitIndexPointerVariable<Variable> {
             const dataPtr = setVar.v.members._data;

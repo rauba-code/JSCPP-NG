@@ -294,7 +294,7 @@ export = {
             },
             {
                 op: "o(_++)",
-                type: "!ParamObject !ParamObject FUNCTION LREF CLASS unordered_map_iterator < ?0 ?1 > ( LREF CLASS unordered_map_iterator < ?0 ?1 > )",
+                type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( LREF CLASS unordered_map_iterator < ?0 ?1 > )",
                 default(rt: CRuntime, _templateTypes: [], thisVar: __umap_iter): __umap_iter {
                     const thatVar = variables.clone(rt, thisVar, null, false);
                     _iter_next(thisVar);

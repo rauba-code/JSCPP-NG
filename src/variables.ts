@@ -469,7 +469,7 @@ export const variables = {
         let branch: { [sig in BranchKey]: (x: LValueHolder<Variable>) => Variable } = {
             "ARITHMETIC": (_lvHolder: LValueHolder<InitArithmeticVariable>) => {
                 const x = object as InitArithmeticVariable;
-                return { t: { sig: x.t.sig }, v: { value: x.v.value, lvHolder: _lvHolder, isConst: isConst, state: "INIT"} } as InitArithmeticVariable;
+                return { t: { sig: x.t.sig }, v: { value: x.v.value, lvHolder: _lvHolder, isConst: isConst, state: "INIT" } } as InitArithmeticVariable;
             },
             "PTR": (_lvHolder: LValueHolder<InitPointerVariable<PointeeVariable>>) => {
                 const _x = object as InitPointerVariable<PointeeVariable>;
@@ -506,7 +506,7 @@ export const variables = {
             branch = {
                 "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticVariable>) => {
                     const x = object as ArithmeticNumVariable;
-                    return { t: { sig: x.t.sig }, v: { state: "UNINIT", lvHolder: _lvHolder, isConst} } as ArithmeticVariable;
+                    return { t: { sig: x.t.sig }, v: { state: "UNINIT", lvHolder: _lvHolder, isConst } } as ArithmeticVariable;
                 },
                 "PTR": (_lvHolder: LValueHolder<PointerVariable<PointeeVariable>>) => {
                     const x = object as PointerVariable<PointeeVariable>;
@@ -674,6 +674,7 @@ export const variables = {
         lv.state = "INIT";
         (lv as InitArithmeticBigValue).value = value;
     },
+    /** DEPRECATED: use directPointerAssignValue instead */
     directPointerAssign<VElem extends PointeeVariable>(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, pointee: VElem): void {
         checkAssignable(rt, lhs.v);
         if (!variables.typesEqual(lhs.t.pointee, pointee.t)) {
@@ -684,6 +685,12 @@ export const variables = {
         lhs.v.state = "INIT";
         (lhs.v as InitDirectPointerValue<VElem>).subtype = "DIRECT";
         (lhs.v as InitDirectPointerValue<VElem>).pointee = pointee.v;
+    },
+    directPointerAssignValue<VElem extends PointeeVariable>(rt: CRuntime, lhs: PointerVariable<VElem>, pointee: VElem['v']): void {
+        checkAssignable(rt, lhs.v);
+        lhs.v.state = "INIT";
+        (lhs.v as InitDirectPointerValue<VElem>).subtype = "DIRECT";
+        (lhs.v as InitDirectPointerValue<VElem>).pointee = pointee;
     },
     indexPointerAssign<VElem extends Variable>(rt: CRuntime, lhs: PointerVariable<VElem>, array: ArrayMemory<VElem>, index: number): void {
         checkAssignable(rt, lhs.v);
