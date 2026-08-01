@@ -29,43 +29,6 @@ export = {
             rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
         }
 
-        function* _invokeCmp(rt: CRuntime, cmpInst: FunctionCallInstance, lhs: Variable, rhs: Variable): Gen<boolean> {
-            const cmpYield = rt.invokeCall(cmpInst, [], lhs, rhs) as ResultOrGen<ArithmeticVariable>;
-            const cmpResult = rt.arithmeticValue(asResult(cmpYield) ?? (yield* cmpYield as Gen<ArithmeticVariable>))
-            return cmpResult !== 0;
-        }
-        function* _invokeDeref(rt: CRuntime, fname: string, derefInst: FunctionCallInstance, reference: InitIndexPointerVariable<Variable>): Gen<Variable> {
-            const derefYield = rt.invokeCall(derefInst, [], reference);
-            const derefResultOrVoid = asResult(derefYield) ?? (yield* derefYield as Gen<MaybeUnboundVariable | "VOID">);
-            if (derefResultOrVoid === "VOID") {
-                const typeOfPpResult = rt.makeTypeStringOfVar(reference);
-                rt.raiseException(`${fname}(): expected '${typeOfPpResult}::operator*' to return an object, got void`);
-            }
-            const derefResult: Variable = rt.unbound(derefResultOrVoid);
-            return derefResult;
-        }
-        function* _invokePp(rt: CRuntime, fname: string, ppInst: FunctionCallInstance, arg: InitIndexPointerVariable<Variable>): Gen<Variable> {
-            const ppYield = rt.invokeCall(ppInst, [], arg);
-            const ppResultOrVoid = asResult(ppYield) ?? (yield* ppYield as Gen<MaybeUnboundVariable | "VOID">);
-            if (ppResultOrVoid === "VOID") {
-                const typeOfFirst = rt.makeTypeStringOfVar(arg);
-                rt.raiseException(`${fname}(): expected '${typeOfFirst}::operator++' to return an object, got void`);
-            }
-            const ppResult: Variable = rt.unbound(ppResultOrVoid);
-            return ppResult;
-        }
-
-
-        function* _invokeSet(rt: CRuntime, fname: string, setInst: FunctionCallInstance, lhs: Variable, rhs: Variable): Gen<Variable> {
-            const setYield = rt.invokeCall(setInst, [], lhs, rhs);
-            const setResultOrVoid = asResult(setYield) ?? (yield* setYield as Gen<MaybeUnboundVariable | "VOID">);
-            if (setResultOrVoid === "VOID") {
-                const typeOfSetResult = rt.makeTypeStringOfVar(lhs);
-                rt.raiseException(`${fname}(): expected '${typeOfSetResult}::operator=' to return an object, got void`);
-            }
-            const setResult: Variable = rt.unbound(setResultOrVoid);
-            return setResult;
-        }
 
         function sort_inner(rt: CRuntime, _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>, _cmp: PointerVariable<Function> | ClassVariable | null = null): "VOID" {
             if (_l.t.pointee.sig === "FUNCTION" || _r.t.pointee.sig === "FUNCTION") {
@@ -597,24 +560,24 @@ export = {
                     const ppInst = rt.getOpByParams("{global}", "o(_++)", [i], []);
                     const eqInst_ref = rt.getOpByParams("{global}", "o(_==_)", [i, i], []);
                     const derefInst = rt.getOpByParams("{global}", "o(*_)", [i], []);
-                    const derefResult0 = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                    const derefResult0 = yield* common.invokeDeref(rt, FNAME, derefInst, i);
                     const eqInst_deref = rt.getOpByParams("{global}", "o(_==_)", [derefResult0, derefResult0], []);
                     const setInst_deref = rt.getOpByParams("{global}", "o(_=_)", [derefResult0, derefResult0], []);
 
                     for (; ;) {
-                        const derefResult1 = yield* _invokeDeref(rt, FNAME, derefInst, i);
-                        if (yield* _invokeCmp(rt, eqInst_deref, derefResult1, value)) {
-                            yield* _invokePp(rt, FNAME, ppInst, i);
-                            if (yield* _invokeCmp(rt, eqInst_ref, i, last)) {
+                        const derefResult1 = yield* common.invokeDeref(rt, FNAME, derefInst, i);
+                        if (yield* common.invokeCmp(rt, eqInst_deref, derefResult1, value)) {
+                            yield* common.invokePp(rt, FNAME, ppInst, i);
+                            if (yield* common.invokeCmp(rt, eqInst_ref, i, last)) {
                                 return j;
                             }
                         }
-                        const derefResult_i = yield* _invokeDeref(rt, FNAME, derefInst, i);
-                        const derefResult_j = yield* _invokeDeref(rt, FNAME, derefInst, j);
-                        yield* _invokeSet(rt, FNAME, setInst_deref, derefResult_j, derefResult_i);
-                        yield* _invokePp(rt, FNAME, ppInst, i);
-                        yield* _invokePp(rt, FNAME, ppInst, j);
-                        if (yield* _invokeCmp(rt, eqInst_ref, i, last)) {
+                        const derefResult_i = yield* common.invokeDeref(rt, FNAME, derefInst, i);
+                        const derefResult_j = yield* common.invokeDeref(rt, FNAME, derefInst, j);
+                        yield* common.invokeSet(rt, FNAME, setInst_deref, derefResult_j, derefResult_i);
+                        yield* common.invokePp(rt, FNAME, ppInst, i);
+                        yield* common.invokePp(rt, FNAME, ppInst, j);
+                        if (yield* common.invokeCmp(rt, eqInst_ref, i, last)) {
                             return j;
                         }
                     }
@@ -645,11 +608,11 @@ export = {
                     const ppInst = rt.getOpByParams("{global}", "o(_++)", [i], []);
                     const eqInst_ref = rt.getOpByParams("{global}", "o(_==_)", [i, i], []);
                     const derefInst = rt.getOpByParams("{global}", "o(*_)", [i], []);
-                    const derefResult0 = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                    const derefResult0 = yield* common.invokeDeref(rt, FNAME, derefInst, i);
                     const setInst_deref = rt.getOpByParams("{global}", "o(_=_)", [derefResult0, derefResult0], []);
 
                     for (; ;) {
-                        const derefResult1 = yield* _invokeDeref(rt, FNAME, derefInst, i);
+                        const derefResult1 = yield* common.invokeDeref(rt, FNAME, derefInst, i);
                         const predYield = rt.invokeCallFromVariable(predicateDeref, derefResult1) as ResultOrGen<ArithmeticVariable>;
                         const predResultOrVoid = asResult(predYield) ?? (yield* predYield as Gen<MaybeUnboundVariable | "VOID">);
                         if (predResultOrVoid === "VOID") {
@@ -658,17 +621,17 @@ export = {
                         const predResult = rt.arithmeticValue(predResultOrVoid);
 
                         if (predResult !== 0) {
-                            yield* _invokePp(rt, FNAME, ppInst, i);
-                            if (yield* _invokeCmp(rt, eqInst_ref, i, last)) {
+                            yield* common.invokePp(rt, FNAME, ppInst, i);
+                            if (yield* common.invokeCmp(rt, eqInst_ref, i, last)) {
                                 return j;
                             }
                         }
-                        const derefResult_i = yield* _invokeDeref(rt, FNAME, derefInst, i);
-                        const derefResult_j = yield* _invokeDeref(rt, FNAME, derefInst, j);
-                        yield* _invokeSet(rt, FNAME, setInst_deref, derefResult_j, derefResult_i);
-                        yield* _invokePp(rt, FNAME, ppInst, i);
-                        yield* _invokePp(rt, FNAME, ppInst, j);
-                        if (yield* _invokeCmp(rt, eqInst_ref, i, last)) {
+                        const derefResult_i = yield* common.invokeDeref(rt, FNAME, derefInst, i);
+                        const derefResult_j = yield* common.invokeDeref(rt, FNAME, derefInst, j);
+                        yield* common.invokeSet(rt, FNAME, setInst_deref, derefResult_j, derefResult_i);
+                        yield* common.invokePp(rt, FNAME, ppInst, i);
+                        yield* common.invokePp(rt, FNAME, ppInst, j);
+                        if (yield* common.invokeCmp(rt, eqInst_ref, i, last)) {
                             return j;
                         }
                     }
@@ -679,7 +642,7 @@ export = {
                 type: "!ParamObject FUNCTION ?0 ( CLREF ?0 CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], lhs: Variable, rhs: Variable) {
                     const ltInst = rt.getOpByParams("{global}", "o(_<_)", [lhs, rhs], []);
-                    const ltResult = yield* _invokeCmp(rt, ltInst, lhs, rhs);
+                    const ltResult = yield* common.invokeCmp(rt, ltInst, lhs, rhs);
                     return (ltResult) ? lhs : rhs;
                 }
             },
@@ -688,7 +651,7 @@ export = {
                 type: "!ParamObject FUNCTION ?0 ( CLREF ?0 CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], lhs: Variable, rhs: Variable) {
                     const ltInst = rt.getOpByParams("{global}", "o(_<_)", [lhs, rhs], []);
-                    const ltResult = yield* _invokeCmp(rt, ltInst, lhs, rhs);
+                    const ltResult = yield* common.invokeCmp(rt, ltInst, lhs, rhs);
                     return (ltResult) ? rhs : lhs;
                 }
             },

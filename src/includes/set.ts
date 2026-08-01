@@ -1,10 +1,7 @@
-// TODO: Validate and cleanup set
-
 import { InitializerListVariable } from "../initializer_list";
-import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, ArithmeticBigVariable, ArithmeticNumVariable, InitDirectPointerVariable, InitArithmeticBigValue, InitArithmeticBigVariable } from "../variables";
+import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, InitDirectPointerVariable, InitArithmeticBigVariable } from "../variables";
 
 
 interface SetNodeType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
@@ -76,28 +73,53 @@ export = {
         // -- set_node
         // --
 
-        rt.defineStruct2("{global}", "set_node", {
-            numTemplateArgs: 1, *factory(dataItem: __set_node['t']) {
-                const default_key: Variable = yield* rt.defaultValue2(dataItem.templateSpec[0], "SELF");
-                return {
-                    lhs: variables.uninitPointer(dataItem, null, "SELF"),
-                    rhs: variables.uninitPointer(dataItem, null, "SELF"),
-                    parent: variables.uninitPointer(dataItem, null, "SELF"),
-                    is_red: variables.arithmeticNum("BOOL", 0, "SELF"),
-                    key: default_key
+        function _createSetNodeMembers(setIterType: __set_node['t'], key: Variable, is_red: boolean): __set_node['v']['members'] {
+            const ptrType = { sig: "PTR" as "PTR", pointee: setIterType, sizeConstraint: null };
+            return {
+                lhs: { t: ptrType, v: { lvHolder: "SELF", state: "UNINIT", isConst: false } },
+                rhs: { t: ptrType, v: { lvHolder: "SELF", state: "UNINIT", isConst: false } },
+                parent: { t: ptrType, v: { lvHolder: "SELF", state: "UNINIT", isConst: false } },
+                is_red: { t: { sig: "BOOL" }, v: { lvHolder: "SELF", state: "INIT", value: (is_red) ? 1 : 0, isConst: false } },
+                key
+            };
+        }
 
-                };
-            }
+        function* _createSetNodeMembersDefault(setIterType: __set_node['t']): Gen<__set_node['v']['members']> {
+            const default_key: Variable = yield* rt.defaultValue2(setIterType.templateSpec[0], "SELF");
+            return _createSetNodeMembers(setIterType, default_key, false);
+        }
+
+        function _createSetNodeVar(setIterType: __set_node['t'], key: Variable, is_red: boolean): __set_node {
+            return {
+                t: setIterType,
+                v: {
+                    isConst: false,
+                    state: "INIT",
+                    lvHolder: "SELF",
+                    members: _createSetNodeMembers(setIterType, key, is_red)
+                }
+            };
+        }
+
+
+        rt.defineStruct2("{global}", "set_node", {
+            numTemplateArgs: 1, factory: _createSetNodeMembersDefault
         }, ["lhs", "rhs", "parent", "is_red", "key"], {});
 
         function _node_delete(thisVal: __set_node['v']): void {
             if (thisVal.members.lhs.v.state !== "UNINIT") {
                 _node_delete((thisVal.members.lhs as __dptr_node).v.pointee);
+                delete (thisVal.members.lhs.v as any).pointee;
+                (thisVal.members.lhs.v as any).lvHolder = "UNBOUND";
                 delete (thisVal.members as any).lhs;
+                (thisVal as any).lvHolder = "UNBOUND";
             }
             if (thisVal.members.rhs.v.state !== "UNINIT") {
                 _node_delete((thisVal.members.rhs as __dptr_node).v.pointee);
+                delete (thisVal.members.lhs.v as any).pointee;
+                (thisVal.members.lhs.v as any).lvHolder = "UNBOUND";
                 delete (thisVal.members as any).rhs;
+                (thisVal as any).lvHolder = "UNBOUND";
             }
         }
 
@@ -133,21 +155,21 @@ export = {
         });
 
         function _iter_next(thisVar: __set_iter): "VOID" {
-            let node: __dptr_node | null = variables.asInitDirectPointer(thisVar) as __dptr_node | null;
+            let node: __dptr_node | null = variables.asInitDirectPointer2(thisVar.v.members.node);
             if (node === null) {
                 return "VOID";
             }
-            const rhs: __dptr_node | null = variables.asInitDirectPointer(node.v.pointee.members.rhs) as __dptr_node | null;
+            const rhs: __dptr_node | null = variables.asInitDirectPointer2(node.v.pointee.members.rhs);
             if (rhs !== null) {
                 node.v = rhs.v;
-                let lhs: __dptr_node | null = variables.asInitDirectPointer(node.v.pointee.members.lhs) as __dptr_node | null;
+                let lhs: __dptr_node | null = variables.asInitDirectPointer2(node.v.pointee.members.lhs);
                 while (lhs !== null) {
                     node.v = lhs.v;
-                    lhs = variables.asInitDirectPointer(node.v.pointee.members.lhs) as __dptr_node | null;
+                    lhs = variables.asInitDirectPointer2(node.v.pointee.members.lhs);
                 }
             } else {
                 for (; ;) {
-                    const parent: __dptr_node | null = variables.asInitDirectPointer(node.v.pointee.members.parent) as __dptr_node | null;
+                    const parent: __dptr_node | null = variables.asInitDirectPointer2(node.v.pointee.members.parent);
                     if (parent === null) {
                         (node as any).v = { isConst: false, state: "UNINIT", lvHolder: "SELF" };
                         break;
@@ -164,15 +186,15 @@ export = {
 
         function _createSetIterVarFromRoot(setIterType: __set_iter['t'], _top: PointerVariable<__set_node>): __set_iter {
             const result: __set_iter = _createSetIterVar(setIterType);
-            const topOrNull: __dptr_node | null = variables.asInitDirectPointer(_top) as __dptr_node | null;
+            const topOrNull: __dptr_node | null = variables.asInitDirectPointer2(_top);
             if (topOrNull === null) {
                 return result;
             }
             let top: __dptr_node = topOrNull;
-            let lhs: __dptr_node | null = variables.asInitDirectPointer(top.v.pointee.members.lhs) as __dptr_node | null;
+            let lhs: __dptr_node | null = variables.asInitDirectPointer2(top.v.pointee.members.lhs);
             while (lhs !== null) {
                 top = lhs;
-                lhs = variables.asInitDirectPointer(top.v.pointee.members.lhs) as __dptr_node | null;
+                lhs = variables.asInitDirectPointer2(top.v.pointee.members.lhs);
             }
             variables.directPointerAssignValue(rt, result.v.members.node, top.v.pointee);
             return result;
@@ -251,9 +273,9 @@ export = {
         const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS set < ?0 > ( CLASS initializer_list < ?0 > )",
-            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<Variable>): Gen<SetVariable<Variable>> {
+            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<Variable>): Gen<__set> {
                 const thisType = variables.classType("set", list.t.templateSpec, null);
-                const setVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<SetVariable<Variable>>;
+                const setVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<__set>;
                 const listmem = list.v.members._values.v.pointee;
 
                 for (let i = 0; i < listmem.values.length; i++) {
@@ -268,7 +290,7 @@ export = {
         const ctorHandler2: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS set < ?0 > ( PTR ?0 PTR ?0 )",
-            *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<SetVariable<Variable>> {
+            *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<__set> {
                 const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("set constructor: expected valid begin iterator");
                 const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("set constructor: expected valid end iterator");
 
@@ -278,7 +300,7 @@ export = {
 
                 const elementType = begin.v.pointee.objectType;
                 const thisType = variables.classType("set", [elementType], null);
-                const setVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<SetVariable<Variable>>;
+                const setVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<__set>;
 
                 for (let i = begin.v.index; i < end.v.index; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(begin.v.pointee, i) as MaybeUnboundVariable);
@@ -307,7 +329,7 @@ export = {
             const b = variables.clone(rt, p.v.pointee.members.rhs, null, false, true) as PointerVariable<__set_node>;
             const ggp = variables.clone(rt, g.v.pointee.members.parent, null, false, true) as PointerVariable<__set_node>;
             // ; g->lhs = b;
-            const b_dptr = variables.asInitDirectPointer(b) as __dptr_node | null;
+            const b_dptr = variables.asInitDirectPointer2(b);
             if (b_dptr === null) {
                 g.v.pointee.members.lhs.v.state = "UNINIT";
             } else {
@@ -328,7 +350,7 @@ export = {
             // ; g->parent = p;
             variables.directPointerAssignValue(rt, g.v.pointee.members.parent, g.v.pointee);
             // ; p->parent = ggp;
-            const ggp_dptr = variables.asInitDirectPointer(ggp) as __dptr_node | null;
+            const ggp_dptr = variables.asInitDirectPointer2(ggp);
             if (ggp_dptr === null) {
                 p.v.pointee.members.parent.v.state = "UNINIT";
             } else {
@@ -353,7 +375,7 @@ export = {
             const b = variables.clone(rt, p.v.pointee.members.lhs, null, false, true) as PointerVariable<__set_node>;
             const ggp = variables.clone(rt, g.v.pointee.members.parent, null, false, true) as PointerVariable<__set_node>;
             // ; g->rhs = b;
-            const b_dptr = variables.asInitDirectPointer(b) as __dptr_node | null;
+            const b_dptr = variables.asInitDirectPointer2(b);
             if (b_dptr === null) {
                 g.v.pointee.members.rhs.v.state = "UNINIT";
             } else {
@@ -374,7 +396,7 @@ export = {
             // ; g->parent = p;
             variables.directPointerAssignValue(rt, g.v.pointee.members.parent, g.v.pointee);
             // ; p->parent = ggp;
-            const ggp_dptr = variables.asInitDirectPointer(ggp) as __dptr_node | null;
+            const ggp_dptr = variables.asInitDirectPointer2(ggp);
             if (ggp_dptr === null) {
                 p.v.pointee.members.parent.v.state = "UNINIT";
             } else {
@@ -384,276 +406,244 @@ export = {
             variables.directPointerAssignValue(rt, g_ref, p.v.pointee);
         }
 
-        function _find(rt: CRuntime, setVar: SetVariable<Variable>, value: Variable): InitIndexPointerVariable<Variable> | null {
-            const dataPtr = setVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
-            const sz = setVar.v.members._sz.v.value;
-
-            for (let i = 0; i < sz; i++) {
-                const existingValue = rt.unbound(variables.arrayMember(dataArray, i) as MaybeUnboundVariable);
-
-                let isEqual = false;
-
-                if (!existingValue || !existingValue.t || !value || !value.t) {
-                    continue;
-                }
-
-                if (value.t.sig === "CLASS" && (value.t as any).identifier === "string" &&
-                    existingValue.t.sig === "CLASS" && (existingValue.t as any).identifier === "string") {
-                    try {
-                        isEqual = _compareStrings(rt, existingValue, value) === 0;
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                else if (variables.asArithmetic(value) && variables.asArithmetic(existingValue)) {
-                    const existingNum = rt.arithmeticValue(existingValue as ArithmeticNumVariable);
-                    const valueNum = rt.arithmeticValue(value as ArithmeticNumVariable);
-                    isEqual = existingNum === valueNum;
-                } else {
-                    try {
-                        const eqFunc = rt.getFuncByParams("{global}", "o(_==_)", [
-                            { t: existingValue.t, v: { isConst: true, lvHolder: "SELF" } },
-                            { t: value.t, v: { isConst: true, lvHolder: "SELF" } }
-                        ], []);
-
-                        if (eqFunc) {
-                            const result = rt.invokeCall(eqFunc, [], existingValue, value);
-                            const r = asResult(result);
-                            if (r && r !== "VOID") {
-                                isEqual = rt.arithmeticValue(rt.unbound(r) as ArithmeticNumVariable) !== 0;
-                            }
-                        }
-                    } catch (e) {
-                        continue;
-                    }
-                }
-
-                if (isEqual) {
-                    return variables.indexPointer(dataArray, i, false, null, false);
-                }
+        function* _find(rt: CRuntime, thisVar: __set, key: Variable): Gen<__set_iter> {
+            const result: __set_iter = _createSetIterVar(_createSetIterType(thisVar.t.templateSpec));
+            const root_dptr = variables.asInitDirectPointer2(thisVar.v.members.root);
+            if (root_dptr === null) {
+                return result;
             }
+            variables.directPointerAssignValue(rt, result.v.members.node, root_dptr.v.pointee);
+            const ltInst = rt.getOpByParams("{global}", "o(_<_)", [key, key], []);
+            const gtInst = rt.getOpByParams("{global}", "o(_>_)", [key, key], []);
 
-            return null;
+            for (; ;) {
+                const node: __dptr_node = result.v.members.node as __dptr_node;
+                const ltResult = yield* common.invokeCmp(rt, ltInst, node.v.pointee.members.key, key);
+                if (ltResult) {
+                    const node_rhs: __dptr_node | null = variables.asInitDirectPointer2(node.v.pointee.members.rhs);
+                    if (node_rhs !== null) {
+                        node.v.pointee = node_rhs.v.pointee;
+                        continue;
+                    } else {
+                        return _createSetIterVar(_createSetIterType(thisVar.t.templateSpec));
+                    }
+                }
+                const gtResult = yield* common.invokeCmp(rt, gtInst, node.v.pointee.members.key, key);
+                if (gtResult) {
+                    const node_lhs: __dptr_node | null = variables.asInitDirectPointer2(node.v.pointee.members.lhs);
+                    if (node_lhs !== null) {
+                        node.v.pointee = node_lhs.v.pointee;
+                        continue;
+                    } else {
+                        return _createSetIterVar(_createSetIterType(thisVar.t.templateSpec));
+                    }
+                }
+                return result;
+            }
         }
 
-        function _insert(rt: CRuntime, setVar: SetVariable<Variable>, value: Variable): [InitIndexPointerVariable<Variable>, boolean] {
-            const dataPtr = setVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
-            const sz = setVar.v.members._sz.v.value;
-
-            let insertPos = sz; // Pagal nutylėjimą įterpsime gale
-
-            for (let i = 0; i < sz; i++) {
-                const existingValue = rt.unbound(variables.arrayMember(dataArray, i) as MaybeUnboundVariable);
-
-                let comparison = 0;
-
-                if (!existingValue || !existingValue.t) {
-                    continue;
-                }
-
-                if (!value || !value.t) {
-                    rt.raiseException("set: Invalid value provided for insertion");
-                }
-
-                if (value.t.sig === "CLASS" && (value.t as any).identifier === "string" &&
-                    existingValue.t.sig === "CLASS" && (existingValue.t as any).identifier === "string") {
-                    try {
-                        comparison = _compareStrings(rt, existingValue, value);
-                    } catch (e) {
-                        rt.raiseException("set: Failed to compare string values: " + e.message);
-                    }
-                }
-                else if (variables.asArithmetic(value) && variables.asArithmetic(existingValue)) {
-                    const existingNum = rt.arithmeticValue(existingValue as ArithmeticNumVariable | ArithmeticBigVariable);
-                    const valueNum = rt.arithmeticValue(value as ArithmeticNumVariable | ArithmeticBigVariable);
-
-                    if (existingNum == valueNum) {
-                        comparison = 0;
-                    } else if (existingNum < valueNum) {
-                        comparison = -1;
+        function* _insert(rt: CRuntime, thisVar: __set, value: Variable): Gen<__set_iter> {
+            const nodeType = _createSetNodeType(thisVar.t.templateSpec);
+            if (thisVar.v.members.root.v.state === "UNINIT") {
+                const iterType = _createSetIterType(thisVar.t.templateSpec);
+                const rootNode = _createSetNodeVar(nodeType, variables.clone(rt, value, "SELF"), false);
+                variables.directPointerAssignValue(rt, thisVar.v.members.root, rootNode.v);
+                thisVar.v.members._size.v.value++;
+                return _createSetIterVarFromRoot(iterType, thisVar.v.members.root);
+            }
+            let parent: __dptr_node = thisVar.v.members.root as __dptr_node;
+            let node = variables.directPointer(_createSetNodeVar(nodeType, variables.clone(rt, value, "SELF"), true), "SELF", false);
+            const ltInst = rt.getOpByParams("{global}", "o(_<_)", [value, value], []);
+            for (; ;) {
+                if (yield* common.invokeCmp(rt, ltInst, parent.v.pointee.members.key, value)) {
+                    if (parent.v.pointee.members.rhs.v.state === "INIT") {
+                        parent = parent.v.pointee.members.rhs as __dptr_node;
+                        continue;
                     } else {
-                        comparison = 1;
+                        variables.directPointerAssignValue(rt, parent.v.pointee.members.rhs, node.v.pointee);
+                        variables.directPointerAssignValue(rt, node.v.pointee.members.parent, parent.v.pointee);
+                        break;
                     }
                 } else {
-                    try {
-                        const ltFunc = rt.getFuncByParams("{global}", "o(_<_)", [
-                            { t: existingValue.t, v: { isConst: true, lvHolder: "SELF" } },
-                            { t: value.t, v: { isConst: true, lvHolder: "SELF" } }
-                        ], []);
-
-                        if (ltFunc) {
-                            const result1 = rt.invokeCall(ltFunc, [], existingValue, value);
-                            const result2 = rt.invokeCall(ltFunc, [], value, existingValue);
-
-                            const r1 = asResult(result1);
-                            const r2 = asResult(result2);
-
-                            if (r1 && r1 !== "VOID" && r2 && r2 !== "VOID") {
-                                const val1 = rt.arithmeticValue(rt.unbound(r1) as ArithmeticNumVariable);
-                                const val2 = rt.arithmeticValue(rt.unbound(r2) as ArithmeticNumVariable);
-
-                                if (val1 && !val2) comparison = -1;
-                                else if (!val1 && val2) comparison = 1;
-                                else comparison = 0;
-                            } else {
-                                rt.raiseException("set: Cannot compare elements - comparison function failed");
-                            }
-                        } else {
-                            rt.raiseException("set: Cannot compare elements - no comparison operator found");
-                        }
-                    } catch (e) {
-                        rt.raiseException("set: Cannot compare elements of this type: " + e);
+                    if (parent.v.pointee.members.lhs.v.state === "INIT") {
+                        parent = parent.v.pointee.members.lhs as __dptr_node;
+                        continue;
+                    } else {
+                        variables.directPointerAssignValue(rt, parent.v.pointee.members.lhs, node.v.pointee);
+                        variables.directPointerAssignValue(rt, node.v.pointee.members.parent, parent.v.pointee);
+                        break;
                     }
                 }
-
-                if (comparison === 0) {
-                    return [variables.indexPointer(dataArray, i, false, null, false), false];
-                }
-
-                if (comparison > 0) {
-                    insertPos = i;
+            }
+            thisVar.v.members._size.v.value++;
+            // ...
+            for (; ;) {
+                if (parent.v.pointee.members.is_red.v.value === 0) {
+                    // Case 1. Parent is black.
                     break;
                 }
-            }
-
-            _ensureCapacity(setVar, sz + 1);
-            const updatedArray = setVar.v.members._data.v.pointee;
-
-            for (let i = sz; i > insertPos; i--) {
-                updatedArray.values[i] = updatedArray.values[i - 1];
-            }
-
-            updatedArray.values[insertPos] = variables.clone(rt, value, { array: updatedArray, index: insertPos }, false, true).v;
-            setVar.v.members._sz.v.value++;
-
-            return [variables.indexPointer(updatedArray, insertPos, false, null, false), true];
-        }
-
-
-        function _end(setVar: SetVariable<Variable>): InitIndexPointerVariable<Variable> {
-            const dataPtr = setVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
-            return variables.indexPointer(dataArray, setVar.v.members._sz.v.value, false, null, false);
-        }
-
-        function _erase(setVar: SetVariable<Variable>, index: number): boolean {
-            const dataPtr = setVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
-            const size = setVar.v.members._sz.v.value;
-
-            if (index >= 0 && index < size) {
-                // Pastumti elementus kairėn
-                for (let i = index; i < size - 1; i++) {
-                    dataArray.values[i] = dataArray.values[i + 1];
+                // Grandparent is always black, if exists.
+                const grandparent: __dptr_node | null = variables.asInitDirectPointer2(parent.v.pointee.members.parent);
+                if (grandparent === null) {
+                    // Case 4. Parent is red and parent is the root node.
+                    parent.v.pointee.members.is_red.v.value = 0;
+                    break;
                 }
-                setVar.v.members._sz.v.value--;
-                return true;
+                const glhs = variables.asInitDirectPointer2(grandparent.v.pointee.members.lhs);
+                const grhs = variables.asInitDirectPointer2(grandparent.v.pointee.members.rhs);
+                // NOTE: see note below
+                const uncle: __dptr_node | null = (glhs !== null && glhs.v === parent.v) ? grhs : glhs;
+                if (uncle === null || uncle.v.pointee.members.is_red.v.value === 0) {
+                    if (grandparent.v.pointee.members.lhs.v.state === "INIT" &&
+                        grandparent.v.pointee.members.lhs.v.pointee === parent.v.pointee) {
+                        if (parent.v.pointee.members.rhs.v.state === "INIT" &&
+                            parent.v.pointee.members.rhs.v.pointee === node.v.pointee) {
+                            // Case 5a. Parent is red, sibling of parent (uncle) is black or does
+                            // not exist, parent->key < node->key < grandparent->key.
+                            // [([b?], p=R, (n)), g=B, [u?]]
+                            // Rotate left
+                            // [(([b?], p=R, .), n=R, .), g=B, [u?]]
+                            _rotate_left(rt, parent, grandparent.v.pointee.members.lhs);
+                            node = parent;
+                            parent = grandparent.v.pointee.members.lhs as __dptr_node;
+                            // [(([b?], n=R, .), p=R, .), g=B, [u?]]
+                        }
+                        // Case 6a. Parent is red, sibling of parent (uncle) is black or does
+                        // not exist, node->key < parent->key < grandparent->key.
+                        // [((n), p=R, [b?]), g=B, [u?]]
+                        // Rotate right
+                        // ((n), p=R, [[b?], g=B, [u?]])
+                        // Recolour
+                        const ggp = variables.asInitDirectPointer2(grandparent.v.pointee.members.parent);
+                        _rotate_right(
+                            rt,
+                            grandparent,
+                            (ggp !== null) ?
+                                ((ggp.v.pointee.members.lhs.v.state === "INIT" && ggp.v.pointee.members.lhs.v.pointee === grandparent.v.pointee) ?
+                                    (ggp.v.pointee.members.lhs) :
+                                    (ggp.v.pointee.members.rhs)
+                                ) : (thisVar.v.members.root));
+                        parent.v.pointee.members.is_red.v.value = 0;
+                        grandparent.v.pointee.members.is_red.v.value = 1;
+                        // [(n), p=B, ([b?], g=R, [u?])]
+                    } else { /* if (grandparent->rhs == parent) */
+                        if (parent.v.pointee.members.lhs.v.state === "INIT" &&
+                            parent.v.pointee.members.lhs.v.pointee === node.v.pointee) {
+                            // Case 5b. Parent is red, sibling of parent (uncle) is black or does
+                            // not exist, grandparent->key < node->key < parent->key.
+                            _rotate_right(rt, parent, grandparent.v.pointee.members.rhs);
+                            node = parent;
+                            parent = grandparent.v.pointee.members.rhs as __dptr_node;
+                        }
+                        // Case 6b. Parent is red, sibling of parent (uncle) is black or does
+                        // not exist, grandparent->key < parent->key < node->key.
+                        const ggp = variables.asInitDirectPointer2(grandparent.v.pointee.members.parent);
+                        _rotate_left(
+                            rt,
+                            grandparent,
+                            (ggp !== null) ?
+                                ((ggp.v.pointee.members.lhs.v.state === "INIT" && ggp.v.pointee.members.lhs.v.pointee === grandparent.v.pointee) ?
+                                    (ggp.v.pointee.members.lhs) :
+                                    (ggp.v.pointee.members.rhs)
+                                ) : (thisVar.v.members.root));
+                        parent.v.pointee.members.is_red.v.value = 0;
+                        grandparent.v.pointee.members.is_red.v.value = 1;
+                    }
+                    break;
+                }
+                // Case 2. Parent is red, uncle is red.
+                parent.v.pointee.members.is_red.v.value = 0;
+                uncle.v.pointee.members.is_red.v.value = 0;
+                grandparent.v.pointee.members.is_red.v.value = 1;
+                node = grandparent;
+                const node_parent = variables.asInitDirectPointer2(node.v.pointee.members.parent);
+                if (node_parent === null) {
+                    // Case 3. Grandparent of the last iteration (now node) is the root node.
+                    break;
+                } else {
+                    parent = node_parent;
+                }
             }
-            return false;
+            return yield* _find(rt, thisVar, value);
+        }
+
+        function _begin(thisVar: __set): __set_iter {
+            return _createSetIterVarFromRoot(_createSetIterType(thisVar.t.templateSpec), thisVar.v.members.root);
+        }
+
+        function _end(thisVar: __set): __set_iter {
+            return _createSetIterVar(_createSetIterType(thisVar.t.templateSpec));
+        }
+
+        function _erase(rt: CRuntime, _setVar: __set, _pos: __set_iter): __set_iter {
+            rt.raiseException("std::set<Key>::erase(): Not yet implemented");
         }
 
         common.regMemberFuncs(rt, "set", [
             {
                 op: "begin",
-                type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    const dataPtr = setVar.v.members._data;
-                    const dataArray = dataPtr.v.pointee;
-                    return variables.indexPointer(dataArray, 0, false, null, false);
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( CLREF CLASS set < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set) {
+                    return _begin(thisVar);
                 }
             },
             {
                 op: "end",
-                type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    return _end(setVar);
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( CLREF CLASS set < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set) {
+                    return _end(thisVar);
                 }
             },
             {
                 op: "insert",
-                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS set < ?0 > CLASS initializer_list < ?0 > )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    const list = args[1] as InitializerListVariable<Variable>;
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS initializer_list < ?0 > )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, list: InitializerListVariable<Variable>): Gen<__set_iter> {
                     const listmem = list.v.members._values.v.pointee;
 
-                    let lastInserted: InitIndexPointerVariable<Variable> | null = null;
+                    let lastInserted: __set_iter | null = null;
                     for (let i = 0; i < listmem.values.length; i++) {
                         const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable);
-                        const [iterator] = _insert(rt, setVar, currentValue);
+                        const iterator = yield* _insert(rt, thisVar, currentValue);
                         lastInserted = iterator;
                     }
 
-                    return lastInserted ?? _end(setVar);
+                    return (lastInserted !== null) ? lastInserted : _end(thisVar);
                 }
             },
             {
                 op: "insert",
-                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS set < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    const value = args[1];
-                    const [iterator] = _insert(rt, setVar, value);
-                    return iterator;
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, value: Variable): Gen<__set_iter> {
+                    return yield* _insert(rt, thisVar, value);
                 }
             },
             {
                 op: "insert",
-                type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS set < ?0 > PTR ?0 CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, _pos: __set_iter, value: Variable) {
                     // same as above, ignoring the iterator
-                    const setVar = args[0] as SetVariable<Variable>;
-                    const value = args[2];
-                    const [iterator] = _insert(rt, setVar, value);
-                    return iterator;
+                    return yield* _insert(rt, thisVar, value);
                 }
             },
             {
                 op: "insert",
-                type: "!ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    const beginPtr = args[1] as PointerVariable<Variable>;
-                    const endPtr = args[2] as PointerVariable<Variable>;
-
-                    const begin = variables.asInitIndexPointer(beginPtr) ?? rt.raiseException("set::insert: expected valid begin iterator");
-                    const end = variables.asInitIndexPointer(endPtr) ?? rt.raiseException("set::insert: expected valid end iterator");
-
-                    if (begin.v.pointee !== end.v.pointee) {
-                        rt.raiseException("set::insert: iterators must point to same memory region");
-                    }
-
-                    for (let i = begin.v.index; i < end.v.index; i++) {
-                        const currentValue = rt.unbound(variables.arrayMember(begin.v.pointee, i) as MaybeUnboundVariable);
-                        _insert(rt, setVar, currentValue);
-                    }
-
-                    return "VOID";
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > CLASS set_iterator < ?0 > )",
+                default(rt: CRuntime, _templateTypes: ObjectType[], _thisVar: __set, _begin: __set_iter, _end: __set_iter): "VOID" {
+                    rt.raiseException("std::set<Key>::insert(): Not yet implemented");
                 }
             },
             {
                 op: "erase",
-                type: "!ParamObject FUNCTION I32 ( LREF CLASS set < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    const value = args[1];
-                    const found = _find(rt, setVar, value);
-                    if (found !== null) {
-                        const erased = _erase(setVar, found.v.index);
-                        return variables.arithmeticNum("I32", erased ? 1 : 0, null, false);
-                    }
-                    return variables.arithmeticNum("I32", 0, null, false);
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > )",
+                default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, pos: __set_iter): __set_iter {
+                    return _erase(rt, thisVar, pos);
                 }
             },
             {
                 op: "find",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS set < ?0 > CLREF ?0 )",
                 default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
+                    const setVar = args[0] as __set;
                     const value = args[1];
                     const found = _find(rt, setVar, value);
                     if (found !== null) {
@@ -666,7 +656,7 @@ export = {
                 op: "count",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS set < ?0 > CLREF ?0 )",
                 default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
+                    const setVar = args[0] as __set;
                     const value = args[1];
                     const found = _find(rt, setVar, value);
                     return variables.arithmeticNum("I32", found !== null ? 1 : 0, null, false);
@@ -676,7 +666,7 @@ export = {
                 op: "contains",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set < ?0 > CLREF ?0 )",
                 default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
+                    const setVar = args[0] as __set;
                     const value = args[1];
                     const found = _find(rt, setVar, value);
                     return variables.arithmeticNum("BOOL", found !== null ? 1 : 0, null, false);
@@ -684,26 +674,29 @@ export = {
             },
             {
                 op: "size",
-                type: "!ParamObject FUNCTION I32 ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    return variables.arithmeticNum("I32", setVar.v.members._sz.v.value, null, false);
+                type: "!ParamObject FUNCTION I64 ( CLREF CLASS set < ?0 > )",
+                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): InitArithmeticBigVariable {
+                    return variables.arithmeticBig("I64", thisVar.v.members._size.v.value, null, false);
                 }
             },
             {
                 op: "empty",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    return variables.arithmeticNum("BOOL", setVar.v.members._sz.v.value === 0 ? 1 : 0, null, false);
+                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): InitArithmeticNumVariable {
+                    return variables.arithmeticNum("BOOL", (thisVar.v.members._size.v.value === BigInt(0)) ? 1 : 0, null, false);
                 }
             },
             {
                 op: "clear",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
-                    const setVar = args[0] as SetVariable<Variable>;
-                    setVar.v.members._sz.v.value = 0;
+                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): "VOID" {
+                    const root: __dptr_node | null = variables.asInitDirectPointer2(thisVar.v.members.root);
+                    if (root !== null) {
+                        _node_delete(root.v.pointee);
+                        delete (root.v as any).pointee;
+                        (root.v as any).state = "UNINIT";
+                        thisVar.v.members._size.v.value = BigInt(0);
+                    }
                     return "VOID";
                 }
             },

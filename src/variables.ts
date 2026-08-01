@@ -423,7 +423,7 @@ export const variables = {
         return { t: { sig }, v: { lvHolder, state: "INIT", value, isConst } };
     },
     uninitPointer(object: ObjectType | FunctionType, sizeConstraint: number | null, lvHolder: LValueHolder<PointerVariable<PointeeVariable>>, isConst: boolean = false): PointerVariable<PointeeVariable> {
-        return { t: variables.pointerType(object, sizeConstraint), v: { lvHolder, state: "UNINIT", isConst } };
+        return { t: { sig: "PTR", pointee: object, sizeConstraint }, v: { lvHolder, state: "UNINIT", isConst } };
     },
     directPointer<VElem extends PointeeVariable>(pointee: VElem, lvHolder: LValueHolder<PointerVariable<VElem>>, isConst: boolean = false): InitDirectPointerVariable<VElem> {
         const t = variables.pointerType(pointee.t, null);
@@ -577,8 +577,17 @@ export const variables = {
     asInitPointerOfElem<VElem extends Variable | Function>(x: Variable | Function, elem: VElem): InitPointerVariable<VElem> | null {
         return (x.t.sig === "PTR" && x.v.state === "INIT" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitPointerVariable<VElem> : null;
     },
+    /** Given a variable or function of any type, 
+    * return itself if it is an init direct pointer, 
+    * or null otherwise */
     asInitDirectPointer(x: Variable | Function): InitDirectPointerVariable<PointeeVariable> | null {
         return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "DIRECT") ? x as InitDirectPointerVariable<PointeeVariable> : null;
+    },
+    /** Given a pointer of a known type, 
+    * return itself if it is an init direct pointer, 
+    * or null otherwise. */
+    asInitDirectPointer2<VPointee extends PointeeVariable>(x: PointerVariable<VPointee>): InitDirectPointerVariable<VPointee> | null {
+        return (x.v.state === "INIT" && (x as InitPointerVariable<VPointee>).v.subtype === "DIRECT") ? x as InitDirectPointerVariable<VPointee> : null;
     },
     asInitDirectPointerOfElem<VElem extends Variable | Function>(x: Variable | Function, elem: VElem): InitDirectPointerVariable<VElem> | null {
         return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "DIRECT" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitDirectPointerVariable<VElem> : null;
