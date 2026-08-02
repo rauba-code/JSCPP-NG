@@ -589,6 +589,12 @@ export const variables = {
     asInitDirectPointer2<VPointee extends PointeeVariable>(x: PointerVariable<VPointee>): InitDirectPointerVariable<VPointee> | null {
         return (x.v.state === "INIT" && (x as InitPointerVariable<VPointee>).v.subtype === "DIRECT") ? x as InitDirectPointerVariable<VPointee> : null;
     },
+    /** Given a pointer of a known type, 
+    * return its pointee if it is an init direct pointer, 
+    * or null otherwise. */
+    asInitDirectPointerPointee<VPointee extends PointeeVariable>(x: PointerVariable<VPointee>): VPointee['v'] | null {
+        return (x.v.state === "INIT" && (x as InitPointerVariable<VPointee>).v.subtype === "DIRECT") ? x.v.pointee as VPointee['v'] : null;
+    },
     asInitDirectPointerOfElem<VElem extends Variable | Function>(x: Variable | Function, elem: VElem): InitDirectPointerVariable<VElem> | null {
         return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "DIRECT" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitDirectPointerVariable<VElem> : null;
     },
