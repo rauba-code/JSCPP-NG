@@ -1,6 +1,7 @@
 import { InitializerListVariable } from "../initializer_list";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
+import { PairVariable } from "../shared/utility";
 import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, InitDirectPointerVariable, InitArithmeticBigVariable } from "../variables";
 
 
@@ -49,6 +50,7 @@ interface SetValue<T extends Variable> extends InitValue<SetVariable<T>> {
 export = {
     load(rt: CRuntime) {
         rt.include("cstddef");
+        rt.include("utility"); // pair
 
         type __set = SetVariable<Variable>;
         type __node = SetNodeVariable<Variable>;
@@ -477,7 +479,7 @@ export = {
             }
         }
 
-        function* _insert(rt: CRuntime, thisVar: __set, value: Variable): Gen<__set_iter> {
+        function* _insert(rt: CRuntime, thisVar: __set, value: Variable): Gen<[__set_iter, boolean]> {
             const nodeType = _createSetNodeType(thisVar.t.templateSpec);
             const rootValue = variables.asInitDirectPointerPointee(thisVar.v.members.root);
             if (rootValue === null) {
@@ -485,11 +487,12 @@ export = {
                 const rootNode = _createSetNodeVar(nodeType, variables.clone(rt, value, "SELF"), false);
                 variables.directPointerAssignValue(rt, thisVar.v.members.root, rootNode.v);
                 thisVar.v.members._size.v.value++;
-                return _createSetIterVarFromRoot(iterType, thisVar.v.members.root);
+                return [_createSetIterVarFromRoot(iterType, thisVar.v.members.root), true];
             }
             let parentValue: __node['v'] = rootValue;
             let nodeValue: __node['v'] = _createSetNodeVar(nodeType, variables.clone(rt, value, "SELF"), true).v;
             const ltInst = rt.getOpByParams("{global}", "o(_<_)", [value, value], []);
+            const gtInst = rt.getOpByParams("{global}", "o(_>_)", [value, value], []);
             for (; ;) {
                 if (yield* common.invokeCmp(rt, ltInst, parentValue.members.key, value)) {
                     if (parentValue.members.rhs.v.state === "INIT") {
@@ -500,7 +503,7 @@ export = {
                         variables.directPointerAssignValue(rt, nodeValue.members.parent, parentValue);
                         break;
                     }
-                } else {
+                } else if (yield* common.invokeCmp(rt, gtInst, parentValue.members.key, value)) {
                     if (parentValue.members.lhs.v.state === "INIT") {
                         parentValue = (parentValue.members.lhs as __dptr_node).v.pointee;
                         continue;
@@ -509,6 +512,10 @@ export = {
                         variables.directPointerAssignValue(rt, nodeValue.members.parent, parentValue);
                         break;
                     }
+                } else {
+                    const iter = _createSetIterVar(_createSetIterType(thisVar.t.templateSpec));
+                    variables.directPointerAssignValue(rt, iter.v.members.node, parentValue);
+                    return [iter, false];
                 }
             }
             _assert_parent(rt, nodeValue);
@@ -609,7 +616,7 @@ export = {
                     _assert_parent(rt, parentValue);
                 }
             }
-            return yield* _find(rt, thisVar, value);
+            return [yield* _find(rt, thisVar, value), true];
         }
 
         function _begin(thisVar: __set): __set_iter {
@@ -620,7 +627,7 @@ export = {
             return _createSetIterVar(_createSetIterType(thisVar.t.templateSpec));
         }
 
-        function _erase(rt: CRuntime, _setVar: __set, _pos: __set_iter): __set_iter {
+        function _erase(rt: CRuntime, _thisVar: __set, _pos: __set_iter): __set_iter {
             rt.raiseException("std::set<Key>::erase(): Not yet implemented");
         }
 
@@ -669,40 +676,82 @@ export = {
             },
             {
                 op: "insert",
-                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS initializer_list < ?0 > )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, list: InitializerListVariable<Variable>): Gen<__set_iter> {
-                    const listmem = list.v.members._values.v.pointee;
-
-                    let lastInserted: __set_iter | null = null;
-                    for (let i = 0; i < listmem.values.length; i++) {
-                        const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable);
-                        const iterator = yield* _insert(rt, thisVar, currentValue);
-                        lastInserted = iterator;
-                    }
-
-                    return (lastInserted !== null) ? lastInserted : _end(thisVar);
-                }
-            },
-            {
-                op: "insert",
-                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, value: Variable): Gen<__set_iter> {
-                    return yield* _insert(rt, thisVar, value);
+                type: "!ParamObject FUNCTION CLASS pair < CLASS set_iterator < ?0 > BOOL > ( LREF CLASS set < ?0 > CLREF ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, value: Variable): Gen<PairVariable<__set_iter, InitArithmeticNumVariable>> {
+                    const result = yield* _insert(rt, thisVar, value);
+                    return {
+                        t: {
+                            sig: "CLASS",
+                            identifier: "pair",
+                            memberOf: null,
+                            templateSpec: [
+                                _createSetIterType(thisVar.t.templateSpec),
+                                { sig: "BOOL" }
+                            ]
+                        },
+                        v: {
+                            isConst: false,
+                            lvHolder: null,
+                            state: "INIT",
+                            members: {
+                                first: result[0],
+                                second: {
+                                    t: { sig: "BOOL" },
+                                    v: {
+                                        isConst: false,
+                                        lvHolder: null,
+                                        state: "INIT",
+                                        value: result[0] ? 1 : 0
+                                    }
+                                }
+                            }
+                        }
+                    };
                 }
             },
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, _pos: __set_iter, value: Variable) {
-                    // same as above, ignoring the iterator
-                    return yield* _insert(rt, thisVar, value);
+                    // same as above, ignoring the 'pos' argument, 
+                    // returning iterator only
+                    return (yield* _insert(rt, thisVar, value))[0];
                 }
             },
             {
                 op: "insert",
-                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > CLASS set_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], _thisVar: __set, _begin: __set_iter, _end: __set_iter): "VOID" {
-                    rt.raiseException("std::set<Key>::insert(): Not yet implemented");
+                type: "!ParamObject !ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > ?1 ?1 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, first: Variable, last: Variable): Gen<"VOID"> {
+                    const eqFunc = rt.getOpByParams("{global}", "o(_==_)", [first, last], []);
+                    const ppFunc = rt.getOpByParams("{global}", "o(_++)", [first], []);
+                    const derefFunc = rt.getOpByParams("{global}", "o(*_)", [first], []);
+                    const firstTypeString = rt.makeTypeString(first.t);
+                    const setValueTypeString = rt.makeTypeString(thisVar.t.templateSpec[0]);
+                    while (!(yield* common.invokeCmp(rt, eqFunc, first, last))) {
+                        const derefObject = yield *common.invokeDeref(rt, firstTypeString, derefFunc, first);
+                        if (!variables.typesEqual(derefObject.t, thisVar.t.templateSpec[0])) {
+                            rt.raiseException(`set<${setValueTypeString}>::insert(): Expected type of (*first) to be ${setValueTypeString}, got ${rt.makeTypeString(derefObject.t)}`);
+                        }
+                        yield* _insert(rt, thisVar, derefObject);
+                        common.invokePp(rt, firstTypeString, ppFunc, first);
+                    }
+                    return "VOID";
+                }
+            },
+            {
+                op: "insert",
+                type: "!ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > CLASS initializer_list < ?0 > )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, list: InitializerListVariable<Variable>): Gen<"VOID"> {
+                    const listmem = list.v.members._values.v.pointee;
+
+                    let lastInserted: __set_iter | null = null;
+                    for (let i = 0; i < listmem.values.length; i++) {
+                        const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable);
+                        const iterator = (yield* _insert(rt, thisVar, currentValue))[0];
+                        lastInserted = iterator;
+                    }
+
+                    return "VOID";
                 }
             },
             {

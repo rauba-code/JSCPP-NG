@@ -75,7 +75,7 @@ export function* invokeCmp(rt: CRuntime, cmpInst: FunctionCallInstance, lhs: Var
     return cmpResult !== 0;
 }
 
-export function* invokeDeref(rt: CRuntime, fname: string, derefInst: FunctionCallInstance, reference: InitIndexPointerVariable<Variable>): Gen<Variable> {
+export function* invokeDeref(rt: CRuntime, fname: string, derefInst: FunctionCallInstance, reference: Variable): Gen<Variable> {
     const derefYield = rt.invokeCall(derefInst, [], reference);
     const derefResultOrVoid = asResult(derefYield) ?? (yield* derefYield as Gen<MaybeUnboundVariable | "VOID">);
     if (derefResultOrVoid === "VOID") {
@@ -86,7 +86,7 @@ export function* invokeDeref(rt: CRuntime, fname: string, derefInst: FunctionCal
     return derefResult;
 }
 
-export function* invokePp(rt: CRuntime, fname: string, ppInst: FunctionCallInstance, arg: InitIndexPointerVariable<Variable>): Gen<Variable> {
+export function* invokePp(rt: CRuntime, fname: string, ppInst: FunctionCallInstance, arg: Variable): Gen<Variable> {
     const ppYield = rt.invokeCall(ppInst, [], arg);
     const ppResultOrVoid = asResult(ppYield) ?? (yield* ppYield as Gen<MaybeUnboundVariable | "VOID">);
     if (ppResultOrVoid === "VOID") {
