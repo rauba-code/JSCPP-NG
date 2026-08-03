@@ -109,19 +109,19 @@ export = {
 
         function _node_delete(thisVal: __node['v']): void {
             if (thisVal.members.lhs.v.state !== "UNINIT") {
-                _node_delete((thisVal.members.lhs as __dptr_node).v.pointee);
-                delete (thisVal.members.lhs.v as any).pointee;
-                (thisVal.members.lhs.v as any).lvHolder = "UNBOUND";
-                delete (thisVal.members as any).lhs;
+                _ptr_node_delete((thisVal.members.lhs as __dptr_node).v);
                 (thisVal as any).lvHolder = "UNBOUND";
             }
             if (thisVal.members.rhs.v.state !== "UNINIT") {
-                _node_delete((thisVal.members.rhs as __dptr_node).v.pointee);
-                delete (thisVal.members.lhs.v as any).pointee;
-                (thisVal.members.lhs.v as any).lvHolder = "UNBOUND";
-                delete (thisVal.members as any).rhs;
+                _ptr_node_delete((thisVal.members.rhs as __dptr_node).v);
                 (thisVal as any).lvHolder = "UNBOUND";
             }
+        }
+
+        function _ptr_node_delete(thisVal: __dptr_node['v']): void {
+            _node_delete(thisVal.pointee);
+            delete (thisVal as any).pointee;
+            (thisVal as any).lvHolder = "UNBOUND";
         }
 
         // --
@@ -627,8 +627,181 @@ export = {
             return _createSetIterVar(_createSetIterType(thisVar.t.templateSpec));
         }
 
-        function _erase(rt: CRuntime, _thisVar: __set, _pos: __set_iter): __set_iter {
-            rt.raiseException("std::set<Key>::erase(): Not yet implemented");
+        function _erase(rt: CRuntime, thisVar: __set, pos: __set_iter): __set_iter {
+            const node: __node['v'] | null = variables.asInitDirectPointerPointee(pos.v.members.node);
+            if (node === null) {
+                return _end(thisVar);
+            }
+            let next = variables.clone(rt, pos, "SELF", false, true);
+            _iter_next(next);
+            let parent: __node['v'] | null = variables.asInitDirectPointerPointee(node.members.parent);
+            const lhs: __node['v'] | null = variables.asInitDirectPointerPointee(node.members.lhs);
+            const rhs: __node['v'] | null = variables.asInitDirectPointerPointee(node.members.rhs);
+            node.members.lhs.v.state = "UNINIT";
+            node.members.rhs.v.state = "UNINIT";
+            if (lhs !== null && rhs !== null) {
+                // if node->rhs exists, then the next node also exists.
+                const nextNode: __dptr_node = next.v.members.node as __dptr_node;
+                // swap
+                // safe since the lvHolder of both variables are SELF
+                const t = node.members.key;
+                node.members.key = nextNode.v.pointee.members.key;
+                nextNode.v.pointee.members.key = t;
+                variables.directPointerAssignValue(rt, node.members.lhs, lhs);
+                variables.directPointerAssignValue(rt, node.members.rhs, rhs);
+                return _erase(rt, thisVar, next);
+            } else if (lhs !== null && rhs === null) {
+                if (parent === null) {
+                    variables.directPointerAssignValue(rt, thisVar.v.members.root, lhs);
+                    lhs.members.parent.v.state = "UNINIT";
+                } else if (node === variables.asInitDirectPointerPointee(parent.members.lhs)) {
+                    variables.directPointerAssignValue(rt, parent.members.lhs, lhs);
+                    variables.directPointerAssignValue(rt, lhs.members.parent, parent);
+                } else {
+                    variables.directPointerAssignValue(rt, parent.members.rhs, lhs);
+                    variables.directPointerAssignValue(rt, lhs.members.parent, parent);
+                }
+                lhs.members.is_red.v.value = 0;
+                _node_delete(node);
+            } else if (lhs === null && rhs !== null) {
+                if (parent === null) {
+                    variables.directPointerAssignValue(rt, thisVar.v.members.root, rhs);
+                    rhs.members.parent.v.state = "UNINIT";
+                } else if (node === variables.asInitDirectPointerPointee(parent.members.lhs)) {
+                    variables.directPointerAssignValue(rt, parent.members.lhs, rhs);
+                    variables.directPointerAssignValue(rt, rhs.members.parent, parent);
+                } else {
+                    variables.directPointerAssignValue(rt, parent.members.rhs, rhs);
+                    variables.directPointerAssignValue(rt, rhs.members.parent, parent);
+                }
+                rhs.members.is_red.v.value = 0;
+                _node_delete(node);
+            } else if (parent === null) {
+                thisVar.v.members.root.v.state = "UNINIT";
+                _node_delete(node);
+            } else if (node.members.is_red.v.value === 1) {
+                if (node === variables.asInitDirectPointerPointee(parent.members.lhs)) {
+                    parent.members.lhs.v.state = "UNINIT";
+                } else {
+                    parent.members.rhs.v.state = "UNINIT";
+                }
+                _node_delete(node);
+            } else {
+                let dir_lhs: boolean = node === variables.asInitDirectPointerPointee(parent.members.lhs);
+                if (dir_lhs) {
+                    parent.members.lhs.v.state = "UNINIT";
+                } else {
+                    parent.members.rhs.v.state = "UNINIT";
+                }
+                _node_delete(node);
+                // rebalance
+                let c: number = 1;
+                let sibling: __node['v'];
+                let close_nephew: __node['v'] | null;
+                let distant_nephew: __node['v'] | null;
+                for (; ;) {
+                    if (dir_lhs) {
+                        // I just assume at this point
+                        sibling = (parent.members.rhs as __dptr_node).v.pointee;
+                        close_nephew = variables.asInitDirectPointerPointee(sibling.members.lhs);
+                        distant_nephew = variables.asInitDirectPointerPointee(sibling.members.rhs);
+                    } else {
+                        sibling = (parent.members.lhs as __dptr_node).v.pointee;
+                        close_nephew = variables.asInitDirectPointerPointee(sibling.members.rhs);
+                        distant_nephew = variables.asInitDirectPointerPointee(sibling.members.lhs);
+                    }
+                    if (sibling.members.is_red.v.value === 1) {
+                        // Case 3.
+                        const gp: __node['v'] | null = variables.asInitDirectPointerPointee(parent.members.parent);
+                        const p_ref: PointerVariable<__node> =
+                            (gp !== null) ? ((variables.asInitDirectPointerPointee(gp.members.lhs) === parent) ? gp.members.lhs : gp.members.rhs)
+                                : thisVar.v.members.root;
+                        if (dir_lhs) {
+                            _rotate_left(rt, parent, p_ref);
+                        } else {
+                            _rotate_right(rt, parent, p_ref);
+                        }
+                        parent.members.is_red.v.value = 1;
+                        sibling.members.is_red.v.value = 0;
+                        // I assume here as well
+                        sibling = close_nephew as __node['v'];
+                        distant_nephew = variables.asInitDirectPointerPointee((dir_lhs) ? sibling.members.rhs : sibling.members.lhs);
+                        close_nephew = variables.asInitDirectPointerPointee((dir_lhs) ? sibling.members.lhs : sibling.members.rhs);
+                        if (distant_nephew !== null && distant_nephew.members.is_red.v.value === 1) {
+                            // Case 6.
+                            c = 6;
+                            break;
+                        } else if (close_nephew !== null && close_nephew.members.is_red.v.value === 1) {
+                            // Case 5.
+                            c = 5;
+                            break;
+                        } else {
+                            // Case 4.
+                            c = 4;
+                            break;
+                        }
+                    }
+                    if (distant_nephew !== null && distant_nephew.members.is_red.v.value === 1) {
+                        // Case 6.
+                        c = 6;
+                        break;
+                    } else if (close_nephew !== null && close_nephew.members.is_red.v.value === 1) {
+                        // Case 5.
+                        c = 5;
+                        break;
+                    }
+                    if (parent.members.is_red.v.value === 1) {
+                        // Case 4.
+                        c = 4;
+                        break;
+                    }
+                    // Case 2.
+                    sibling.members.is_red.v.value = 1;
+                    const parent_parent: __node['v'] | null = variables.asInitDirectPointerPointee(parent.members.parent);
+                    if (parent_parent === null) {
+                        break;
+                    } else {
+                        dir_lhs = parent === variables.asInitDirectPointerPointee(parent_parent.members.lhs);
+                        parent = parent_parent;
+                    }
+                }
+                switch (c) {
+                    case 1:
+                        // pass
+                        break;
+                    case 4:
+                        sibling.members.is_red.v.value = 1;
+                        parent.members.is_red.v.value = 0;
+                        break;
+                    case 5:
+                        if (dir_lhs) {
+                            _rotate_right(rt, sibling, parent.members.rhs);
+                        } else {
+                            _rotate_left(rt, sibling, parent.members.lhs);
+                        }
+                        sibling.members.is_red.v.value = 1;
+                        // close_nephew is non-null if triggered Case 5.;
+                        (close_nephew as __node['v']).members.is_red.v.value = 0;
+                        distant_nephew = sibling;
+                        sibling = (close_nephew as __node['v']);
+                        break;
+                }
+                if (c === 5 || c === 6) {
+                    const gp: __node['v'] | null = variables.asInitDirectPointerPointee(parent.members.parent);
+                    const p_ref: PointerVariable<__node> =
+                        (gp !== null) ? ((variables.asInitDirectPointerPointee(gp.members.lhs) === parent) ? gp.members.lhs : gp.members.rhs)
+                            : thisVar.v.members.root;
+                    if (dir_lhs) {
+                        _rotate_left(rt, parent, p_ref);
+                    } else {
+                        _rotate_right(rt, parent, p_ref);
+                    }
+                    sibling.members.is_red.v.value = parent.members.is_red.v.value;
+                    parent.members.is_red.v.value = 0;
+                    (distant_nephew as __node['v']).members.is_red.v.value = 0;
+                }
+            }
+            return next;
         }
 
         // debug function
@@ -728,7 +901,7 @@ export = {
                     const firstTypeString = rt.makeTypeString(first.t);
                     const setValueTypeString = rt.makeTypeString(thisVar.t.templateSpec[0]);
                     while (!(yield* common.invokeCmp(rt, eqFunc, first, last))) {
-                        const derefObject = yield *common.invokeDeref(rt, firstTypeString, derefFunc, first);
+                        const derefObject = yield* common.invokeDeref(rt, firstTypeString, derefFunc, first);
                         if (!variables.typesEqual(derefObject.t, thisVar.t.templateSpec[0])) {
                             rt.raiseException(`set<${setValueTypeString}>::insert(): Expected type of (*first) to be ${setValueTypeString}, got ${rt.makeTypeString(derefObject.t)}`);
                         }
@@ -762,16 +935,18 @@ export = {
                 }
             },
             {
+                op: "erase",
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > ?0 )",
+                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, key: Variable): Gen<__set_iter> {
+                    const pos = yield* _find(rt, thisVar, key);
+                    return _erase(rt, thisVar, pos);
+                }
+            },
+            {
                 op: "find",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS set < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
-                    const setVar = args[0] as __set;
-                    const value = args[1];
-                    const found = _find(rt, setVar, value);
-                    if (found !== null) {
-                        return found;
-                    }
-                    return _end(setVar);
+                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, key: Variable): Gen<__set_iter> {
+                    return yield* _find(rt, thisVar, key);
                 }
             },
             {
