@@ -1712,6 +1712,9 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const ret = yield* interp.visit(interp, s.Expression, param);
+                if (ret === "VOID") {
+                    rt.raiseException("Unary expression error: Expected expression of non-void return type");
+                }
                 const r = rt.invokeCall(rt.getOpByParams("{global}", `o(${s.op}_)` as OpSignature, [ret], []), [], ret);
                 if (isGenerator(r)) {
                     return yield* r as Generator;

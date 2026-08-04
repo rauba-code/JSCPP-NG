@@ -662,6 +662,7 @@ export = {
                     variables.directPointerAssignValue(rt, lhs.members.parent, parent);
                 }
                 lhs.members.is_red.v.value = 0;
+                thisVar.v.members._size.v.value--;
                 _node_delete(node);
             } else if (lhs === null && rhs !== null) {
                 if (parent === null) {
@@ -675,9 +676,11 @@ export = {
                     variables.directPointerAssignValue(rt, rhs.members.parent, parent);
                 }
                 rhs.members.is_red.v.value = 0;
+                thisVar.v.members._size.v.value--;
                 _node_delete(node);
             } else if (parent === null) {
                 thisVar.v.members.root.v.state = "UNINIT";
+                thisVar.v.members._size.v.value--;
                 _node_delete(node);
             } else if (node.members.is_red.v.value === 1) {
                 if (node === variables.asInitDirectPointerPointee(parent.members.lhs)) {
@@ -685,6 +688,7 @@ export = {
                 } else {
                     parent.members.rhs.v.state = "UNINIT";
                 }
+                thisVar.v.members._size.v.value--;
                 _node_delete(node);
             } else {
                 let dir_lhs: boolean = node === variables.asInitDirectPointerPointee(parent.members.lhs);
@@ -693,6 +697,7 @@ export = {
                 } else {
                     parent.members.rhs.v.state = "UNINIT";
                 }
+                thisVar.v.members._size.v.value--;
                 _node_delete(node);
                 // rebalance
                 let c: number = 1;

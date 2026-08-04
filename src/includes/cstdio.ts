@@ -352,12 +352,11 @@ export = {
                 op: "puts",
                 default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
                     const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
-                    const str = rt.getStringFromCharArray(l);
+                    const str = rt.getStringFromCharArray(l) + "\n";
                     const stdio = rt.stdio();
                     stdio.write(str);
                     return variables.arithmeticNum("I32", 0, null);
                 }
-
             },
             {
                 type: "FUNCTION I32 ( PTR I8 PTR I8 FunctionParamOrEnd",
