@@ -1289,12 +1289,6 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (!variables.typesEqual(beginVar.t, endVar.t)) {
                     rt.raiseException(`Range-based-for statement error: Incompatible types between begin-expression '${rt.makeTypeStringOfVar(beginVar)}' and end-expression '${rt.makeTypeStringOfVar(endVar)}'${printTypes()}`);
                 }
-                const derefInst = rt.getOpByParams("{global}", "o(*_)", [beginVar], []);
-                const derefTestYield = rt.invokeCall(derefInst, [], beginVar);
-                const derefTestVar = asResult(derefTestYield) ?? (yield* derefTestYield as Gen<MaybeUnboundVariable | "VOID">);
-                if (derefTestVar === "VOID") {
-                    rt.raiseException("Range-based-for statement error: Expected *x (given x of type ElementHandlerType) to be a variable, got void" + printTypes());
-                }
                 const ppInst = rt.getOpByParams("{global}", "o(++_)", [beginVar], []);
                 const neqInst = rt.getOpByParams("{global}", "o(_!=_)", [beginVar, beginVar], []);
                 const neqTestYield = rt.invokeCall(neqInst, [], beginVar, beginVar);
@@ -1304,6 +1298,19 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 if (neqTestVar.t.sig !== "BOOL") {
                     rt.raiseException(`Range-based-for statement error: Expected result of operator == between ElementHandlerType types to have a boolean type, got ${rt.makeTypeString(neqTestVar.t)}${printTypes()}`);
+                }
+                const neqYield0 = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticNumVariable>;
+                const neqVar0 = asResult(neqYield0) ?? (yield* neqYield0 as Gen<ArithmeticNumVariable>);
+                if (rt.arithmeticValue(neqVar0) === 0) {
+                    rt.exitScope(param.scope);
+                    param.scope = scope_bak;
+                    return return_val;
+                }
+                const derefInst = rt.getOpByParams("{global}", "o(*_)", [beginVar], []);
+                const derefTestYield = rt.invokeCall(derefInst, [], beginVar);
+                const derefTestVar = asResult(derefTestYield) ?? (yield* derefTestYield as Gen<MaybeUnboundVariable | "VOID">);
+                if (derefTestVar === "VOID") {
+                    rt.raiseException("Range-based-for statement error: Expected *x (given x of type ElementHandlerType) to be a variable, got void" + printTypes());
                 }
 
                 while (true) {

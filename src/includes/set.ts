@@ -2,7 +2,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
-import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, InitDirectPointerVariable, InitArithmeticBigVariable } from "../variables";
+import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, InitDirectPointerVariable, InitArithmeticBigVariable, LValueHolder } from "../variables";
 
 
 interface SetNodeType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
@@ -318,15 +318,36 @@ export = {
         // -- set
         // --
 
-        const setSig = "!ParamObject CLASS set < ?0 >".split(" ");
-        rt.defineStruct2("{global}", "set", {
-            numTemplateArgs: 1, factory: (dataItem: SetType<ObjectType>) => {
-                return {
-                    root: variables.uninitPointer(_createSetNodeType(dataItem.templateSpec), null, "SELF"),
-                    _size: variables.arithmeticBig("U64", BigInt(0), "SELF"),
-                }
+        /*function _createSetType(templateSpec: [ObjectType]): __set['t'] {
+            return {
+                sig: "CLASS",
+                identifier: "set",
+                memberOf: null,
+                templateSpec
+            };
+        }*/
+
+        function _createSetMembers(setType: SetType<ObjectType>): __set['v']['members'] {
+            return {
+                root: variables.uninitPointer(_createSetNodeType(setType.templateSpec), null, "SELF") as PointerVariable<__node>,
+                _size: variables.arithmeticBig("U64", BigInt(0), "SELF"),
             }
-        }, ["_data", "_sz", "_cap"], {
+        }
+
+        function _createSetVar(setType: SetType<ObjectType>, lvHolder: LValueHolder<__set>): __set {
+            return {
+                t: setType,
+                v: {
+                    isConst: false,
+                    lvHolder,
+                    state: "INIT",
+                    members: _createSetMembers(setType)
+                }
+            };
+        }
+
+        const setSig = "!ParamObject CLASS set < ?0 >".split(" ");
+        rt.defineStruct2("{global}", "set", { numTemplateArgs: 1, factory: _createSetMembers }, ["_data", "_sz", "_cap"], {
             ["key_type"]: [{ src: setSig, dst: ["?0"] }],
             ["value_type"]: [{ src: setSig, dst: ["?0"] }],
             ["iterator"]: [{ src: setSig, dst: ["CLASS", "set_iterator", "<", "?0", ">"] }], // implementation-dependent
@@ -340,14 +361,13 @@ export = {
         const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS set < ?0 > ( CLASS initializer_list < ?0 > )",
-            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<Variable>): Gen<__set> {
-                const thisType = variables.classType("set", list.t.templateSpec, null);
-                const setVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<__set>;
+            *default(rt: CRuntime, templateTypes: [__set['t']], list: InitializerListVariable<Variable>): Gen<__set> {
+                const setVar = _createSetVar(templateTypes[0], null);
                 const listmem = list.v.members._values.v.pointee;
 
                 for (let i = 0; i < listmem.values.length; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable);
-                    _insert(rt, setVar, currentValue);
+                    yield* _insert(rt, setVar, currentValue);
                 }
 
                 return setVar;
@@ -357,7 +377,7 @@ export = {
         const ctorHandler2: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS set < ?0 > ( PTR ?0 PTR ?0 )",
-            *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<__set> {
+            *default(rt: CRuntime, templateTypes: [__set['t']], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<__set> {
                 const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("set constructor: expected valid begin iterator");
                 const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("set constructor: expected valid end iterator");
 
@@ -365,13 +385,11 @@ export = {
                     rt.raiseException("set constructor: iterators must point to same memory region");
                 }
 
-                const elementType = begin.v.pointee.objectType;
-                const thisType = variables.classType("set", [elementType], null);
-                const setVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<__set>;
+                const setVar = _createSetVar(templateTypes[0], null);
 
                 for (let i = begin.v.index; i < end.v.index; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(begin.v.pointee, i) as MaybeUnboundVariable);
-                    _insert(rt, setVar, currentValue);
+                    yield* _insert(rt, setVar, currentValue);
                 }
 
                 return setVar;
@@ -874,7 +892,7 @@ export = {
 
         // debug function
         common.regGlobalFuncs(rt, [{
-            op: "_set_int_print_tree",
+            op: "_print",
             type: "FUNCTION VOID ( CLREF CLASS set < I32 > )",
             default(rt: CRuntime, _templateTypes: ObjectType[], set: SetVariable<InitArithmeticNumVariable>): "VOID" {
                 const stdio = rt.stdio();

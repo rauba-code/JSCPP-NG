@@ -365,17 +365,22 @@ export class CRuntime {
                             if (!variables.typesEqual(beginVar.t, endVar.t)) {
                                 return null;
                             }
-                            const derefInst = rt.getOpByParams("{global}", "o(*_)", [beginVar], []);
-                            const derefTestYield = rt.invokeCall(derefInst, [], beginVar);
-                            const derefTestVar = yieldBlocking(rt, derefTestYield);
-                            if (derefTestVar === null) {
-                                return null;
-                            }
                             const ppInst = rt.getOpByParams("{global}", "o(++_)", [beginVar], []);
                             const neqInst = rt.getOpByParams("{global}", "o(_!=_)", [beginVar, beginVar], []);
                             const neqTestYield = rt.invokeCall(neqInst, [], beginVar, beginVar);
                             const neqTestVar = yieldBlocking(rt, neqTestYield);
                             if (neqTestVar === null || neqTestVar.t.sig !== "BOOL") {
+                                return null;
+                            }
+                            const neqYield0 = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
+                            const neqVar0 = yieldBlocking(rt, neqYield0);
+                            if (rt.arithmeticValue(neqVar0 as ArithmeticVariable) === 0) {
+                                return [];
+                            }
+                            const derefInst = rt.getOpByParams("{global}", "o(*_)", [beginVar], []);
+                            const derefTestYield = rt.invokeCall(derefInst, [], beginVar);
+                            const derefTestVar = yieldBlocking(rt, derefTestYield);
+                            if (derefTestVar === null) {
                                 return null;
                             }
                             let resultList: MaybeUnboundVariable[] = [];
