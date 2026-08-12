@@ -270,7 +270,7 @@ export = {
             }
         ];
         for (const umapIteratorCtor of umapIteratorCtorList) {
-            rt.regFunc(umapIteratorCtor.default, variables.classType("unordered_map_iterator", [], null), umapIteratorCtor.op, rt.typeSignature(umapIteratorCtor.type), [-1]);
+            rt.regFunc(umapIteratorCtor.default, variables.classType("unordered_map_iterator", [], null), umapIteratorCtor.op, rt.typeSignature(umapIteratorCtor.type), [-1], null);
         }
         common.regOps(rt, [
             {
@@ -379,7 +379,7 @@ export = {
             },
         ];
         for (const umapBranchCtor of umapBranchCtorList) {
-            rt.regFunc(umapBranchCtor.default, variables.classType("unordered_map_branch_node", [], null), umapBranchCtor.op, rt.typeSignature(umapBranchCtor.type), [-1]);
+            rt.regFunc(umapBranchCtor.default, variables.classType("unordered_map_branch_node", [], null), umapBranchCtor.op, rt.typeSignature(umapBranchCtor.type), [-1], null);
         }
 
         // ---
@@ -419,7 +419,7 @@ export = {
             },
         ];
         for (const umapLinkCtor of umapLinkCtorList) {
-            rt.regFunc(umapLinkCtor.default, variables.classType("unordered_map_link_node", [], null), umapLinkCtor.op, rt.typeSignature(umapLinkCtor.type), [-1]);
+            rt.regFunc(umapLinkCtor.default, variables.classType("unordered_map_link_node", [], null), umapLinkCtor.op, rt.typeSignature(umapLinkCtor.type), [-1], null);
         }
 
         // ---
@@ -482,7 +482,7 @@ export = {
             }
         ];
         for (const umapCtor of umapCtorList) {
-            rt.regFunc(umapCtor.default, variables.classType("unordered_map", [], null), umapCtor.op, rt.typeSignature(umapCtor.type), [-1]);
+            rt.regFunc(umapCtor.default, variables.classType("unordered_map", [], null), umapCtor.op, rt.typeSignature(umapCtor.type), [-1], null);
         }
 
         /*const ctorHandler2: common.OpHandler = {

@@ -89,59 +89,65 @@ export = {
             }
             return mini;
         }
+        type IterSymbols = {
+            neq: FunctionCallInstance,
+            pp: FunctionCallInstance,
+            deref: FunctionCallInstance,
+        };
+        function getIterSymbols(first: Variable, last: Variable): IterSymbols {
+            // there is a reason behind postfix increment
+            return {
+                neq: rt.getOpByParams("{global}", "o(_!=_)", [first, last], []),
+                pp: rt.getOpByParams("{global}", "o(_++)", [first], []),
+                deref: rt.getOpByParams("{global}", "o(*_)", [first], []),
+            };
+        }
         function* set_operation(rt: CRuntime,
-            first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-            first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
-            d_first: Variable, _ltFun: FunctionCallInstance | PointerVariable<Function>, behaviour: { a: boolean, b: boolean, ab: boolean }): Gen<Variable> {
+            first1: Variable, last1: Variable,
+            first2: Variable, last2: Variable,
+            d_first: Variable, _ltFun: PointerVariable<Function> | null, behaviour: { a: boolean, b: boolean, ab: boolean }): Gen<Variable> {
+            const iter1 = getIterSymbols(first1, last1);
+            const iter2 = getIterSymbols(first2, last2);
+            const d_pp = rt.getOpByParams("{global}", "o(++_)", [d_first], []);
 
-            const ppInst = rt.getOpByParams("{global}", "o(_++)", [d_first], []);
-
-            const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
-            const l1 = variables.asInitIndexPointer(last1) ?? rt.raiseException("set_intersection: expected valid last1 iterator");
-            const f2 = variables.asInitIndexPointer(first2) ?? rt.raiseException("set_intersection: expected valid first2 iterator");
-            const l2 = variables.asInitIndexPointer(last2) ?? rt.raiseException("set_intersection: expected valid last2 iterator");
-
-            if (f1.v.pointee !== l1.v.pointee) {
-                rt.raiseException("set_intersection: first1 and last1 must point to same memory region");
-            }
-            if (f2.v.pointee !== l2.v.pointee) {
-                rt.raiseException("set_intersection: first2 and last2 must point to same memory region");
-            }
-
-            const ltFun: FunctionCallInstance | InitDirectPointerVariable<Function> = ("t" in _ltFun)
+            let ltFun: InitDirectPointerVariable<Function> | FunctionCallInstance | null = (_ltFun !== null)
                 ? variables.asInitDirectPointer(_ltFun) as InitDirectPointerVariable<Function>
                 ?? rt.raiseException("set_intersection: expected a pointer to a function")
-                : _ltFun;
+                : null;
 
-            function* advanceOutput(elem: Variable) {
-                debugger;
-                const ppYield = rt.invokeCall(ppInst, [], d_first);
-                const ppResultOrVoid = asResult(ppYield) ?? (yield* ppYield as Gen<MaybeUnboundVariable | "VOID">);
-                if (ppResultOrVoid === "VOID") {
-                    const typeOfFirst = rt.makeTypeStringOfVar(d_first);
-                    rt.raiseException(`set_intersection(): expected '${typeOfFirst}::operator++' to return an object, got void`);
+            const fname = "set_intersection";
+
+            let d_derefInst: FunctionCallInstance | null = null;
+            let setInst: FunctionCallInstance | null = null;
+
+            function* advanceOutput(iter: Variable, iterSym: IterSymbols) {
+                const ppResult = yield* common.invokePp(rt, fname, d_pp, d_first);
+                if (d_derefInst === null) {
+                    d_derefInst = rt.getOpByParams("{global}", "o(*_)", [ppResult], []);
                 }
-                const ppResult: Variable = rt.unbound(ppResultOrVoid);
-                const derefInst = rt.getOpByParams("{global}", "o(*_)", [ppResult], []);
-                const derefYield = rt.invokeCall(derefInst, [], ppResult);
-                const derefResultOrVoid = asResult(derefYield) ?? (yield* derefYield as Gen<MaybeUnboundVariable | "VOID">);
-                if (derefResultOrVoid === "VOID") {
+                const d_derefYield = rt.invokeCall(d_derefInst, [], ppResult);
+                const d_derefResultOrVoid = asResult(d_derefYield) ?? (yield* d_derefYield as Gen<MaybeUnboundVariable | "VOID">);
+                if (d_derefResultOrVoid === "VOID") {
                     const typeOfPpResult = rt.makeTypeStringOfVar(ppResult);
                     rt.raiseException(`set_intersection(): expected '${typeOfPpResult}::operator*' to return an object, got void`);
                 }
-                const derefResult: Variable = rt.unbound(derefResultOrVoid);
-                const setInst = rt.getOpByParams("{global}", "o(_=_)", [derefResult, elem], []);
-                const setYield = rt.invokeCall(setInst, [], derefResult, elem);
-                const setResultOrVoid = asResult(setYield) ?? (yield* setYield as Gen<MaybeUnboundVariable | "VOID">);
-                if (setResultOrVoid === "VOID") {
-                    const typeOfDerefResult = rt.makeTypeStringOfVar(derefResult);
-                    rt.raiseException(`set_intersection(): expected '${typeOfDerefResult}::operator*' to return an object, got void`);
+                const d_derefResult: Variable = rt.unbound(d_derefResultOrVoid);
+                const iter_derefResult: Variable = yield* common.invokeDeref(rt, fname, iterSym.deref, iter);
+
+                if (setInst === null) {
+                    setInst = rt.getOpByParams("{global}", "o(_=_)", [d_derefResult, iter_derefResult], []);
                 }
+                yield* common.invokeSet(rt, fname, setInst, d_derefResult, iter_derefResult);
             }
 
-            while (f1.v.index < l1.v.index && f2.v.index < l2.v.index) {
-                const elem1 = rt.unbound(variables.arrayMember(f1.v.pointee, f1.v.index) as MaybeUnboundVariable);
-                const elem2 = rt.unbound(variables.arrayMember(f2.v.pointee, f2.v.index) as MaybeUnboundVariable);
+            while ((yield* common.invokeCmp(rt, iter1.neq, first1, last1)) && (yield* common.invokeCmp(rt, iter2.neq, first2, last2))) {
+
+                const elem1 = yield* common.invokeDeref(rt, fname, iter1.deref, first1);
+                const elem2 = yield* common.invokeDeref(rt, fname, iter2.deref, first2);
+
+                if (ltFun === null) {
+                    ltFun = rt.getOpByParams("{global}", "o(_<_)", [elem1, elem2], []);
+                }
 
                 const cmp1Yield = ("t" in ltFun)
                     ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem1, elem2) as ResultOrGen<ArithmeticVariable>
@@ -150,9 +156,9 @@ export = {
 
                 if (cmp1Result !== 0) {
                     if (behaviour.a) {
-                        yield* advanceOutput(elem1)
+                        yield* advanceOutput(first1, iter1)
                     }
-                    f1.v.index++;
+                    yield* common.invokePp(rt, fname, iter1.pp, first1);
                 } else {
                     const cmp2Yield = ("t" in ltFun)
                         ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem2, elem1) as ResultOrGen<ArithmeticVariable>
@@ -162,63 +168,58 @@ export = {
                     if (cmp2Result === 0) {
                         // A & B
                         if (behaviour.ab) {
-                            yield* advanceOutput(elem1)
+                            yield* advanceOutput(first1, iter1);
                         }
-                        f1.v.index++;
+                        yield* common.invokePp(rt, fname, iter1.pp, first1);
                     } else {
                         // B
                         if (behaviour.b) {
-                            yield* advanceOutput(elem2)
+                            yield* advanceOutput(first2, iter1);
                         }
                     }
-                    f2.v.index++;
+                    yield* common.invokePp(rt, fname, iter2.pp, first2);
                 }
             }
-            while (f1.v.index < l1.v.index) {
-                const elem = rt.unbound(variables.arrayMember(f1.v.pointee, f1.v.index) as MaybeUnboundVariable);
+            while (yield* common.invokeCmp(rt, iter1.neq, first1, last1)) {
                 // A
                 if (behaviour.a) {
-                    yield* advanceOutput(elem)
+                    yield* advanceOutput(first1, iter1);
                 }
-                f1.v.index++;
+                yield* common.invokePp(rt, fname, iter1.pp, first1);
             }
-            while (f2.v.index < l2.v.index) {
-                const elem = rt.unbound(variables.arrayMember(f2.v.pointee, f2.v.index) as MaybeUnboundVariable);
+            while (yield* common.invokeCmp(rt, iter2.neq, first2, last2)) {
                 // B
                 if (behaviour.b) {
-                    yield* advanceOutput(elem)
+                    yield* advanceOutput(first2, iter2);
                 }
-                f2.v.index++;
+                yield* common.invokePp(rt, fname, iter2.pp, first2);
             }
 
             return d_first;
         }
         function* set_includes(rt: CRuntime,
-            first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-            first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
-            _ltFun: FunctionCallInstance | PointerVariable<Function>): Gen<InitArithmeticVariable> {
+            first1: Variable, last1: Variable,
+            first2: Variable, last2: Variable,
+            _ltFun: PointerVariable<Function> | null): Gen<InitArithmeticVariable> {
 
-            const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
-            const l1 = variables.asInitIndexPointer(last1) ?? rt.raiseException("set_intersection: expected valid last1 iterator");
-            const f2 = variables.asInitIndexPointer(first2) ?? rt.raiseException("set_intersection: expected valid first2 iterator");
-            const l2 = variables.asInitIndexPointer(last2) ?? rt.raiseException("set_intersection: expected valid last2 iterator");
+            const iter1 = getIterSymbols(first1, last1);
+            const iter2 = getIterSymbols(first2, last2);
 
-            if (f1.v.pointee !== l1.v.pointee) {
-                rt.raiseException("set_intersection: first1 and last1 must point to same memory region");
-            }
-            if (f2.v.pointee !== l2.v.pointee) {
-                rt.raiseException("set_intersection: first2 and last2 must point to same memory region");
-            }
+            const fname = "set_includes";
 
-            const ltFun: FunctionCallInstance | InitDirectPointerVariable<Function> = ("t" in _ltFun)
+            let ltFun: FunctionCallInstance | InitDirectPointerVariable<Function> | null = (_ltFun !== null)
                 ? variables.asInitDirectPointer(_ltFun) as InitDirectPointerVariable<Function>
                 ?? rt.raiseException("set_intersection: expected a pointer to a function")
-                : _ltFun;
+                : null;
             let retv: boolean = true;
 
-            while (f1.v.index < l1.v.index && f2.v.index < l2.v.index) {
-                const elem1 = rt.unbound(variables.arrayMember(f1.v.pointee, f1.v.index) as MaybeUnboundVariable);
-                const elem2 = rt.unbound(variables.arrayMember(f2.v.pointee, f2.v.index) as MaybeUnboundVariable);
+            while ((yield* common.invokeCmp(rt, iter1.neq, first1, last1)) && (yield* common.invokeCmp(rt, iter2.neq, first2, last2))) {
+                const elem1 = yield* common.invokeDeref(rt, fname, iter1.deref, first1);
+                const elem2 = yield* common.invokeDeref(rt, fname, iter2.deref, first2);
+
+                if (ltFun === null) {
+                    ltFun = rt.getOpByParams("{global}", "o(_<_)", [elem1, elem2], []);
+                }
 
                 const cmp1Yield = ("t" in ltFun)
                     ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem1, elem2) as ResultOrGen<ArithmeticVariable>
@@ -227,7 +228,7 @@ export = {
 
                 if (cmp1Result !== 0) {
                     // A
-                    f1.v.index++;
+                    yield* common.invokePp(rt, fname, iter1.pp, first1);
                 } else {
                     const cmp2Yield = ("t" in ltFun)
                         ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem2, elem1) as ResultOrGen<ArithmeticVariable>
@@ -236,16 +237,16 @@ export = {
 
                     if (cmp2Result === 0) {
                         // A & B
-                        f1.v.index++;
+                        yield* common.invokePp(rt, fname, iter1.pp, first1);
                     } else {
                         // B
                         retv = false;
                         break;
                     }
-                    f2.v.index++;
+                    yield* common.invokePp(rt, fname, iter2.pp, first2);
                 }
             }
-            if (f2.v.index < l2.v.index) {
+            if (yield* common.invokeCmp(rt, iter2.neq, first2, last2)) {
                 // B
                 retv = false;
             }
@@ -428,115 +429,99 @@ export = {
             },
             {
                 op: "set_intersection",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject )",
+                type: "!ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
                     d_first: Variable): Gen<Variable> {
-                    const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
-                    const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
-                    const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, { a: false, b: false, ab: true });
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, null, { a: false, b: false, ab: true });
                 }
             },
             {
                 op: "set_intersection",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 PTR FUNCTION BOOL ( ?3 ?3 ) )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
-                    d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
+                    d_first: Variable, comp: PointerVariable<Function>): Gen<Variable> {
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: false, b: false, ab: true });
                 }
             },
             {
                 op: "set_union",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject )",
+                type: "!ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
                     d_first: Variable): Gen<Variable> {
-                    const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
-                    const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
-                    const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, { a: true, b: true, ab: true });
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, null, { a: true, b: true, ab: true });
                 }
             },
             {
                 op: "set_union",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 PTR FUNCTION BOOL ( ?3 ?3 ) )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
-                    d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
+                    d_first: Variable, comp: PointerVariable<Function>): Gen<Variable> {
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: true, ab: true });
                 }
             },
             {
                 op: "set_difference",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject )",
+                type: "!ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
                     d_first: Variable): Gen<Variable> {
-                    const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
-                    const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
-                    const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, { a: true, b: false, ab: false });
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, null, { a: true, b: false, ab: false });
                 }
             },
             {
                 op: "set_difference",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 PTR FUNCTION BOOL ( ?3 ?3 ) )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
-                    d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
+                    d_first: Variable, comp: PointerVariable<Function>): Gen<Variable> {
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: false, ab: false });
                 }
             },
             {
                 op: "set_symmetric_difference",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject )",
+                type: "!ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
                     d_first: Variable): Gen<Variable> {
-                    const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
-                    const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
-                    const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, ltFun, { a: true, b: true, ab: false });
+                    return yield* set_operation(rt, first1, last1, first2, last2, d_first, null, { a: true, b: true, ab: false });
                 }
             },
             {
                 op: "set_symmetric_difference",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 ParamObject PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 PTR FUNCTION BOOL ( ?3 ?3 ) )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
-                    d_first: PointerVariable<PointeeVariable>, comp: PointerVariable<Function>): Gen<Variable> {
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
+                    d_first: Variable, comp: PointerVariable<Function>): Gen<Variable> {
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: true, ab: false });
                 }
             },
             {
                 op: "includes",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 )",
+                type: "!ParamObject FUNCTION ?0 ( ?0 ?0 ?0 ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>): Gen<InitArithmeticVariable> {
-                    const f1 = variables.asInitIndexPointer(first1) ?? rt.raiseException("set_intersection: expected valid first1 iterator");
-                    const clref_t: MaybeLeftCV<ObjectType> = { t: f1.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
-                    const ltFun = rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], []);
-                    return yield* set_includes(rt, first1, last1, first2, last2, ltFun);
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable): Gen<InitArithmeticVariable> {
+                    return yield* set_includes(rt, first1, last1, first2, last2, null);
                 }
             },
             {
                 op: "includes",
-                type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
+                type: "!ParamObject !ParamObject FUNCTION ?0 ( ?0 ?0 ?0 ?0 PTR FUNCTION BOOL ( ?1 ?1 ) )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: PointerVariable<PointeeVariable>, last1: PointerVariable<PointeeVariable>,
-                    first2: PointerVariable<PointeeVariable>, last2: PointerVariable<PointeeVariable>,
+                    first1: Variable, last1: Variable,
+                    first2: Variable, last2: Variable,
                     comp: PointerVariable<Function>): Gen<InitArithmeticVariable> {
                     return yield* set_includes(rt, first1, last1, first2, last2, comp);
                 }

@@ -62,7 +62,7 @@ export = {
         };
 
         rt.explicitListInitTable["array"] = (arr: ArrayType<ObjectType, number>) => arr.templateSpec[0];
-        rt.regFunc(ctorHandler.default, variables.classType("array", [], null), ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
+        rt.regFunc(ctorHandler.default, variables.classType("array", [], null), ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1], null);
 
         common.regOps(rt, [
             {

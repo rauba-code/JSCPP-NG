@@ -1,6 +1,6 @@
 import * as interp from "./interpreter";
 import { AbstractVariable, AnyType, ArithmeticBigSig, ArithmeticBigType, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumType, ArithmeticNumValue, ArithmeticNumVariable, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, UnboundValue, Variable, variables } from "./variables";
-import { TypeDB, FunctionMatchResult, abstractFunctionReturnSig } from "./typedb";
+import { TypeLookup, FunctionMatchResult, abstractFunctionReturnSig } from "./typelookup";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
 import * as typecheck from './typecheck';
@@ -124,7 +124,7 @@ export interface FunctionSymbol {
 
 
 export type TypeHandlerMap = {
-    functionDB: TypeDB;
+    functionDB: TypeLookup;
     functionsByID: FunctionSymbol[];
     memberObjectListCreator: MemberObjectListCreator;
     dataMemberNames: string[]
@@ -510,7 +510,7 @@ export class CRuntime {
             this.raiseException(`Domain ${domain} already exists`);
         }
         this.typeMap[domain] = {
-            functionDB: new TypeDB(this.parser),
+            functionDB: new TypeLookup(this.parser),
             functionsByID: [],
             memberObjectListCreator: memberList,
             dataMemberNames,
@@ -605,7 +605,7 @@ export class CRuntime {
         return { inline: array.join(" "), array };
     };
 
-    /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeDB-associated functions */
+    /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeLookup-associated functions */
     createFunctionTypeSignature(domain: ClassType | "{global}" | "{lambda}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], noThis = false): TypeSignature {
         const thisSig: string[] = (typeof domain === "string" || noThis) ? [] : variables.toStringSequence(this, domain, true, false);
         const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(this, retType.t, retType.v.lvHolder !== null, false);
@@ -674,7 +674,7 @@ export class CRuntime {
                 };
             }
             const fnsig = this.createFunctionTypeSignature(domain, retType, argTypes);
-            this.regFunc(f, domain, name, fnsig, []);
+            this.regFunc(f, domain, name, fnsig, [], null);
             if (optionalArgs.length === 0) {
                 return;
             }
@@ -898,7 +898,7 @@ export class CRuntime {
         return seq.reverse().join(".");
     }
 
-    regFunc(f: CFunction | null, domain: ClassType | "{global}" | "{lambda}", name: string, fnsig: TypeSignature, templateTypes: number[]): void {
+    regFunc(f: CFunction | null, domain: ClassType | "{global}" | "{lambda}", name: string, fnsig: TypeSignature, templateTypes: number[], isOverloadOf: string | null): void {
         const domainInlineSig: string = this.domainString(domain);
         if (!(domainInlineSig in this.typeMap)) {
             this.raiseException(`type '${fnsig.inline}' is unknown`);
@@ -927,7 +927,7 @@ export class CRuntime {
                     }
                 }
             }
-            domainMap.functionDB.addFunctionOverload(this, name, fnsig.array, templateTypes, domainMap.functionsByID.length);
+            domainMap.functionDB.addFunctionOverload(this, name, fnsig.array, templateTypes, domainMap.functionsByID.length, isOverloadOf);
             domainMap.functionsByID.push({ type: fnsig.array, target: f });
             if (name === "o(_ctor)" && typeof domain !== "string") {
                 const dstTypeInline = variables.toStringSequence(this, domain, false, false).join(" ");
@@ -1536,7 +1536,7 @@ export class CRuntime {
         const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
             return variables.clone(rt, stubClass, null, false);
-        }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
+        }, classType, "o(_stub)", stubCtorTypeSig, [-1], null);
     };
 
     defineStruct2(domain: ClassType | "{global}", identifier: string, memberList: MemberObjectListCreator, dataMemberNames: string[], memberTypes: { [identifier: string]: typecheck.MemberTypeInfo[] }, displayFunction: ((rt: CRuntime, x: ClassVariable) => string) | null = null) {
@@ -1570,7 +1570,7 @@ export class CRuntime {
             const memList: { [member: string]: Variable } = interp.asResult(memListYield) ?? (yield* memListYield as Gen<MemberMap>);
             Object.entries(memList).forEach(([member, memvar]) => { members[member] = memvar });
             return variables.class(variables.classType(identifier, templateArgs[0].templateSpec, domain === "{global}" ? null : domain), members, null);
-        }, classType, "o(_stub)", stubCtorTypeSig, [-1]);
+        }, classType, "o(_stub)", stubCtorTypeSig, [-1], null);
     };
 
     detectWideCharacters(str: string): boolean {

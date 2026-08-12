@@ -99,7 +99,7 @@ export = {
         const insertIteratorType = variables.classType("insert_iterator", [], null);
         //const backInsertIteratorType = variables.classType("back_insert_iterator", [], null);
 
-        rt.regFunc(insertIteratorCtorHandler.default, insertIteratorType, insertIteratorCtorHandler.op, rt.typeSignature(insertIteratorCtorHandler.type), [-1]);
+        rt.regFunc(insertIteratorCtorHandler.default, insertIteratorType, insertIteratorCtorHandler.op, rt.typeSignature(insertIteratorCtorHandler.type), [-1], null);
         //rt.regFunc(backInsertIteratorCtorHandler.default, backInsertIteratorType, backInsertIteratorCtorHandler.op, rt.typeSignature(backInsertIteratorCtorHandler.type), [-1]);
 
         // Assignment operators

@@ -535,6 +535,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_=_)",
         type: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
         default(rt, _templateType: [], l: ClassVariable, r: ClassVariable): ClassVariable {
+            // This function can be overloaded
             Object.entries(r.v.members).map(([k, v]) => l.v.members[k] = variables.clone(rt, v, "SELF", false, true));
             return l;
         }
@@ -658,6 +659,6 @@ export function addDefaultOperations(rt: CRuntime): void {
     initializerListInit(rt);
 
     defaultOpHandler.forEach((x: OpHandler) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), []);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), [], null);
     })
 }

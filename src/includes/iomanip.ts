@@ -52,7 +52,7 @@ function overloadIomanip(rt: CRuntime, structName: string) {
     }];
 
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), []);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), [], null);
     });
 
 }
@@ -122,7 +122,7 @@ function overloadIomanipInput(rt: CRuntime, structName: string) {
     }];
 
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), []);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), [], null);
     });
 }
 
@@ -187,7 +187,7 @@ export = {
         ]
 
         funHandlers.forEach((x) => {
-            rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), []);
+            rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), [], null);
         });
 
         ["fixed", "scientific", "hexfloat", "defaultfloat", "left", "right", "internal", "boolalpha", "noboolalpha", "noskipws", "skipws"].forEach((x: keyof typeof iomanip_token_mode) => {

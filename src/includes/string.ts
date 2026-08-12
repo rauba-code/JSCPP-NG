@@ -83,7 +83,8 @@ export = {
                     variables.indexPointerAssign(rt, l.v.members._ptr, rptr.v.pointee, rptr.v.index);
 
                     return l;
-                }
+                },
+                isOverloadOf: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
             },
             ...cmpOverloads("o(_==_)", (x) => x == 0),
             ...cmpOverloads("o(_!=_)", (x) => x != 0),
@@ -213,7 +214,7 @@ export = {
             }
         ];
         for (const ctorHandler of ctorHandlers) {
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1], null);
         }
 
         common.regMemberFuncs(rt, "string", [

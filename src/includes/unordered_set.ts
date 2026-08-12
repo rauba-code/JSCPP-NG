@@ -79,8 +79,8 @@ export = {
         };
 
         rt.explicitListInitTable["unordered_set"] = (usetType: UnorderedSetType<ObjectType>) => usetType.templateSpec[0];
-        rt.regFunc(ctorHandler1.default, variables.classType("unordered_set", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1]);
-        rt.regFunc(ctorHandler2.default, variables.classType("unordered_set", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1]);
+        rt.regFunc(ctorHandler1.default, variables.classType("unordered_set", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1], null);
+        rt.regFunc(ctorHandler2.default, variables.classType("unordered_set", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1], null);
 
         function _insert(rt: CRuntime, usetVar: UnorderedSetVariable<Variable>, value: Variable): [InitIndexPointerVariable<Variable>, boolean] {
             const dataPtr = usetVar.v.members._data;

@@ -1,6 +1,6 @@
 import { asResult } from "../interpreter";
 import { CRuntime, FunctionCallInstance, OpSignature } from "../rt";
-import { ArithmeticVariable, ClassType, Gen, InitIndexPointerVariable, MaybeUnboundVariable, ObjectType, ResultOrGen, Variable, variables } from "../variables";
+import { ArithmeticVariable, ClassType, Gen, MaybeUnboundVariable, ObjectType, ResultOrGen, Variable, variables } from "../variables";
 
 export type OpHandler = {
     type: string,
@@ -21,6 +21,10 @@ export type OpHandler = {
      * * Therefore, templateTypes: `[ -1 ]`.
      */
     templateTypes?: number[],
+    /**
+     * If specified, this overload will shadow the following overload when performing type lookup match.
+     */
+    isOverloadOf?: string,
 };
 
 export type FunHandler = {
@@ -42,17 +46,21 @@ export type FunHandler = {
      * * Therefore, templateTypes: `[ -1 ]`.
      */
     templateTypes?: number[],
+    /**
+     * If specified, this overload will shadow the following overload when performing type lookup match.
+     */
+    isOverloadOf?: string,
 };
 
 export function regOps(rt: CRuntime, opHandlers: OpHandler[]) {
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? []);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverloadOf ?? null);
     });
 }
 
 export function regGlobalFuncs(rt: CRuntime, opHandlers: FunHandler[]) {
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? []);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverloadOf ?? null);
     });
 }
 
@@ -63,7 +71,7 @@ export function regMemberFuncs(rt: CRuntime, structName: string, opHandlers: Fun
         rt.raiseException(`Type '${structName}' is not a class name`);
     }
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, structType as ClassType, x.op, rt.typeSignature(x.type, false), x.templateTypes ?? []);
+        rt.regFunc(x.default, structType as ClassType, x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverloadOf ?? null);
     });
 }
 

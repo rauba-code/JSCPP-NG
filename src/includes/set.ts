@@ -397,8 +397,52 @@ export = {
         };
 
         rt.explicitListInitTable["set"] = (setType: SetType<ObjectType>) => setType.templateSpec[0];
-        rt.regFunc(ctorHandler1.default, variables.classType("set", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1]);
-        rt.regFunc(ctorHandler2.default, variables.classType("set", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1]);
+        rt.regFunc(ctorHandler1.default, variables.classType("set", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1], null);
+        rt.regFunc(ctorHandler2.default, variables.classType("set", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1], null);
+
+        common.regOps(rt, [
+            {
+                op: "o(_=_)",
+                type: "!ParamObject FUNCTION CLASS set < ?0 > ( LREF CLASS set < ?0 > CLREF CLASS set < ?0 > )",
+                default(rt: CRuntime, _templateTypes: [], lset: __set, rset: __set): __set {
+                    _clear(lset);
+                    const rr: __node['v'] | null = variables.asInitDirectPointerPointee(rset.v.members.root);
+                    if (rr === null) {
+                        return lset;
+                    }
+                    const nodeType: __node['t'] = _createSetNodeType(lset.t.templateSpec);
+                    function clone(rn: __node['v'], parent: __node['v'] | null): __node['v'] {
+                        const nn: __node['v'] = {
+                            isConst: false,
+                            lvHolder: "SELF",
+                            state: "INIT",
+                            members:
+                                _createSetNodeMembers(
+                                    nodeType,
+                                    variables.clone(rt, rn.members.key, "SELF", false, false),
+                                    rn.members.is_red.v.value === 1
+                                ),
+                        };
+                        if (parent) {
+                            variables.directPointerAssignValue(rt, nn.members.parent, parent);
+                        }
+                        const rlhs = variables.asInitDirectPointerPointee(rn.members.lhs);
+                        if (rlhs !== null) {
+                            variables.directPointerAssignValue(rt, nn.members.lhs, clone(rlhs, nn));
+                        }
+                        const rrhs = variables.asInitDirectPointerPointee(rn.members.rhs);
+                        if (rrhs !== null) {
+                            variables.directPointerAssignValue(rt, nn.members.rhs, clone(rrhs, nn));
+                        }
+                        return nn;
+                    }
+                    variables.directPointerAssignValue(rt, lset.v.members.root, clone(rr, null));
+                    lset.v.members._size.v.value = rset.v.members._size.v.value;
+                    return lset;
+                },
+                isOverloadOf: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
+            }
+        ]);
 
         function _assert_parent(rt: CRuntime, node: __node['v']) {
             const parent = variables.asInitDirectPointer2(node.members.parent);
@@ -890,6 +934,18 @@ export = {
             return next;
         }
 
+        function _clear(thisVar: __set): void {
+            const root: __dptr_node | null = variables.asInitDirectPointer2(thisVar.v.members.root);
+            if (root !== null) {
+                // hotfix due to a dangling pointer in copied containers
+                //_node_delete(root.v.pointee);
+                delete (root.v as any).pointee;
+                (root.v as any).state = "UNINIT";
+                thisVar.v.members._size.v.value = BigInt(0);
+            }
+
+        }
+
         // debug function
         common.regGlobalFuncs(rt, [{
             op: "_print",
@@ -993,7 +1049,7 @@ export = {
             },
             {
                 op: "insert",
-                type: "!ParamObject !ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > ?1 ?1 )",
+                type: "!ParamObject !ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > ?1 ?1 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, first: Variable, last: Variable): Gen<"VOID"> {
                     const eqFunc = rt.getOpByParams("{global}", "o(_==_)", [first, last], []);
                     const ppFunc = rt.getOpByParams("{global}", "o(_++)", [first], []);
@@ -1006,7 +1062,7 @@ export = {
                             rt.raiseException(`set<${setValueTypeString}>::insert(): Expected type of (*first) to be ${setValueTypeString}, got ${rt.makeTypeString(derefObject.t)}`);
                         }
                         yield* _insert(rt, thisVar, derefObject);
-                        common.invokePp(rt, firstTypeString, ppFunc, first);
+                        yield* common.invokePp(rt, firstTypeString, ppFunc, first);
                     }
                     return "VOID";
                 }
@@ -1098,13 +1154,7 @@ export = {
                 op: "clear",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): "VOID" {
-                    const root: __dptr_node | null = variables.asInitDirectPointer2(thisVar.v.members.root);
-                    if (root !== null) {
-                        _node_delete(root.v.pointee);
-                        delete (root.v as any).pointee;
-                        (root.v as any).state = "UNINIT";
-                        thisVar.v.members._size.v.value = BigInt(0);
-                    }
+                    _clear(thisVar);
                     return "VOID";
                 }
             },

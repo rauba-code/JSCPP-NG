@@ -41,7 +41,8 @@ export type FunctionMatchResult = typecheck.ParseFunctionMatchResult & {
     castActions: { index: number, cast: typecheck.CastAction }[],
 }
 
-export class TypeDB {
+
+export class TypeLookup {
     parser: LLParser;
     scope: NonTerm;
     strict_order: boolean;
@@ -53,6 +54,7 @@ export class TypeDB {
                 annotation: string,
                 /** see FunctionSig for more description */
                 templateTypes: number[],
+                isOverloadOf: number | null,
             }[],
             cache: {
                 [signature: string]: FunctionMatchResult | null
@@ -78,14 +80,21 @@ export class TypeDB {
         return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), ct, templateTypes, this.strict_order);
     };
 
-    addFunctionOverload(rt: CRuntime, identifier: string, function_type: string | string[], templateTypes: number[], function_id: number): void {
+    addFunctionOverload(rt: CRuntime, identifier: string, function_type: string | string[], templateTypes: number[], function_id: number, isOverloadOf: string | null): void {
         const sa = abstractFunctionReturnSig(makeStringArr(function_type));
         const annotation = typecheck.parsePrint(this.parser, makeStringArr(function_type), identifier, "Type", false) ?? rt.raiseException("Failed to make a type annotation");
         const inline = sa.join(" ");
+        const isOverloadOfFnid = (isOverloadOf !== null) ? this.matchExactOverload(identifier, abstractFunctionReturnSig(isOverloadOf.split(' ')).join(' ')) : null;
+        if (isOverloadOfFnid === -1) {
+            const parentAnnotation = typecheck.parsePrint(this.parser, (isOverloadOf as string).split(' '), identifier, "Type", false) ?? (isOverloadOf as string);
+            rt.raiseException(`Could not look up overloaded function '${parentAnnotation}' when defining an overload '${annotation}' for it`);
+        }
         if (!(identifier in this.functions)) {
-            this.functions[identifier] = { overloads: [{ type: sa, fnid: function_id, templateTypes, annotation }], cache: {}, exactCache: { [inline]: function_id } };
+            this.functions[identifier] = {
+                overloads: [{ type: sa, fnid: function_id, templateTypes, annotation, isOverloadOf: isOverloadOfFnid }], cache: {}, exactCache: { [inline]: function_id }
+            };
         } else {
-            this.functions[identifier].overloads.push({ type: sa, fnid: function_id, templateTypes, annotation });
+            this.functions[identifier].overloads.push({ type: sa, fnid: function_id, templateTypes, annotation, isOverloadOf: isOverloadOfFnid });
             // clean the cache for this function
             this.functions[identifier].cache = {};
             // keep exactCache
@@ -156,20 +165,49 @@ export class TypeDB {
             if (match !== null) {
                 if (bestCandidate !== null) {
                     if (bestCandidate.castActions.length > match.castActions.length) {
-                        candidateIndices = [ i ];
+                        candidateIndices = [i];
                         bestCandidate = match as FunctionMatchResult;
                         bestCandidate.fnid = fnobj.overloads[i].fnid;
                     } else if (bestCandidate.castActions.length === match.castActions.length) {
                         candidateIndices.push(i);
+                        // we want to know about the last candidate
+                        bestCandidate = match as FunctionMatchResult;
+                        bestCandidate.fnid = fnobj.overloads[i].fnid;
                     }
                 } else {
+                    candidateIndices.push(i);
                     bestCandidate = match as FunctionMatchResult;
                     bestCandidate.fnid = fnobj.overloads[i].fnid;
                 }
             }
         }
         if (candidateIndices.length > 1) {
-            rt.raiseException(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n${candidateIndices.map((iv, ii) => (ii + 1).toString() + ") " + fnobj.overloads[iv].annotation).join("\n")}`);
+            // it's always the last if exists,
+            // thus it's the bestCandidate
+            let validCandidates: boolean[] = [true];
+            for (let i = 1; i < candidateIndices.length; i++) {
+                validCandidates.push(true);
+                const shadowedId = fnobj.overloads[candidateIndices[i]].isOverloadOf;
+                if (shadowedId !== null) {
+                    for (let j = 0; j < i; j++) {
+                        if (shadowedId === fnobj.overloads[candidateIndices[j]].fnid) {
+                            validCandidates[j] = false;
+                        }
+                    }
+                }
+            }
+            let filteredCandidates: number[] = [];
+            for (let i = 0; i < candidateIndices.length; i++) {
+                if (validCandidates[i]) {
+                    filteredCandidates.push(candidateIndices[i]);
+                }
+            }
+            if (filteredCandidates.length > 1) {
+                rt.raiseException(`Call of overloaded function \'${identifier}\' matches more than one candidate:\n${candidateIndices.map((iv, ii) => (ii + 1).toString() + ") " + fnobj.overloads[iv].annotation).join("\n")}`);
+            }
+            if ((bestCandidate as FunctionMatchResult).fnid !== fnobj.overloads[filteredCandidates[0]].fnid) {
+                rt.raiseException("Assertion failed: bestCandidate is not a valid filtered candidate");
+            }
         }
         fnobj.cache[targetInline] = bestCandidate;
         return bestCandidate;

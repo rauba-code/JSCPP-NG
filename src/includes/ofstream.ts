@@ -77,7 +77,7 @@ export = {
         ];
 
         for (const ctorHandler of ctorHandlers) {
-            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1]);
+            rt.regFunc(ctorHandler.default, thisType, ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1], null);
         }
 
         const _open = function(_rt: CRuntime, _this: OfStreamVariable, right: InitIndexPointerVariable<ArithmeticNumVariable>, mode: number): void {
@@ -118,7 +118,7 @@ export = {
             },
         ];
         memberHandlers.forEach((x) => {
-            rt.regFunc(x.default, thisType, x.op, rt.typeSignature(x.type), []);
+            rt.regFunc(x.default, thisType, x.op, rt.typeSignature(x.type), [], null);
         })
     }
 };
