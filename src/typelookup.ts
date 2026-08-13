@@ -54,7 +54,7 @@ export class TypeLookup {
                 annotation: string,
                 /** see FunctionSig for more description */
                 templateTypes: number[],
-                isOverloadOf: number | null,
+                isOverrideOf: number | null,
             }[],
             cache: {
                 [signature: string]: FunctionMatchResult | null
@@ -80,21 +80,21 @@ export class TypeLookup {
         return typecheck.parseFunctionMatch(this.parser, makeStringArr(subtype), makeStringArr(supertype), ct, templateTypes, this.strict_order);
     };
 
-    addFunctionOverload(rt: CRuntime, identifier: string, function_type: string | string[], templateTypes: number[], function_id: number, isOverloadOf: string | null): void {
+    addFunctionOverload(rt: CRuntime, identifier: string, function_type: string | string[], templateTypes: number[], function_id: number, isOverrideOf: string | null): void {
         const sa = abstractFunctionReturnSig(makeStringArr(function_type));
         const annotation = typecheck.parsePrint(this.parser, makeStringArr(function_type), identifier, "Type", false) ?? rt.raiseException("Failed to make a type annotation");
         const inline = sa.join(" ");
-        const isOverloadOfFnid = (isOverloadOf !== null) ? this.matchExactOverload(identifier, abstractFunctionReturnSig(isOverloadOf.split(' ')).join(' ')) : null;
-        if (isOverloadOfFnid === -1) {
-            const parentAnnotation = typecheck.parsePrint(this.parser, (isOverloadOf as string).split(' '), identifier, "Type", false) ?? (isOverloadOf as string);
+        const isOverrideOfFnid = (isOverrideOf !== null) ? this.matchExactOverload(identifier, abstractFunctionReturnSig(isOverrideOf.split(' ')).join(' ')) : null;
+        if (isOverrideOfFnid === -1) {
+            const parentAnnotation = typecheck.parsePrint(this.parser, (isOverrideOf as string).split(' '), identifier, "Type", false) ?? (isOverrideOf as string);
             rt.raiseException(`Could not look up overloaded function '${parentAnnotation}' when defining an overload '${annotation}' for it`);
         }
         if (!(identifier in this.functions)) {
             this.functions[identifier] = {
-                overloads: [{ type: sa, fnid: function_id, templateTypes, annotation, isOverloadOf: isOverloadOfFnid }], cache: {}, exactCache: { [inline]: function_id }
+                overloads: [{ type: sa, fnid: function_id, templateTypes, annotation, isOverrideOf: isOverrideOfFnid }], cache: {}, exactCache: { [inline]: function_id }
             };
         } else {
-            this.functions[identifier].overloads.push({ type: sa, fnid: function_id, templateTypes, annotation, isOverloadOf: isOverloadOfFnid });
+            this.functions[identifier].overloads.push({ type: sa, fnid: function_id, templateTypes, annotation, isOverrideOf: isOverrideOfFnid });
             // clean the cache for this function
             this.functions[identifier].cache = {};
             // keep exactCache
@@ -187,7 +187,7 @@ export class TypeLookup {
             let validCandidates: boolean[] = [true];
             for (let i = 1; i < candidateIndices.length; i++) {
                 validCandidates.push(true);
-                const shadowedId = fnobj.overloads[candidateIndices[i]].isOverloadOf;
+                const shadowedId = fnobj.overloads[candidateIndices[i]].isOverrideOf;
                 if (shadowedId !== null) {
                     for (let j = 0; j < i; j++) {
                         if (shadowedId === fnobj.overloads[candidateIndices[j]].fnid) {

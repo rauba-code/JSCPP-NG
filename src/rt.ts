@@ -898,7 +898,7 @@ export class CRuntime {
         return seq.reverse().join(".");
     }
 
-    regFunc(f: CFunction | null, domain: ClassType | "{global}" | "{lambda}", name: string, fnsig: TypeSignature, templateTypes: number[], isOverloadOf: string | null): void {
+    regFunc(f: CFunction | null, domain: ClassType | "{global}" | "{lambda}", name: string, fnsig: TypeSignature, templateTypes: number[], isOverrideOf: string | null): void {
         const domainInlineSig: string = this.domainString(domain);
         if (!(domainInlineSig in this.typeMap)) {
             this.raiseException(`type '${fnsig.inline}' is unknown`);
@@ -927,7 +927,7 @@ export class CRuntime {
                     }
                 }
             }
-            domainMap.functionDB.addFunctionOverload(this, name, fnsig.array, templateTypes, domainMap.functionsByID.length, isOverloadOf);
+            domainMap.functionDB.addFunctionOverload(this, name, fnsig.array, templateTypes, domainMap.functionsByID.length, isOverrideOf);
             domainMap.functionsByID.push({ type: fnsig.array, target: f });
             if (name === "o(_ctor)" && typeof domain !== "string") {
                 const dstTypeInline = variables.toStringSequence(this, domain, false, false).join(" ");

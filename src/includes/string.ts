@@ -78,13 +78,16 @@ export = {
                 op: "o(_=_)",
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > CLREF CLASS string < > )",
                 default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): StringVariable {
-                    const rptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     l.v.members._size.v.value = r.v.members._size.v.value;
+                    const rptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmeticNum("I8", null));
+                    if (rptr === null) { 
+                        l.v.members._ptr.v.state = "UNINIT";
+                        return l;
+                    }
                     variables.indexPointerAssign(rt, l.v.members._ptr, rptr.v.pointee, rptr.v.index);
-
                     return l;
                 },
-                isOverloadOf: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
+                isOverrideOf: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
             },
             ...cmpOverloads("o(_==_)", (x) => x == 0),
             ...cmpOverloads("o(_!=_)", (x) => x != 0),

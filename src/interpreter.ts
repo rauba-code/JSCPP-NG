@@ -699,7 +699,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
                                     initVar = variables.clone(rt, initVar, "SELF", false, true);
                                 }
-                                if (!variables.typesEqual(initVar.t, decType.t)) {
+                                if (!variables.typesEqual(initVar.t, decType.t) || decType.t.sig === "CLASS") {
                                     const ptrDecType = variables.asPointerType(decType.t);
                                     const ptrInitVar = variables.asPointer(initVar);
                                     if (ptrDecType !== null && ptrInitVar !== null && variables.typesEqual(ptrDecType.pointee, ptrInitVar.t.pointee)) {
@@ -721,6 +721,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                             rt.raiseException("Declaration error: Array size mismatch");
                                         }
                                     } else {
+                                        // the copy-constructors of class variables are tied to the copy-assignment operator
                                         const preDecVarYield = rt.defaultValue2(decType.t, "SELF");
                                         const preDecVar = variables.clone(rt, asResult(preDecVarYield) ?? (yield* preDecVarYield as Gen<Variable>), "SELF", false, true);
                                         const callInst = rt.getFuncByParams("{global}", "o(_=_)", [preDecVar, initVar], []);

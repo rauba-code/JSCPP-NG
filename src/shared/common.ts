@@ -24,7 +24,7 @@ export type OpHandler = {
     /**
      * If specified, this overload will shadow the following overload when performing type lookup match.
      */
-    isOverloadOf?: string,
+    isOverrideOf?: string,
 };
 
 export type FunHandler = {
@@ -49,18 +49,18 @@ export type FunHandler = {
     /**
      * If specified, this overload will shadow the following overload when performing type lookup match.
      */
-    isOverloadOf?: string,
+    isOverrideOf?: string,
 };
 
 export function regOps(rt: CRuntime, opHandlers: OpHandler[]) {
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverloadOf ?? null);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverrideOf ?? null);
     });
 }
 
 export function regGlobalFuncs(rt: CRuntime, opHandlers: FunHandler[]) {
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverloadOf ?? null);
+        rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverrideOf ?? null);
     });
 }
 
@@ -71,7 +71,7 @@ export function regMemberFuncs(rt: CRuntime, structName: string, opHandlers: Fun
         rt.raiseException(`Type '${structName}' is not a class name`);
     }
     opHandlers.forEach((x) => {
-        rt.regFunc(x.default, structType as ClassType, x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverloadOf ?? null);
+        rt.regFunc(x.default, structType as ClassType, x.op, rt.typeSignature(x.type, false), x.templateTypes ?? [], x.isOverrideOf ?? null);
     });
 }
 

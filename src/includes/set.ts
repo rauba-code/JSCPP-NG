@@ -440,7 +440,7 @@ export = {
                     lset.v.members._size.v.value = rset.v.members._size.v.value;
                     return lset;
                 },
-                isOverloadOf: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
+                isOverrideOf: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
             }
         ]);
 

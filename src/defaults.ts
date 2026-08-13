@@ -535,7 +535,8 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_=_)",
         type: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
         default(rt, _templateType: [], l: ClassVariable, r: ClassVariable): ClassVariable {
-            // This function can be overloaded
+            // default copy-assignment operator
+            // can be overriden
             Object.entries(r.v.members).map(([k, v]) => l.v.members[k] = variables.clone(rt, v, "SELF", false, true));
             return l;
         }
