@@ -197,6 +197,7 @@ export class CRuntime {
     eapi: ExternRuntimeApi;
     debug: {
         // enabled: boolean;
+        active: boolean;
         hasPassedFirstLine: boolean;
         lineBreakpoints: Set<number>;
         lastLine: number | null,
@@ -205,6 +206,8 @@ export class CRuntime {
         lastDepth: number;
         isTriggered: boolean;
     };
+    /** Variable index counter */
+    vcnt: number;
 
     constructor(config: JSCPPConfig) {
         this.parser = typecheck.constructTypeParser();
@@ -220,6 +223,7 @@ export class CRuntime {
         this.explicitListInitTable = {};
         this.debug = {
             // enabled: config.debug ?? false,
+            active: false,
             hasPassedFirstLine: (config.trapAtFirstLine ?? false) !== true,
             lineBreakpoints: new Set<number>(),
             lastLine: null,
@@ -228,8 +232,8 @@ export class CRuntime {
             lastDepth: 0,
             isTriggered: false,
         };
+        this.vcnt = 0;
         const rt = this;
-        let vcnt: number = 0;
         this.eapi = {
             proceed(mode: ProceedMode = "continue"): void {
                 const PROCEED_MODES: ProceedMode[] = ["continue", "stepin", "stepover", "stepout"];
@@ -253,223 +257,250 @@ export class CRuntime {
                 }
             },
             getVariables(): VariableDisplayValue {
-                const vbegin = vcnt;
-                vcnt++;
-                let queue: [VariableDisplayValue, Variable][] = [];
-                let qi: number = 0;
-                let rdict: { [name: string]: VariableDisplayValue } = {};
-                let parentList: [string, number][] = [["", 0]];
-                function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: MaybeUnboundVariable, parentId: number, nameAsChild: string): void {
-                    const vid = (val.v as any)._vid;
-                    if (typeof vid === "number" && vid >= vbegin) {
-                        let x = vid;
-                        let path: string[] = [];
-                        while (x > 0) {
-                            path.push(parentList[x - vbegin][0]);
-                            x = parentList[x - vbegin][1];
-                        }
-                        path.reverse();
-                        dict[name] = {
-                            type: rt.makeTypeStringOfVar(val),
-                            value: path.join(''),
-                            displayString: null,
-                        }
-                    } else {
-                        (val.v as any)._vid = vcnt++;
-                        // TODO: makeValueString may be overwritten afterwards
-                        // This must be optimised
-                        const valNode: VariableDisplayValue = {
-                            type: rt.makeTypeStringOfVar(val),
-                            value: rt.makeValueString(val),
-                            displayString: null,
-                        }
-                        dict[name] = valNode;
-                        if (val.v.state !== "UNBOUND") {
-                            queue.push([valNode, val as Variable]);
-                        }
-                        parentList.push([nameAsChild, parentId]);
-                    }
-
-                }
-                for (let i = rt.scope.length - 1; i >= 0; i--) {
-                    let scope = rt.scope[i];
-                    for (const [name, val] of Object.entries(scope.variables)) {
-                        if (!(name in rdict) && "t" in val && "v" in val && Object.entries(val.v).length > 1 && !("hidden" in val)) {
-                            insertVal(rdict, name, val, 0, name);
-                        }
-                    }
-                }
-                const rootNode = { type: "", value: rdict, displayString: null };
-
-                const MAX_ENTRIES = 25000;
-                while (qi < queue.length) {
-                    if (qi >= MAX_ENTRIES) {
-                        rt.raiseSoftException(`DEBUG: Maximum variable entry limit of ${MAX_ENTRIES} reached.`)
-                        break;
-                    }
-                    const [parentNode, parentVar] = queue[qi];
-                    const parentId = (parentVar.v as any)._vid as number;
-                    let dict: { [name: string]: VariableDisplayValue } = {};
-                    if (parentVar.t.sig === "CLASS" && parentVar.v.state === "INIT") {
-                        const parentClass = parentVar as InitClassVariable;
-                        const domain = rt.domainString(parentClass.t);
-                        if (domain in rt.typeMap) {
-                            let dfunc = rt.typeMap[domain].displayFunction;
-                            if (dfunc) {
-                                parentNode.displayString = dfunc(rt, parentClass);
-                            }
-                        }
-                        function getBeginEndVars(rt: CRuntime): [Variable, Variable] | null {
-                            const beginInst = rt.tryGetFuncByParams(parentClass.t, "begin", [parentClass], []);
-                            const endInst = rt.tryGetFuncByParams(parentClass.t, "end", [parentClass], []);
-                            if (beginInst === null || endInst === null) {
-                                return null;
-                            }
-                            const beginYield = rt.invokeCall(beginInst, [], parentClass);
-                            const endYield = rt.invokeCall(endInst, [], parentClass);
-                            const beginResult = yieldBlocking(rt, beginYield);
-                            const endResult = yieldBlocking(rt, endYield);
-                            if (beginResult === null || endResult === null) {
-                                return null;
-                            }
-                            const beginVar = variables.clone(rt, rt.unbound(beginResult), "SELF", false);
-                            const endVar = variables.clone(rt, rt.unbound(endResult), "SELF", false);
-                            return [beginVar, endVar];
-                        }
-                        function yieldBlocking(rt: CRuntime, x: ResultOrGen<MaybeUnboundVariable | "VOID">): MaybeUnboundVariable | null {
-                            if (interp.asResult(x)) {
-                                if (x === "VOID") {
-                                    return null;
-                                }
-                                return rt.unbound(x as MaybeUnboundVariable);
-                            } else {
-                                const call = x as Gen<MaybeUnboundVariable | "VOID">;
-                                for (let i: number = 0; i < 100_000; i++) {
-                                    const _retv = call.next();
-                                    if (_retv.done === true) {
-                                        if (_retv.value === "VOID") {
-                                            return null;
-                                        }
-                                        return _retv.value;
-                                    }
-                                }
-                            }
-                            rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
-                        }
-                        function rangeBasedFor(): MaybeUnboundVariable[] | null {
-                            const maybeBeginEnd = getBeginEndVars(rt);
-                            if (!maybeBeginEnd) {
-                                return null;
-                            }
-                            const [beginVar, endVar] = maybeBeginEnd;
-                            if (!variables.typesEqual(beginVar.t, endVar.t)) {
-                                return null;
-                            }
-                            const ppInst = rt.getOpByParams("{global}", "o(++_)", [beginVar], []);
-                            const neqInst = rt.getOpByParams("{global}", "o(_!=_)", [beginVar, beginVar], []);
-                            const neqTestYield = rt.invokeCall(neqInst, [], beginVar, beginVar);
-                            const neqTestVar = yieldBlocking(rt, neqTestYield);
-                            if (neqTestVar === null || neqTestVar.t.sig !== "BOOL") {
-                                return null;
-                            }
-                            const neqYield0 = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
-                            const neqVar0 = yieldBlocking(rt, neqYield0);
-                            if (rt.arithmeticValue(neqVar0 as ArithmeticVariable) === 0) {
-                                return [];
-                            }
-                            const derefInst = rt.getOpByParams("{global}", "o(*_)", [beginVar], []);
-                            const derefTestYield = rt.invokeCall(derefInst, [], beginVar);
-                            const derefTestVar = yieldBlocking(rt, derefTestYield);
-                            if (derefTestVar === null) {
-                                return null;
-                            }
-                            let resultList: MaybeUnboundVariable[] = [];
-                            while (true) {
-                                const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
-                                const neqVar = yieldBlocking(rt, neqYield);
-                                if (rt.arithmeticValue(neqVar as ArithmeticVariable) === 0) {
-                                    break;
-                                }
-
-                                const elemYield = rt.invokeCall(derefInst, [], beginVar) as ResultOrGen<MaybeUnboundVariable>;
-                                let elemVar = yieldBlocking(rt, elemYield);
-                                if (elemVar === null) {
-                                    return null;
-                                }
-
-                                /* body goes here */
-                                resultList.push(elemVar);
-
-                                const ppYield = rt.invokeCall(ppInst, [], beginVar);
-                                yieldBlocking(rt, ppYield);
-                            }
-
-                            return resultList;
-                        }
-                        let resultList: MaybeUnboundVariable[] | null = null;
-                        try {
-                            resultList = rangeBasedFor();
-                        } catch (_e) {
-                            // do nothing; output nothing
-                        }
-                        if (resultList) {
-                            if (resultList.length === 0) {
-                                parentNode.value = "{ }";
-                            } else {
-                                // enumerated values
-                                for (const [ii, iv] of resultList.entries()) {
-                                    if (!("hidden" in iv)) {
-                                        insertVal(dict, `[${ii}]`, iv, parentId, `[${ii}]`);
-                                    }
-                                }
-                            }
-                        } else {
-                            // default list of members
-                            for (const [name, val] of Object.entries(parentClass.v.members)) {
-                                if (!(name in dict) && !("hidden" in val)) {
-                                    insertVal(dict, name, val, parentId, `.${name}`);
-                                }
-                            }
-                        }
-                    } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).v.subtype === "INDEX") {
-                        const parentArray = parentVar as InitIndexPointerVariable<Variable>;
-                        const memory = parentArray.v.pointee;
-                        const index = parentArray.v.index;
-                        for (let j = 0; j < parentVar.t.sizeConstraint; j++) {
-                            // Always bound. Even if unbound condition happens, we don't care that much
-                            let val = variables.arrayMember(memory, index + j) as Variable;
-                            if (!("hidden" in val)) {
-                                insertVal(dict, `[${j}]`, val, parentId, `[${j}]`);
-                            }
-                        }
-                    } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && parentVar.t.sizeConstraint === null && parentVar.t.pointee.sig !== "I8") {
-                        const parentPtr = parentVar as InitIndexPointerVariable<Variable>;
-                        let parentName = parentList[parentId - vbegin][0];
-                        if (parentName.startsWith(".")) {
-                            parentName = parentName.substr(1);
-                        }
-                        let nameAsChild = `->${parentName}`;
-                        if (parentName.startsWith("[")) {
-                            nameAsChild = `${parentName}[0]`;
-                            parentName = `<pointer>`;
-                        }
-                        let val = variables.deref(parentPtr) as Variable;
-                        if (!("hidden" in val)) {
-                            insertVal(dict, `*${parentName}`, val, parentList[parentId - vbegin][1], nameAsChild);
-                        }
-                    }
-                    if (Object.entries(dict).length > 0) {
-                        parentNode.value = dict;
-                    }
-                    qi++;
-                }
-
-                return rootNode;
+                return rt.getVariablesTree();
             },
             getCurrentLine(): number {
                 return rt.debug.lastLine ?? 0;
             }
         };
+    }
+    getVariablesList(enableTypes: boolean, enableValues: boolean): {
+        voffset: number,
+        list: [VariableDisplayValue, Variable][],
+        rdict: { [name: string]: VariableDisplayValue },
+        parentList: [string, number][]
+    } {
+        if (this.debug.active) {
+            return { voffset: this.vcnt, list: [], rdict: {}, parentList: [] };
+        }
+        this.debug.active = true;
+        const vbegin = this.vcnt;
+        this.vcnt++;
+        let queue: [VariableDisplayValue, Variable][] = [];
+        let qi: number = 0;
+        let rdict: { [name: string]: VariableDisplayValue } = {};
+        let parentList: [string, number][] = [["", 0]];
+        const rt = this;
+        function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: MaybeUnboundVariable, parentId: number, nameAsChild: string): void {
+            const vid = (val.v as any)._vid;
+            if (typeof vid === "number" && vid >= vbegin) {
+                if (enableValues) {
+                    let x = vid;
+                    let path: string[] = [];
+                    while (x > 0) {
+                        path.push(parentList[x - vbegin][0]);
+                        x = parentList[x - vbegin][1];
+                    }
+                    path.reverse();
+                    dict[name] = {
+                        type: (enableTypes) ? rt.makeTypeStringOfVar(val) : "",
+                        value: path.join(''),
+                        displayString: null,
+                    }
+                } else {
+                    dict[name] = {
+                        type: (enableTypes) ? rt.makeTypeStringOfVar(val) : "",
+                        value: "",
+                        displayString: null,
+                    }
+                }
+            } else {
+                (val.v as any)._vid = rt.vcnt++;
+                // TODO: makeValueString may be overwritten afterwards
+                // This must be optimised
+                const valNode: VariableDisplayValue = {
+                    type: (enableTypes) ? rt.makeTypeStringOfVar(val) : "",
+                    value: (enableValues) ? rt.makeValueString(val) : "",
+                    displayString: null,
+                }
+                dict[name] = valNode;
+                if (val.v.state !== "UNBOUND") {
+                    queue.push([valNode, val as Variable]);
+                }
+                parentList.push([nameAsChild, parentId]);
+            }
+
+        }
+        for (let i = this.scope.length - 1; i >= 0; i--) {
+            let scope = this.scope[i];
+            for (const [name, val] of Object.entries(scope.variables)) {
+                if (!(name in rdict) && "t" in val && "v" in val && Object.entries(val.v).length > 1 && !("hidden" in val)) {
+                    insertVal(rdict, name, val, 0, name);
+                }
+            }
+        }
+
+        const MAX_ENTRIES = 25000;
+        while (qi < queue.length) {
+            if (qi >= MAX_ENTRIES) {
+                this.raiseSoftException(`DEBUG: Maximum variable entry limit of ${MAX_ENTRIES} reached.`)
+                break;
+            }
+            const [parentNode, parentVar] = queue[qi];
+            const parentId = (parentVar.v as any)._vid as number;
+            let dict: { [name: string]: VariableDisplayValue } = {};
+            if (parentVar.t.sig === "CLASS" && parentVar.v.state === "INIT") {
+                const parentClass = parentVar as InitClassVariable;
+                const domain = this.domainString(parentClass.t);
+                if (domain in this.typeMap) {
+                    let dfunc = this.typeMap[domain].displayFunction;
+                    if (dfunc) {
+                        parentNode.displayString = dfunc(this, parentClass);
+                    }
+                }
+                function getBeginEndVars(): [Variable, Variable] | null {
+                    const beginInst = rt.tryGetFuncByParams(parentClass.t, "begin", [parentClass], []);
+                    const endInst = rt.tryGetFuncByParams(parentClass.t, "end", [parentClass], []);
+                    if (beginInst === null || endInst === null) {
+                        return null;
+                    }
+                    const beginYield = rt.invokeCall(beginInst, [], parentClass);
+                    const endYield = rt.invokeCall(endInst, [], parentClass);
+                    const beginResult = yieldBlocking(beginYield);
+                    const endResult = yieldBlocking(endYield);
+                    if (beginResult === null || endResult === null) {
+                        return null;
+                    }
+                    const beginVar = variables.clone(rt, rt.unbound(beginResult), "SELF", false);
+                    const endVar = variables.clone(rt, rt.unbound(endResult), "SELF", false);
+                    return [beginVar, endVar];
+                }
+                function yieldBlocking(x: ResultOrGen<MaybeUnboundVariable | "VOID">): MaybeUnboundVariable | null {
+                    if (interp.asResult(x)) {
+                        if (x === "VOID") {
+                            return null;
+                        }
+                        return rt.unbound(x as MaybeUnboundVariable);
+                    } else {
+                        const call = x as Gen<MaybeUnboundVariable | "VOID">;
+                        for (let i: number = 0; i < 100_000; i++) {
+                            const _retv = call.next();
+                            if (_retv.done === true) {
+                                if (_retv.value === "VOID") {
+                                    return null;
+                                }
+                                return _retv.value;
+                            }
+                        }
+                    }
+                    rt.raiseException("<internal>: failed to invoke a given function (runtime limit exceeded)");
+                    return null;
+                }
+                function rangeBasedFor(): MaybeUnboundVariable[] | null {
+                    const maybeBeginEnd = getBeginEndVars();
+                    if (!maybeBeginEnd) {
+                        return null;
+                    }
+                    const [beginVar, endVar] = maybeBeginEnd;
+                    if (!variables.typesEqual(beginVar.t, endVar.t)) {
+                        return null;
+                    }
+                    const ppInst = rt.getOpByParams("{global}", "o(++_)", [beginVar], []);
+                    const neqInst = rt.getOpByParams("{global}", "o(_!=_)", [beginVar, beginVar], []);
+                    const neqTestYield = rt.invokeCall(neqInst, [], beginVar, beginVar);
+                    const neqTestVar = yieldBlocking(neqTestYield);
+                    if (neqTestVar === null || neqTestVar.t.sig !== "BOOL") {
+                        return null;
+                    }
+                    const neqYield0 = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
+                    const neqVar0 = yieldBlocking(neqYield0);
+                    if (rt.arithmeticValue(neqVar0 as ArithmeticVariable) === 0) {
+                        return [];
+                    }
+                    const derefInst = rt.getOpByParams("{global}", "o(*_)", [beginVar], []);
+                    const derefTestYield = rt.invokeCall(derefInst, [], beginVar);
+                    const derefTestVar = yieldBlocking(derefTestYield);
+                    if (derefTestVar === null) {
+                        return null;
+                    }
+                    let resultList: MaybeUnboundVariable[] = [];
+                    while (true) {
+                        const neqYield = rt.invokeCall(neqInst, [], beginVar, endVar) as ResultOrGen<ArithmeticVariable>;
+                        const neqVar = yieldBlocking(neqYield);
+                        if (rt.arithmeticValue(neqVar as ArithmeticVariable) === 0) {
+                            break;
+                        }
+
+                        const elemYield = rt.invokeCall(derefInst, [], beginVar) as ResultOrGen<MaybeUnboundVariable>;
+                        let elemVar = yieldBlocking(elemYield);
+                        if (elemVar === null) {
+                            return null;
+                        }
+
+                        /* body goes here */
+                        resultList.push(elemVar);
+
+                        const ppYield = rt.invokeCall(ppInst, [], beginVar);
+                        yieldBlocking(ppYield);
+                    }
+
+                    return resultList;
+                }
+                let resultList: MaybeUnboundVariable[] | null = null;
+                try {
+                    resultList = rangeBasedFor();
+                } catch (_e) {
+                    // do nothing; output nothing
+                }
+                if (resultList) {
+                    if (resultList.length === 0) {
+                        parentNode.value = "{ }";
+                    } else {
+                        // enumerated values
+                        for (const [ii, iv] of resultList.entries()) {
+                            if (!("hidden" in iv)) {
+                                insertVal(dict, `[${ii}]`, iv, parentId, `[${ii}]`);
+                            }
+                        }
+                    }
+                } else {
+                    // default list of members
+                    for (const [name, val] of Object.entries(parentClass.v.members)) {
+                        if (!(name in dict) && !("hidden" in val)) {
+                            insertVal(dict, name, val, parentId, `.${name}`);
+                        }
+                    }
+                }
+            } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).v.subtype === "INDEX") {
+                const parentArray = parentVar as InitIndexPointerVariable<Variable>;
+                const memory = parentArray.v.pointee;
+                const index = parentArray.v.index;
+                for (let j = 0; j < parentVar.t.sizeConstraint; j++) {
+                    // Always bound. Even if unbound condition happens, we don't care that much
+                    let val = variables.arrayMember(memory, index + j) as Variable;
+                    if (!("hidden" in val)) {
+                        insertVal(dict, `[${j}]`, val, parentId, `[${j}]`);
+                    }
+                }
+            } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && parentVar.t.sizeConstraint === null && parentVar.t.pointee.sig !== "I8") {
+                const parentPtr = parentVar as InitIndexPointerVariable<Variable>;
+                let parentName = parentList[parentId - vbegin][0];
+                if (parentName.startsWith(".")) {
+                    parentName = parentName.substr(1);
+                }
+                let nameAsChild = `->${parentName}`;
+                if (parentName.startsWith("[")) {
+                    nameAsChild = `${parentName}[0]`;
+                    parentName = `<pointer>`;
+                }
+                let val = variables.deref(parentPtr) as Variable;
+                if (!("hidden" in val)) {
+                    insertVal(dict, `*${parentName}`, val, parentList[parentId - vbegin][1], nameAsChild);
+                }
+            }
+            if (Object.entries(dict).length > 0) {
+                parentNode.value = dict;
+            }
+            qi++;
+        }
+
+        this.debug.active = false;
+        return { voffset: vbegin, list: queue, parentList, rdict };
+    }
+
+    getVariablesTree(): VariableDisplayValue {
+        const vars = this.getVariablesList(true, true);
+        return { type: "", value: vars.rdict, displayString: null };
     }
 
     openFile(path: InitIndexPointerVariable<ArithmeticVariable>, mode: number): number {
@@ -1436,7 +1467,7 @@ export class CRuntime {
                 }
             }
         }
-        this.raiseException("Cast: Type error not yet implemented");
+        this.raiseException("Cast: Type error or not yet implemented");
     };
 
     addToNamespace(namespacePath: string, name: string, obj: any, hidden: boolean = false) {
@@ -1573,20 +1604,38 @@ export class CRuntime {
         }, classType, "o(_stub)", stubCtorTypeSig, [-1], null);
     };
 
-    detectWideCharacters(str: string): boolean {
-        const wideCharacterRange = /[\u0100-\uffff]/;
-
-        return wideCharacterRange.test(str);
+    getVariableNames(...variables: MaybeUnboundVariable[]): (string | null)[] {
+        try {
+            const { voffset, parentList } = this.getVariablesList(false, false);
+            function findName(x: MaybeUnboundVariable): string | null {
+                const vid = (x.v as any)._vid;
+                if (typeof vid === "number" && vid >= voffset) {
+                    let x = vid;
+                    let path: string[] = [];
+                    while (x > 0) {
+                        path.push(parentList[x - voffset][0]);
+                        x = parentList[x - voffset][1];
+                    }
+                    path.reverse();
+                    return path.join('');
+                } else {
+                    return null;
+                }
+            }
+            return variables.map(findName);
+        } catch (_) {
+            return variables.map(() => null);
+        }
     }
 
     /** Safely accesses values.
       * Panics if value is uninitalised. */
     arithmeticValue(variable: MaybeUnboundVariable): number | bigint {
         if (!(variable.t.sig in variables.arithmeticSig)) {
-            this.raiseException("Expected an arithmetic value");
+            this.raiseException("Expected an arithmetic value for variable " + this.getVariableNames(variable)[0] ?? "<internal>");
         }
         if (variable.v.state === "UNINIT") {
-            this.raiseException("Access of an uninitialised value")
+            this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.v.state === "UNBOUND") {
             this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
@@ -1599,10 +1648,10 @@ export class CRuntime {
       * Panics if bigint is outside 32-bit signed integer bounds */
     arithmeticExpectNumValue(variable: MaybeUnboundVariable): number {
         if (!(variable.t.sig in variables.arithmeticSig)) {
-            this.raiseException("Expected an arithmetic value");
+            this.raiseException("Expected an arithmetic value for variable " + this.getVariableNames(variable)[0] ?? "<internal>");
         }
         if (variable.v.state === "UNINIT") {
-            this.raiseException("Access of an uninitialised value")
+            this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.v.state === "UNBOUND") {
             this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
@@ -1623,7 +1672,7 @@ export class CRuntime {
       * This function performs less checks compared to arithmeticValue, arithmeticNumExpectValue or arithmeticNumValue2 */
     arithmeticNumValue(variable: ArithmeticNumVariable): number {
         if (variable.v.state === "UNINIT") {
-            this.raiseException("Access of an uninitialised value")
+            this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         }
         return (variable as InitArithmeticNumVariable).v.value;
     }
@@ -1634,7 +1683,7 @@ export class CRuntime {
       * This function performs less checks compared to arithmeticValue and arithmeticNumExpectValue */
     arithmeticNumValue2(variable: ArithmeticNumVariable | AbstractVariable<ArithmeticNumType, UnboundValue<ArithmeticNumVariable>>): number {
         if (variable.v.state === "UNINIT") {
-            this.raiseException("Access of an uninitialised value")
+            this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.v.state === "UNBOUND") {
             this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
@@ -1643,7 +1692,7 @@ export class CRuntime {
 
     expectValue(variable: MaybeUnboundVariable): InitVariable {
         if (variable.v.state === "UNINIT") {
-            this.raiseException("Access of an uninitialised value")
+            this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.v.state === "UNBOUND") {
             this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
         }
