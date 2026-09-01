@@ -47,8 +47,8 @@ export = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS array < ?0 ?1 > ( CLASS initializer_list < ?0 > )",
             *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): Gen<ArrayVariable<Variable, number>> {
-                const thisType = variables.classType("array", list.t.templateSpec, null);
-                const arr = yield* rt.defaultValue2(thisType, "SELF") as Gen<ArrayVariable<Variable, number>>;
+                const thisType = variables.classType("array", list.t.templateSpec, null) as ArrayType<ObjectType, number>;
+                const arr = yield* rt.defaultValue2(thisType, "SELF");
                 const listmem = list.v.members._values.v.pointee;
                 const arraySize = arr.v.members._size.v.value;
 

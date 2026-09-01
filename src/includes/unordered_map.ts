@@ -468,8 +468,8 @@ export = {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map < ?0 ?1 > ( CLASS initializer_list < CLASS pair < ?0 ?1 > > )",
                 *default(rt: CRuntime, _templateTypes: [__umap['t']], list: InitializerListVariable<__pair>): Gen<__umap> {
-                    const thisType = variables.classType("unordered_map", list.t.templateSpec[0].templateSpec, null);
-                    const thisVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<__umap>;
+                    const thisType = variables.classType("unordered_map", list.t.templateSpec[0].templateSpec, null) as __umap['t'];
+                    const thisVar = yield* rt.defaultValue2(thisType, "SELF");
                     const listmem = list.v.members._values.v.pointee;
 
                     for (let i = 0; i < listmem.values.length; i++) {

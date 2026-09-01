@@ -44,8 +44,8 @@ export = {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( CLASS initializer_list < ?0 > )",
                 *default(rt: CRuntime, _templateTypes: [VectorType<ObjectType>], list: InitializerListVariable<ArithmeticVariable>): Gen<VectorVariable<Variable>> {
-                    const thisType = variables.classType("vector", list.t.templateSpec, null);
-                    const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
+                    const thisType = variables.classType("vector", list.t.templateSpec, null) as VectorType<ObjectType>;
+                    const vec = yield* rt.defaultValue2(thisType, "SELF");
                     const listmem = list.v.members._values.v.pointee;
                     const memory = variables.arrayMemory<Variable>(thisType.templateSpec[0], []);
                     for (let i = 0; i < listmem.values.length; i++) {
@@ -69,8 +69,8 @@ export = {
                     }
 
                     const elementType = begin.v.pointee.objectType;
-                    const thisType = variables.classType("vector", [elementType], null);
-                    const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
+                    const thisType = variables.classType("vector", [elementType], null) as VectorType<ObjectType>;
+                    const vec = yield* rt.defaultValue2(thisType, "SELF");
 
                     const elementCount = end.v.index - begin.v.index;
                     if (elementCount > 0) {
@@ -95,8 +95,8 @@ export = {
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( I32 )",
                 *default(rt: CRuntime, templateTypes: [VectorType<ObjectType>], count: InitArithmeticNumVariable): Gen<VectorVariable<Variable>> {
                     // NOTE: This constructor is marked as explicit in standard C++
-                    const thisType = variables.classType("vector", [templateTypes[0].templateSpec[0]], null);
-                    const vec = yield* rt.defaultValue2(thisType, "SELF") as Gen<VectorVariable<Variable>>;
+                    const thisType = variables.classType("vector", [templateTypes[0].templateSpec[0]], null) as VectorType<ObjectType>;
+                    const vec = yield* rt.defaultValue2(thisType, "SELF");
                     yield* _grow(rt, vec, count.v.value);
                     // Proceed. _grow fills the array with default members already.
                     return vec;

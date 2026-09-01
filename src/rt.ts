@@ -1736,19 +1736,19 @@ export class CRuntime {
         this.raiseException("Not yet implemented");
     };
 
-    *defaultValue2(type: ObjectType, lvHolder: LValueHolder<Variable>, zeroInitialise: boolean = false): Gen<Variable> {
+    *defaultValue2<VElem extends Variable>(type: VElem['t'], lvHolder: LValueHolder<Variable>, zeroInitialise: boolean = false): Gen<VElem> {
         let classType: ClassType | null;
         let pointerType: PointerType<ObjectType | FunctionType> | null;
         if (type.sig in variables.arithmeticNumSig) {
             const lvHolder1 = lvHolder as LValueHolder<ArithmeticNumVariable>;
             return zeroInitialise
-                ? { t: type as ArithmeticNumType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0 } }
-                : { t: type as ArithmeticNumType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } };
+                ? { t: type as ArithmeticNumType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0 } } as VElem
+                : { t: type as ArithmeticNumType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } } as VElem;
         } else if (type.sig in variables.arithmeticBigSig) {
             const lvHolder1 = lvHolder as LValueHolder<ArithmeticBigVariable>;
             return zeroInitialise
-                ? { t: type as ArithmeticBigType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: BigInt(0) } }
-                : { t: type as ArithmeticBigType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } };
+                ? { t: type as ArithmeticBigType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: BigInt(0) } } as VElem
+                : { t: type as ArithmeticBigType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } } as VElem;
         } else if ((classType = variables.asClassType(type)) !== null) {
             // TODO: zero-initialise class members
             const domainName = classType.identifier;
@@ -1760,14 +1760,14 @@ export class CRuntime {
                 const retvYield = (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
                 const retv = interp.asResult(retvYield) ?? (yield* retvYield as Gen<InitClassVariable>);
                 (retv.v as any).lvHolder = lvHolder;
-                return retv;
+                return retv as VElem;
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
             }
         } else if ((pointerType = variables.asPointerType(type)) !== null) {
             // TODO: zero-initialise as nullptr_t
             if (pointerType.sizeConstraint === null) {
-                return variables.uninitPointer(pointerType.pointee, null, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false);
+                return variables.uninitPointer(pointerType.pointee, null, lvHolder as LValueHolder<PointerVariable<PointeeVariable>>, false) as VElem;
             } else if (pointerType.sizeConstraint < 0) {
                 // negative sizeConstraint value is reserved for occasions when the variable is a sized array but array size expression is not given.
                 // e.g.: int a[] = { 3, 4, 5 };
@@ -1782,7 +1782,7 @@ export class CRuntime {
                     const defaultVal = yield* this.defaultValue2(pointerType.pointee, null, zeroInitialise);
                     memory.values.push(variables.clone(this, defaultVal, { array: memory, index: i }, false, true).v);
                 }
-                return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>);
+                return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>) as VElem;
             }
         }
         this.raiseException("Not yet implemented");

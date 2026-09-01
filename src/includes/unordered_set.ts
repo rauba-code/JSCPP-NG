@@ -38,8 +38,8 @@ export = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS unordered_set < ?0 > ( CLASS initializer_list < ?0 > )",
             *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticNumVariable>): Gen<UnorderedSetVariable<Variable>> {
-                const thisType = variables.classType("unordered_set", list.t.templateSpec, null);
-                const usetVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<UnorderedSetVariable<Variable>>;
+                const thisType = variables.classType("unordered_set", list.t.templateSpec, null) as UnorderedSetType<ObjectType>;
+                const usetVar = yield* rt.defaultValue2(thisType, "SELF");
                 const listmem = list.v.members._values.v.pointee;
                 
                 // Add all elements with duplicate removal (no sorting needed for unordered_set)
@@ -65,7 +65,7 @@ export = {
                 }
                 
                 const elementType = begin.v.pointee.objectType;
-                const thisType = variables.classType("unordered_set", [elementType], null);
+                const thisType = variables.classType("unordered_set", [elementType], null) as UnorderedSetType<ObjectType>;
                 const usetVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<UnorderedSetVariable<Variable>>;
                 
                 // Add elements with duplicate removal

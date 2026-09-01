@@ -62,8 +62,8 @@ export = {
             op: "o(_ctor)",
             type: "!Class FUNCTION CLASS insert_iterator < ?0 > ( LREF ?0 MEMBERTYPE iterator ?0 )",
             *default(rt: CRuntime, _templateTypes: ObjectType[], container: Variable, iter: Variable): Gen<InsertIteratorVariable<Variable>> {
-                const thisType = variables.classType("insert_iterator", [container.t], null);
-                const insertIter = yield* rt.defaultValue2(thisType, "SELF") as Gen<InsertIteratorVariable<Variable>>;
+                const thisType = variables.classType("insert_iterator", [container.t], null) as InsertIteratorType<ObjectType>;
+                const insertIter = yield* rt.defaultValue2(thisType, "SELF");
 
                 // Set container pointer
                 const containerPtr = insertIter.v.members._container;
