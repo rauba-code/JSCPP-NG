@@ -1100,7 +1100,7 @@ export = {
             },
             {
                 op: "find",
-                type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS set < ?0 > CLREF ?0 )",
+                type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( CLREF CLASS set < ?0 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, key: Variable): Gen<__set_iter> {
                     return yield* _find(rt, thisVar, key);
                 }
