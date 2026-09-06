@@ -506,9 +506,6 @@ export const variables = {
                 },
             }
         }
-        if (!object.isConst && isConst) {
-            rt.raiseException("Cannot clone from a volatile variable to a constant");
-        }
         const where: BranchKey = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig as BranchKey;
         return branch[where](lvHolder) as TVar;
     },

@@ -163,7 +163,7 @@ export class TypeLookup {
             }
             let match = this.matchFunction(target, fnobj.overloads[i].type, templateTypes, ct);
             if (match !== null) {
-                console.log(fnobj.overloads[i].annotation);
+                //console.log(fnobj.overloads[i].annotation);
                 if (bestCandidate !== null) {
                     if (bestCandidate.castActions.length > match.castActions.length) {
                         candidateIndices = [i];

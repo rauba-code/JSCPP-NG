@@ -492,7 +492,7 @@ export = {
             },
             {
                 op: "o(_[_])",
-                type: "!ParamObject !ParamObject FUNCTION LREF ?0 ( CLASS map < ?0 ?1 > CLREF ?0 )",
+                type: "!ParamObject !ParamObject FUNCTION LREF ?0 ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, key: Variable): Gen<Variable> {
                     const it = yield* _find(rt, thisVar, key);
                     if (it.members.node.state === "INIT") {
@@ -1216,22 +1216,22 @@ export = {
             {
                 op: "count",
                 type: "!ParamObject !ParamObject FUNCTION I32 ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitArithmeticNumVariable> {
                     const mapVar = args[0] as __map;
                     const value = args[1];
-                    const found = _find(rt, mapVar, value);
-                    return variables.arithmeticNum("I32", found !== null ? 1 : 0, null, false);
+                    const found = yield* _find(rt, mapVar, value);
+                    return variables.arithmeticNum("I32", found.members.node.state === "INIT" ? 1 : 0, null, false);
                 }
             },
             {
                 op: "contains",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitArithmeticNumVariable> {
                     // NOTE: this is a C++20 function
                     const mapVar = args[0] as __map;
                     const value = args[1];
-                    const found = _find(rt, mapVar, value);
-                    return variables.arithmeticNum("BOOL", found !== null ? 1 : 0, null, false);
+                    const found = yield* _find(rt, mapVar, value);
+                    return variables.arithmeticNum("BOOL", found.members.node.state === "INIT" ? 1 : 0, null, false);
                 }
             },
             {

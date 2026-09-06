@@ -1095,21 +1095,21 @@ export = {
             {
                 op: "count",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS set < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitArithmeticNumVariable> {
                     const setVar = args[0] as __set;
                     const value = args[1];
-                    const found = _find(rt, setVar, value);
-                    return variables.arithmeticNum("I32", found !== null ? 1 : 0, null, false);
+                    const found = yield* _find(rt, setVar, value);
+                    return variables.arithmeticNum("I32", found.members.node.state === "INIT" ? 1 : 0, null, false);
                 }
             },
             {
                 op: "contains",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set < ?0 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
+                *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitArithmeticNumVariable>  {
                     const setVar = args[0] as __set;
                     const value = args[1];
-                    const found = _find(rt, setVar, value);
-                    return variables.arithmeticNum("BOOL", found !== null ? 1 : 0, null, false);
+                    const found = yield* _find(rt, setVar, value);
+                    return variables.arithmeticNum("BOOL", found.members.node.state === "INIT" ? 1 : 0, null, false);
                 }
             },
             {

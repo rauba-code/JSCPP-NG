@@ -360,6 +360,10 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             *DirectDeclarator(interp, s: XDirectDeclarator, param: { basetype: MaybeLeft<ObjectType> }): Gen<DirectDeclaratorResult> {
                 ({ rt } = interp);
                 let { basetype } = param;
+                basetype = { ...basetype };
+                if ("t" in basetype) {
+                    (basetype as any).t = { ...basetype.t };
+                }
                 basetype = interp.buildRecursivePointerType(rt, s.Pointer, basetype, 0) as MaybeLeft<ObjectType>;
                 const right = (!(s.right instanceof Array)) ? s.right : ((s.right.length === 1) ? s.right[0] : null);
                 if (right !== null) {
@@ -622,7 +626,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const rhs = dec.Declarator.right as DirectDeclaratorModifier[];
                     for (const modifier of rhs.reverse()) {
                         if (modifier.type === "DirectDeclarator_modifier_array") {
-                            /*if (modifier.Modifier.length > 0) {
+                            if (modifier.Modifier.length > 0) {
                                 rt.raiseException("Declaration error: Type error or not yet implemented");
                             }
                             let arraySize: number = -1;
@@ -642,7 +646,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     }
                                 }
                             }
-                            decType = variables.uninitPointer(decType.t, arraySize, decType.lvHolder);*/
+                            decType = variables.uninitPointer(decType.t, arraySize, decType.lvHolder);
                         } else if (modifier.type as string === "DirectDeclarator_modifier_Constructor") {
                             if (rhs.length !== 1) {
                                 rt.raiseException("Declaration error: Too many modifiers or not yet implemented");
