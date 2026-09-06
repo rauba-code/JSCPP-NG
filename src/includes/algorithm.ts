@@ -36,11 +36,11 @@ export = {
             }
             const l: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(_l) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
             const r: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(_r) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
-            if (l.v.pointee !== r.v.pointee) {
+            if (l.pointee !== r.pointee) {
                 rt.raiseException("sort: expected parameters 'first' and 'last' to point to a same memory region");
             }
             // alt. variant: variables.arrayMember(...)
-            const region = l.v.pointee.values.slice(l.v.index, r.v.index - l.v.index).map(v => ({ t: l.v.pointee.objectType, v })) as Variable[];
+            const region = l.pointee.values.slice(l.index, r.index - l.index);
             if (region.length === 0) {
                 return "VOID";
             }
@@ -48,7 +48,7 @@ export = {
             for (let i = 0; i < region.length; i++) {
                 indexRegion.push(i);
             }
-            const clref_t: MaybeLeftCV<ObjectType> = { t: l.v.pointee.objectType, v: { isConst: true, lvHolder: "SELF" } };
+            const clref_t: MaybeLeftCV<ObjectType> = { t: l.pointee.objectType, isConst: true, lvHolder: "SELF" };
             const cmpObj = _cmp !== null ? variables.asClass(_cmp) : null;
             const cmpFun = (_cmp !== null) ? (variables.asInitDirectPointer(_cmp) as InitDirectPointerVariable<Function> ?? null) : null;
             const ltFun = (cmpFun === null) ? (cmpObj ? rt.getOpByParams("{global}", "o(_call)", [cmpObj, clref_t, clref_t], []) : rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], [])) : null;
@@ -59,32 +59,32 @@ export = {
                 const rhs = region[ri];
                 const params_ab = (cmpObj !== null) ? [cmpObj, lhs, rhs] : [lhs, rhs];
                 const params_ba = (cmpObj !== null) ? [cmpObj, rhs, lhs] : [rhs, lhs];
-                const a_lt_b = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({ t: cmpFun.t.pointee, v: cmpFun.v.pointee }, lhs, rhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], ...params_ab)).v.value;
-                const b_lt_a = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable({ t: cmpFun.t.pointee, v: cmpFun.v.pointee }, rhs, lhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], ...params_ba)).v.value;
+                const a_lt_b = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable(cmpFun.pointee, lhs, rhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], ...params_ab)).value;
+                const b_lt_a = yieldBlocking(cmpFun !== null ? rt.invokeCallFromVariable(cmpFun.pointee, rhs, lhs) : rt.invokeCall(ltFun as FunctionCallInstance, [], ...params_ba)).value;
                 // return -2.0, 0.0, or 2.0
                 return b_lt_a - a_lt_b;
 
             }
             indexRegion.sort(sortCmp);
             indexRegion.forEach((ri, ci) => {
-                l.v.pointee.values[l.v.index + ci] = region[ri].v;
-                (l.v.pointee.values[l.v.index + ci] as any).lvHolder.index = l.v.index + ci;
+                l.pointee.values[l.index + ci] = region[ri];
+                (l.pointee.values[l.index + ci] as any).lvHolder.index = l.index + ci;
             });
             return "VOID";
         }
         function* extreme_element(rt: CRuntime, _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>, fnname: string, op: OpSignature): Gen<InitIndexPointerVariable<Variable>> {
             const first = variables.asInitIndexPointer(_first) ?? rt.raiseException(fnname + "(): Expected 'first' to point to an element");
             const last = variables.asInitIndexPointer(_last) ?? rt.raiseException(fnname + "(): Expected 'last' to point to an element");
-            if (first.v.pointee !== last.v.pointee) {
+            if (first.pointee !== last.pointee) {
                 rt.raiseException(fnname + "(): Expected 'first' and 'last' to point to an element of the same memory region");
             }
-            const mini = variables.indexPointer(first.v.pointee, first.v.index++, false, null);
+            const mini = variables.indexPointer(first.pointee, first.index++, false, null);
             const cmpInst = rt.getOpByParams("{global}", op, [rt.unbound(variables.deref(first) as MaybeUnboundVariable), rt.unbound(variables.deref(mini) as MaybeUnboundVariable)], []);
-            for (; first.v.index < last.v.index; first.v.index++) {
+            for (; first.index < last.index; first.index++) {
                 const cmpYield = rt.invokeCall(cmpInst, [], rt.unbound(variables.deref(first) as MaybeUnboundVariable), rt.unbound(variables.deref(mini) as MaybeUnboundVariable)) as ResultOrGen<ArithmeticVariable>;
                 const cmpResult = rt.arithmeticValue(asResult(cmpYield) ?? (yield* cmpYield as Gen<ArithmeticVariable>))
                 if (cmpResult !== 0) {
-                    mini.v.index = first.v.index;
+                    mini.index = first.index;
                 }
             }
             return mini;
@@ -150,7 +150,7 @@ export = {
                 }
 
                 const cmp1Yield = ("t" in ltFun)
-                    ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem1, elem2) as ResultOrGen<ArithmeticVariable>
+                    ? rt.invokeCallFromVariable(ltFun.pointee, elem1, elem2) as ResultOrGen<ArithmeticVariable>
                     : rt.invokeCall(ltFun, [], elem1, elem2) as ResultOrGen<ArithmeticVariable>;
                 const cmp1Result = rt.arithmeticValue(asResult(cmp1Yield) ?? (yield* cmp1Yield as Gen<ArithmeticVariable>));
 
@@ -161,7 +161,7 @@ export = {
                     yield* common.invokePp(rt, fname, iter1.pp, first1);
                 } else {
                     const cmp2Yield = ("t" in ltFun)
-                        ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem2, elem1) as ResultOrGen<ArithmeticVariable>
+                        ? rt.invokeCallFromVariable(ltFun.pointee, elem2, elem1) as ResultOrGen<ArithmeticVariable>
                         : rt.invokeCall(ltFun, [], elem2, elem1) as ResultOrGen<ArithmeticVariable>;
                     const cmp2Result = rt.arithmeticValue(asResult(cmp2Yield) ?? (yield* cmp2Yield as Gen<ArithmeticVariable>));
 
@@ -222,7 +222,7 @@ export = {
                 }
 
                 const cmp1Yield = ("t" in ltFun)
-                    ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem1, elem2) as ResultOrGen<ArithmeticVariable>
+                    ? rt.invokeCallFromVariable(ltFun.pointee, elem1, elem2) as ResultOrGen<ArithmeticVariable>
                     : rt.invokeCall(ltFun, [], elem1, elem2) as ResultOrGen<ArithmeticVariable>;
                 const cmp1Result = rt.arithmeticValue(asResult(cmp1Yield) ?? (yield* cmp1Yield as Gen<ArithmeticVariable>));
 
@@ -231,7 +231,7 @@ export = {
                     yield* common.invokePp(rt, fname, iter1.pp, first1);
                 } else {
                     const cmp2Yield = ("t" in ltFun)
-                        ? rt.invokeCallFromVariable({ t: ltFun.t.pointee, v: ltFun.v.pointee }, elem2, elem1) as ResultOrGen<ArithmeticVariable>
+                        ? rt.invokeCallFromVariable(ltFun.pointee, elem2, elem1) as ResultOrGen<ArithmeticVariable>
                         : rt.invokeCall(ltFun, [], elem2, elem1) as ResultOrGen<ArithmeticVariable>;
                     const cmp2Result = rt.arithmeticValue(asResult(cmp2Yield) ?? (yield* cmp2Yield as Gen<ArithmeticVariable>));
 
@@ -302,15 +302,15 @@ export = {
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" {
                     const l: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(lhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
                     const r: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(rhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
-                    if (l.v.pointee !== r.v.pointee) {
+                    if (l.pointee !== r.pointee) {
                         rt.raiseException("sort: expected parameters 'first' and 'last' to point to a same memory region");
                     }
-                    const region = l.v.pointee.values.slice(l.v.index, r.v.index - l.v.index).map(v => ({ t: l.v.pointee.objectType, v })) as Variable[];
+                    const region = l.pointee.values.slice(l.index, r.index - l.index);
                     if (region.length === 0) {
                         return "VOID";
                     }
                     for (let i = 0; i < region.length; i++) {
-                        l.v.pointee.values[l.v.index + i] = { lvHolder: { array: l.v.pointee.values, index: l.v.index + i }, ...region[(region.length - 1) - i].v }
+                        l.pointee.values[l.index + i] = { lvHolder: { array: l.pointee.values, index: l.index + i }, ...region[(region.length - 1) - i] }
                     }
                     return "VOID";
                 }
@@ -334,8 +334,8 @@ export = {
                 type: "!ParamObject FUNCTION CLASS pair < PTR ?0 PTR ?0 > ( PTR ?0 PTR ?0 )",
                 *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): Gen<PairVariable<InitIndexPointerVariable<Variable>, InitIndexPointerVariable<Variable>>> {
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("minmax_element(): Expected 'first' to point to an element");
-                    const mini = yield* extreme_element(rt, variables.indexPointer(first.v.pointee, first.v.index, false, null), _last, "minmax_element", "o(_<_)");
-                    const maxi = yield* extreme_element(rt, variables.indexPointer(first.v.pointee, first.v.index, false, null), _last, "minmax_element", "o(_>_)");
+                    const mini = yield* extreme_element(rt, variables.indexPointer(first.pointee, first.index, false, null), _last, "minmax_element", "o(_<_)");
+                    const maxi = yield* extreme_element(rt, variables.indexPointer(first.pointee, first.index, false, null), _last, "minmax_element", "o(_>_)");
                     return {
                         t: {
                             sig: "CLASS",
@@ -343,14 +343,12 @@ export = {
                             memberOf: null,
                             templateSpec: [_first.t as PointerType<ObjectType>, _first.t as PointerType<ObjectType>]
                         },
-                        v: {
-                            isConst: false,
-                            lvHolder: null,
-                            state: "INIT",
-                            members: {
-                                first: variables.indexPointer(mini.v.pointee, mini.v.index, false, "SELF"),
-                                second: variables.indexPointer(maxi.v.pointee, maxi.v.index, false, "SELF"),
-                            }
+                        isConst: false,
+                        lvHolder: null,
+                        state: "INIT",
+                        members: {
+                            first: variables.indexPointer(mini.pointee, mini.index, false, "SELF"),
+                            second: variables.indexPointer(maxi.pointee, maxi.index, false, "SELF"),
                         }
                     };
                 }
@@ -364,11 +362,11 @@ export = {
                     }
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("find(): Expected 'first' to point to an element");
                     const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("find(): Expected 'last' to point to an element");
-                    if (first.v.pointee !== last.v.pointee) {
+                    if (first.pointee !== last.pointee) {
                         rt.raiseException("find(): Expected 'first' and 'last' to point to an element of the same memory region");
                     }
                     const eqInst = rt.getOpByParams("{global}", "o(_==_)", [rt.unbound(variables.deref(first) as MaybeUnboundVariable), value], []);
-                    for (; first.v.index < last.v.index; first.v.index++) {
+                    for (; first.index < last.index; first.index++) {
                         const eqYield = rt.invokeCall(eqInst, [], rt.unbound(variables.deref(first) as MaybeUnboundVariable), value) as ResultOrGen<ArithmeticVariable>;
                         const eqResult = rt.arithmeticValue(asResult(eqYield) ?? (yield* eqYield as Gen<ArithmeticVariable>))
                         if (eqResult !== 0) {
@@ -387,10 +385,10 @@ export = {
                     }
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("find(): Expected 'first' to point to an element");
                     const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("find(): Expected 'last' to point to an element");
-                    if (first.v.pointee !== last.v.pointee) {
+                    if (first.pointee !== last.pointee) {
                         rt.raiseException("find(): Expected 'first' and 'last' to point to an element of the same memory region");
                     }
-                    return variables.arithmeticNum("I32", last.v.index - first.v.index, null);
+                    return variables.arithmeticNum("I32", last.index - first.index, null);
                 }
             },
             {
@@ -536,7 +534,7 @@ export = {
                     const FNAME = 'remove';
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("remove(): Expected 'first' to point to an element");
                     const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("remove(): Expected 'last' to point to an element");
-                    if (first.v.pointee !== last.v.pointee) {
+                    if (first.pointee !== last.pointee) {
                         rt.raiseException("remove(): Expected 'first' and 'last' to point to an element of the same memory region");
                     }
                     const i = variables.clone(rt, first, "SELF");
@@ -578,14 +576,14 @@ export = {
                     const FNAME = 'remove_if';
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("remove_if(): Expected 'first' to point to an element");
                     const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("remove_if(): Expected 'last' to point to an element");
-                    if (first.v.pointee !== last.v.pointee) {
+                    if (first.pointee !== last.pointee) {
                         rt.raiseException("remove_if(): Expected 'first' and 'last' to point to an element of the same memory region");
                     }
 
                     const predicate = variables.asInitDirectPointer(_predicate) as InitDirectPointerVariable<Function>
                         ?? rt.raiseException("remove(): expected a pointer to a function");
 
-                    const predicateDeref: Function = { t: predicate.t.pointee, v: predicate.v.pointee };
+                    const predicateDeref: Function = predicate.pointee;
 
                     const i = variables.clone(rt, first, "SELF");
                     const j = variables.clone(rt, first, "SELF");

@@ -146,12 +146,12 @@ export default class Debugger {
             if (vf !== null) {
                 return {
                     type: vf.t.fulltype.join(" "),
-                    value: vf.v
+                    value: vf
                 }
             }
             return {
                 type: this.rt.makeTypeStringOfVar(v as MaybeLeftCV<ObjectType>),
-                value: v.v
+                value: v
             };
         } else {
             const usedName = new Set();

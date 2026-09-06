@@ -6,10 +6,10 @@ export = function (rt: CRuntime, _dest: InitIndexPointerVariable<ArithmeticNumVa
     const dest: InitIndexPointerVariable<ArithmeticNumVariable> | null = variables.asInitIndexPointerOfElem(_dest, _arithmetic);
     const src: InitIndexPointerVariable<ArithmeticNumVariable> | null = variables.asInitIndexPointerOfElem(_src, _arithmetic);
     if (src !== null && dest !== null) {
-        const srcarr = src.v.pointee.values;
-        let i = src.v.index;
-        const destarr = dest.v.pointee.values;
-        let j = dest.v.index;
+        const srcarr = src.pointee.values;
+        let i = src.index;
+        const destarr = dest.pointee.values;
+        let j = dest.index;
         while (i < srcarr.length && j < destarr.length) {
             const srcval = srcarr[i];
             if (srcval.state !== "INIT") {

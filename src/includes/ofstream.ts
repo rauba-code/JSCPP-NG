@@ -56,7 +56,7 @@ export = {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > )",
             default(_rt: CRuntime, _templateTypes: [], _path: StringVariable): OfStreamVariable {
-                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const pathPtr = variables.asInitIndexPointerOfElem(_path.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
                 _open(_rt, result, pathPtr, ios_base.openmode.out);
@@ -67,7 +67,7 @@ export = {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > I32 )",
             default(_rt: CRuntime, _templateTypes: [], _path: StringVariable, mode: ArithmeticNumVariable): OfStreamVariable {
-                const pathPtr = variables.asInitIndexPointerOfElem(_path.v.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const pathPtr = variables.asInitIndexPointerOfElem(_path.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
                 _open(_rt, result, pathPtr, rt.arithmeticNumValue(mode));
@@ -83,11 +83,11 @@ export = {
         const _open = function(_rt: CRuntime, _this: OfStreamVariable, right: InitIndexPointerVariable<ArithmeticNumVariable>, mode: number): void {
             const fd = _rt.openFile(right, mode);
             if (fd !== -1) {
-                variables.arithmeticNumAssign(rt, _this.v.members.fd, fd);
-                _this.v.members._is_open.v.value = 1;
+                variables.arithmeticNumAssign(rt, _this.members.fd, fd);
+                _this.members._is_open.value = 1;
             } else {
-                _this.v.members.failbit.v.value = 1;
-                _this.v.members._is_open.v.value = 0;
+                _this.members.failbit.value = 1;
+                _this.members._is_open.value = 0;
             }
         };
         const memberHandlers: FunHandler[] = [
@@ -95,8 +95,8 @@ export = {
                 op: "close",
                 type: "FUNCTION VOID ( LREF CLASS ofstream < > )",
                 default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable): "VOID" {
-                    rt.fileClose(l.v.members.fd);
-                    l.v.members._is_open.v.value = 0;
+                    rt.fileClose(l.members.fd);
+                    l.members._is_open.value = 0;
                     return "VOID";
                 }
             },
@@ -113,7 +113,7 @@ export = {
                 op: "is_open",
                 type: "FUNCTION BOOL ( LREF CLASS ofstream < > )",
                 default(_rt: CRuntime, _templateTypes: [], l: OfStreamVariable): InitArithmeticNumVariable {
-                    return variables.arithmeticNum("BOOL", l.v.members._is_open.v.value, null);
+                    return variables.arithmeticNum("BOOL", l.members._is_open.value, null);
                 }
             },
         ];

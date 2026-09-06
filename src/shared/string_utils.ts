@@ -2,21 +2,21 @@ import { CRuntime } from "../rt";
 import { AbstractVariable, ArithmeticNumVariable, ArithmeticVariable, ClassType, InitArithmeticNumVariable, InitArithmeticVariable, InitIndexPointerVariable, InitValue, ObjectType, PointerVariable, variables } from "../variables";
 
 export function skipSpace(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticNumVariable>): void {
-    if (buf.v.pointee.values.length === 0) {
+    if (buf.pointee.values.length === 0) {
         return;
     }
-    while (rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index)) === 32) {
-        buf.v.index++;
+    while (rt.arithmeticValue(variables.arrayMember(buf.pointee, buf.index)) === 32) {
+        buf.index++;
     }
 };
 
 export function sizeNonSpace(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticNumVariable>): number {
-    if (buf.v.pointee.values.length === 0) {
+    if (buf.pointee.values.length === 0) {
         return 0;
     }
     let i = 0;
     while (true) {
-        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i)) as number;
+        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.pointee, buf.index + i)) as number;
         if (chr === 0 || chr === 32 || chr === 9 || chr === 10) {
             break;
         }
@@ -26,13 +26,13 @@ export function sizeNonSpace(rt: CRuntime, buf: InitIndexPointerVariable<Arithme
 };
 
 export function sizeUntil(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticNumVariable>, delim: InitArithmeticVariable): number {
-    if (buf.v.pointee.values.length === 0) {
+    if (buf.pointee.values.length === 0) {
         return 0;
     }
     let i = 0;
     while (true) {
-        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i)) as number;
-        if (chr === delim.v.value || chr === 0) {
+        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.pointee, buf.index + i)) as number;
+        if (chr === delim.value || chr === 0) {
             break;
         }
         i++;
@@ -41,12 +41,12 @@ export function sizeUntil(rt: CRuntime, buf: InitIndexPointerVariable<Arithmetic
 };
 
 export function sizeUntilNull(rt: CRuntime, buf: InitIndexPointerVariable<ArithmeticNumVariable>): number {
-    if (buf.v.pointee.values.length === 0) {
+    if (buf.pointee.values.length === 0) {
         return 0;
     }
     let i = 0;
     while (true) {
-        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.v.pointee, buf.v.index + i)) as number;
+        const chr: number = rt.arithmeticValue(variables.arrayMember(buf.pointee, buf.index + i)) as number;
         if (chr === 0) {
             break;
         }
@@ -85,13 +85,13 @@ export const resolveIdentifier = function(obj: any) {
 };
 
 export function strcmp(rt: CRuntime, a: InitIndexPointerVariable<ArithmeticVariable>, b: InitIndexPointerVariable<ArithmeticVariable>): -1 | 0 | 1 {
-    if (a.v.pointee === b.v.pointee) {
+    if (a.pointee === b.pointee) {
         return 0;
     }
     let cnt = 0;
     while (true) {
-        const av = rt.arithmeticValue(variables.arrayMember(a.v.pointee, a.v.index + cnt))
-        const bv = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index + cnt))
+        const av = rt.arithmeticValue(variables.arrayMember(a.pointee, a.index + cnt))
+        const bv = rt.arithmeticValue(variables.arrayMember(b.pointee, b.index + cnt))
         if (av < bv) {
             return -1;
         } else if (av > bv) {
@@ -104,7 +104,7 @@ export function strcmp(rt: CRuntime, a: InitIndexPointerVariable<ArithmeticVaria
 }
 
 export function strncmp(rt: CRuntime, a: InitIndexPointerVariable<ArithmeticVariable>, b: InitIndexPointerVariable<ArithmeticVariable>, length: number): -1 | 0 | 1 {
-    if (a.v.pointee === b.v.pointee) {
+    if (a.pointee === b.pointee) {
         return 0;
     }
     let cnt = 0;
@@ -112,8 +112,8 @@ export function strncmp(rt: CRuntime, a: InitIndexPointerVariable<ArithmeticVari
         if (cnt >= length) {
             return 0;
         }
-        const av = rt.arithmeticValue(variables.arrayMember(a.v.pointee, a.v.index + cnt))
-        const bv = rt.arithmeticValue(variables.arrayMember(b.v.pointee, b.v.index + cnt))
+        const av = rt.arithmeticValue(variables.arrayMember(a.pointee, a.index + cnt))
+        const bv = rt.arithmeticValue(variables.arrayMember(b.pointee, b.index + cnt))
         if (av < bv) {
             return -1;
         } else if (av > bv) {

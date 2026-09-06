@@ -254,7 +254,7 @@ export type AnyType = ObjectType | FunctionType;
   * Intended to be implicitly cast from Variable | Function types. */
 export interface MaybeLeft<T extends ObjectType> {
     readonly t: T,
-    readonly v: { readonly lvHolder: LValueHolder<any> }
+    readonly lvHolder: LValueHolder<any>
 }
 
 /** Variable type with specified value type (lvalue or non-lvalue)
@@ -262,10 +262,12 @@ export interface MaybeLeft<T extends ObjectType> {
   * Intended to be implicitly cast from Variable | Function types. */
 export interface MaybeLeftCV<T extends ObjectType> {
     readonly t: T,
-    readonly v: { readonly lvHolder: LValueHolder<any>, readonly isConst: boolean }
+    readonly lvHolder: LValueHolder<any>,
+    readonly isConst: boolean
 }
 
 export interface UnboundValue<VSelf extends Variable> {
+    readonly t: VSelf['t'],
     readonly lvHolder: LValueIndexHolder<VSelf>;
     readonly isConst: boolean;
     state: "UNBOUND";
@@ -285,6 +287,15 @@ export interface InitValue<VSelf extends Variable> {
 
 export type LValueIndexHolder<VSelf extends Variable> = { readonly array: ArrayMemory<VSelf>, readonly index: number };
 
+/** Determiner of referee. 
+  * > `null` for non-lvalues, e.g., `6`, `"hello"`, `{ 2, -3 }` `(int)x`, `sin(x)`, etc.;
+  * > `"SELF"` for independent variables in the stack, e.g., `x` (given `float x = -47.3;`);
+  * > > The type of `&x` would then be `int*` (a.k.a. `PointerVariable`);
+  * > > `int *z = &x; z++;` would cause an undefined behaviour;
+  * > `IndexPointerValue` for array members, e.g. `a[1]` (given `int a[] = {1, 2, 3}`). 
+  * > > Likewise, the type of `&x` would then be `int*` (but it's `IndexPointerVariable` in the runtime);
+  * > > `int *w = &a[1]; w++;` would be okay and it would point to a[2];
+*/
 export type LValueHolder<VSelf extends Variable> = LValueIndexHolder<VSelf> | "SELF" | null;
 
 export interface InitArithmeticNumValue extends InitValue<ArithmeticNumVariable> {
@@ -297,7 +308,7 @@ export interface InitArithmeticBigValue extends InitValue<ArithmeticBigVariable>
 
 export interface ArrayMemory<VElem extends PointeeVariable> {
     readonly objectType: VElem["t"];
-    readonly values: VElem["v"][];
+    readonly values: VElem[];
 }
 
 export interface ClassValue extends InitValue<ClassVariable> {
@@ -306,7 +317,7 @@ export interface ClassValue extends InitValue<ClassVariable> {
 
 export interface InitDirectPointerValue<VElem extends PointeeVariable> extends InitValue<PointerVariable<VElem>> {
     subtype: "DIRECT",
-    pointee: VElem["v"];
+    pointee: VElem;
 };
 
 export interface InitIndexPointerValue<VElem extends PointeeVariable> extends InitValue<PointerVariable<VElem>> {
@@ -348,20 +359,9 @@ export type ObjectValue = ArithmeticValue | ClassValue | PointerValue<PointeeVar
 export type InitObjectValue = InitArithmeticNumValue | ClassValue | InitPointerValue<PointeeVariable>;
 export type MaybeUnboundObjectValue = MaybeUnboundArithmeticNumValue | MaybeUnboundClassValue | MaybeUnboundPointerValue<PointeeVariable>;
 
-/** Determiner of referee. 
-  * > `null` for non-lvalues, e.g., `6`, `"hello"`, `{ 2, -3 }` `(int)x`, `sin(x)`, etc.;
-  * > `"SELF"` for independent variables in the stack, e.g., `x` (given `float x = -47.3;`);
-  * > > The type of `&x` would then be `int*` (a.k.a. `PointerVariable`);
-  * > > `int *z = &x; z++;` would cause an undefined behaviour;
-  * > `IndexPointerValue` for array members, e.g. `a[1]` (given `int a[] = {1, 2, 3}`). 
-  * > > Likewise, the type of `&x` would then be `int*` (but it's `IndexPointerVariable` in the runtime);
-  * > > `int *w = &a[1]; w++;` would be okay and it would point to a[2];
-*/
-
-export interface AbstractVariable<TType, TValue> {
+export type AbstractVariable<TType, TValue> = {
     readonly t: TType,
-    v: TValue,
-}
+} & TValue;
 
 export type ArithmeticNumVariable = AbstractVariable<ArithmeticNumType, ArithmeticNumValue>;
 export type ArithmeticBigVariable = AbstractVariable<ArithmeticBigType, ArithmeticBigValue>;
@@ -411,57 +411,45 @@ export const variables = {
         return { sig: "FUNCTION", fulltype };
     },
     uninitArithmeticNum(sig: ArithmeticNumSig, lvHolder: LValueHolder<ArithmeticNumVariable>, isConst: boolean = false): ArithmeticNumVariable {
-        return { t: { sig }, v: { lvHolder, state: "UNINIT", isConst } };
+        return { t: { sig }, lvHolder, state: "UNINIT", isConst };
     },
     arithmeticNum(sig: ArithmeticNumSig, value: number, lvHolder: LValueHolder<ArithmeticNumVariable>, isConst: boolean = false): InitArithmeticNumVariable {
-        return { t: { sig }, v: { lvHolder, state: "INIT", value, isConst } };
+        return { t: { sig }, lvHolder, state: "INIT", value, isConst };
     },
     uninitArithmeticBig(sig: ArithmeticBigSig, lvHolder: LValueHolder<ArithmeticBigVariable>, isConst: boolean = false): ArithmeticBigVariable {
-        return { t: { sig }, v: { lvHolder, state: "UNINIT", isConst } };
+        return { t: { sig }, lvHolder, state: "UNINIT", isConst };
     },
     arithmeticBig(sig: ArithmeticBigSig, value: bigint, lvHolder: LValueHolder<ArithmeticBigVariable>, isConst: boolean = false): InitArithmeticBigVariable {
-        return { t: { sig }, v: { lvHolder, state: "INIT", value, isConst } };
+        return { t: { sig }, lvHolder, state: "INIT", value, isConst };
     },
     uninitPointer(object: ObjectType | FunctionType, sizeConstraint: number | null, lvHolder: LValueHolder<PointerVariable<PointeeVariable>>, isConst: boolean = false): PointerVariable<PointeeVariable> {
-        return { t: { sig: "PTR", pointee: object, sizeConstraint }, v: { lvHolder, state: "UNINIT", isConst } };
+        return { t: { sig: "PTR", pointee: object, sizeConstraint }, lvHolder, state: "UNINIT", isConst };
     },
     directPointer<VElem extends PointeeVariable>(pointee: VElem, lvHolder: LValueHolder<PointerVariable<VElem>>, isConst: boolean = false): InitDirectPointerVariable<VElem> {
         const t = variables.pointerType(pointee.t, null);
-        return { t, v: { lvHolder, state: "INIT", subtype: "DIRECT", pointee: pointee.v, isConst } };
+        return { t, lvHolder, state: "INIT", subtype: "DIRECT", pointee, isConst };
     },
     indexPointer<VElem extends PointeeVariable>(pointee: ArrayMemory<VElem>, index: number, constrainSize: boolean, lvHolder: LValueHolder<PointerVariable<VElem>>, isConst: boolean = false): InitIndexPointerVariable<VElem> {
         const t = variables.pointerType(pointee.objectType, constrainSize ? (pointee.values.length - index) : null);
-        return { t, v: { lvHolder, state: "INIT", subtype: "INDEX", pointee, index, isConst } };
+        return { t, lvHolder, state: "INIT", subtype: "INDEX", pointee, index, isConst };
     },
     class(t: ClassType, members: { [name: string]: Variable }, lvHolder: LValueHolder<ClassVariable>, isConst: boolean = false): InitClassVariable {
-        return { t, v: { lvHolder, state: "INIT", members, isConst } };
+        return { t, lvHolder, state: "INIT", members, isConst };
     },
-    arrayMemory<VElem extends PointeeVariable>(objectType: VElem["t"], values: VElem["v"][]): ArrayMemory<VElem> {
+    arrayMemory<VElem extends PointeeVariable>(objectType: VElem["t"], values: VElem[]): ArrayMemory<VElem> {
         return { objectType, values };
     },
     function(fulltype: string[], name: string, target: CFunction | null, bindThis: ClassVariable | null, lvHolder: "SELF" | null): Function {
-        return { t: variables.functionType(fulltype), v: { lvHolder, state: "INIT", name, target, bindThis, isConst: true } };
-    },
-    derefDirect<VElem extends PointeeVariable>(object: InitDirectPointerVariable<VElem>): VElem {
-        return {
-            t: object.t.pointee,
-            v: object.v.pointee,
-        } as VElem;
+        return { t: variables.functionType(fulltype), lvHolder, state: "INIT", name, target, bindThis, isConst: true };
     },
     deref<VElem extends Variable>(object: InitPointerVariable<VElem>): VElem | AbstractVariable<VElem["t"], UnboundValue<VElem>> {
-        if (object.v.subtype === "DIRECT") {
-            return {
-                t: object.t.pointee,
-                v: object.v.pointee,
-            } as VElem;
-        }
-        return variables.arrayMember<VElem>(object.v.pointee, object.v.index);
+        return (object.subtype === "DIRECT") ? object.pointee : variables.arrayMember<VElem>(object.pointee, object.index);
     },
     arrayMember<VElem extends Variable>(lhs: ArrayMemory<VElem>, index: number): VElem | AbstractVariable<VElem["t"], UnboundValue<VElem>> {
         if (index >= 0 && index < lhs.values.length) {
-            return { t: lhs.objectType, v: lhs.values[index] } as VElem;
+            return lhs.values[index];
         }
-        return { t: lhs.objectType, v: { lvHolder: { array: lhs, index } as LValueIndexHolder<VElem>, isConst: false, state: "UNBOUND" } as UnboundValue<VElem> };
+        return { t: lhs.objectType, lvHolder: { array: lhs, index } as LValueIndexHolder<VElem>, isConst: false, state: "UNBOUND" } as UnboundValue<VElem>;
     },
     /** Create a new variable with the same type and value as the original one */
     clone<TVar extends Variable>(rt: CRuntime, object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, allowUninit: boolean = false): TVar {
@@ -469,44 +457,42 @@ export const variables = {
         let branch: { [sig in BranchKey]: (x: LValueHolder<Variable>) => Variable } = {
             "ARITHMETIC": (_lvHolder: LValueHolder<InitArithmeticVariable>) => {
                 const x = object as InitArithmeticVariable;
-                return { t: { sig: x.t.sig }, v: { value: x.v.value, lvHolder: _lvHolder, isConst: isConst, state: "INIT" } } as InitArithmeticVariable;
+                return { t: { sig: x.t.sig }, value: x.value, lvHolder: _lvHolder, isConst: isConst, state: "INIT" } as InitArithmeticVariable;
             },
             "PTR": (_lvHolder: LValueHolder<InitPointerVariable<PointeeVariable>>) => {
                 const _x = object as InitPointerVariable<PointeeVariable>;
-                if (_x.v.subtype === "DIRECT") {
-                    const x = _x as InitDirectPointerVariable<PointeeVariable>;
-                    const child = variables.derefDirect(x);
-                    return variables.directPointer(child, _lvHolder, isConst);
+                if (_x.subtype === "DIRECT") {
+                    return variables.directPointer((_x as InitDirectPointerVariable<PointeeVariable>).pointee, _lvHolder, isConst);
                 } else {
                     const x = _x as InitIndexPointerVariable<Variable>;
                     if (x.t.sizeConstraint === null) {
-                        return variables.indexPointer(x.v.pointee, x.v.index, false, _lvHolder, isConst);
+                        return variables.indexPointer(x.pointee, x.index, false, _lvHolder, isConst);
                     } else {
                         const memory = variables.arrayMemory<Variable>(x.t.pointee, []);
                         for (let i = 0; i < x.t.sizeConstraint; i++) {
-                            memory.values.push(variables.clone(rt, { t: x.t.pointee, v: x.v.pointee.values[i] } as Variable, { array: memory, index: i }, false, true).v);
+                            memory.values.push(variables.clone(rt, x.pointee.values[i], { array: memory, index: i }, false, true));
                         }
-                        return variables.indexPointer(memory, x.v.index, true, _lvHolder, isConst);
+                        return variables.indexPointer(memory, x.index, true, _lvHolder, isConst);
                     }
                 }
             },
             "CLASS": (_lvHolder: LValueHolder<InitClassVariable>) => {
                 const x = object as InitClassVariable;
-                const members = Object.fromEntries(Object.entries(x.v.members).map(([k, v]: [string, Variable]) => [k, variables.clone(rt, v, "SELF", false, true)]));
+                const members = Object.fromEntries(Object.entries(x.members).map(([k, v]: [string, Variable]) => [k, variables.clone(rt, v, "SELF", false, true)]));
                 return variables.class(x.t, members, _lvHolder, isConst);
             },
             "FUNCTION": (_lvHolder: LValueHolder<any>) => {
-                rt.raiseException("not yet implemented");
+                rt.raiseException("Cannot clone a function");
             },
         }
-        if (object.v.state === "UNINIT") {
+        if (object.state === "UNINIT") {
             if (!allowUninit) {
                 rt.raiseException("Attempted clone of an uninitialised value");
             }
             branch = {
                 "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticVariable>) => {
                     const x = object as ArithmeticNumVariable;
-                    return { t: { sig: x.t.sig }, v: { state: "UNINIT", lvHolder: _lvHolder, isConst } } as ArithmeticVariable;
+                    return { t: { sig: x.t.sig }, state: "UNINIT", lvHolder: _lvHolder, isConst } as ArithmeticVariable;
                 },
                 "PTR": (_lvHolder: LValueHolder<PointerVariable<PointeeVariable>>) => {
                     const x = object as PointerVariable<PointeeVariable>;
@@ -520,7 +506,7 @@ export const variables = {
                 },
             }
         }
-        if (!object.v.isConst && isConst) {
+        if (!object.isConst && isConst) {
             rt.raiseException("Cannot clone from a volatile variable to a constant");
         }
         const where: BranchKey = (object.t.sig in arithmeticSig) ? "ARITHMETIC" : object.t.sig as BranchKey;
@@ -551,58 +537,58 @@ export const variables = {
         return (x.t.sig in arithmeticSig) ? x as ArithmeticVariable : null;
     },
     asInitArithmetic(x: Variable | Function): InitArithmeticVariable | null {
-        return (x.t.sig in arithmeticSig && x.v.state === "INIT") ? x as InitArithmeticVariable : null;
+        return (x.t.sig in arithmeticSig && x.state === "INIT") ? x as InitArithmeticVariable : null;
     },
     asArithmeticNum(x: Variable | Function): ArithmeticNumVariable | null {
         return (x.t.sig in arithmeticNumSig) ? x as ArithmeticNumVariable : null;
     },
     asInitArithmeticNum(x: Variable | Function): InitArithmeticNumVariable | null {
-        return (x.t.sig in arithmeticNumSig && x.v.state === "INIT") ? x as InitArithmeticNumVariable : null;
+        return (x.t.sig in arithmeticNumSig && x.state === "INIT") ? x as InitArithmeticNumVariable : null;
     },
     asArithmeticBig(x: Variable | Function): ArithmeticBigVariable | null {
         return (x.t.sig in arithmeticBigSig) ? x as ArithmeticBigVariable : null;
     },
     asInitArithmeticBig(x: Variable | Function): InitArithmeticBigVariable | null {
-        return (x.t.sig in arithmeticBigSig && x.v.state === "INIT") ? x as InitArithmeticBigVariable : null;
+        return (x.t.sig in arithmeticBigSig && x.state === "INIT") ? x as InitArithmeticBigVariable : null;
     },
     asPointer(x: Variable | Function): PointerVariable<PointeeVariable> | null {
         return (x.t.sig === "PTR") ? x as PointerVariable<PointeeVariable> : null;
     },
     asPointerOfElem<VElem extends Variable | Function>(x: Variable | Function, elem: VElem): PointerVariable<VElem> | null {
-        return (x.t.sig === "PTR" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as PointerVariable<VElem> : null;
+        return (x.t.sig === "PTR" && variables.typesEqual(x.t.pointee, elem.t)) ? x as PointerVariable<VElem> : null;
     },
     asInitPointer(x: Variable | Function): InitPointerVariable<PointeeVariable> | null {
-        return (x.t.sig === "PTR" && x.v.state === "INIT") ? x as InitPointerVariable<PointeeVariable> : null;
+        return (x.t.sig === "PTR" && x.state === "INIT") ? x as InitPointerVariable<PointeeVariable> : null;
     },
     asInitPointerOfElem<VElem extends Variable | Function>(x: Variable | Function, elem: VElem): InitPointerVariable<VElem> | null {
-        return (x.t.sig === "PTR" && x.v.state === "INIT" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitPointerVariable<VElem> : null;
+        return (x.t.sig === "PTR" && x.state === "INIT" && variables.typesEqual(x.t.pointee, elem.t)) ? x as InitPointerVariable<VElem> : null;
     },
     /** Given a variable or function of any type, 
     * return itself if it is an init direct pointer, 
     * or null otherwise */
     asInitDirectPointer(x: Variable | Function): InitDirectPointerVariable<PointeeVariable> | null {
-        return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "DIRECT") ? x as InitDirectPointerVariable<PointeeVariable> : null;
+        return (x.t.sig === "PTR" && x.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).subtype === "DIRECT") ? x as InitDirectPointerVariable<PointeeVariable> : null;
     },
     /** Given a pointer of a known type, 
     * return itself if it is an init direct pointer, 
     * or null otherwise. */
     asInitDirectPointer2<VPointee extends PointeeVariable>(x: PointerVariable<VPointee>): InitDirectPointerVariable<VPointee> | null {
-        return (x.v.state === "INIT" && (x as InitPointerVariable<VPointee>).v.subtype === "DIRECT") ? x as InitDirectPointerVariable<VPointee> : null;
+        return (x.state === "INIT" && (x as InitPointerVariable<VPointee>).subtype === "DIRECT") ? x as InitDirectPointerVariable<VPointee> : null;
     },
     /** Given a pointer of a known type, 
     * return its pointee if it is an init direct pointer, 
     * or null otherwise. */
-    asInitDirectPointerPointee<VPointee extends PointeeVariable>(x: PointerVariable<VPointee>): VPointee['v'] | null {
-        return (x.v.state === "INIT" && (x as InitPointerVariable<VPointee>).v.subtype === "DIRECT") ? x.v.pointee as VPointee['v'] : null;
+    asInitDirectPointerPointee<VPointee extends PointeeVariable>(x: PointerVariable<VPointee>): VPointee | null {
+        return (x.state === "INIT" && (x as InitPointerVariable<VPointee>).subtype === "DIRECT") ? x.pointee as VPointee : null;
     },
     asInitDirectPointerOfElem<VElem extends Variable | Function>(x: Variable | Function, elem: VElem): InitDirectPointerVariable<VElem> | null {
-        return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "DIRECT" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitDirectPointerVariable<VElem> : null;
+        return (x.t.sig === "PTR" && x.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).subtype === "DIRECT" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitDirectPointerVariable<VElem> : null;
     },
     asInitIndexPointer(x: Variable | Function): InitIndexPointerVariable<Variable> | null {
-        return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "INDEX") ? x as InitIndexPointerVariable<Variable> : null;
+        return (x.t.sig === "PTR" && x.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).subtype === "INDEX") ? x as InitIndexPointerVariable<Variable> : null;
     },
     asInitIndexPointerOfElem<VElem extends Variable>(x: Variable | Function, elem: VElem): InitIndexPointerVariable<VElem> | null {
-        return (x.t.sig === "PTR" && x.v.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).v.subtype === "INDEX" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitIndexPointerVariable<VElem> : null;
+        return (x.t.sig === "PTR" && x.state === "INIT" && (x as InitPointerVariable<PointeeVariable>).subtype === "INDEX" && variables.typesEqual((x as PointerVariable<Variable>).t.pointee, elem.t)) ? x as InitIndexPointerVariable<VElem> : null;
     },
     asClass(x: Variable | Function): ClassVariable | null {
         return (x.t.sig === "CLASS") ? x as ClassVariable : null;
@@ -670,58 +656,58 @@ export const variables = {
         return branch[lhs.sig as BranchKey]();
     },
     arithmeticNumAssign(rt: CRuntime, lhs: ArithmeticNumVariable, value: number): void {
-        checkAssignable(rt, lhs.v);
-        lhs.v.state = "INIT";
-        (lhs.v as InitArithmeticNumValue).value = value;
+        checkAssignable(rt, lhs);
+        lhs.state = "INIT";
+        (lhs as InitArithmeticNumValue).value = value;
     },
     arithmeticBigAssign(rt: CRuntime, lhs: ArithmeticBigVariable, value: bigint): void {
-        checkAssignable(rt, lhs.v);
-        lhs.v.state = "INIT";
-        (lhs.v as InitArithmeticBigValue).value = value;
+        checkAssignable(rt, lhs);
+        lhs.state = "INIT";
+        (lhs as InitArithmeticBigValue).value = value;
     },
-    arithmeticNumValueAssign(rt: CRuntime, lv: ArithmeticNumValue, value: number): void {
+    arithmeticNumValueAssign(rt: CRuntime, lv: ArithmeticNumVariable, value: number): void {
         checkAssignable(rt, lv);
         lv.state = "INIT";
         (lv as InitArithmeticNumValue).value = value;
     },
-    arithmeticBigValueAssign(rt: CRuntime, lv: ArithmeticBigValue, value: bigint): void {
+    arithmeticBigValueAssign(rt: CRuntime, lv: ArithmeticBigVariable, value: bigint): void {
         checkAssignable(rt, lv);
         lv.state = "INIT";
         (lv as InitArithmeticBigValue).value = value;
     },
-    /** DEPRECATED: use directPointerAssignValue instead */
+    /** DEPRECATED: use directPointerAssign2 instead */
     directPointerAssign<VElem extends PointeeVariable>(rt: CRuntime, lhs: PointerVariable<PointeeVariable>, pointee: VElem): void {
-        checkAssignable(rt, lhs.v);
+        checkAssignable(rt, lhs);
         if (!variables.typesEqual(lhs.t.pointee, pointee.t)) {
             const expected = variables.toStringSequence(rt, lhs.t.pointee, false, false).join(" ");
             const received = variables.toStringSequence(rt, pointee.t, false, false).join(" ");
             rt.raiseException(`expected type '${expected}', got '${received}'`)
         }
-        lhs.v.state = "INIT";
-        (lhs.v as InitDirectPointerValue<VElem>).subtype = "DIRECT";
-        (lhs.v as InitDirectPointerValue<VElem>).pointee = pointee.v;
+        lhs.state = "INIT";
+        (lhs as InitDirectPointerVariable<VElem>).subtype = "DIRECT";
+        (lhs as InitDirectPointerVariable<VElem>).pointee = pointee;
     },
-    directPointerAssignValue<VElem extends PointeeVariable>(rt: CRuntime, lhs: PointerVariable<VElem>, pointee: VElem['v']): void {
-        checkAssignable(rt, lhs.v);
-        lhs.v.state = "INIT";
-        (lhs.v as InitDirectPointerValue<VElem>).subtype = "DIRECT";
-        (lhs.v as InitDirectPointerValue<VElem>).pointee = pointee;
+    directPointerAssign2<VElem extends PointeeVariable>(rt: CRuntime, lhs: PointerVariable<VElem>, pointee: VElem): void {
+        checkAssignable(rt, lhs);
+        lhs.state = "INIT";
+        (lhs as InitDirectPointerVariable<VElem>).subtype = "DIRECT";
+        (lhs as InitDirectPointerVariable<VElem>).pointee = pointee;
     },
     indexPointerAssign<VElem extends Variable>(rt: CRuntime, lhs: PointerVariable<VElem>, array: ArrayMemory<VElem>, index: number): void {
-        checkAssignable(rt, lhs.v);
+        checkAssignable(rt, lhs);
         if (!variables.typesEqual(lhs.t.pointee, array.objectType)) {
             const expected = variables.toStringSequence(rt, lhs.t.pointee, false, false).join(" ");
             const received = variables.toStringSequence(rt, array.objectType, false, false).join(" ");
             rt.raiseException(`expected type '${expected}', got '${received}'`)
         }
-        lhs.v.state = "INIT";
-        (lhs.v as InitIndexPointerValue<VElem>).subtype = "INDEX";
-        (lhs.v as InitIndexPointerValue<VElem>).pointee = array;
-        (lhs.v as InitIndexPointerValue<VElem>).index = index;
+        lhs.state = "INIT";
+        (lhs as InitIndexPointerValue<VElem>).subtype = "INDEX";
+        (lhs as InitIndexPointerValue<VElem>).pointee = array;
+        (lhs as InitIndexPointerValue<VElem>).index = index;
     },
     indexPointerAssignIndex(rt: CRuntime, lhs: InitIndexPointerVariable<Variable>, index: number): void {
-        checkAssignable(rt, lhs.v);
-        lhs.v.index = index;
+        checkAssignable(rt, lhs);
+        lhs.index = index;
     },
     toStringSequence(rt: CRuntime, type: AnyType, left: boolean, isConst: boolean): string[] {
         let result = new Array<string>();
@@ -738,7 +724,7 @@ export const variables = {
     defaultArithmeticResolutionMap: defaultArithmeticResolutionMap,
 } as const;
 
-function checkAssignable(rt: CRuntime, v: ObjectValue): void {
+function checkAssignable(rt: CRuntime, v: Variable): void {
     if (v.lvHolder === null) {
         rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }

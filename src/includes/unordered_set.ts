@@ -40,7 +40,7 @@ export = {
             *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticNumVariable>): Gen<UnorderedSetVariable<Variable>> {
                 const thisType = variables.classType("unordered_set", list.t.templateSpec, null) as UnorderedSetType<ObjectType>;
                 const usetVar = yield* rt.defaultValue2(thisType, "SELF");
-                const listmem = list.v.members._values.v.pointee;
+                const listmem = list.members._values.pointee;
                 
                 // Add all elements with duplicate removal (no sorting needed for unordered_set)
                 for (let i = 0; i < listmem.values.length; i++) {
@@ -60,17 +60,17 @@ export = {
                 const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("unordered_set constructor: expected valid begin iterator");
                 const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("unordered_set constructor: expected valid end iterator");
                 
-                if (begin.v.pointee !== end.v.pointee) {
+                if (begin.pointee !== end.pointee) {
                     rt.raiseException("unordered_set constructor: iterators must point to same memory region");
                 }
                 
-                const elementType = begin.v.pointee.objectType;
+                const elementType = begin.pointee.objectType;
                 const thisType = variables.classType("unordered_set", [elementType], null) as UnorderedSetType<ObjectType>;
                 const usetVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<UnorderedSetVariable<Variable>>;
                 
                 // Add elements with duplicate removal
-                for (let i = begin.v.index; i < end.v.index; i++) {
-                    const currentValue = rt.unbound(variables.arrayMember(begin.v.pointee, i) as MaybeUnboundVariable);
+                for (let i = begin.index; i < end.index; i++) {
+                    const currentValue = rt.unbound(variables.arrayMember(begin.pointee, i) as MaybeUnboundVariable);
                     _insert(rt, usetVar, currentValue);
                 }
                 
@@ -83,8 +83,8 @@ export = {
         rt.regFunc(ctorHandler2.default, variables.classType("unordered_set", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1], null);
 
         function _insert(rt: CRuntime, usetVar: UnorderedSetVariable<Variable>, value: Variable): [InitIndexPointerVariable<Variable>, boolean] {
-            const dataPtr = usetVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
+            const dataPtr = usetVar.members._data;
+            const dataArray = dataPtr.pointee;
             
             // Check if element already exists
             for (let i = 0; i < dataArray.values.length; i++) {
@@ -97,15 +97,15 @@ export = {
             
             // Element doesn't exist, add it
             const newIndex = dataArray.values.length;
-            dataArray.values.push(variables.clone(rt, value, { array: dataArray, index: newIndex }, false, true).v);
-            usetVar.v.members._sz.v.value++;
+            dataArray.values.push(variables.clone(rt, value, { array: dataArray, index: newIndex }, false, true));
+            usetVar.members._sz.value++;
             
             return [variables.indexPointer(dataArray, newIndex, false, null, false), true];
         }
 
         function _find(rt: CRuntime, usetVar: UnorderedSetVariable<Variable>, value: Variable): InitIndexPointerVariable<Variable> | null {
-            const dataPtr = usetVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
+            const dataPtr = usetVar.members._data;
+            const dataArray = dataPtr.pointee;
             
             // Linear search (unordered)
             const valueNum = rt.arithmeticValue(value as ArithmeticNumVariable);
@@ -122,22 +122,22 @@ export = {
         }
 
         function _end(usetVar: UnorderedSetVariable<Variable>): InitIndexPointerVariable<Variable> {
-            const dataPtr = usetVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
-            return variables.indexPointer(dataArray, usetVar.v.members._sz.v.value, false, null, false);
+            const dataPtr = usetVar.members._data;
+            const dataArray = dataPtr.pointee;
+            return variables.indexPointer(dataArray, usetVar.members._sz.value, false, null, false);
         }
 
         function _erase(usetVar: UnorderedSetVariable<Variable>, index: number): boolean {
-            const dataPtr = usetVar.v.members._data;
-            const dataArray = dataPtr.v.pointee;
-            const size = usetVar.v.members._sz.v.value;
+            const dataPtr = usetVar.members._data;
+            const dataArray = dataPtr.pointee;
+            const size = usetVar.members._sz.value;
             
             if (index >= 0 && index < size) {
                 // For unordered_set, we can just move the last element to this position
                 if (index < size - 1) {
                     dataArray.values[index] = dataArray.values[size - 1];
                 }
-                usetVar.v.members._sz.v.value--;
+                usetVar.members._sz.value--;
                 return true;
             }
             return false;
@@ -149,8 +149,8 @@ export = {
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS unordered_set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
-                    const dataPtr = usetVar.v.members._data;
-                    const dataArray = dataPtr.v.pointee;
+                    const dataPtr = usetVar.members._data;
+                    const dataArray = dataPtr.pointee;
                     return variables.indexPointer(dataArray, 0, false, null, false);
                 }
             },
@@ -168,7 +168,7 @@ export = {
                 *default(rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
                     const list = args[1] as InitializerListVariable<Variable>;
-                    const listmem = list.v.members._values.v.pointee;
+                    const listmem = list.members._values.pointee;
                     
                     let lastInserted: InitIndexPointerVariable<Variable> | null = null;
                     for (let i = 0; i < listmem.values.length; i++) {
@@ -201,12 +201,12 @@ export = {
                     const begin = variables.asInitIndexPointer(beginPtr) ?? rt.raiseException("unordered_set::insert: expected valid begin iterator");
                     const end = variables.asInitIndexPointer(endPtr) ?? rt.raiseException("unordered_set::insert: expected valid end iterator");
                     
-                    if (begin.v.pointee !== end.v.pointee) {
+                    if (begin.pointee !== end.pointee) {
                         rt.raiseException("unordered_set::insert: iterators must point to same memory region");
                     }
                     
-                    for (let i = begin.v.index; i < end.v.index; i++) {
-                        const currentValue = rt.unbound(variables.arrayMember(begin.v.pointee, i) as MaybeUnboundVariable);
+                    for (let i = begin.index; i < end.index; i++) {
+                        const currentValue = rt.unbound(variables.arrayMember(begin.pointee, i) as MaybeUnboundVariable);
                         _insert(rt, usetVar, currentValue);
                     }
                     
@@ -221,7 +221,7 @@ export = {
                     const value = args[1];
                     const found = _find(rt, usetVar, value);
                     if (found !== null) {
-                        const erased = _erase(usetVar, found.v.index);
+                        const erased = _erase(usetVar, found.index);
                         return variables.arithmeticNum("I32", erased ? 1 : 0, null, false);
                     }
                     return variables.arithmeticNum("I32", 0, null, false);
@@ -265,7 +265,7 @@ export = {
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS unordered_set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
-                    return variables.arithmeticNum("I32", usetVar.v.members._sz.v.value, null, false);
+                    return variables.arithmeticNum("I32", usetVar.members._sz.value, null, false);
                 }
             },
             {
@@ -273,7 +273,7 @@ export = {
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS unordered_set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]) {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
-                    return variables.arithmeticNum("BOOL", usetVar.v.members._sz.v.value === 0 ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", usetVar.members._sz.value === 0 ? 1 : 0, null, false);
                 }
             },
             {
@@ -281,7 +281,7 @@ export = {
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS unordered_set < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: ObjectType[], ...args: Variable[]): "VOID" {
                     const usetVar = args[0] as UnorderedSetVariable<Variable>;
-                    usetVar.v.members._sz.v.value = 0;
+                    usetVar.members._sz.value = 0;
                     return "VOID";
                 }
             },

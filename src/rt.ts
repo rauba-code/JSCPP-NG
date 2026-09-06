@@ -1,5 +1,5 @@
 import * as interp from "./interpreter";
-import { AbstractVariable, AnyType, ArithmeticBigSig, ArithmeticBigType, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumType, ArithmeticNumValue, ArithmeticNumVariable, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, UnboundValue, Variable, variables } from "./variables";
+import { AbstractVariable, AnyType, ArithmeticBigSig, ArithmeticBigType, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumType, ArithmeticNumVariable, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, UnboundValue, Variable, variables } from "./variables";
 import { TypeLookup, FunctionMatchResult, abstractFunctionReturnSig } from "./typelookup";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
@@ -282,7 +282,7 @@ export class CRuntime {
         let parentList: [string, number][] = [["", 0]];
         const rt = this;
         function insertVal(dict: { [name: string]: VariableDisplayValue }, name: string, val: MaybeUnboundVariable, parentId: number, nameAsChild: string): void {
-            const vid = (val.v as any)._vid;
+            const vid = (val as any)._vid;
             if (typeof vid === "number" && vid >= vbegin) {
                 if (enableValues) {
                     let x = vid;
@@ -305,7 +305,7 @@ export class CRuntime {
                     }
                 }
             } else {
-                (val.v as any)._vid = rt.vcnt++;
+                (val as any)._vid = rt.vcnt++;
                 // TODO: makeValueString may be overwritten afterwards
                 // This must be optimised
                 const valNode: VariableDisplayValue = {
@@ -314,7 +314,7 @@ export class CRuntime {
                     displayString: null,
                 }
                 dict[name] = valNode;
-                if (val.v.state !== "UNBOUND") {
+                if (val.state !== "UNBOUND") {
                     queue.push([valNode, val as Variable]);
                 }
                 parentList.push([nameAsChild, parentId]);
@@ -324,7 +324,7 @@ export class CRuntime {
         for (let i = this.scope.length - 1; i >= 0; i--) {
             let scope = this.scope[i];
             for (const [name, val] of Object.entries(scope.variables)) {
-                if (!(name in rdict) && "t" in val && "v" in val && Object.entries(val.v).length > 1 && !("hidden" in val)) {
+                if (!(name in rdict) && "t" in val && "v" in val && Object.entries(val).length > 1 && !("hidden" in val)) {
                     insertVal(rdict, name, val, 0, name);
                 }
             }
@@ -337,9 +337,9 @@ export class CRuntime {
                 break;
             }
             const [parentNode, parentVar] = queue[qi];
-            const parentId = (parentVar.v as any)._vid as number;
+            const parentId = (parentVar as any)._vid as number;
             let dict: { [name: string]: VariableDisplayValue } = {};
-            if (parentVar.t.sig === "CLASS" && parentVar.v.state === "INIT") {
+            if (parentVar.t.sig === "CLASS" && parentVar.state === "INIT") {
                 const parentClass = parentVar as InitClassVariable;
                 const domain = this.domainString(parentClass.t);
                 if (domain in this.typeMap) {
@@ -455,16 +455,16 @@ export class CRuntime {
                     }
                 } else {
                     // default list of members
-                    for (const [name, val] of Object.entries(parentClass.v.members)) {
+                    for (const [name, val] of Object.entries(parentClass.members)) {
                         if (!(name in dict) && !("hidden" in val)) {
                             insertVal(dict, name, val, parentId, `.${name}`);
                         }
                     }
                 }
-            } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).v.subtype === "INDEX") {
+            } else if (parentVar.t.sig === "PTR" && parentVar.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).subtype === "INDEX") {
                 const parentArray = parentVar as InitIndexPointerVariable<Variable>;
-                const memory = parentArray.v.pointee;
-                const index = parentArray.v.index;
+                const memory = parentArray.pointee;
+                const index = parentArray.index;
                 for (let j = 0; j < parentVar.t.sizeConstraint; j++) {
                     // Always bound. Even if unbound condition happens, we don't care that much
                     let val = variables.arrayMember(memory, index + j) as Variable;
@@ -472,7 +472,7 @@ export class CRuntime {
                         insertVal(dict, `[${j}]`, val, parentId, `[${j}]`);
                     }
                 }
-            } else if (parentVar.t.sig === "PTR" && parentVar.v.state === "INIT" && parentVar.t.sizeConstraint === null && parentVar.t.pointee.sig !== "I8") {
+            } else if (parentVar.t.sig === "PTR" && parentVar.state === "INIT" && parentVar.t.sizeConstraint === null && parentVar.t.pointee.sig !== "I8") {
                 const parentPtr = parentVar as InitIndexPointerVariable<Variable>;
                 let parentName = parentList[parentId - vbegin][0];
                 if (parentName.startsWith(".")) {
@@ -518,7 +518,7 @@ export class CRuntime {
     }
 
     fileRead(fd: InitArithmeticNumVariable): InitIndexPointerVariable<ArithmeticVariable> {
-        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        const fileInst = this.fileio.files[fd.value] ?? this.raiseException("Invalid file descriptor");
         const readData = fileInst.read("");
         if (readData === undefined) {
             this.raiseException("File read failed unexpectedly")
@@ -527,12 +527,12 @@ export class CRuntime {
     }
 
     fileClose(fd: InitArithmeticNumVariable): void {
-        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        const fileInst = this.fileio.files[fd.value] ?? this.raiseException("Invalid file descriptor");
         fileInst.close();
     }
 
     fileWrite(fd: InitArithmeticNumVariable, data: InitIndexPointerVariable<ArithmeticNumVariable>): void {
-        const fileInst = this.fileio.files[fd.v.value] ?? this.raiseException("Invalid file descriptor");
+        const fileInst = this.fileio.files[fd.value] ?? this.raiseException("Invalid file descriptor");
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmeticNum("I8", 0, null))))
     }
 
@@ -588,16 +588,16 @@ export class CRuntime {
         //l = this.asCapturedVariable(l);
         let lc = variables.asClass(l);
         if (lc !== null) {
-            if (!lc.v.lvHolder === null) {
+            if (!lc.lvHolder === null) {
                 this.raiseException("Access to a member of a non-lvalue variable is forbidden");
             }
-            if (lc.v.state !== "INIT") {
+            if (lc.state !== "INIT") {
                 this.raiseException("Access to an unbounded index member")
             }
             const domainName: string = this.domainString(lc.t);
             if (domainName in this.typeMap) {
-                if (identifier in lc.v.members) {
-                    return lc.v.members[identifier];
+                if (identifier in lc.members) {
+                    return lc.members[identifier];
                 } else {
                     this.raiseException(`type '${this.makeTypeString(lc.t)}' does not have a member called '${identifier}'`);
                 }
@@ -639,8 +639,8 @@ export class CRuntime {
     /** This function is only used when defining a function with an exact type, typically at runtime. For matching, use TypeLookup-associated functions */
     createFunctionTypeSignature(domain: ClassType | "{global}" | "{lambda}", retType: MaybeLeft<ObjectType> | "VOID", argTypes: MaybeLeftCV<ObjectType>[], noThis = false): TypeSignature {
         const thisSig: string[] = (typeof domain === "string" || noThis) ? [] : variables.toStringSequence(this, domain, true, false);
-        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(this, retType.t, retType.v.lvHolder !== null, false);
-        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(this, x.t, x.v.lvHolder !== null, x.v.isConst));
+        const returnSig: string[] = retType === "VOID" ? [retType] : variables.toStringSequence(this, retType.t, retType.lvHolder !== null, false);
+        const argTypeSig: string[][] = argTypes.map((x) => variables.toStringSequence(this, x.t, x.lvHolder !== null, x.isConst));
         const result: string[] = [[["FUNCTION"], returnSig, ["("], thisSig], argTypeSig, [[")"]]].flat(2);
         return this.arrayTypeSignature(result);
     }
@@ -660,17 +660,17 @@ export class CRuntime {
                         rt.raiseException(`Expected ${argTypes.length} arguments, got ${args.length}`)
                     }
                     argNames.slice(0, args.length).forEach(function(argName, i) {
-                        if (argTypes[i].v.lvHolder === null) {
+                        if (argTypes[i].lvHolder === null) {
                             const arg = args[i];
                             if (arg.t.sig !== "PTR" || arg.t.sizeConstraint === null) {
                                 args[i] = variables.clone(this, args[i], "SELF", false);
                             }
                         }
-                        if (args[i].v.isConst && !argTypes[i].v.isConst) {
+                        if (args[i].isConst && !argTypes[i].isConst) {
                             rt.raiseException("Cannot pass a const-value where a volatile value is required")
-                        } else if (!args[i].v.isConst && argTypes[i].v.isConst) {
-                            args[i] = variables.clone(rt, args[i], args[i].v.lvHolder, false);
-                            (args[i].v as any).isConst = true;
+                        } else if (!args[i].isConst && argTypes[i].isConst) {
+                            args[i] = variables.clone(rt, args[i], args[i].lvHolder, false);
+                            (args[i] as any).isConst = true;
                         }
                         rt.defVar(argName, args[i]);
                     });
@@ -732,7 +732,7 @@ export class CRuntime {
                 this.raiseException(`domain '${domainSig}' is unknown`);
             }
             const domainMap: TypeHandlerMap = this.typeMap[domainSig];
-            const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.v.lvHolder !== null, x.v.isConst)).join(", ") + ")";
+            const prettyPrintParams = "(" + params.map((x) => this.makeTypeString(x.t, x.lvHolder !== null, x.isConst)).join(", ") + ")";
             const overloads = domainMap.functionDB.functions[identifier];
             const overloadsMsg = (overloads !== undefined)
                 ? "Available overloads: \n" + overloads.overloads.map((x, i) => `${i + 1}) ${x.annotation}`).join("\n")
@@ -750,7 +750,7 @@ export class CRuntime {
         if (!(domainSig in this.typeMap)) {
             this.raiseException(`domain '${domainSig}' is unknown`);
         }
-        const paramSig = params.map((x) => variables.toStringSequence(this, x.t, x.v.lvHolder !== null, x.v.isConst));
+        const paramSig = params.map((x) => variables.toStringSequence(this, x.t, x.lvHolder !== null, x.isConst));
         //console.log(`getfunc: '${domainSig}::${identifier}( ${paramSig.flat().join(" ")} )'`);
         const domainMap: TypeHandlerMap = this.typeMap[domainSig];
         const fn = domainMap.functionDB.matchFunctionByParams(this, identifier, paramSig, templateTypes, this.ct);
@@ -805,10 +805,10 @@ export class CRuntime {
                         const arg = args[castAction.index] as ClassVariable;
                         let listArgs: Variable[] = [];
                         for (let i = 0; i < arg.t.templateSpec.length; i++) {
-                            if (!(i.toString() in arg.v.members)) {
+                            if (!(i.toString() in arg.members)) {
                                 this.raiseException(`Implicit object from list construction: Argument '${i.toString()}' is missing`);
                             }
-                            listArgs.push(arg.v.members[i.toString()]);
+                            listArgs.push(arg.members[i.toString()]);
                         }
                         yield* this.convertParams(castAction.cast.ops, [], listArgs);
                         if (castAction.cast.isInitList) {
@@ -821,7 +821,7 @@ export class CRuntime {
                             for (const child of listArgs) {
                                 memory.values.push({
                                     lvHolder: { array: memory, index: i },
-                                    ...child.v
+                                    ...child
                                 });
                                 i++;
                             }
@@ -832,13 +832,11 @@ export class CRuntime {
                                     templateSpec: [childType],
                                     identifier: "initializer_list"
                                 },
-                                v: {
-                                    isConst: false,
-                                    lvHolder: null,
-                                    state: "INIT",
-                                    members: {
-                                        _values: variables.indexPointer(memory, 0, false, null)
-                                    }
+                                isConst: false,
+                                lvHolder: null,
+                                state: "INIT",
+                                members: {
+                                    _values: variables.indexPointer(memory, 0, false, null)
                                 }
                             };
                             args[castAction.index] = initList;
@@ -859,12 +857,10 @@ export class CRuntime {
                                 }
                                 const classVariable: ClassVariable = {
                                     t: constructedClassType,
-                                    v: {
-                                        isConst: false,
-                                        lvHolder: null,
-                                        state: "INIT",
-                                        members
-                                    }
+                                    isConst: false,
+                                    lvHolder: null,
+                                    state: "INIT",
+                                    members
                                 }
                                 args[castAction.index] = classVariable;
                             } else {
@@ -886,19 +882,19 @@ export class CRuntime {
     }
 
     *invokeCallFromVariable(funvar: Function, ...args: Variable[]): ResultOrGen<MaybeUnboundVariable | "VOID"> {
-        const paramSig = args.map((x) => variables.toStringSequence(this, x.t, x.v.lvHolder !== null, x.v.isConst));
+        const paramSig = args.map((x) => variables.toStringSequence(this, x.t, x.lvHolder !== null, x.isConst));
         const targetSig: string[] = ["FUNCTION", "Return", "("].concat(...paramSig).concat(")");
-        //console.log(`getfunc: '${funvar.v.name}( ${paramSig.flat().join(" ")} )'`);
+        //console.log(`getfunc: '${funvar.name}( ${paramSig.flat().join(" ")} )'`);
         const funmatch = typecheck.parseFunctionMatch(this.parser, targetSig, abstractFunctionReturnSig(funvar.t.fulltype), this.ct, []);
         if (funmatch === null) {
             this.raiseException("Invalid arguments"); // TODO: make message more comprehensive
         }
-        if (funvar.v.target === null) {
+        if (funvar.target === null) {
             this.raiseException("Function is defined but no implementation is found");
         }
         yield* this.convertParams(funmatch, [], args);
         // function pointers can only point to a single untemplated instance
-        const returnYield = funvar.v.target(this, [], ...args);
+        const returnYield = funvar.target(this, [], ...args);
         return interp.asResult(returnYield) ?? (yield* returnYield as Gen<MaybeUnboundVariable | "VOID">);
 
     }
@@ -1094,7 +1090,7 @@ export class CRuntime {
             if (typeArr.every(x => x.templateSpec === null)) {
                 let typeStr = typeArr.map(x => x.name).join(" ");
                 if (typeStr in variables.defaultArithmeticResolutionMap) {
-                    return { t: { sig: variables.defaultArithmeticResolutionMap[typeStr] }, v: { lvHolder: null } };
+                    return { t: { sig: variables.defaultArithmeticResolutionMap[typeStr] }, lvHolder: null };
                 }
                 if (typeStr === "void") {
                     return "VOID";
@@ -1113,7 +1109,7 @@ export class CRuntime {
                             }
                             return a.t;
                         });
-                        return { t: variables.classType(type.name, templateSpec, null), v: { lvHolder: null } }
+                        return { t: variables.classType(type.name, templateSpec, null), lvHolder: null }
                     } else {
                         rt.raiseException("Type lookup: No constructor for the specified structure");
                     }
@@ -1139,9 +1135,9 @@ export class CRuntime {
 
         //console.log(`defining variable: '${varname}' of type '${this.makeTypeStringOfVar(object)}'`);
 
-        if (object.v.lvHolder === null) {
+        if (object.lvHolder === null) {
             //@ts-ignore
-            object.v.lvHolder = "SELF";
+            object.lvHolder = "SELF";
         }
 
         if (hidden) {
@@ -1196,7 +1192,7 @@ export class CRuntime {
     };
 
     makeTypeStringOfVar(object: MaybeLeftCV<ObjectType>): string {
-        return this.makeTypeString(object.t, !(object.v.lvHolder !== null), object.v.isConst);
+        return this.makeTypeString(object.t, !(object.lvHolder !== null), object.isConst);
     }
 
     makeTypeString(type: AnyType, isLValue: boolean = false, isConst: boolean = false): string {
@@ -1235,32 +1231,32 @@ export class CRuntime {
       * For floating-point values, rounds to the nearest precision available.*/
     adjustArithmeticNumValue(x: InitArithmeticNumVariable): void {
         const info = variables.arithmeticProperties[x.t.sig];
-        if (!info.isFloat && !Number.isInteger(x.v.value)) {
-            x.v.value = Math.sign(x.v.value) * Math.floor(Math.abs(x.v.value));
+        if (!info.isFloat && !Number.isInteger(x.value)) {
+            x.value = Math.sign(x.value) * Math.floor(Math.abs(x.value));
         }
-        if (info.isFloat || (x.v.value >= info.minv && x.v.value <= info.maxv)) {
+        if (info.isFloat || (x.value >= info.minv && x.value <= info.maxv)) {
             if (x.t.sig === "F32") {
                 // javascript numbers are typically double-precision FP values.
-                x.v.value = Math.fround(x.v.value);
+                x.value = Math.fround(x.value);
             }
             return;
         }
-        let q: number = (x.v.value - (info.minv as number)) % (info.maxv as number + 1 - (info.minv as number));
+        let q: number = (x.value - (info.minv as number)) % (info.maxv as number + 1 - (info.minv as number));
         if (q < 0) {
             q += info.maxv as number + 1 - (info.minv as number);
         }
-        x.v.value = q + (info.minv as number);
+        x.value = q + (info.minv as number);
     }
 
     adjustArithmeticBigValue(x: InitArithmeticBigVariable): void {
         const info = variables.arithmeticProperties[x.t.sig];
-        if (x.v.value >= info.minv && x.v.value <= info.maxv) {
+        if (x.value >= info.minv && x.value <= info.maxv) {
             return;
         }
         if (info.isSigned) {
-            x.v.value = BigInt.asIntN(info.bytes * 8, x.v.value);
+            x.value = BigInt.asIntN(info.bytes * 8, x.value);
         } else {
-            x.v.value = BigInt.asUintN(info.bytes * 8, x.v.value);
+            x.value = BigInt.asUintN(info.bytes * 8, x.value);
         }
         /*const minv = BigInt(info.minv);
         const maxv = BigInt(info.maxv);
@@ -1282,16 +1278,16 @@ export class CRuntime {
 
 
     makeValueString(_v: MaybeUnboundVariable | Function, options: MakeValueStringOptions = {}): string {
-        if (_v.v.state === "UNINIT") {
+        if (_v.state === "UNINIT") {
             return "<uninitialised>";
         }
-        if (_v.v.state === "UNBOUND") {
+        if (_v.state === "UNBOUND") {
             return "<out of bounds>";
         }
         const v = _v as Variable | Function;
         const arithmeticVar = variables.asArithmetic(v) as InitArithmeticVariable | null;
         if (arithmeticVar !== null) {
-            const val = arithmeticVar.v.value;
+            const val = arithmeticVar.value;
             const sig = arithmeticVar.t.sig;
             const properties = variables.arithmeticProperties[sig];
             if (sig === "I8") {
@@ -1327,8 +1323,8 @@ export class CRuntime {
                 return "->/*...*/";
             } else {
                 options.noPointer = true;
-                if (pointerVar.v.subtype === "DIRECT") {
-                    return "->" + this.makeValueString({ t: pointerVar.t.pointee, v: pointerVar.v.pointee, left: false, readonly: false } as Variable | Function);
+                if (pointerVar.subtype === "DIRECT") {
+                    return "->" + this.makeValueString(pointerVar.pointee, { ...options });
                 } else {
                     const indexPointerVar = pointerVar as InitIndexPointerVariable<Variable>;
                     const arrayObjectType = indexPointerVar.t.pointee;
@@ -1341,9 +1337,9 @@ export class CRuntime {
                     } else {
                         options.noArray = true;
                         const displayList = [];
-                        const slice = indexPointerVar.v.pointee.values.slice(indexPointerVar.v.index);
+                        const slice = indexPointerVar.pointee.values.slice(indexPointerVar.index);
                         for (let i = 0; i < slice.length; i++) {
-                            displayList.push(this.makeValueString({ t: arrayObjectType, v: slice[i], left: false, readonly: false } as Variable | Function, options));
+                            displayList.push(this.makeValueString(slice[i], { ...options }));
                         }
                         return "{ " + displayList.join(", ") + " }";
                     }
@@ -1362,9 +1358,9 @@ export class CRuntime {
             this.raiseException("Not a char array")
         }
         if (len === null) {
-            len = src.v.pointee.values.length - src.v.index;
+            len = src.pointee.values.length - src.index;
         }
-        const byteArray = new Uint8Array(src.v.pointee.values.slice(src.v.index, src.v.index + len).map((x: ArithmeticNumValue) => x.state === "INIT" ? x.value : 0));
+        const byteArray = new Uint8Array(src.pointee.values.slice(src.index, src.index + len).map((x: ArithmeticNumVariable) => x.state === "INIT" ? x.value : 0));
         // remove trailing null-terminators '\0' from the end
         return fromUtf8CharArray(byteArray).replace(/\0+$/, "");
     }
@@ -1372,14 +1368,14 @@ export class CRuntime {
     getCharArrayFromString(src: string): InitIndexPointerVariable<ArithmeticNumVariable> {
         let array = toUtf8CharArray(src);
         //console.log(Array.from(array).map((x) => { return `\\x${x.toString(16)}`; }).join(""));
-        let memoryObject = variables.arrayMemory<ArithmeticNumVariable>({ sig: "I8" }, new Array<ArithmeticNumValue>())
+        let memoryObject = variables.arrayMemory<ArithmeticNumVariable>({ sig: "I8" }, new Array<ArithmeticNumVariable>())
         array.forEach((iv, ii) => {
             const lvHolder: LValueIndexHolder<ArithmeticNumVariable> = { array: memoryObject, index: ii };
-            memoryObject.values.push(variables.arithmeticNum("I8", iv, lvHolder, false).v);
+            memoryObject.values.push(variables.arithmeticNum("I8", iv, lvHolder, false));
         })
         // add a null-terminator ('\0')
         const lvHolder: LValueIndexHolder<ArithmeticNumVariable> = { array: memoryObject, index: array.length };
-        memoryObject.values.push(variables.arithmeticNum("I8", 0, lvHolder, false).v);
+        memoryObject.values.push(variables.arithmeticNum("I8", 0, lvHolder, false));
 
         return variables.indexPointer(memoryObject, 0, true, null, false);
     }
@@ -1418,13 +1414,13 @@ export class CRuntime {
                     }
                     if (fromInfo.isFloat) {
                         const intVar = variables.arithmeticNum(sig, targetValue > 0 ? Math.floor(targetValue) : Math.ceil(targetValue), null);
-                        if (this.inrange(intVar.v.value, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                        if (this.inrange(intVar.value, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
                             this.adjustArithmeticNumValue(intVar);
                             return intVar;
                         }
                     } else {
                         const newVar = variables.arithmeticNum(sig, targetValue, null);
-                        if (allowUToSOverflow || this.inrange(newVar.v.value, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                        if (allowUToSOverflow || this.inrange(newVar.value, newVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
                             this.adjustArithmeticNumValue(newVar);
                             return newVar;
                         }
@@ -1440,7 +1436,7 @@ export class CRuntime {
                             ? BigInt(arithmeticValue > 0 ? Math.floor(arithmeticValue) : Math.ceil(arithmeticValue))
                             : arithmeticValue;
                         const intVar = variables.arithmeticBig(sig, targetValue, null);
-                        if (this.inrange(intVar.v.value, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
+                        if (this.inrange(intVar.value, intVar.t, () => "overflow when casting value " + conversionErrorMsg())) {
                             return intVar;
                         }
                     } else {
@@ -1463,7 +1459,7 @@ export class CRuntime {
         if (pointerTarget !== null && iptrVar !== null) {
             if (variables.typesEqual(pointerTarget.pointee, iptrVar.t.pointee)) {
                 if (pointerTarget.sizeConstraint === null || pointerTarget.sizeConstraint === iptrVar.t.sizeConstraint) {
-                    return variables.indexPointer(iptrVar.v.pointee, iptrVar.v.index, pointerTarget.sizeConstraint !== null, null);
+                    return variables.indexPointer(iptrVar.pointee, iptrVar.index, pointerTarget.sizeConstraint !== null, null);
                 }
             }
         }
@@ -1564,7 +1560,7 @@ export class CRuntime {
         }
         this.ct.list[identifier].src.push(listPrototypeTypeSig);
 
-        const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
+        const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, lvHolder: null }, [], true)
         this.regFunc(function(rt: CRuntime): InitClassVariable {
             return variables.clone(rt, stubClass, null, false);
         }, classType, "o(_stub)", stubCtorTypeSig, [-1], null);
@@ -1594,7 +1590,7 @@ export class CRuntime {
         }
         //this.ct.list[identifier].src.push(listPrototypeTypeSig);
 
-        const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, v: { lvHolder: null } }, [], true)
+        const stubCtorTypeSig = this.createFunctionTypeSignature(classType, { t: classType, lvHolder: null }, [], true)
         this.regFunc(function*(_rt: CRuntime, templateArgs: [ClassType]): Gen<InitClassVariable> {
             const members: { [name: string]: Variable } = {};
             const memListYield: ResultOrGen<MemberMap> = memberList.factory(...templateArgs);
@@ -1608,7 +1604,7 @@ export class CRuntime {
         try {
             const { voffset, parentList } = this.getVariablesList(false, false);
             function findName(x: MaybeUnboundVariable): string | null {
-                const vid = (x.v as any)._vid;
+                const vid = (x as any)._vid;
                 if (typeof vid === "number" && vid >= voffset) {
                     let x = vid;
                     let path: string[] = [];
@@ -1634,12 +1630,12 @@ export class CRuntime {
         if (!(variable.t.sig in variables.arithmeticSig)) {
             this.raiseException("Expected an arithmetic value for variable " + this.getVariableNames(variable)[0] ?? "<internal>");
         }
-        if (variable.v.state === "UNINIT") {
+        if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
-        } else if (variable.v.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        } else if (variable.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
         }
-        return (variable as InitArithmeticVariable).v.value;
+        return (variable as InitArithmeticVariable).value;
     }
 
     /** Safely accesses values.
@@ -1650,12 +1646,12 @@ export class CRuntime {
         if (!(variable.t.sig in variables.arithmeticSig)) {
             this.raiseException("Expected an arithmetic value for variable " + this.getVariableNames(variable)[0] ?? "<internal>");
         }
-        if (variable.v.state === "UNINIT") {
+        if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
-        } else if (variable.v.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        } else if (variable.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
         }
-        const value = (variable as InitArithmeticVariable).v.value;
+        const value = (variable as InitArithmeticVariable).value;
         if (typeof value === "number") {
             return value;
         }
@@ -1671,10 +1667,10 @@ export class CRuntime {
       * Accepts only variables known to be bound by default.
       * This function performs less checks compared to arithmeticValue, arithmeticNumExpectValue or arithmeticNumValue2 */
     arithmeticNumValue(variable: ArithmeticNumVariable): number {
-        if (variable.v.state === "UNINIT") {
+        if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         }
-        return (variable as InitArithmeticNumVariable).v.value;
+        return (variable as InitArithmeticNumVariable).value;
     }
 
     /** Safely accesses values.
@@ -1682,26 +1678,26 @@ export class CRuntime {
       * Accepts only variables known to be bound by default.
       * This function performs less checks compared to arithmeticValue and arithmeticNumExpectValue */
     arithmeticNumValue2(variable: ArithmeticNumVariable | AbstractVariable<ArithmeticNumType, UnboundValue<ArithmeticNumVariable>>): number {
-        if (variable.v.state === "UNINIT") {
+        if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
-        } else if (variable.v.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        } else if (variable.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
         }
-        return (variable as InitArithmeticNumVariable).v.value;
+        return (variable as InitArithmeticNumVariable).value;
     }
 
     expectValue(variable: MaybeUnboundVariable): InitVariable {
-        if (variable.v.state === "UNINIT") {
+        if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
-        } else if (variable.v.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        } else if (variable.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
         }
         return variable as InitVariable;
     }
 
     unbound(variable: MaybeUnboundVariable): Variable {
-        if (variable.v.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.v.lvHolder.index} in an array of size ${variable.v.lvHolder.array.values.length}.`);
+        if (variable.state === "UNBOUND") {
+            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
         }
         return variable as Variable;
     }
@@ -1742,13 +1738,13 @@ export class CRuntime {
         if (type.sig in variables.arithmeticNumSig) {
             const lvHolder1 = lvHolder as LValueHolder<ArithmeticNumVariable>;
             return zeroInitialise
-                ? { t: type as ArithmeticNumType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0 } } as VElem
-                : { t: type as ArithmeticNumType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } } as VElem;
+                ? { t: type as ArithmeticNumType, isConst: false, state: "INIT", lvHolder: lvHolder1, value: 0 } as VElem
+                : { t: type as ArithmeticNumType, isConst: false, state: "UNINIT", lvHolder: lvHolder1 } as VElem;
         } else if (type.sig in variables.arithmeticBigSig) {
             const lvHolder1 = lvHolder as LValueHolder<ArithmeticBigVariable>;
             return zeroInitialise
-                ? { t: type as ArithmeticBigType, v: { isConst: false, state: "INIT", lvHolder: lvHolder1, value: BigInt(0) } } as VElem
-                : { t: type as ArithmeticBigType, v: { isConst: false, state: "UNINIT", lvHolder: lvHolder1 } } as VElem;
+                ? { t: type as ArithmeticBigType, isConst: false, state: "INIT", lvHolder: lvHolder1, value: BigInt(0) } as VElem
+                : { t: type as ArithmeticBigType, isConst: false, state: "UNINIT", lvHolder: lvHolder1 } as VElem;
         } else if ((classType = variables.asClassType(type)) !== null) {
             // TODO: zero-initialise class members
             const domainName = classType.identifier;
@@ -1759,7 +1755,7 @@ export class CRuntime {
             if (fnid !== -1 && this.typeMap[domainName].functionsByID[fnid].target !== null) {
                 const retvYield = (this.typeMap[domainName].functionsByID[fnid].target as CFunction)(this, [type]) as ResultOrGen<InitClassVariable>;
                 const retv = interp.asResult(retvYield) ?? (yield* retvYield as Gen<InitClassVariable>);
-                (retv.v as any).lvHolder = lvHolder;
+                (retv as any).lvHolder = lvHolder;
                 return retv as VElem;
             } else {
                 this.raiseException(`Could not find a stub-constructor for class/struct named '${classType.identifier}'`)
@@ -1780,7 +1776,7 @@ export class CRuntime {
                 for (let i = 0; i < pointerType.sizeConstraint; i++) {
                     // variables.clone() is a shallow clone, do not put defaultVal outside the for-loop
                     const defaultVal = yield* this.defaultValue2(pointerType.pointee, null, zeroInitialise);
-                    memory.values.push(variables.clone(this, defaultVal, { array: memory, index: i }, false, true).v);
+                    memory.values.push(variables.clone(this, defaultVal, { array: memory, index: i }, false, true));
                 }
                 return variables.indexPointer(memory, 0, true, lvHolder as LValueHolder<PointerVariable<Variable>>) as VElem;
             }

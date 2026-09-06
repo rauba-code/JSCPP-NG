@@ -131,7 +131,7 @@ export = {
                     let formatOptions: FormatOptions = { ...defaultFormatOptions };
                     let output: number[] = [];
                     let state: "NORMAL" | "PERCENT" | "FLAGS" | "WIDTH" | "PRECISION" = "NORMAL";
-                    for (let i = 0; (chr = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + i)) as number) !== 0; i++) {
+                    for (let i = 0; (chr = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + i)) as number) !== 0; i++) {
                         switch (state) {
                             case "PERCENT":
                                 switch (chr) {
@@ -179,7 +179,7 @@ export = {
                                     case ascii_s:
                                         const strVar = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index char pointer");
                                         let schr: number;
-                                        for (let j = 0; (schr = (rt.arithmeticValue(variables.arrayMember(strVar.v.pointee, strVar.v.index + j))) as number) !== 0; j++) {
+                                        for (let j = 0; (schr = (rt.arithmeticValue(variables.arrayMember(strVar.pointee, strVar.index + j))) as number) !== 0; j++) {
                                             output.push(schr);
                                         }
                                         args = args.slice(1);
@@ -365,17 +365,17 @@ export = {
                     const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     const fmt = variables.asInitIndexPointerOfElem(_fmt, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                     let li = 0;
-                    let lc: number = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
+                    let lc: number = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + li)) as number;
                     let fc: number;
                     let state: "NORMAL" | "PERCENT" = "NORMAL";
                     const whitespace = [ascii_space, ascii_newline, ascii_tab];
-                    for (let fi = 0; (fc = rt.arithmeticValue(variables.arrayMember(fmt.v.pointee, fmt.v.index + fi)) as number) !== 0; fi++) {
+                    for (let fi = 0; (fc = rt.arithmeticValue(variables.arrayMember(fmt.pointee, fmt.index + fi)) as number) !== 0; fi++) {
                         if (lc === 0) {
                             rt.raiseException("sscanf: not yet implemented (bad input)");
                         }
                         if (state === "NORMAL") {
                             if (whitespace.includes(fc)) {
-                                while (whitespace.includes(lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number)) {
+                                while (whitespace.includes(lc = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + li)) as number)) {
                                     li++;
                                 }
                             } else if (fc === ascii_percentSign) {
@@ -385,7 +385,7 @@ export = {
                                     rt.raiseException("sscanf: not yet implemented (bad input)");
                                 } else {
                                     li++;
-                                    lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
+                                    lc = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + li)) as number;
                                 }
                             }
                         } else { // state === "PERCENT"
@@ -395,7 +395,7 @@ export = {
                                         rt.raiseException("sscanf: not yet implemented (bad input)");
                                     } else {
                                         li++;
-                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + li)) as number;
                                     }
                                     break;
                                 case ascii_s:
@@ -403,12 +403,12 @@ export = {
                                     let vi = 0;
                                     args = args.slice(1);
                                     while (!whitespace.includes(lc) && lc !== 0) {
-                                        variables.arithmeticNumAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticNumVariable, lc);
+                                        variables.arithmeticNumAssign(rt, rt.unbound(variables.arrayMember(vstr.pointee, vstr.index + vi)) as ArithmeticNumVariable, lc);
                                         vi++;
                                         li++;
-                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + li)) as number;
                                     }
-                                    variables.arithmeticNumAssign(rt, rt.unbound(variables.arrayMember(vstr.v.pointee, vstr.v.index + vi)) as ArithmeticNumVariable, 0);
+                                    variables.arithmeticNumAssign(rt, rt.unbound(variables.arrayMember(vstr.pointee, vstr.index + vi)) as ArithmeticNumVariable, 0);
                                     break
                                 case ascii_d:
                                     let vtnum = 0;
@@ -416,7 +416,7 @@ export = {
                                         vtnum *= 10;
                                         vtnum += lc - ascii_0;
                                         li++;
-                                        lc = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index + li)) as number;
+                                        lc = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + li)) as number;
                                     }
                                     const vptr = variables.asInitPointer(args[0]) ?? rt.raiseException("sscanf: Variable a is not an initialised index pointer");
                                     args = args.slice(1);

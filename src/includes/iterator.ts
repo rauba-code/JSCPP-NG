@@ -66,13 +66,13 @@ export = {
                 const insertIter = yield* rt.defaultValue2(thisType, "SELF");
 
                 // Set container pointer
-                const containerPtr = insertIter.v.members._container;
-                containerPtr.v.state = "INIT";
-                (containerPtr.v as InitPointerValue<Variable>).pointee = container.v;
-                (containerPtr.v as InitPointerValue<Variable>).subtype = "DIRECT";
+                const containerPtr = insertIter.members._container;
+                containerPtr.state = "INIT";
+                (containerPtr as InitPointerValue<Variable>).pointee = container;
+                (containerPtr as InitPointerValue<Variable>).subtype = "DIRECT";
 
                 // Set iterator member
-                insertIter.v.members["_iter"] = iter;
+                insertIter.members["_iter"] = iter;
 
                 return insertIter;
             }
@@ -88,9 +88,9 @@ export = {
                 const backInsertIter = yield* rt.defaultValue2(thisType, "SELF") as Gen<BackInsertIteratorVariable<Variable>>;
                 
                 // Set container pointer
-                const containerPtr = backInsertIter.v.members._container;
-                (containerPtr.v as InitPointerValue<Variable>).pointee = container.v;
-                containerPtr.v.state = "INIT";
+                const containerPtr = backInsertIter.members._container;
+                (containerPtr as InitPointerValue<Variable>).pointee = container;
+                containerPtr.state = "INIT";
                 
                 return backInsertIter;
             }
@@ -109,15 +109,15 @@ export = {
                 type: "!Class FUNCTION LREF CLASS insert_iterator < ?0 > ( LREF CLASS insert_iterator < ?0 > CLREF MEMBERTYPE value_type ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], insertIter: InsertIteratorVariable<Variable>, value: Variable): Gen<InsertIteratorVariable<Variable>> {
                     // current implementation of function parameter conversion does not convert LREF to CLREF, need to do that manually
-                    const wasConst : boolean = value.v.isConst;
+                    const wasConst : boolean = value.isConst;
                     if (!wasConst) {
-                        (value.v as any).isConst = true;
+                        (value as any).isConst = true;
                     }
-                    const containerPtr = variables.asInitPointer(insertIter.v.members._container) ?? rt.raiseException("insert_iterator: container pointer not initialized");
+                    const containerPtr = variables.asInitPointer(insertIter.members._container) ?? rt.raiseException("insert_iterator: container pointer not initialized");
                     if (containerPtr.t.pointee.sig === "FUNCTION") {
                         rt.raiseException("insert_iterator::operator=(): Unexpected function pointer in this->_container");
                     }
-                    const iter = insertIter.v.members._iter;
+                    const iter = insertIter.members._iter;
 
                     // Get container and iterator from pointers
                     const x = variables.deref(containerPtr as InitPointerVariable<Variable>) as MaybeUnboundVariable;
@@ -136,7 +136,7 @@ export = {
                     asResult(ppYield) ?? (yield* ppYield as Gen<MaybeUnboundVariable | "VOID">);
 
                     if (!wasConst) {
-                        (value.v as any).isConst = false;
+                        (value as any).isConst = false;
                     }
                     return insertIter;
                 }
@@ -145,7 +145,7 @@ export = {
                 op: "o(_=_)",
                 type: "!ParamObject FUNCTION LREF CLASS back_insert_iterator < ?0 > ( LREF CLASS back_insert_iterator < ?0 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], backInsertIter: BackInsertIteratorVariable<Variable>, value: Variable): Gen<BackInsertIteratorVariable<Variable>> {
-                    const containerPtr = variables.asInitPointer(backInsertIter.v.members._container) ?? rt.raiseException("back_insert_iterator: container not initialized");
+                    const containerPtr = variables.asInitPointer(backInsertIter.members._container) ?? rt.raiseException("back_insert_iterator: container not initialized");
                     
                     // Get container from pointer
                     const container = rt.unbound(containerPtr) as Variable;
@@ -240,7 +240,7 @@ export = {
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 )",
                 default(rt: CRuntime, _templateTypes: [], iter: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
                     const iptr = variables.asInitIndexPointer(iter) ?? rt.raiseException("prev(): Expected an initialised index pointer");
-                    iptr.v.index--;
+                    iptr.index--;
                     return iptr;
                 }
             },
@@ -249,7 +249,7 @@ export = {
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 )",
                 default(rt: CRuntime, _templateTypes: [], iter: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
                     const iptr = variables.asInitIndexPointer(iter) ?? rt.raiseException("prev(): Expected an initialised index pointer");
-                    iptr.v.index++;
+                    iptr.index++;
                     return iptr;
                 }
             },

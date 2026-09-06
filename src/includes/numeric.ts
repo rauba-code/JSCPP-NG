@@ -15,12 +15,12 @@ export = {
                     }
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("find(): Expected 'first' to point to an element");
                     const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("find(): Expected 'last' to point to an element");
-                    if (first.v.pointee !== last.v.pointee) {
+                    if (first.pointee !== last.pointee) {
                         rt.raiseException("accumulate(): Expected 'first' and 'last' to point to an element of the same memory region");
                     }
                     const addInst = rt.getOpByParams("{global}", "o(_+_)", [init, init], []);
                     const setInst = rt.getOpByParams("{global}", "o(_=_)", [init, init], []);
-                    for (; first.v.index < last.v.index; first.v.index++) {
+                    for (; first.index < last.index; first.index++) {
                         const sumYield = rt.invokeCall(addInst, [], rt.unbound(variables.deref(first) as MaybeUnboundVariable), init) as ResultOrGen<Variable>;
                         const sumResult = asResult(sumYield) ?? (yield* sumYield as Gen<Variable>);
                         const setYield = rt.invokeCall(setInst, [], init, sumResult) as ResultOrGen<"VOID">;

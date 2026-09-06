@@ -25,21 +25,19 @@ export function initializerListInit(rt: CRuntime): void {
     }, [], {});
 }
 
-export function createInitializerList<T extends Variable>(type: T["t"], values: T["v"][]): InitializerListVariable<T> {
+export function createInitializerList<T extends Variable>(type: T["t"], values: T[]): InitializerListVariable<T> {
     return {
         t: {
             sig: "CLASS",
             identifier: "initializer_list",
-            templateSpec: [ type ],
+            templateSpec: [type],
             memberOf: null
         },
-        v: {
-            isConst: false,
-            lvHolder: null,
-            state: "INIT",
-            members: {
-                _values: variables.indexPointer(variables.arrayMemory<T>(type, values), 0, false, "SELF")
-            }
+        isConst: false,
+        lvHolder: null,
+        state: "INIT",
+        members: {
+            _values: variables.indexPointer(variables.arrayMemory<T>(type, values), 0, false, "SELF")
         }
     }
 }

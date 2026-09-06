@@ -44,7 +44,7 @@ export = {
                 op: "__hash",
                 type: `FUNCTION I64 ( ${sig} )`,
                 default(_rt: CRuntime, _template: [], x: InitArithmeticBigVariable): InitArithmeticBigVariable {
-                    return variables.arithmeticBig("I64", big(x.v.value), null);
+                    return variables.arithmeticBig("I64", big(x.value), null);
                 }
             };
         }
@@ -111,10 +111,10 @@ export = {
                     // NOTE: original function uses copied CLASS string < > 
                     // but to avoid costly copying, CLREF is added.
                     let h: number = 7919;
-                    if (x.v.members._ptr.v.state !== "UNINIT") {
-                        const ptr = x.v.members._ptr as InitIndexPointerVariable<InitArithmeticNumVariable>;
-                        for (let i = 0; i < x.v.members._size.v.value; i++) {
-                            const chr = rt.arithmeticValue(variables.arrayMember(ptr.v.pointee, ptr.v.index + i)) as number;
+                    if (x.members._ptr.state !== "UNINIT") {
+                        const ptr = x.members._ptr as InitIndexPointerVariable<InitArithmeticNumVariable>;
+                        for (let i = 0; i < x.members._size.value; i++) {
+                            const chr = rt.arithmeticValue(variables.arrayMember(ptr.pointee, ptr.index + i)) as number;
                             h += 97;
                             h += chr * 7907;
                             h %= 1000000009;

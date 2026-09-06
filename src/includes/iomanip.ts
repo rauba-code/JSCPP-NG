@@ -8,40 +8,40 @@ function overloadIomanip(rt: CRuntime, structName: string) {
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > CLASS iomanip_token < > )`,
         default(rt: CRuntime, _templateTypes: [], l: OStreamVariable, r: IOManipTokenVariable): OStreamVariable {
-            switch (r.v.members.mode.v.value) {
+            switch (r.members.mode.value) {
                 case iomanip_token_mode.setbase:
-                    const base = rt.arithmeticValue(r.v.members.param);
+                    const base = rt.arithmeticValue(r.members.param);
                     if (base !== 8 && base !== 10 && base !== 16) {
-                        l.v.members.base.v.value = 10;
+                        l.members.base.value = 10;
                     } else {
-                        l.v.members.base.v.value = base;
+                        l.members.base.value = base;
                     }
                     break;
                 case iomanip_token_mode.setfill:
-                    l.v.members.fill.v.value = rt.arithmeticNumValue(r.v.members.param);
+                    l.members.fill.value = rt.arithmeticNumValue(r.members.param);
                     break;
                 case iomanip_token_mode.setprecision:
-                    l.v.members.precision.v.value = rt.arithmeticNumValue(r.v.members.param);
+                    l.members.precision.value = rt.arithmeticNumValue(r.members.param);
                     break;
                 case iomanip_token_mode.setw:
-                    l.v.members.width.v.value = rt.arithmeticNumValue(r.v.members.param);
+                    l.members.width.value = rt.arithmeticNumValue(r.members.param);
                     break;
                 case iomanip_token_mode.fixed:
                 case iomanip_token_mode.scientific:
                 case iomanip_token_mode.hexfloat:
                 case iomanip_token_mode.defaultfloat:
-                    l.v.members.float_display_mode.v.value = r.v.members.mode.v.value;
+                    l.members.float_display_mode.value = r.members.mode.value;
                     break;
                 case iomanip_token_mode.left:
                 case iomanip_token_mode.right:
                 case iomanip_token_mode.internal:
-                    l.v.members.position_mode.v.value = r.v.members.mode.v.value;
+                    l.members.position_mode.value = r.members.mode.value;
                     break;
                 case iomanip_token_mode.boolalpha:
-                    l.v.members.boolalpha.v.value = 1;
+                    l.members.boolalpha.value = 1;
                     break;
                 case iomanip_token_mode.noboolalpha:
-                    l.v.members.boolalpha.v.value = 0;
+                    l.members.boolalpha.value = 0;
                     break;
                 default:
                     rt.raiseException("Unknown iomanip token mode");
@@ -62,56 +62,56 @@ function overloadIomanipInput(rt: CRuntime, structName: string) {
         op: "o(_>>_)",
         type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > CLASS iomanip_token < > )`,
         default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: IOManipTokenVariable): any {
-            switch (r.v.members.mode.v.value) {
+            switch (r.members.mode.value) {
                 case iomanip_token_mode.setbase:
                     rt.raiseException("Not yet implemented")
-                /*const base = rt.arithmeticValue(r.v.members.param);
+                /*const base = rt.arithmeticValue(r.members.param);
                 if (base !== 8 && base !== 10 && base !== 16) {
-                    l.v.members.base.v.value = 10;
+                    l.members.base.value = 10;
                 } else {
-                    l.v.members.base.v.value = base;
+                    l.members.base.value = base;
                 }
                 break;*/
                 case iomanip_token_mode.setfill:
                     rt.raiseException("Not yet implemented")
-                /*l.v.members.fill.v.value = rt.arithmeticValue(r.v.members.param);
+                /*l.members.fill.value = rt.arithmeticValue(r.members.param);
                 break;*/
                 case iomanip_token_mode.setprecision:
                     rt.raiseException("Not yet implemented")
-                /*l.v.members.precision.v.value = rt.arithmeticValue(r.v.members.param);
+                /*l.members.precision.value = rt.arithmeticValue(r.members.param);
                 break;*/
                 case iomanip_token_mode.setw:
                     rt.raiseException("Not yet implemented")
-                /*l.v.members.width.v.value = rt.arithmeticValue(r.v.members.param);
+                /*l.members.width.value = rt.arithmeticValue(r.members.param);
                 break;*/
                 case iomanip_token_mode.setfill:
                     rt.raiseException("Not yet implemented")
-                /*l.v.members.fill.v.value = rt.arithmeticValue(r.v.members.param);
+                /*l.members.fill.value = rt.arithmeticValue(r.members.param);
                 break;*/
                 case iomanip_token_mode.fixed:
                 case iomanip_token_mode.scientific:
                 case iomanip_token_mode.hexfloat:
                 case iomanip_token_mode.defaultfloat:
                     rt.raiseException("Not yet implemented")
-                /*l.v.members.float_display_mode.v.value = r.v.members.mode.v.value;
+                /*l.members.float_display_mode.value = r.members.mode.value;
                 break;*/
                 case iomanip_token_mode.left:
                 case iomanip_token_mode.right:
                 case iomanip_token_mode.internal:
                     rt.raiseException("Not yet implemented")
-                /*l.v.members.position_mode.v.value = r.v.members.mode.v.value;
+                /*l.members.position_mode.value = r.members.mode.value;
                 break;*/
                 case iomanip_token_mode.boolalpha:
-                    l.v.members.boolalpha.v.value = 1;
+                    l.members.boolalpha.value = 1;
                     break;
                 case iomanip_token_mode.noboolalpha:
-                    l.v.members.boolalpha.v.value = 0;
+                    l.members.boolalpha.value = 0;
                     break;
                 case iomanip_token_mode.skipws:
-                    l.v.members.skipws.v.value = 1;
+                    l.members.skipws.value = 1;
                     break;
                 case iomanip_token_mode.noskipws:
-                    l.v.members.skipws.v.value = 0;
+                    l.members.skipws.value = 0;
                     break;
                 default:
                     rt.raiseException("Unknown iomanip token mode");
@@ -147,9 +147,9 @@ export = {
 
         function createIOManipToken(rt: CRuntime, mode: number, param: number | null): IOManipTokenVariable {
             const iomanip_token = rt.defaultValue(iomanipTokenType.t, null) as IOManipTokenVariable;
-            variables.arithmeticNumAssign(rt, iomanip_token.v.members.mode, mode);
+            variables.arithmeticNumAssign(rt, iomanip_token.members.mode, mode);
             if (param !== null) {
-                variables.arithmeticNumAssign(rt, iomanip_token.v.members.param, param);
+                variables.arithmeticNumAssign(rt, iomanip_token.members.param, param);
             }
             return iomanip_token;
 
@@ -160,28 +160,28 @@ export = {
                 op: "setbase",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
                 default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
-                    return createIOManipToken(rt, iomanip_token_mode.setbase, r.v.value);
+                    return createIOManipToken(rt, iomanip_token_mode.setbase, r.value);
                 }
             },
             {
                 op: "setfill",
                 type: "FUNCTION CLASS iomanip_token < > ( I8 )",
                 default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
-                    return createIOManipToken(rt, iomanip_token_mode.setfill, r.v.value);
+                    return createIOManipToken(rt, iomanip_token_mode.setfill, r.value);
                 }
             },
             {
                 op: "setprecision",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
                 default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
-                    return createIOManipToken(rt, iomanip_token_mode.setprecision, r.v.value);
+                    return createIOManipToken(rt, iomanip_token_mode.setprecision, r.value);
                 }
             },
             {
                 op: "setw",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
                 default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
-                    return createIOManipToken(rt, iomanip_token_mode.setw, r.v.value);
+                    return createIOManipToken(rt, iomanip_token_mode.setw, r.value);
                 }
             },
         ]

@@ -8,7 +8,7 @@ import Debugger from "./debugger"
 // @ts-ignore;
 import * as PEGUtil from "pegjs-util";
 import * as defaults from "./defaults";
-import { InitArithmeticNumValue, MaybeUnboundArithmeticValue } from "./variables";
+import { InitArithmeticNumValue, MaybeUnboundArithmeticVariable } from "./variables";
 
 const includes: { [fileName: string]: IncludeModule } = {
     // array: require("./includes/array"),
@@ -173,7 +173,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig, stopped = 
                 performedSteps++;
 
                 if (step.done) {
-                    const exitVal = step.value.v as MaybeUnboundArithmeticValue;
+                    const exitVal = step.value as MaybeUnboundArithmeticVariable;
                     if (exitVal.state === "UNINIT") {
                         throw new Error("[return statement] Access of an uninitialised variable");
                     } else if (exitVal.state === "UNBOUND") {
@@ -184,10 +184,12 @@ function run(code: string, input: InputFunction, config: JSCPPConfig, stopped = 
                         return exitCode;
                     }
                 }
-                if (performedSteps > (_config.maxExecutionSteps as number))
+                if (performedSteps > (_config.maxExecutionSteps as number)) {
                     throw new Error("The execution step limit has been reached.");
-                else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout))
+                }
+                else if (_config.maxTimeout && ((Date.now() - startTime) > _config.maxTimeout)) {
                     throw new Error("Time limit exceeded.");
+                }
 
                 if ((performedSteps % (_config.eventLoopSteps as number)) === 0) {
                     await new Promise((resolve) => setImmediate(resolve));
@@ -233,7 +235,7 @@ function run(code: string, input: InputFunction, config: JSCPPConfig, stopped = 
             }
         }
         */
-        // return step.value.v as number;
+        // return step.value as number;
     }
     return rt.eapi;
 }

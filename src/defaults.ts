@@ -51,10 +51,10 @@ function unaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, op: (a: number |
 }
 
 function checkLeftAssign(rt: CRuntime, l: Variable): void {
-    if (l.v.lvHolder === null) {
+    if (l.lvHolder === null) {
         rt.raiseException("Attempted assignment to a non-lvalue object (assignment to a calculated value not bound by any variable)");
     }
-    if (l.v.isConst) {
+    if (l.isConst) {
         rt.raiseException("Attempted assignment to a constant");
     }
 }
@@ -64,14 +64,14 @@ function binaryArithmeticDirectAssign(rt: CRuntime, l: ArithmeticVariable, r: Ar
     if (l.t.sig in variables.arithmeticNumSig) {
         const ret = variables.arithmeticNum(l.t.sig as ArithmeticNumSig, num(rt.arithmeticValue(r)), null);
         rt.adjustArithmeticNumValue(ret);
-        l.v.state = "INIT";
-        (l.v as InitArithmeticNumValue).value = ret.v.value;
+        l.state = "INIT";
+        (l as InitArithmeticNumValue).value = ret.value;
         return ret;
     } else {
         const ret = variables.arithmeticBig(l.t.sig as ArithmeticBigSig, big(rt.arithmeticValue(r)), null);
         rt.adjustArithmeticBigValue(ret);
-        l.v.state = "INIT";
-        (l.v as InitArithmeticBigValue).value = ret.v.value;
+        l.state = "INIT";
+        (l as InitArithmeticBigValue).value = ret.value;
         return ret;
     }
 }
@@ -81,14 +81,14 @@ function binaryArithmeticAssign(rt: CRuntime, l: ArithmeticVariable, r: Arithmet
     if (l.t.sig in variables.arithmeticNumSig) {
         const ret = variables.arithmeticNum(l.t.sig as ArithmeticNumSig, op(rt.arithmeticValue(l), num(rt.arithmeticValue(r))) as number, null);
         rt.adjustArithmeticNumValue(ret);
-        l.v.state = "INIT";
-        (l.v as InitArithmeticNumValue).value = ret.v.value;
+        l.state = "INIT";
+        (l as InitArithmeticNumValue).value = ret.value;
         return ret;
     } else {
         const ret = variables.arithmeticBig(l.t.sig as ArithmeticBigSig, op(rt.arithmeticValue(l), big(rt.arithmeticValue(r))) as bigint, null);
         rt.adjustArithmeticBigValue(ret);
-        l.v.state = "INIT";
-        (l.v as InitArithmeticBigValue).value = ret.v.value;
+        l.state = "INIT";
+        (l as InitArithmeticBigValue).value = ret.value;
         return ret;
 
     }
@@ -120,14 +120,14 @@ function binaryIntegerAssign(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticV
     if (l.t.sig in variables.arithmeticNumSig) {
         const ret = variables.arithmeticNum(l.t.sig as ArithmeticNumSig, op(rt.arithmeticValue(l), num(rt.arithmeticValue(r))) as number, null);
         rt.adjustArithmeticNumValue(ret);
-        l.v.state = "INIT";
-        (l.v as InitArithmeticNumValue).value = ret.v.value;
+        l.state = "INIT";
+        (l as InitArithmeticNumValue).value = ret.value;
         return ret;
     } else {
         const ret = variables.arithmeticBig(l.t.sig as ArithmeticBigSig, op(rt.arithmeticValue(l), big(rt.arithmeticValue(r))) as bigint, null);
         rt.adjustArithmeticBigValue(ret);
-        l.v.state = "INIT";
-        (l.v as InitArithmeticBigValue).value = ret.v.value;
+        l.state = "INIT";
+        (l as InitArithmeticBigValue).value = ret.value;
         return ret;
     }
 }
@@ -352,16 +352,16 @@ const defaultOpHandler: OpHandler[] = [
             if (_l.t.sig in variables.arithmeticNumSig) {
                 const l = _l as InitArithmeticNumVariable;
                 const ret = variables.arithmeticNum(l.t.sig, rt.arithmeticValue(_l) as number, null);
-                l.v.value = ret.v.value as number + 1;
-                if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                l.value = ret.value as number + 1;
+                if (rt.inrange(l.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticNumValue(l);
                     return ret;
                 }
             } else {
                 const l = _l as InitArithmeticBigVariable;
                 const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint, null);
-                l.v.value = ret.v.value as bigint + BigInt(1);
-                if (rt.inrange(l.v.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                l.value = ret.value as bigint + BigInt(1);
+                if (rt.inrange(l.value, l.t, () => `overflow during post-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticBigValue(l);
                     return ret;
                 }
@@ -377,16 +377,16 @@ const defaultOpHandler: OpHandler[] = [
             if (_l.t.sig in variables.arithmeticNumSig) {
                 const l = _l as InitArithmeticNumVariable;
                 const ret = variables.arithmeticNum(l.t.sig, rt.arithmeticValue(_l) as number, null);
-                l.v.value = ret.v.value as number - 1;
-                if (rt.inrange(l.v.value, l.t, () => `overflow during post-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                l.value = ret.value as number - 1;
+                if (rt.inrange(l.value, l.t, () => `overflow during post-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticNumValue(l);
                     return ret;
                 }
             } else {
                 const l = _l as InitArithmeticBigVariable;
                 const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint, null);
-                l.v.value = ret.v.value as bigint - BigInt(1);
-                if (rt.inrange(l.v.value, l.t, () => `overflow during post-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                l.value = ret.value as bigint - BigInt(1);
+                if (rt.inrange(l.value, l.t, () => `overflow during post-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticBigValue(l);
                     return ret;
                 }
@@ -402,17 +402,17 @@ const defaultOpHandler: OpHandler[] = [
             if (_l.t.sig in variables.arithmeticNumSig) {
                 const l = _l as InitArithmeticNumVariable;
                 const ret = variables.arithmeticNum(l.t.sig, rt.arithmeticValue(_l) as number + 1, null);
-                if (rt.inrange(l.v.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                if (rt.inrange(l.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticNumValue(ret);
-                    l.v.value = ret.v.value;
+                    l.value = ret.value;
                     return ret;
                 }
             } else {
                 const l = _l as InitArithmeticBigVariable;
                 const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint + BigInt(1), null);
-                if (rt.inrange(l.v.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                if (rt.inrange(l.value, l.t, () => `overflow during pre-increment '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticBigValue(ret);
-                    l.v.value = ret.v.value;
+                    l.value = ret.value;
                     return ret;
                 }
             }
@@ -427,17 +427,17 @@ const defaultOpHandler: OpHandler[] = [
             if (_l.t.sig in variables.arithmeticNumSig) {
                 const l = _l as InitArithmeticNumVariable;
                 const ret = variables.arithmeticNum(l.t.sig, rt.arithmeticValue(_l) as number - 1, null);
-                if (rt.inrange(l.v.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                if (rt.inrange(l.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticNumValue(ret);
-                    l.v.value = ret.v.value;
+                    l.value = ret.value;
                     return ret;
                 }
             } else {
                 const l = _l as InitArithmeticBigVariable;
                 const ret = variables.arithmeticBig(l.t.sig, rt.arithmeticValue(_l) as bigint - BigInt(1), null);
-                if (rt.inrange(l.v.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
+                if (rt.inrange(l.value, l.t, () => `overflow during pre-decrement '${rt.makeValueString(l)}' of type '${rt.makeTypeStringOfVar(l)}'`)) {
                     rt.adjustArithmeticBigValue(ret);
-                    l.v.value = ret.v.value;
+                    l.value = ret.value;
                     return ret;
                 }
             }
@@ -486,11 +486,11 @@ const defaultOpHandler: OpHandler[] = [
         default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitArithmeticVariable {
             const l = rt.expectValue(_l) as InitPointerVariable<PointeeVariable>;
             const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
-            if (l.v.subtype === "DIRECT" && r.v.subtype === "DIRECT") {
+            if (l.subtype === "DIRECT" && r.subtype === "DIRECT") {
                 // this works because pointers are always created from the same Variable["v"] object
-                return variables.arithmeticNum("BOOL", l.v.pointee === r.v.pointee ? 1 : 0, null);
-            } else if (l.v.subtype === "INDEX" && r.v.subtype === "INDEX") {
-                return variables.arithmeticNum("BOOL", l.v.pointee === r.v.pointee && l.v.index === r.v.index ? 1 : 0, null);
+                return variables.arithmeticNum("BOOL", l.pointee === r.pointee ? 1 : 0, null);
+            } else if (l.subtype === "INDEX" && r.subtype === "INDEX") {
+                return variables.arithmeticNum("BOOL", l.pointee === r.pointee && l.index === r.index ? 1 : 0, null);
             } else {
                 return variables.arithmeticNum("BOOL", 0, null);
             }
@@ -502,10 +502,10 @@ const defaultOpHandler: OpHandler[] = [
         default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitArithmeticVariable {
             const l = rt.expectValue(_l) as InitPointerVariable<PointeeVariable>;
             const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
-            if (l.v.subtype === "DIRECT" && r.v.subtype === "DIRECT") {
-                return variables.arithmeticNum("BOOL", !(l.v.pointee === r.v.pointee) ? 1 : 0, null);
-            } else if (l.v.subtype === "INDEX" && r.v.subtype === "INDEX") {
-                return variables.arithmeticNum("BOOL", !(l.v.pointee === r.v.pointee && l.v.index === r.v.index) ? 1 : 0, null);
+            if (l.subtype === "DIRECT" && r.subtype === "DIRECT") {
+                return variables.arithmeticNum("BOOL", !(l.pointee === r.pointee) ? 1 : 0, null);
+            } else if (l.subtype === "INDEX" && r.subtype === "INDEX") {
+                return variables.arithmeticNum("BOOL", !(l.pointee === r.pointee && l.index === r.index) ? 1 : 0, null);
             } else {
                 return variables.arithmeticNum("BOOL", 1, null);
             }
@@ -520,12 +520,12 @@ const defaultOpHandler: OpHandler[] = [
             if (!(l.t.sizeConstraint === null || l.t.sizeConstraint === r.t.sizeConstraint)) {
                 rt.raiseException("Assignment between pointers of invalid sizes");
             }
-            if (r.v.subtype === "INDEX") {
+            if (r.subtype === "INDEX") {
                 if (variables.asFunctionType(l.t.pointee) !== null) {
                     rt.raiseException("Function-pointer assignment invalid inside arrays");
                 }
-                variables.indexPointerAssign(rt, l as InitPointerVariable<Variable>, (r as InitIndexPointerVariable<Variable>).v.pointee, r.v.index);
-            } else if (r.v.subtype === "DIRECT") {
+                variables.indexPointerAssign(rt, l as InitPointerVariable<Variable>, (r as InitIndexPointerVariable<Variable>).pointee, r.index);
+            } else if (r.subtype === "DIRECT") {
                 variables.directPointerAssign(rt, l, r);
             }
             return l;
@@ -537,7 +537,7 @@ const defaultOpHandler: OpHandler[] = [
         default(rt, _templateType: [], l: ClassVariable, r: ClassVariable): ClassVariable {
             // default copy-assignment operator
             // can be overriden
-            Object.entries(r.v.members).map(([k, v]) => l.v.members[k] = variables.clone(rt, v, "SELF", false, true));
+            Object.entries(r.members).map(([k, v]) => l.members[k] = variables.clone(rt, v, "SELF", false, true));
             return l;
         }
     },
@@ -545,15 +545,15 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(&_)",
         type: "!LValue FUNCTION PTR ?0 ( LREF ?0 )",
         default(rt: CRuntime, _templateType: [], l: Variable | Function): InitDirectPointerVariable<PointeeVariable> | InitIndexPointerVariable<Variable> {
-            if (l.v.lvHolder === null) {
+            if (l.lvHolder === null) {
                 rt.raiseException("Cannot refer to a non-lvalue"); // unreachable
-            } else if (l.v.lvHolder === "SELF") {
+            } else if (l.lvHolder === "SELF") {
                 return variables.directPointer(l, null);
             }
             if (variables.asFunction(l) !== null) {
                 rt.raiseException("Assertion failed: `l` must not be a Function"); // unreachable?
             }
-            const holder = l.v.lvHolder;
+            const holder = l.lvHolder;
             return variables.indexPointer<Variable>(holder.array, holder.index, false, null);
         }
     },
@@ -587,8 +587,8 @@ const defaultOpHandler: OpHandler[] = [
             if (i === 0) {
                 return variables.deref(l) as MaybeUnboundVariable;
             }
-            if (l.v.subtype === "INDEX") {
-                return variables.arrayMember<Variable>(l.v.pointee, num(i) + l.v.index) as MaybeUnboundVariable;
+            if (l.subtype === "INDEX") {
+                return variables.arrayMember<Variable>(l.pointee, num(i) + l.index) as MaybeUnboundVariable;
             }
             rt.raiseException("(Segmentation fault) attempt to access a non-array pointer member outside the bounds")
         }
@@ -605,8 +605,8 @@ const defaultOpHandler: OpHandler[] = [
             if (i === 0) {
                 return variables.clone(rt, l, null, false);
             }
-            if (l.v.subtype === "INDEX") {
-                return variables.indexPointer(l.v.pointee, l.v.index + num(i), false, null, false);
+            if (l.subtype === "INDEX") {
+                return variables.indexPointer(l.pointee, l.index + num(i), false, null, false);
             }
             rt.raiseException("Not yet implemented");
         }
@@ -619,8 +619,8 @@ const defaultOpHandler: OpHandler[] = [
                 rt.raiseException("Cannot move out of function pointer index");
             }
             const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
-            if (l.v.subtype === "INDEX") {
-                return variables.indexPointer(l.v.pointee, l.v.index++, false, null, false);
+            if (l.subtype === "INDEX") {
+                return variables.indexPointer(l.pointee, l.index++, false, null, false);
             }
             rt.raiseException("Not yet implemented");
         }
@@ -633,8 +633,8 @@ const defaultOpHandler: OpHandler[] = [
                 rt.raiseException("Cannot move out of function pointer index");
             }
             const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
-            if (l.v.subtype === "INDEX") {
-                return variables.indexPointer(l.v.pointee, ++l.v.index, false, null, false);
+            if (l.subtype === "INDEX") {
+                return variables.indexPointer(l.pointee, ++l.index, false, null, false);
             }
             rt.raiseException("Not yet implemented");
         }

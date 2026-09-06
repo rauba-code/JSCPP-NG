@@ -43,16 +43,16 @@ export = {
         };
         function getWordString(rt: CRuntime, _l: PointerVariable<ArithmeticNumVariable>): string {
             const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
-            let char = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index)) as number;
+            let char = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index)) as number;
             while ([9, 10, 32].includes(char)) {
-                l.v.index++;
-                char = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index)) as number;
+                l.index++;
+                char = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index)) as number;
             }
             let wordValues: number[] = [];
             while (!([0, 9, 10, 32].includes(char))) {
                 wordValues.push(char);
-                l.v.index++;
-                char = rt.arithmeticValue(variables.arrayMember(l.v.pointee, l.v.index)) as number;
+                l.index++;
+                char = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index)) as number;
             }
             return utf8.fromUtf8CharArray(new Uint8Array(wordValues));
         }

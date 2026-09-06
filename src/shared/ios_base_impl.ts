@@ -76,14 +76,14 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
         default(rt: CRuntime, _templateTypes: [], l: ios_base.OStreamVariable, r: PointerVariable<ArithmeticVariable>): ios_base.OStreamVariable {
             const iptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmeticNum("I8", null)) ??
                 rt.raiseException("Variable is not an initialised index pointer");
-            if (l.v.members.width.v.value >= 0) {
-                const padded = pad(rt, rt.getStringFromCharArray(iptr), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
+            if (l.members.width.value >= 0) {
+                const padded = pad(rt, rt.getStringFromCharArray(iptr), l.members.position_mode.value, l.members.width.value, l.members.fill.value);
                 const str = rt.getCharArrayFromString(padded);
-                const str_len = variables.arithmeticNum("I32", str.v.pointee.values.length - 1, null)
-                unixapi.write(rt, [], l.v.members.fd, str, str_len);
-                l.v.members.width.v.value = -1;
+                const str_len = variables.arithmeticNum("I32", str.pointee.values.length - 1, null)
+                unixapi.write(rt, [], l.members.fd, str, str_len);
+                l.members.width.value = -1;
             } else {
-                unixapi.write(rt, [], l.v.members.fd, iptr, variables.arithmeticNum("I32", sizeUntilNull(rt, iptr), null));
+                unixapi.write(rt, [], l.members.fd, iptr, variables.arithmeticNum("I32", sizeUntilNull(rt, iptr), null));
             }
             return l;
         }
@@ -92,17 +92,17 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > CLREF CLASS string < > )`,
         default(rt: CRuntime, _templateTypes: [], l: ios_base.OStreamVariable, r: StringVariable): ios_base.OStreamVariable {
-            const iptr = variables.asInitIndexPointerOfElem(r.v.members._ptr, variables.uninitArithmeticNum("I8", null));
+            const iptr = variables.asInitIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null));
             if (iptr === null) {
                 return l;
             }
-            if (l.v.members.width.v.value >= 0) {
-                const padded = pad(rt, rt.getStringFromCharArray(iptr, r.v.members._size.v.value), l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
+            if (l.members.width.value >= 0) {
+                const padded = pad(rt, rt.getStringFromCharArray(iptr, r.members._size.value), l.members.position_mode.value, l.members.width.value, l.members.fill.value);
                 const carr = rt.getCharArrayFromString(padded);
-                unixapi.write(rt, [], l.v.members.fd, carr, variables.arithmeticNum("I32", carr.v.pointee.values.length - 1, null));
-                l.v.members.width.v.value = -1;
+                unixapi.write(rt, [], l.members.fd, carr, variables.arithmeticNum("I32", carr.pointee.values.length - 1, null));
+                l.members.width.value = -1;
             } else {
-                unixapi.write(rt, [], l.v.members.fd, iptr, r.v.members._size);
+                unixapi.write(rt, [], l.members.fd, iptr, r.members._size);
             }
             return l;
         }
@@ -115,14 +115,14 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             const numProperties = variables.arithmeticProperties[r.t.sig];
             function numstr(rt: CRuntime, l: ios_base.OStreamVariable, num: number | bigint, numProperties: ArithmeticProperties): string {
                 if (r.t.sig === "I8") {
-                    return rt.getStringFromCharArray(variables.indexPointer(variables.arrayMemory(r.t, [r.v]), 0, false, null));
+                    return rt.getStringFromCharArray(variables.indexPointer(variables.arrayMemory(r.t, [r]), 0, false, null));
                 }
-                if (r.t.sig === "BOOL" && l.v.members.boolalpha.v.value === 1) {
+                if (r.t.sig === "BOOL" && l.members.boolalpha.value === 1) {
                     return num !== 0 ? "true" : "false";
                 }
                 if (numProperties.isFloat) {
-                    const prec = l.v.members.precision.v.value;
-                    switch (l.v.members.float_display_mode.v.value) {
+                    const prec = l.members.precision.value;
+                    switch (l.members.float_display_mode.value) {
                         case ios_base.iomanip_token_mode.fixed:
                             return prec >= 0 ? (num as number).toFixed(prec) : (num as number).toFixed();
                         case ios_base.iomanip_token_mode.scientific:
@@ -135,7 +135,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
                             rt.raiseException("Invalid float_display_mode value")
                     }
                 } else {
-                    const base = l.v.members.base.v.value;
+                    const base = l.members.base.value;
                     if (base !== 8 && base !== 10 && base !== 16) {
                         rt.raiseException("Invalid base value")
                     }
@@ -148,11 +148,11 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
             }
 
             const ns = numstr(rt, l, num, numProperties);
-            const padded = pad(rt, ns, l.v.members.position_mode.v.value, l.v.members.width.v.value, l.v.members.fill.v.value);
+            const padded = pad(rt, ns, l.members.position_mode.value, l.members.width.value, l.members.fill.value);
             const str = rt.getCharArrayFromString(padded);
-            l.v.members.width.v.value = -1;
-            const str_len = variables.arithmeticNum("I32", str.v.pointee.values.length - 1, null)
-            unixapi.write(rt, [], l.v.members.fd, str, str_len);
+            l.members.width.value = -1;
+            const str_len = variables.arithmeticNum("I32", str.pointee.values.length - 1, null)
+            unixapi.write(rt, [], l.members.fd, str, str_len);
             return l;
         }
     },
@@ -160,8 +160,8 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
         op: "o(!_)",
         type: `FUNCTION BOOL ( LREF CLASS ${name} < > )`,
         default(_rt: CRuntime, _templateTypes: [], _this: ios_base.OStreamVariable) {
-            const failbit = _this.v.members.failbit.v.value;
-            const badbit = _this.v.members.badbit.v.value;
+            const failbit = _this.members.failbit.value;
+            const badbit = _this.members.badbit.value;
             return variables.arithmeticNum("BOOL", failbit | badbit, null);
         }
     },
@@ -169,8 +169,8 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
         op: "o(_bool)",
         type: `FUNCTION BOOL ( LREF CLASS ${name} < > )`,
         default(_rt: CRuntime, _templateTypes: [], _this: ios_base.OStreamVariable): ArithmeticVariable {
-            const failbit = _this.v.members.failbit.v.value;
-            const badbit = _this.v.members.badbit.v.value;
+            const failbit = _this.members.failbit.value;
+            const badbit = _this.members.badbit.value;
             return variables.arithmeticNum("BOOL", (failbit !== 0 || badbit !== 0) ? 0 : 1, null);
         }
     },

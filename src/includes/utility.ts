@@ -41,14 +41,12 @@ export = {
                             memberOf: null,
                             templateSpec: [lhs.t, rhs.t]
                         },
-                        v: {
-                            isConst: false,
-                            lvHolder: null,
-                            state: "INIT",
-                            members: {
-                                first: variables.clone(rt, lhs, "SELF", false, true),
-                                second: variables.clone(rt, rhs, "SELF", false, true),
-                            }
+                        isConst: false,
+                        lvHolder: null,
+                        state: "INIT",
+                        members: {
+                            first: variables.clone(rt, lhs, "SELF", false, true),
+                            second: variables.clone(rt, rhs, "SELF", false, true),
                         }
                     }
                 }
@@ -64,25 +62,25 @@ export = {
         }
         function* lex_cmp(rt: CRuntime, lhs: __pair, rhs: __pair): Gen<-1 | 0 | 1> {
             // side note: zero does not mean equality
-            if ((yield* do_op(rt, lhs.v.members.first, rhs.v.members.first, "o(_<_)")) !== 0) {
+            if ((yield* do_op(rt, lhs.members.first, rhs.members.first, "o(_<_)")) !== 0) {
                 return -1;
             }
-            if ((yield* do_op(rt, lhs.v.members.first, rhs.v.members.first, "o(_>_)")) !== 0) {
+            if ((yield* do_op(rt, lhs.members.first, rhs.members.first, "o(_>_)")) !== 0) {
                 return 1;
             }
-            if ((yield* do_op(rt, lhs.v.members.second, rhs.v.members.second, "o(_<_)")) !== 0) {
+            if ((yield* do_op(rt, lhs.members.second, rhs.members.second, "o(_<_)")) !== 0) {
                 return -1;
             }
-            if ((yield* do_op(rt, lhs.v.members.second, rhs.v.members.second, "o(_>_)")) !== 0) {
+            if ((yield* do_op(rt, lhs.members.second, rhs.members.second, "o(_>_)")) !== 0) {
                 return 1;
             }
             return 0;
         }
         function* lex_eq(rt: CRuntime, lhs: __pair, rhs: __pair): Gen<boolean> {
-            if ((yield* do_op(rt, lhs.v.members.first, rhs.v.members.second, "o(_==_)")) === 0) {
+            if ((yield* do_op(rt, lhs.members.first, rhs.members.second, "o(_==_)")) === 0) {
                 return false;
             }
-            return ((yield* do_op(rt, lhs.v.members.second, rhs.v.members.second, "o(_==_)")) !== 0);
+            return ((yield* do_op(rt, lhs.members.second, rhs.members.second, "o(_==_)")) !== 0);
         }
         common.regOps(rt, [
             {

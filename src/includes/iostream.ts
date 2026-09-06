@@ -18,7 +18,7 @@ export = {
         rt.defineStruct("{global}", "istream", [
             {
                 name: "buf",
-                variable: variables.indexPointer<ArithmeticNumVariable>(variables.arrayMemory(charType, []), 0, false, "SELF")
+                variable: variables.indexPointer<ArithmeticNumVariable>(variables.arrayMemory<ArithmeticNumVariable>(charType, []), 0, false, "SELF")
             },
             {
                 name: "fd",
@@ -47,14 +47,14 @@ export = {
         ], {});
         const cinType = rt.simpleType(["istream"]) as MaybeLeft<IStreamType>;
         const cin = variables.clone(rt, rt.defaultValue(cinType.t, "SELF") as IStreamVariable, "SELF", false);
-        cin.v.members.fd.v.value = unixapi.FD_STDIN;
+        cin.members.fd.value = unixapi.FD_STDIN;
 
         rt.addToNamespace("std", "cin", cin, true);
 
         ios_base_impl.defineOstream(rt, "ostream", []);
         const coutType = rt.simpleType(["ostream"]) as MaybeLeft<OStreamType>;
         const cout = variables.clone(rt, rt.defaultValue(coutType.t, "SELF") as OStreamVariable, "SELF", false);
-        cout.v.members.fd.v.value = unixapi.FD_STDOUT;
+        cout.members.fd.value = unixapi.FD_STDOUT;
 
         rt.addToNamespace("std", "cout", cout, true);
 
@@ -70,12 +70,10 @@ export = {
                     memberOf: null,
                     templateSpec: [],
                 },
-                v: {
-                    isConst: true,
-                    lvHolder: "SELF",
-                    members: {},
-                    state: "INIT"
-                }
+                isConst: true,
+                lvHolder: "SELF",
+                members: {},
+                state: "INIT"
             }
             rt.addToNamespace("std", "ws", ws, true);
         }
@@ -86,18 +84,18 @@ export = {
 
             const retv = variables.uninitArithmeticNum("I32", null);
             const inputPromise: Promise<[boolean, IStreamVariable, ArithmeticNumVariable]> = new Promise((resolve) => {
-                let result = l.v.members.buf;
+                let result = l.members.buf;
                 // + 1 because of trailing '\0'
-                if (result.v.index + 1 >= result.v.pointee.values.length) {
+                if (result.index + 1 >= result.pointee.values.length) {
                     stdio.getInput().then((result) => {
-                        variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
+                        variables.indexPointerAssign(rt, l.members.buf, rt.getCharArrayFromString(result.concat("\n")).pointee, 0);
                         if (rt.config.printStdin === true) {
-                            unixapi.write(rt, [], variables.arithmeticNum("I32", unixapi.FD_STDOUT, null), l.v.members.buf, variables.arithmeticNum("I32", sizeUntilNull(rt, l.v.members.buf), null));
+                            unixapi.write(rt, [], variables.arithmeticNum("I32", unixapi.FD_STDOUT, null), l.members.buf, variables.arithmeticNum("I32", sizeUntilNull(rt, l.members.buf), null));
                         }
                         resolve([false, l, retv]);
                     }, () => {
-                        l.v.members.eofbit.v.value = 1;
-                        l.v.members.failbit.v.value = 1;
+                        l.members.eofbit.value = 1;
+                        l.members.failbit.value = 1;
                         try {
                             rt.raiseException("Unexpected end of input");
                         } catch (err) {
@@ -109,17 +107,17 @@ export = {
                 }
             });
             inputPromise.then(([_is_raw, l, retv]) => {
-                let buf = l.v.members.buf;
-                if (l.v.members.eofbit.v.value === 1 || buf.v.pointee.values.length <= buf.v.index) {
-                    l.v.members.eofbit.v.value = 1;
-                    l.v.members.failbit.v.value = 1;
+                let buf = l.members.buf;
+                if (l.members.eofbit.value === 1 || buf.pointee.values.length <= buf.index) {
+                    l.members.eofbit.value = 1;
+                    l.members.failbit.value = 1;
                     return variables.arithmeticNum("I32", -1, null);
                 }
-                const topv = rt.arithmeticNumValue2(variables.arrayMember(buf.v.pointee, buf.v.index));
+                const topv = rt.arithmeticNumValue2(variables.arrayMember(buf.pointee, buf.index));
 
                 //variables.arithmeticAssign(retv, topv, rt.raiseException);
-                retv.v.state = "INIT";
-                (retv.v as InitArithmeticNumValue).value = topv;
+                retv.state = "INIT";
+                (retv as InitArithmeticNumValue).value = topv;
                 stdio.cinProceed();
             }).catch((err) => {
                 stdio.promiseError(err);
@@ -137,41 +135,41 @@ export = {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
             *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: ArithmeticNumVariable | ArithmeticBigVariable): Gen<IStreamVariable> {
-                const eofbit = l.v.members.eofbit;
-                const failbit = l.v.members.failbit;
-                const buf = l.v.members.buf;
+                const eofbit = l.members.eofbit;
+                const failbit = l.members.failbit;
+                const buf = l.members.buf;
                 let char: InitArithmeticNumVariable;
                 while (true) {
                     char = yield* readChar(rt, l);
-                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
-                        failbit.v.value = 1;
+                    if (eofbit.value === 1 || failbit.value === 1) {
+                        failbit.value = 1;
                         return l;
                     }
-                    if (l.v.members.skipws.v.value === 0 || !(whitespaceChars.includes(char.v.value))) {
+                    if (l.members.skipws.value === 0 || !(whitespaceChars.includes(char.value))) {
                         break;
                     }
-                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                 }
                 if (r.t.sig === "I8") {
-                    variables.arithmeticNumAssign(rt, r as ArithmeticNumVariable, char.v.value);
-                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    variables.arithmeticNumAssign(rt, r as ArithmeticNumVariable, char.value);
+                    variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                     const stdio = rt.stdio();
                     if (stdio.isMochaTest) {
-                        stdio.write(String.fromCodePoint(char.v.value) + "\n");
+                        stdio.write(String.fromCodePoint(char.value) + "\n");
                     }
                 } else {
                     let wordValues: number[] = [];
-                    while (!(whitespaceChars.includes(char.v.value))) {
-                        wordValues.push(char.v.value);
-                        variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    while (!(whitespaceChars.includes(char.value))) {
+                        wordValues.push(char.value);
+                        variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                         char = yield* readChar(rt, l);
-                        if (eofbit.v.value === 1 || failbit.v.value === 1) {
-                            failbit.v.value = 1;
+                        if (eofbit.value === 1 || failbit.value === 1) {
+                            failbit.value = 1;
                             return l;
                         }
                     }
                     if (wordValues.length === 0) {
-                        failbit.v.value = 1;
+                        failbit.value = 1;
                         return l;
                     }
                     const wordString = utf8.fromUtf8CharArray(new Uint8Array(wordValues));
@@ -195,16 +193,16 @@ export = {
                         if (r.t.sig in variables.arithmeticNumSig) {
                             const num = Number.parseFloat(wordString);
                             if (Number.isNaN(num)) {
-                                l.v.members.failbit.v.value = 1;
+                                l.members.failbit.value = 1;
                                 return l;
                             }
                             variables.arithmeticNumAssign(rt, r as ArithmeticNumVariable, num);
                         } else {
-                            let num : bigint;
+                            let num: bigint;
                             try {
                                 num = BigInt(wordString);
                             } catch (e) {
-                                l.v.members.failbit.v.value = 1;
+                                l.members.failbit.value = 1;
                                 return l;
                             }
                             variables.arithmeticBigAssign(rt, r as ArithmeticBigVariable, num);
@@ -222,36 +220,36 @@ export = {
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 )",
             *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: PointerVariable<ArithmeticNumVariable>): Gen<IStreamVariable> {
                 const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
-                const eofbit = l.v.members.eofbit;
-                const failbit = l.v.members.failbit;
-                const buf = l.v.members.buf;
+                const eofbit = l.members.eofbit;
+                const failbit = l.members.failbit;
+                const buf = l.members.buf;
                 let char: InitArithmeticNumVariable;
                 while (true) {
                     char = yield* readChar(rt, l);
-                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
-                        failbit.v.value = 1;
+                    if (eofbit.value === 1 || failbit.value === 1) {
+                        failbit.value = 1;
                         return l;
                     }
-                    if (!(whitespaceChars.includes(char.v.value))) {
+                    if (!(whitespaceChars.includes(char.value))) {
                         break;
                     }
-                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                 }
 
                 let i = 0;
-                while (!(whitespaceChars.includes(char.v.value))) {
-                    variables.arithmeticNumValueAssign(rt, (rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticNumVariable).v, char.v.value)
+                while (!(whitespaceChars.includes(char.value))) {
+                    variables.arithmeticNumValueAssign(rt, (rt.unbound(variables.arrayMember(r.pointee, r.index + i)) as ArithmeticNumVariable), char.value)
                     i++;
-                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                     char = yield* readChar(rt, l);
-                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
-                        failbit.v.value = 1;
+                    if (eofbit.value === 1 || failbit.value === 1) {
+                        failbit.value = 1;
                         return l;
                     }
                 }
-                variables.arithmeticNumValueAssign(rt, (rt.unbound(variables.arrayMember(r.v.pointee, r.v.index + i)) as ArithmeticNumVariable).v, 0)
+                variables.arithmeticNumValueAssign(rt, (rt.unbound(variables.arrayMember(r.pointee, r.index + i)) as ArithmeticNumVariable), 0)
                 if (i === 0) {
-                    failbit.v.value = 1;
+                    failbit.value = 1;
                     return l;
                 }
 
@@ -262,20 +260,20 @@ export = {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS ws_t < > )",
             *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: ClassVariable): Gen<IStreamVariable> {
-                const eofbit = l.v.members.eofbit;
-                const failbit = l.v.members.failbit;
-                const buf = l.v.members.buf;
+                const eofbit = l.members.eofbit;
+                const failbit = l.members.failbit;
+                const buf = l.members.buf;
                 let char: InitArithmeticNumVariable;
                 while (true) {
                     char = yield* readChar(rt, l);
-                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
-                        failbit.v.value = 1;
+                    if (eofbit.value === 1 || failbit.value === 1) {
+                        failbit.value = 1;
                         return l;
                     }
-                    if (!(whitespaceChars.includes(char.v.value))) {
+                    if (!(whitespaceChars.includes(char.value))) {
                         break;
                     }
-                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                 }
 
 
@@ -287,38 +285,38 @@ export = {
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
             *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: StringVariable): Gen<IStreamVariable> {
                 const memory = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), []);
-                const eofbit = l.v.members.eofbit;
-                const failbit = l.v.members.failbit;
-                const buf = l.v.members.buf;
+                const eofbit = l.members.eofbit;
+                const failbit = l.members.failbit;
+                const buf = l.members.buf;
                 let char: InitArithmeticNumVariable;
                 while (true) {
                     char = yield* readChar(rt, l);
-                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
-                        failbit.v.value = 1;
+                    if (eofbit.value === 1 || failbit.value === 1) {
+                        failbit.value = 1;
                         return l;
                     }
-                    if (!(whitespaceChars.includes(char.v.value))) {
+                    if (!(whitespaceChars.includes(char.value))) {
                         break;
                     }
-                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                 }
 
                 let i = 0;
-                while (!(whitespaceChars.includes(char.v.value))) {
-                    memory.values.push(variables.arithmeticNum("I8", char.v.value, { array: memory, index: memory.values.length }).v);
+                while (!(whitespaceChars.includes(char.value))) {
+                    memory.values.push(variables.arithmeticNum("I8", char.value, { array: memory, index: memory.values.length }));
                     i++;
-                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                     char = yield* readChar(rt, l);
-                    if (eofbit.v.value === 1 || failbit.v.value === 1) {
-                        failbit.v.value = 1;
+                    if (eofbit.value === 1 || failbit.value === 1) {
+                        failbit.value = 1;
                         return l;
                     }
                 }
-                memory.values.push(variables.arithmeticNum("I8", 0, { array: memory, index: memory.values.length }).v);
-                r.v.members._ptr = variables.indexPointer(memory, 0, false, "SELF");
-                r.v.members._size.v.value = memory.values.length - 1;
+                memory.values.push(variables.arithmeticNum("I8", 0, { array: memory, index: memory.values.length }));
+                r.members._ptr = variables.indexPointer(memory, 0, false, "SELF");
+                r.members._size.value = memory.values.length - 1;
                 if (i === 0) {
-                    failbit.v.value = 1;
+                    failbit.value = 1;
                     return l;
                 }
 
@@ -332,15 +330,15 @@ export = {
             stdio.cinStop();
 
             const inputPromise: Promise<[boolean, IStreamVariable]> = new Promise((resolve) => {
-                let result = l.v.members.buf;
+                let result = l.members.buf;
                 // + 1 because of trailing '\0'
-                if (result.v.index + 1 >= result.v.pointee.values.length) {
+                if (result.index + 1 >= result.pointee.values.length) {
                     stdio.getInput().then((result) => {
-                        variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
+                        variables.indexPointerAssign(rt, l.members.buf, rt.getCharArrayFromString(result.concat("\n")).pointee, 0);
                         resolve([false, l]);
                     }, () => {
-                        l.v.members.eofbit.v.value = 1;
-                        l.v.members.failbit.v.value = 1;
+                        l.members.eofbit.value = 1;
+                        l.members.failbit.value = 1;
                         try {
                             rt.raiseException("Unexpected end of input");
                         } catch (err) {
@@ -352,7 +350,7 @@ export = {
                 }
             });
             inputPromise.then(([is_raw, l]) => {
-                let b = l.v.members.buf;
+                let b = l.members.buf;
                 const count = rt.arithmeticNumValue(_count);
                 const delim = rt.arithmeticNumValue(_delim);
                 const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
@@ -360,25 +358,25 @@ export = {
                     rt.raiseException("Not an index pointer");
                 }
                 const oldiptr = variables.clone(rt, b, "SELF", false);
-                if (b.v.index >= b.v.pointee.values.length) {
-                    l.v.members.eofbit.v.value = 1;
+                if (b.index >= b.pointee.values.length) {
+                    l.members.eofbit.value = 1;
                 }
                 let cnt = 0;
                 while (cnt < count - 1) {
-                    const si = rt.unbound(variables.arrayMember(s.v.pointee, s.v.index + cnt)) as ArithmeticNumVariable;
-                    const bi = rt.arithmeticNumValue2(variables.arrayMember(b.v.pointee, b.v.index));
+                    const si = rt.unbound(variables.arrayMember(s.pointee, s.index + cnt)) as ArithmeticNumVariable;
+                    const bi = rt.arithmeticNumValue2(variables.arrayMember(b.pointee, b.index));
                     if (bi === delim || bi === 0) {
                         // consume the delimiter
-                        variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
+                        variables.indexPointerAssignIndex(rt, b, b.index + 1);
                         variables.arithmeticNumAssign(rt, si, 0);
                         break;
                     }
                     variables.arithmeticNumAssign(rt, si, bi);
-                    variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
+                    variables.indexPointerAssignIndex(rt, b, b.index + 1);
                     cnt++;
                 }
                 if (cnt === 0) {
-                    l.v.members.failbit.v.value = 1;
+                    l.members.failbit.value = 1;
                 }
 
                 if (!is_raw) {
@@ -398,15 +396,15 @@ export = {
             stdio.cinStop();
 
             const inputPromise: Promise<[boolean, IStreamVariable]> = new Promise((resolve) => {
-                let result = l.v.members.buf;
+                let result = l.members.buf;
                 // + 1 because of trailing '\0'
-                if (result.v.index + 1 >= result.v.pointee.values.length) {
+                if (result.index + 1 >= result.pointee.values.length) {
                     stdio.getInput().then((result) => {
-                        variables.indexPointerAssign(rt, l.v.members.buf, rt.getCharArrayFromString(result.concat("\n")).v.pointee, 0);
+                        variables.indexPointerAssign(rt, l.members.buf, rt.getCharArrayFromString(result.concat("\n")).pointee, 0);
                         resolve([false, l]);
                     }, () => {
-                        l.v.members.eofbit.v.value = 1;
-                        l.v.members.failbit.v.value = 1;
+                        l.members.eofbit.value = 1;
+                        l.members.failbit.value = 1;
                         try {
                             rt.raiseException("Unexpected end of input");
                         } catch (err) {
@@ -418,34 +416,34 @@ export = {
                 }
             });
             inputPromise.then(([is_raw, l]) => {
-                let b = l.v.members.buf;
+                let b = l.members.buf;
                 const delim = rt.arithmeticValue(_delim);
-                const i8type = s.v.members._ptr.t.pointee;
+                const i8type = s.members._ptr.t.pointee;
                 const oldiptr = variables.clone(rt, b, "SELF", false);
-                if (b.v.index >= b.v.pointee.values.length) {
-                    l.v.members.eofbit.v.value = 1;
-                    l.v.members.failbit.v.value = 1;
+                if (b.index >= b.pointee.values.length) {
+                    l.members.eofbit.value = 1;
+                    l.members.failbit.value = 1;
                     return;
                 }
                 let cnt = 0;
                 const memory = variables.arrayMemory<ArithmeticNumVariable>(i8type, []);
                 while (true) {
-                    const bi = rt.arithmeticNumValue2(variables.arrayMember(b.v.pointee, b.v.index));
+                    const bi = rt.arithmeticNumValue2(variables.arrayMember(b.pointee, b.index));
                     if (bi === delim || bi === 0) {
                         // consume the delimiter
-                        variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
+                        variables.indexPointerAssignIndex(rt, b, b.index + 1);
                         break;
                     }
-                    memory.values.push(variables.arithmeticNum(i8type.sig, bi, { array: memory, index: cnt }).v);
-                    variables.indexPointerAssignIndex(rt, b, b.v.index + 1);
+                    memory.values.push(variables.arithmeticNum(i8type.sig, bi, { array: memory, index: cnt }));
+                    variables.indexPointerAssignIndex(rt, b, b.index + 1);
                     cnt++;
                 }
-                memory.values.push(variables.arithmeticNum(i8type.sig, 0, { array: memory, index: cnt }).v);
+                memory.values.push(variables.arithmeticNum(i8type.sig, 0, { array: memory, index: cnt }));
                 if (cnt === 0) {
-                    l.v.members.failbit.v.value = 1;
+                    l.members.failbit.value = 1;
                 }
-                variables.indexPointerAssign(rt, s.v.members._ptr, memory, 0);
-                s.v.members._size.v.value = cnt;
+                variables.indexPointerAssign(rt, s.members._ptr, memory, 0);
+                s.members._size.value = cnt;
 
                 if (!is_raw) {
                     unixapi.write(rt, [], variables.arithmeticNum("I32", unixapi.FD_STDOUT, null), oldiptr, variables.arithmeticNum("I32", sizeUntilNull(rt, oldiptr), null));
@@ -466,8 +464,8 @@ export = {
                 type: "FUNCTION I32 ( LREF CLASS istream < > )",
                 *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable): Gen<ArithmeticNumVariable> {
                     const retv = yield* readChar(rt, l);
-                    const buf = l.v.members.buf;
-                    variables.indexPointerAssignIndex(rt, buf, buf.v.index + 1);
+                    const buf = l.members.buf;
+                    variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
                     return retv;
                 }
             },

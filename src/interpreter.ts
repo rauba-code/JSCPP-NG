@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, MemberMap, MemberObject, OpSignature, RuntimeScope } from "./rt";
-import { ClassType, ClassVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, FunctionValue, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig, InitArithmeticBigVariable, InitArithmeticNumVariable, ArithmeticBigVariable } from "./variables";
+import { ClassType, ClassVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig, InitArithmeticBigVariable, InitArithmeticNumVariable, ArithmeticBigVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -311,23 +311,23 @@ function resolveTypeId(rt: CRuntime, s: XTypeId): MaybeLeftCV<ObjectType> | "VOI
                 case "v":
                     return "VOID";
                 case "c":
-                    return { t: { sig: isUnsigned ? "U8" : "I8" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: isUnsigned ? "U8" : "I8" }, lvHolder: null, isConst }
                 case "si":
-                    return { t: { sig: isUnsigned ? "U16" : "I16" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: isUnsigned ? "U16" : "I16" }, lvHolder: null, isConst }
                 case "i":
-                    return { t: { sig: isUnsigned ? "U32" : "I32" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: isUnsigned ? "U32" : "I32" }, lvHolder: null, isConst }
                 case "li":
-                    return { t: { sig: isUnsigned ? "U32" : "I32" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: isUnsigned ? "U32" : "I32" }, lvHolder: null, isConst }
                 case "lli":
-                    return { t: { sig: isUnsigned ? "U64" : "I64" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: isUnsigned ? "U64" : "I64" }, lvHolder: null, isConst }
                 case "f":
-                    return { t: { sig: "F32" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: "F32" }, lvHolder: null, isConst }
                 case "d":
-                    return { t: { sig: "F64" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: "F64" }, lvHolder: null, isConst }
                 case "ld":
-                    return { t: { sig: "F64" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: "F64" }, lvHolder: null, isConst }
                 case "b":
-                    return { t: { sig: "BOOL" }, v: { lvHolder: null, isConst } }
+                    return { t: { sig: "BOOL" }, lvHolder: null, isConst }
                 default:
                     rt.raiseException("Type-id error: unreachable");
             }
@@ -338,7 +338,7 @@ function resolveTypeId(rt: CRuntime, s: XTypeId): MaybeLeftCV<ObjectType> | "VOI
             if (r === "VOID") {
                 return r;
             }
-            (r.v as any).isConst = isConst
+            (r as any).isConst = isConst
             return r as MaybeLeftCV<ObjectType>;
     }
 }
@@ -393,11 +393,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             if (_type === "VOID") {
                                 rt.raiseException("Direct declarator error: function arguments cannot have void type");
                             }
-                            argTypes.push({ t: _type.t, v: { isConst: false, ..._type.v } });
+                            argTypes.push({ isConst: false, ..._type });
                         }
                         basetype = {
                             t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", basetype, argTypes).array), null),
-                            v: { lvHolder: null }
+                            lvHolder: null
                         };
                         if (s.left.type === "DirectDeclarator" && s.left.Pointer !== null) {
                             s.left = s.left.left;
@@ -418,7 +418,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         let dim: number;
                         if (Xdim.Expression !== null) {
                             const castResult = (rt.cast(variables.arithmeticNumType("I32"), (yield* interp.visit(interp, Xdim.Expression, param))) as ArithmeticNumVariable);
-                            dim = castResult.v.state === "INIT" ? castResult.v.value : -1;
+                            dim = castResult.state === "INIT" ? castResult.value : -1;
                         } else if (j > 0) {
                             rt.raiseException("Direct declarator error: multidimensional array must have bounds for all dimensions except the first", Xdim);
                         } else {
@@ -428,7 +428,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     }
                     let top: number | undefined;
                     while ((top = dimensions.pop()) !== undefined) {
-                        basetype = { t: variables.pointerType(basetype.t, (top !== -1) ? top : null), v: basetype.v };
+                        (basetype as any).t = variables.pointerType(basetype.t, (top !== -1) ? top : null);
                     }
                 }
 
@@ -470,7 +470,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         if (_basetype === "VOID") {
                             rt.raiseException("Parameter type list error: Type error or not yet implemented");
                         }
-                        _type = { t: _basetype.t, v: { isConst: false, ..._basetype.v } };
+                        _type = { isConst: false, ..._basetype };
                     } else {
                         if (_param.Declarator == null) {
                             rt.raiseException("Parameter type list error: missing declarator for argument", _param);
@@ -489,14 +489,14 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         isConst = _declarationSpecifiers.some((specifier) => ["const", "static"].includes(specifier));
 
                         if (_reference) {
-                            _type = { t: _basetype.t, v: { isConst, lvHolder: "SELF" } };
+                            _type = { t: _basetype.t, isConst, lvHolder: "SELF" };
                         } else {
                             const _pointer = _param.Declarator.Declarator.Pointer;
                             const __type = interp.buildRecursivePointerType(rt, _pointer, _basetype, 0);
                             if (__type === "VOID") {
                                 rt.raiseException("Parameter type list error: Type error or not yet implemented");
                             }
-                            _type = { t: __type.t, v: { isConst, ...__type.v } };
+                            _type = { isConst, ...__type };
                         }
 
                         if (_param.Declarator.Declarator.left.type === "DirectDeclarator") {
@@ -521,7 +521,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 if (_optionalArgs.length !== 0) {
                                     rt.raiseException("Parameter type list error: function pointer types cannot contain optional parameters");
                                 }
-                                _type = { t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", _basetype, _argTypes).array), null), v: { isConst: false, lvHolder: null } };
+                                _type = { t: variables.pointerType(variables.functionType(rt.createFunctionTypeSignature("{global}", _basetype, _argTypes).array), null), isConst: false, lvHolder: null };
                             } else {
                                 for (let j = right.length - 1; j >= 0; j--) {
                                     const dimObj = right[j];
@@ -530,11 +530,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     }
                                     if (dimObj.Expression !== null) {
                                         const sizeConstraint = rt.arithmeticExpectNumValue(rt.cast({ sig: "I32" }, (yield* interp.visit(interp, dimObj.Expression, param))) as ArithmeticNumVariable);
-                                        _type = { t: variables.pointerType(_type.t, sizeConstraint), v: { isConst, lvHolder: _type.v.lvHolder } };
+                                        _type = { t: variables.pointerType(_type.t, sizeConstraint), isConst, lvHolder: _type.lvHolder };
                                     } else if (j > 0) {
                                         rt.raiseException("Parameter type list error: Multidimensional array must have bounds for all dimensions except the first", dimObj);
                                     } else {
-                                        _type = { t: variables.pointerType(_type.t, null), v: { isConst, lvHolder: _type.v.lvHolder } };
+                                        _type = { t: variables.pointerType(_type.t, null), isConst, lvHolder: _type.lvHolder };
                                     }
                                 }
                             }
@@ -604,14 +604,15 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
 
                 let i = 0;
                 for (const dec of s.InitDeclaratorList) {
+                    const basetype1 = { ...basetype };
                     let visitResult: DeclaratorYield;
                     {
                         const _basetype = param.basetype;
-                        param.basetype = basetype;
+                        param.basetype = basetype1;
                         visitResult = (yield* interp.visit(interp, dec.Declarator, param)) as DeclaratorYield;
                         param.basetype = _basetype;
                     }
-                    let decType: MaybeLeft<ObjectType> = (dec.Declarator.Pointer instanceof Array) ? variables.uninitPointer(basetype.t, null, "SELF") : basetype;
+                    let decType: MaybeLeft<ObjectType> = (dec.Declarator.Pointer instanceof Array) ? variables.uninitPointer(basetype1.t, null, "SELF") : basetype1;
                     const { name, type } = visitResult;
                     let initSpec = dec.Initializers;
 
@@ -621,7 +622,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const rhs = dec.Declarator.right as DirectDeclaratorModifier[];
                     for (const modifier of rhs.reverse()) {
                         if (modifier.type === "DirectDeclarator_modifier_array") {
-                            if (modifier.Modifier.length > 0) {
+                            /*if (modifier.Modifier.length > 0) {
                                 rt.raiseException("Declaration error: Type error or not yet implemented");
                             }
                             let arraySize: number = -1;
@@ -632,7 +633,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 } else {
                                     const arraySizeArithmeticVar = variables.asArithmetic(rt.unbound(arraySizeExpr)) ??
                                         rt.raiseException("Declaration error: Expected an arithmetic value in an array size expression");
-                                    if (arraySizeArithmeticVar.v.lvHolder !== null && !arraySizeArithmeticVar.v.isConst) {
+                                    if (arraySizeArithmeticVar.lvHolder !== null && !arraySizeArithmeticVar.isConst) {
                                         rt.raiseException("Declaration error: Expected a constant value in an array size expression")
                                     }
                                     arraySize = rt.arithmeticExpectNumValue(arraySizeArithmeticVar);
@@ -641,7 +642,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     }
                                 }
                             }
-                            decType = variables.uninitPointer(decType.t, arraySize, decType.v.lvHolder);
+                            decType = variables.uninitPointer(decType.t, arraySize, decType.lvHolder);*/
                         } else if (modifier.type as string === "DirectDeclarator_modifier_Constructor") {
                             if (rhs.length !== 1) {
                                 rt.raiseException("Declaration error: Too many modifiers or not yet implemented");
@@ -666,7 +667,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 rt.raiseException("Declaration error: Expected a non-void value");
                             } else {
                                 if (isConst) {
-                                    (xinitOrVoid.v as any).isConst = true;
+                                    (xinitOrVoid as any).isConst = true;
                                 }
                                 rt.defVar(name, rt.unbound(xinitOrVoid));
                             }
@@ -680,15 +681,15 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             const initVar: Variable | null = (yield* interp.visit(interp, initSpec, param)) as Variable;
                             param.typeHint = _typeHint;
                             if (isConst) {
-                                (initVar.v as any).isConst = true;
+                                (initVar as any).isConst = true;
                             }
                             rt.defVar(name, initVar);
                         } else {
                             const isGlobal: boolean = rt.scope.length <= 1;
                             const initVarYield = (initSpec === null)
                                 ? rt.defaultValue2(decType.t, "SELF", isGlobal)
-                                : ((i === 0 && "state" in basetype.v)
-                                    ? basetype as MaybeUnboundVariable
+                                : ((i === 0 && "state" in basetype1)
+                                    ? basetype1 as MaybeUnboundVariable
                                     : interp.visit(interp, (initSpec as XInitializerExpr).Expression) as Gen<MaybeUnboundVariable | "VOID">
                                 );
                             const initVarOrVoid = asResult(initVarYield) ?? (yield* (initVarYield as Gen<MaybeUnboundVariable | "VOID">));
@@ -696,7 +697,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                 rt.raiseException("Declaration error: Expected a non-void value");
                             } else {
                                 let initVar = initSpec === null ? variables.clone(rt, rt.unbound(initVarOrVoid), "SELF", false, true) : rt.unbound(initVarOrVoid);
-                                if (dec.Declarator.Reference === undefined && initVar.v.lvHolder !== null) {
+                                if (dec.Declarator.Reference === undefined && initVar.lvHolder !== null) {
                                     initVar = variables.clone(rt, initVar, "SELF", false, true);
                                 }
                                 if (!variables.typesEqual(initVar.t, decType.t) || decType.t.sig === "CLASS") {
@@ -707,15 +708,15 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                         const initSize = ptrInitVar.t.sizeConstraint;
 
                                         if (decSize === null) {
-                                            initVar = { t: variables.pointerType(ptrInitVar.t.pointee, null), v: ptrInitVar.v };
+                                            (initVar.t as any) = variables.pointerType(ptrInitVar.t.pointee, null);
                                         } else if (decSize < 1 && initSize !== null && initSize >= 0) {
                                             // pass
                                         } else if (initSpec !== null && initSpec.Expression.type === "StringLiteralExpression" && initSize !== null && initSize <= decSize) {
                                             const decArithmeticPointee = variables.asArithmeticNumType(ptrDecType.pointee) ?? rt.raiseException("Declaration error: Expected a pointer to a char values");
                                             const iptr = variables.asInitIndexPointerOfElem(ptrInitVar, variables.uninitArithmeticNum(decArithmeticPointee.sig, null)) ?? rt.raiseException("Declaration error: Expected an initialiser to be an initialised arithmetic pointer");
-                                            const memory = iptr.v.pointee;
-                                            for (let i = memory.values.length - iptr.v.index; i < decSize; i++) {
-                                                memory.values.push(variables.uninitArithmeticNum(decArithmeticPointee.sig, { array: memory, index: iptr.v.index + i }).v);
+                                            const memory = iptr.pointee;
+                                            for (let i = memory.values.length - iptr.index; i < decSize; i++) {
+                                                memory.values.push(variables.uninitArithmeticNum(decArithmeticPointee.sig, { array: memory, index: iptr.index + i }));
                                             }
                                         } else {
                                             rt.raiseException("Declaration error: Array size mismatch");
@@ -735,7 +736,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                     }
                                 }
                                 if (isConst) {
-                                    (initVar.v as any).isConst = true;
+                                    (initVar as any).isConst = true;
                                 }
                                 rt.defVar(name, initVar);
                             }
@@ -907,7 +908,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     const memory = variables.arrayMemory<Variable>(childTypeHint, []);
                     let i = 0;
                     for (const item of initList) {
-                        memory.values.push(variables.clone(rt, item, { array: memory, index: i }, false, true).v);
+                        memory.values.push(variables.clone(rt, item, { array: memory, index: i }, false, true));
                         i++;
                     }
                     if (i < size) {
@@ -915,13 +916,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             // do not put defaultValue outside the for-loop
                             const defaultValueYield = rt.defaultValue2(childTypeHint, null);
                             const defaultValue = asResult(defaultValueYield) ?? (yield* defaultValueYield as Gen<Variable>);
-                            memory.values.push(variables.clone(rt, defaultValue, { array: memory, index: i }, false, true).v);
+                            memory.values.push(variables.clone(rt, defaultValue, { array: memory, index: i }, false, true));
                             i++;
                         }
                     }
                     return variables.indexPointer(memory, 0, true, null);
                 } else {
-                    const ilist = createInitializerList<Variable>(childTypeHint, initList.map(x => x.v));
+                    const ilist = createInitializerList<Variable>(childTypeHint, initList);
                     if (param.typeHint !== undefined) {
                         const classTypeHint = variables.asClassType(typeHint) ?? rt.raiseException("Initialiser list error: Not yet implemented");
                         const ctorInst = rt.getFuncByParams(classTypeHint, "o(_ctor)", [ilist], [variables.toStringSequence(rt, classTypeHint, false, false)]);
@@ -1269,8 +1270,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 let classIterable: ClassVariable | null;
                 if (iterable.t.sig === "PTR" && iterable.t.sizeConstraint !== null) {
                     const arrayIterable = iterable as InitIndexPointerVariable<Variable>;
-                    beginVar = variables.indexPointer(arrayIterable.v.pointee, arrayIterable.v.index, false, "SELF");
-                    endVar = variables.indexPointer(arrayIterable.v.pointee, arrayIterable.v.index + (arrayIterable.t.sizeConstraint as number), false, "SELF");
+                    beginVar = variables.indexPointer(arrayIterable.pointee, arrayIterable.index, false, "SELF");
+                    endVar = variables.indexPointer(arrayIterable.pointee, arrayIterable.index + (arrayIterable.t.sizeConstraint as number), false, "SELF");
                 } else if ((classIterable = variables.asClass(iterable)) !== null) {
                     const beginInst = rt.tryGetFuncByParams(classIterable.t, "begin", [classIterable], []);
                     const endInst = rt.tryGetFuncByParams(classIterable.t, "end", [classIterable], []);
@@ -1334,17 +1335,17 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         let isConst: boolean;
                         if (declSpec.length > 0 && declSpec[declSpec.length - 1] === "auto") {
                             basetype = elemTmpVar;
-                            isConst = iterable.v.isConst;
+                            isConst = iterable.isConst;
                             if (!dec.Declarator.Reference) {
-                                (elemTmpVar.v as any).isConst = iterable.v.isConst;
-                                elemTmpVar = variables.clone(rt, rt.unbound(elemTmpVar), "SELF", iterable.v.isConst);
+                                (elemTmpVar as any).isConst = iterable.isConst;
+                                elemTmpVar = variables.clone(rt, rt.unbound(elemTmpVar), "SELF", iterable.isConst);
                             }
                         } else if (declSpec.length > 1 && declSpec[0] === "const") {
                             isConst = true;
                             const basetypeOrVoid = rt.simpleType(declSpec);
                             basetype = basetypeOrVoid !== "VOID" ? basetypeOrVoid : rt.raiseException("Range-based-for statement error: Declared variable cannot have a void type" + printTypes());
                             if (!dec.Declarator.Reference) {
-                                (elemTmpVar.v as any).isConst = true;
+                                (elemTmpVar as any).isConst = true;
                                 elemTmpVar = variables.clone(rt, rt.unbound(elemTmpVar), "SELF", true);
                             }
                         } else {
@@ -1353,7 +1354,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             basetype = basetypeOrVoid !== "VOID" ? basetypeOrVoid : rt.raiseException("Range-based-for statement error: Declared variable cannot have a void type" + printTypes());
                             if (dec.Declarator.Reference) {
                                 // mutable borrow
-                                if (iterable.v.isConst) {
+                                if (iterable.isConst) {
                                     rt.raiseException(`Range-based-for statement error: Cannot declare '${rt.makeTypeString(basetype.t, true)}' to '${rt.makeTypeString(elemTmpVar.t, false, true)}' (perhaps you meant '${rt.makeTypeString(basetype.t, true, true)}'?)` + printTypes());
                                 }
                             } else {
@@ -1382,7 +1383,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                             rt.raiseException("Range-based-for statement error: Not yet implemented" + printTypes());
                         }
                         if (isConst) {
-                            (elemTmpVar.v as any).isConst = true;
+                            (elemTmpVar as any).isConst = true;
                         }
                         rt.defVar(name, rt.unbound(elemTmpVar), true);
                     } else {
@@ -1501,11 +1502,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (expr === "VOID") {
                     rt.raiseException("Delete-statement error: Expected non-void expression");
                 }
-                const ptrExpr = variables.asInitPointer(rt.unbound(expr)) ?? rt.raiseException("Delete-statement error: Expected an init pointer expression");
+                const ptrExpr : InitPointerVariable<Variable | Function> = variables.asInitPointer(rt.unbound(expr)) ?? rt.raiseException("Delete-statement error: Expected an init pointer expression");
                 if (ptrExpr.t.pointee.sig === "FUNCTION") {
                     rt.raiseException("Delete-statement error: Cannot delete a function pointer");
                 }
-                variables.indexPointerAssign(rt, ptrExpr as InitPointerVariable<Variable>, variables.arrayMemory(ptrExpr.t.pointee, []), 0);
+                variables.indexPointerAssign(rt, ptrExpr as InitPointerVariable<Variable>, variables.arrayMemory<Variable>(ptrExpr.t.pointee, []), 0);
                 return "VOID";
             },
 
@@ -1593,8 +1594,8 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         return rt.expectValue(result);
                     }
                     const fpret = variables.asInitDirectPointer(ret);
-                    if (fpret !== null && variables.asFunctionType(fpret.t.pointee) !== null) {
-                        const fn = { t: fpret.t.pointee as FunctionType, v: fpret.v.pointee as FunctionValue };
+                    if (fpret !== null && fpret.t.pointee.sig === "FUNCTION") {
+                        const fn = fpret.pointee as Function;
                         const resultOrGen = rt.invokeCallFromVariable(fn, ...args);
                         const result = asResult(resultOrGen) ?? (yield* resultOrGen as Gen<MaybeUnboundVariable | "VOID">);
                         if (result === "VOID") {
@@ -1787,7 +1788,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     for (let index = 0; index < arrSz; index++) {
                         const defaultValYield = rt.defaultValue2(xt, { index, array: memory })
                         const defaultVal = asResult(defaultValYield) ?? (yield* defaultValYield as Gen<Variable>);
-                        memory.values.push(defaultVal.v);
+                        memory.values.push(defaultVal);
                     }
                     return variables.indexPointer(memory, 0, false, null);
                 }
@@ -1854,7 +1855,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     lhsVal = leftArithmetic;
                 }
-                if (lhsVal.v.value === 0) {
+                if (lhsVal.value === 0) {
                     return variables.arithmeticNum("BOOL", 0, null);
                 }
                 const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
@@ -1867,7 +1868,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     rhsVal = rightArithmetic;
                 }
-                return variables.arithmeticNum("BOOL", ((Number(lhsVal.v.value) & Number(rhsVal.v.value)) != 0) ? 1 : 0, null);
+                return variables.arithmeticNum("BOOL", ((Number(lhsVal.value) & Number(rhsVal.value)) != 0) ? 1 : 0, null);
             },
             *LogicalORExpression(interp, s: XBinOpExpression, param): ResultOrGen<InitArithmeticNumVariable> {
                 const left = rt.expectValue((yield* interp.visit(interp, s.left, param)) as Variable);
@@ -1880,7 +1881,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     lhsVal = leftArithmetic;
                 }
-                if (lhsVal.v.value === 1) {
+                if (lhsVal.value === 1) {
                     return variables.arithmeticNum("BOOL", 1, null);
                 }
                 const right = rt.expectValue((yield* interp.visit(interp, s.right, param)) as Variable);
@@ -1893,7 +1894,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 } else {
                     rhsVal = rightArithmetic;
                 }
-                return variables.arithmeticNum("BOOL", ((Number(lhsVal.v.value) | Number(rhsVal.v.value)) != 0) ? 1 : 0, null);
+                return variables.arithmeticNum("BOOL", ((Number(lhsVal.value) | Number(rhsVal.value)) != 0) ? 1 : 0, null);
             },
             *ConditionalExpression(interp, s, param) {
                 ({
@@ -1928,12 +1929,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 const valuesToStruct = function*(arrayValues: any) {
                     const fillerStructYield = rt.defaultValue2(param.structType, null) as ResultOrGen<ClassVariable>;
                     const fillerStruct = rt.unbound(asResult(fillerStructYield) ?? (yield* (fillerStructYield as Gen<ClassVariable>))) as ClassVariable;
-                    const orderedKeys = Object.keys(fillerStruct.v.members);
+                    const orderedKeys = Object.keys(fillerStruct.members);
 
                     for (let k = 0; k < arrayValues.length; k++) {
                         const memberName = orderedKeys[k];
                         const memberValue = arrayValues[k];
-                        fillerStruct.v.members[memberName].v = memberValue.v;
+                        fillerStruct.members[memberName] = memberValue;
                     }
 
                     return fillerStruct;
@@ -1996,7 +1997,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                     rt
                 } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
-                return variables.arithmeticNum("F64", val.v.value, null);
+                return variables.arithmeticNum("F64", val.value, null);
             },
             DecimalFloatConstant(interp, s, _param): ArithmeticNumVariable {
                 ({
@@ -2230,7 +2231,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
             if (basetype === "VOID") {
                 rt.raiseException("Array initialisation error: not yet implemented");
             }
-            const type = { t: variables.pointerType(basetype.t, null), v: { lvHolder: null } } as MaybeLeft<PointerType<ObjectType | FunctionType>>;
+            const type = { t: variables.pointerType(basetype.t, null), lvHolder: null } as MaybeLeft<PointerType<ObjectType | FunctionType>>;
             return this.buildRecursivePointerType(rt, pointer, type, level + 1);
         } else {
             return basetype;

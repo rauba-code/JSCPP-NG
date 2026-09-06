@@ -33,7 +33,7 @@ export = {
                 for (let i = 0; i < sizeValue; i++) {
                     const defaultYield = rt.defaultValue2(dataItem.templateSpec[0], { array: memory, index: i });
                     const defaultVar = asResult(defaultYield) ?? (yield* defaultYield as Gen<Variable>);
-                    memory.values.push(defaultVar.v);
+                    memory.values.push(defaultVar);
                 }
 
                 return {
@@ -49,12 +49,12 @@ export = {
             *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): Gen<ArrayVariable<Variable, number>> {
                 const thisType = variables.classType("array", list.t.templateSpec, null) as ArrayType<ObjectType, number>;
                 const arr = yield* rt.defaultValue2(thisType, "SELF");
-                const listmem = list.v.members._values.v.pointee;
-                const arraySize = arr.v.members._size.v.value;
+                const listmem = list.members._values.pointee;
+                const arraySize = arr.members._size.value;
 
                 const copyCount = Math.min(listmem.values.length, arraySize);
                 for (let i = 0; i < copyCount; i++) {
-                    arr.v.members._data.v.pointee.values[i] = variables.clone(rt, rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: arr.v.members._data.v.pointee, index: i }, false, true).v;
+                    arr.members._data.pointee.values[i] = variables.clone(rt, rt.unbound(variables.arrayMember(listmem, i) as MaybeUnboundVariable), { array: arr.members._data.pointee, index: i }, false, true);
                 }
 
                 return arr;
@@ -70,10 +70,10 @@ export = {
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > I32 )",
                 default(rt: CRuntime, _templateTypes: [], l: ArrayVariable<Variable, number>, _idx: ArithmeticNumVariable): Variable {
                     const idx = rt.arithmeticNumValue(_idx);
-                    if (idx < 0 || idx >= l.v.members._size.v.value) {
+                    if (idx < 0 || idx >= l.members._size.value) {
                         rt.raiseException("array::operator[]: index out of range error");
                     }
-                    return variables.arrayMember(l.v.members._data.v.pointee, l.v.members._data.v.index + idx) as ArithmeticVariable;
+                    return variables.arrayMember(l.members._data.pointee, l.members._data.index + idx) as ArithmeticVariable;
                 }
             },
         ]);
@@ -83,21 +83,21 @@ export = {
                 op: "begin",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS array < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitIndexPointerVariable<Variable> {
-                    return variables.indexPointer(arr.v.members._data.v.pointee, arr.v.members._data.v.index, false, null, false);
+                    return variables.indexPointer(arr.members._data.pointee, arr.members._data.index, false, null, false);
                 }
             },
             {
                 op: "end",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS array < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitIndexPointerVariable<Variable> {
-                    return variables.indexPointer(arr.v.members._data.v.pointee, arr.v.members._data.v.index + arr.v.members._size.v.value, false, null, false);
+                    return variables.indexPointer(arr.members._data.pointee, arr.members._data.index + arr.members._size.value, false, null, false);
                 }
             },
             {
                 op: "size",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS array < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticVariable {
-                    return variables.arithmeticNum("I32", arr.v.members._size.v.value, null, false);
+                    return variables.arithmeticNum("I32", arr.members._size.value, null, false);
                 }
             },
             {
@@ -105,53 +105,53 @@ export = {
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > I32 )",
                 default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>, _idx: ArithmeticNumVariable): Variable {
                     const idx = rt.arithmeticNumValue(_idx);
-                    if (idx < 0 || idx >= arr.v.members._size.v.value) {
+                    if (idx < 0 || idx >= arr.members._size.value) {
                         rt.raiseException("array::at(): index out of range error");
                     }
-                    return variables.arrayMember(arr.v.members._data.v.pointee, arr.v.members._data.v.index + idx) as ArithmeticVariable;
+                    return variables.arrayMember(arr.members._data.pointee, arr.members._data.index + idx) as ArithmeticVariable;
                 }
             },
             {
                 op: "front",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > )",
                 default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): Variable {
-                    if (arr.v.members._size.v.value === 0) {
+                    if (arr.members._size.value === 0) {
                         rt.raiseException("array::front(): array is empty");
                     }
-                    return variables.arrayMember(arr.v.members._data.v.pointee, arr.v.members._data.v.index) as ArithmeticVariable;
+                    return variables.arrayMember(arr.members._data.pointee, arr.members._data.index) as ArithmeticVariable;
                 }
             },
             {
                 op: "back",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > )",
                 default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): Variable {
-                    if (arr.v.members._size.v.value === 0) {
+                    if (arr.members._size.value === 0) {
                         rt.raiseException("array::back(): array is empty");
                     }
-                    return variables.arrayMember(arr.v.members._data.v.pointee, arr.v.members._data.v.index + arr.v.members._size.v.value - 1) as ArithmeticVariable;
+                    return variables.arrayMember(arr.members._data.pointee, arr.members._data.index + arr.members._size.value - 1) as ArithmeticVariable;
                 }
             },
             {
                 op: "empty",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS array < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticNumVariable {
-                    return variables.arithmeticNum("BOOL", arr.v.members._size.v.value === 0 ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", arr.members._size.value === 0 ? 1 : 0, null, false);
                 }
             },
             {
                 op: "max_size",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS array < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticNumVariable {
-                    return variables.arithmeticNum("I32", arr.v.members._size.v.value, null, false);
+                    return variables.arithmeticNum("I32", arr.members._size.value, null, false);
                 }
             },
             {
                 op: "fill",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS array < ?0 ?1 > CLREF ?0 )",
                 default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>, value: Variable): "VOID" {
-                    const size = arr.v.members._size.v.value;
+                    const size = arr.members._size.value;
                     for (let i = 0; i < size; i++) {
-                        arr.v.members._data.v.pointee.values[i] = variables.clone(rt, value, { index: i, array: arr.v.members._data.v.pointee }, false, true).v;
+                        arr.members._data.pointee.values[i] = variables.clone(rt, value, { index: i, array: arr.members._data.pointee }, false, true);
                     }
                     return "VOID";
                 }
@@ -160,15 +160,15 @@ export = {
                 op: "swap",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS array < ?0 ?1 > LREF CLASS array < ?0 ?1 > )",
                 default(rt: CRuntime, _templateTypes: [], arr1: ArrayVariable<Variable, number>, arr2: ArrayVariable<Variable, number>): "VOID" {
-                    if (arr1.v.members._size.v.value !== arr2.v.members._size.v.value) {
+                    if (arr1.members._size.value !== arr2.members._size.value) {
                         rt.raiseException("array::swap(): arrays must have the same size");
                     }
 
-                    const size = arr1.v.members._size.v.value;
+                    const size = arr1.members._size.value;
                     for (let i = 0; i < size; i++) {
-                        const temp = arr1.v.members._data.v.pointee.values[i];
-                        arr1.v.members._data.v.pointee.values[i] = arr2.v.members._data.v.pointee.values[i];
-                        arr2.v.members._data.v.pointee.values[i] = temp;
+                        const temp = arr1.members._data.pointee.values[i];
+                        arr1.members._data.pointee.values[i] = arr2.members._data.pointee.values[i];
+                        arr2.members._data.pointee.values[i] = temp;
                     }
                     return "VOID";
                 }
