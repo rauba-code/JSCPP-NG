@@ -215,7 +215,7 @@ export type ArithmeticBigSig = ArithmeticBigType["sig"];
 export type ArithmeticType = ArithmeticNumType | ArithmeticBigType;
 
 /** This includes both "class" and "struct" types */
-export interface ClassType {
+export type ClassType = {
     readonly sig: "CLASS",
     readonly identifier: string,
     readonly templateSpec: ObjectType[],
@@ -223,28 +223,34 @@ export interface ClassType {
 }
 
 /** Templated specialisation of the `ClassType` */
-export interface AbstractTemplatedClassType<TMemberOf extends (ClassType | null), T extends ObjectType[]> {
+export type AbstractTemplatedClassType<TMemberOf extends (ClassType | null), T extends ObjectType[]> = {
     readonly sig: "CLASS",
     readonly identifier: string,
     readonly templateSpec: T,
     readonly memberOf: TMemberOf,
 }
 
-export interface FunctionType {
+export type FunctionType = {
     readonly sig: "FUNCTION",
     readonly fulltype: string[],
 }
 
 /** Generic interface to pointers.
   * Can define an array pointer */
-export interface PointerType<TElem extends ObjectType | FunctionType> {
+export type PointerType<TElem extends ObjectType | FunctionType> = {
     readonly sig: "PTR",
     readonly pointee: TElem,
     readonly sizeConstraint: number | null,
 }
 
+/** The std::nullptr_t type.
+  * It is a special type - neither an arithmetic nor a class type. */
+export type NullptrType = {
+    readonly sig: "NULLPTR",
+}
+
 /** Any type that a variable can have */
-export type ObjectType = ArithmeticType | ClassType | PointerType<ArithmeticType | ClassType | FunctionType | PointerType<any>>;
+export type ObjectType = ArithmeticType | ClassType | NullptrType | PointerType<ArithmeticType | ClassType | FunctionType | NullptrType | PointerType<any>>;
 
 /** Any type that a variable can have + direct function type.
   * Do not use this for checking variables, use `ObjectType` instead. */
@@ -326,7 +332,7 @@ export interface InitIndexPointerValue<VElem extends PointeeVariable> extends In
     index: number,
 }
 
-export type PointeeVariable = Function | ArithmeticVariable | ClassVariable | PointerVariable<Function | ArithmeticVariable | ClassVariable | PointerVariable<any>>;
+export type PointeeVariable = Function | ArithmeticVariable | ClassVariable | NullptrVariable | PointerVariable<Function | ArithmeticVariable | ClassVariable | NullptrVariable | PointerVariable<any>>;
 
 export type InitPointerValue<VElem extends PointeeVariable> = InitDirectPointerValue<VElem> | InitIndexPointerValue<VElem>;
 
@@ -338,11 +344,15 @@ export type PointerValue<VElem extends PointeeVariable> = InitPointerValue<VElem
 export type DirectPointerValue<VElem extends PointeeVariable> = InitDirectPointerValue<VElem> | UninitValue<PointerVariable<VElem>>;
 export type IndexPointerValue<VElem extends PointeeVariable> = InitIndexPointerValue<VElem> | UninitValue<PointerVariable<VElem>>;
 
+export type NullptrValue = InitValue<NullptrVariable>;
+
 export type MaybeUnboundArithmeticNumValue = ArithmeticNumValue | UnboundValue<ArithmeticNumVariable>;
 export type MaybeUnboundArithmeticBigValue = ArithmeticBigValue | UnboundValue<ArithmeticBigVariable>;
 export type MaybeUnboundArithmeticValue = MaybeUnboundArithmeticNumValue | MaybeUnboundArithmeticBigValue | ArithmeticValue | UnboundValue<ArithmeticVariable>;
 
 export type MaybeUnboundClassValue = ClassValue | UnboundValue<ClassVariable>;
+
+export type MaybeUnboundNullptrValue = NullptrValue | UnboundValue<NullptrVariable>;
 
 export type MaybeUnboundPointerValue<VElem extends PointeeVariable> = PointerValue<VElem> | UnboundValue<PointerVariable<VElem>>;
 
@@ -377,17 +387,19 @@ export type InitClassVariable = AbstractVariable<ClassType, ClassValue>;
 export type InitDirectPointerVariable<VElem extends PointeeVariable> = AbstractVariable<PointerType<VElem["t"]>, InitDirectPointerValue<VElem>>;
 export type InitIndexPointerVariable<VElem extends PointeeVariable> = AbstractVariable<PointerType<VElem["t"]>, InitIndexPointerValue<VElem>>;
 export type InitPointerVariable<VElem extends PointeeVariable> = AbstractVariable<PointerType<VElem["t"]>, InitPointerValue<VElem>>;
+export type NullptrVariable = AbstractVariable<NullptrType, NullptrValue>;
 
 export type MaybeUnboundArithmeticNumVariable = AbstractVariable<ArithmeticNumType, MaybeUnboundArithmeticNumValue>;
 export type MaybeUnboundArithmeticBigVariable = AbstractVariable<ArithmeticBigType, MaybeUnboundArithmeticBigValue>;
 export type MaybeUnboundArithmeticVariable = AbstractVariable<ArithmeticType, MaybeUnboundArithmeticValue> | MaybeUnboundArithmeticNumVariable | MaybeUnboundArithmeticBigVariable;
 export type MaybeUnboundClassVariable = AbstractVariable<ClassType, MaybeUnboundClassValue>;
 export type MaybeUnboundPointerVariable<VElem extends Variable | Function> = AbstractVariable<PointerType<VElem["t"]>, MaybeUnboundPointerValue<VElem>>;
+export type MaybeUnboundNullptrVariable = AbstractVariable<NullptrType, MaybeUnboundNullptrValue>;
 
 // Equals to 'Object' in typecheck notation
-export type Variable = ArithmeticVariable | ClassVariable | PointerVariable<PointeeVariable>;
-export type InitVariable = InitArithmeticVariable | InitClassVariable | InitPointerVariable<ArithmeticVariable | ClassVariable | Function | PointerVariable<any>>;
-export type MaybeUnboundVariable = MaybeUnboundArithmeticVariable | MaybeUnboundClassVariable | MaybeUnboundPointerVariable<PointeeVariable>;
+export type Variable = ArithmeticVariable | ClassVariable | NullptrVariable | PointerVariable<PointeeVariable>;
+export type InitVariable = InitArithmeticVariable | InitClassVariable | NullptrVariable | InitPointerVariable<ArithmeticVariable | ClassVariable | Function | NullptrVariable | PointerVariable<any>>;
+export type MaybeUnboundVariable = MaybeUnboundArithmeticVariable | MaybeUnboundClassVariable | MaybeUnboundNullptrVariable | MaybeUnboundPointerVariable<PointeeVariable>;
 
 export type Gen<T> = Generator<unknown, T, unknown>;
 export type ResultOrGen<T> = T | Gen<T>;
