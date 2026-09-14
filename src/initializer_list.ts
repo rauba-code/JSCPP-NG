@@ -1,5 +1,5 @@
 import { CRuntime } from "./rt";
-import { AbstractVariable, ClassType, InitIndexPointerVariable, InitValue, ObjectType, Variable, variables } from "./variables";
+import { AbstractVariable, ClassType, InitValue, ObjectType, TrueIndexPointerVariable, Variable, variables } from "./variables";
 
 export interface InitializerListType<T extends ObjectType> extends ClassType {
     readonly sig: "CLASS",
@@ -12,7 +12,7 @@ export type InitializerListVariable<T extends Variable> = AbstractVariable<Initi
 
 export interface InitializerListValue<T extends Variable> extends InitValue<InitializerListVariable<T>> {
     members: {
-        "_values": InitIndexPointerVariable<T>
+        "_values": TrueIndexPointerVariable<T>
     }
 }
 export function initializerListInit(rt: CRuntime): void {

@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, MemberMap, MemberObject, OpSignature, RuntimeScope } from "./rt";
-import { ClassType, ClassVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig, InitArithmeticBigVariable, InitArithmeticNumVariable, ArithmeticBigVariable } from "./variables";
+import { ClassType, ClassVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig, InitArithmeticBigVariable, InitArithmeticNumVariable, ArithmeticBigVariable, TrueIndexPointerVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -717,7 +717,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                                             // pass
                                         } else if (initSpec !== null && initSpec.Expression.type === "StringLiteralExpression" && initSize !== null && initSize <= decSize) {
                                             const decArithmeticPointee = variables.asArithmeticNumType(ptrDecType.pointee) ?? rt.raiseException("Declaration error: Expected a pointer to a char values");
-                                            const iptr = variables.asInitIndexPointerOfElem(ptrInitVar, variables.uninitArithmeticNum(decArithmeticPointee.sig, null)) ?? rt.raiseException("Declaration error: Expected an initialiser to be an initialised arithmetic pointer");
+                                            const iptr = variables.asTrueIndexPointerOfElem(ptrInitVar, variables.uninitArithmeticNum(decArithmeticPointee.sig, null)) ?? rt.raiseException("Declaration error: Expected an initialiser to be an initialised arithmetic pointer");
                                             const memory = iptr.pointee;
                                             for (let i = memory.values.length - iptr.index; i < decSize; i++) {
                                                 memory.values.push(variables.uninitArithmeticNum(decArithmeticPointee.sig, { array: memory, index: iptr.index + i }));
@@ -1273,7 +1273,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 let endVar: Variable;
                 let classIterable: ClassVariable | null;
                 if (iterable.t.sig === "PTR" && iterable.t.sizeConstraint !== null) {
-                    const arrayIterable = iterable as InitIndexPointerVariable<Variable>;
+                    const arrayIterable = iterable as TrueIndexPointerVariable<Variable>; // when sizeConstraint is non-null, the pointer is always true (a.k.a. non-null)
                     beginVar = variables.indexPointer(arrayIterable.pointee, arrayIterable.index, false, "SELF");
                     endVar = variables.indexPointer(arrayIterable.pointee, arrayIterable.index + (arrayIterable.t.sizeConstraint as number), false, "SELF");
                 } else if ((classIterable = variables.asClass(iterable)) !== null) {

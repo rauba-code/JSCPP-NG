@@ -10,7 +10,7 @@ export = {
             type: "FUNCTION I64 ( PTR I8 )",
             op: "strlen",
             default(rt: CRuntime, _templateTypes: [], _ptr: PointerVariable<ArithmeticNumVariable>): InitArithmeticBigVariable {
-                const ptr = variables.asInitIndexPointerOfElem(_ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const ptr = variables.asTrueIndexPointerOfElem(_ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 let cnt = 0;
                 while (rt.arithmeticValue(variables.arrayMember(ptr.pointee, ptr.index + cnt)) !== 0) {
                     cnt++;
@@ -29,8 +29,8 @@ export = {
             type: "FUNCTION PTR I8 ( PTR I8 PTR I8 )",
             op: "strcat",
             default(rt: CRuntime, _templateTypes: [], _a: PointerVariable<ArithmeticNumVariable>, _b: PointerVariable<ArithmeticNumVariable>): InitIndexPointerVariable<ArithmeticNumVariable> {
-                const a = variables.asInitIndexPointerOfElem(_a, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
-                const b = variables.asInitIndexPointerOfElem(_b, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
+                const a = variables.asTrueIndexPointerOfElem(_a, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                const b = variables.asTrueIndexPointerOfElem(_b, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
                 let ai = 0;
                 while (rt.arithmeticValue(variables.arrayMember(a.pointee, a.index + ai)) !== 0) {
                     ai++;
@@ -47,8 +47,8 @@ export = {
             type: "FUNCTION PTR I8 ( PTR I8 PTR I8 )",
             op: "strcpy",
             default(rt: CRuntime, _templateTypes: [], _a: PointerVariable<ArithmeticNumVariable>, _b: PointerVariable<ArithmeticNumVariable>): InitIndexPointerVariable<ArithmeticNumVariable> {
-                const a = variables.asInitIndexPointerOfElem(_a, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
-                const b = variables.asInitIndexPointerOfElem(_b, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
+                const a = variables.asTrueIndexPointerOfElem(_a, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                const b = variables.asTrueIndexPointerOfElem(_b, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
                 let bv : number;
                 let i : number;
                 for (i = 0; (bv = rt.arithmeticValue(variables.arrayMember(b.pointee, b.index + i)) as number) !== 0; i++) {

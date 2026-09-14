@@ -2,7 +2,7 @@ import { asResult } from "../interpreter";
 import { big, CRuntime, MemberMap } from "../rt";
 import * as common from "../shared/common";
 import { StringVariable } from "../shared/string_utils";
-import { AbstractTemplatedClassType, AbstractVariable, ArithmeticSig, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitIndexPointerVariable, InitValue, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
+import { AbstractTemplatedClassType, AbstractVariable, ArithmeticSig, Gen, InitArithmeticBigVariable, InitValue, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
 
 /* 
  * Generic function object type.
@@ -111,10 +111,9 @@ export = {
                     // NOTE: original function uses copied CLASS string < > 
                     // but to avoid costly copying, CLREF is added.
                     let h: number = 7919;
-                    if (x.members._ptr.state !== "UNINIT") {
-                        const ptr = x.members._ptr as InitIndexPointerVariable<InitArithmeticNumVariable>;
+                    if (x.members._ptr.pointee !== null) {
                         for (let i = 0; i < x.members._size.value; i++) {
-                            const chr = rt.arithmeticValue(variables.arrayMember(ptr.pointee, ptr.index + i)) as number;
+                            const chr = rt.arithmeticValue(variables.arrayMember(x.members._ptr.pointee, x.members._ptr.index + i)) as number;
                             h += 97;
                             h += chr * 7907;
                             h %= 1000000009;

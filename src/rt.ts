@@ -1,5 +1,5 @@
 import * as interp from "./interpreter";
-import { AbstractVariable, AnyType, ArithmeticBigSig, ArithmeticBigType, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumType, ArithmeticNumVariable, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, UnboundValue, Variable, variables } from "./variables";
+import { AbstractVariable, AnyType, ArithmeticBigSig, ArithmeticBigType, ArithmeticBigVariable, ArithmeticNumSig, ArithmeticNumType, ArithmeticNumVariable, ArithmeticSig, ArithmeticType, ArithmeticVariable, CFunction, ClassType, ClassVariable, Function, FunctionType, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitArithmeticVariable, InitClassVariable, InitIndexPointerVariable, InitPointerVariable, InitVariable, LValueHolder, LValueIndexHolder, MaybeLeft, MaybeLeftCV, MaybeUnboundVariable, ObjectType, PointeeVariable, PointerType, PointerVariable, ResultOrGen, TrueIndexPointerVariable, UnboundValue, Variable, variables } from "./variables";
 import { TypeLookup, FunctionMatchResult, abstractFunctionReturnSig } from "./typelookup";
 import { fromUtf8CharArray, toUtf8CharArray } from "./utf8";
 import { sizeUntil } from './shared/string_utils';
@@ -461,8 +461,8 @@ export class CRuntime {
                         }
                     }
                 }
-            } else if (parentVar.t.sig === "PTR" && parentVar.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).subtype === "INDEX") {
-                const parentArray = parentVar as InitIndexPointerVariable<Variable>;
+            } else if (parentVar.t.sig === "PTR" && parentVar.state === "INIT" && typeof parentVar.t.sizeConstraint === "number" && (parentVar as InitPointerVariable<Variable>).subtype === "INDEX" && (parentVar as InitIndexPointerVariable<Variable>).pointee !== null) {
+                const parentArray = parentVar as TrueIndexPointerVariable<Variable>;
                 const memory = parentArray.pointee;
                 const index = parentArray.index;
                 for (let j = 0; j < parentVar.t.sizeConstraint; j++) {
@@ -503,7 +503,7 @@ export class CRuntime {
         return { type: "", value: vars.rdict, displayString: null };
     }
 
-    openFile(path: InitIndexPointerVariable<ArithmeticVariable>, mode: number): number {
+    openFile(path: TrueIndexPointerVariable<ArithmeticVariable>, mode: number): number {
         const { fstream } = this.config;
         if (fstream === undefined) {
             this.raiseException("[CRuntime].config.fstream is undefined");
@@ -531,7 +531,7 @@ export class CRuntime {
         fileInst.close();
     }
 
-    fileWrite(fd: InitArithmeticNumVariable, data: InitIndexPointerVariable<ArithmeticNumVariable>): void {
+    fileWrite(fd: InitArithmeticNumVariable, data: TrueIndexPointerVariable<ArithmeticNumVariable>): void {
         const fileInst = this.fileio.files[fd.value] ?? this.raiseException("Invalid file descriptor");
         fileInst.write(this.getStringFromCharArray(data, sizeUntil(this, data, variables.arithmeticNum("I8", 0, null))))
     }
@@ -1316,6 +1316,9 @@ export class CRuntime {
         }
         const pointerVar = variables.asPointer(v) as InitPointerVariable<PointeeVariable> | null;
         if (pointerVar !== null) {
+            if (pointerVar.pointee === null) {
+                return "nullptr";
+            }
             if (variables.asFunctionType(pointerVar.t.pointee) !== null) {
                 return "<function>";
             }
@@ -1326,12 +1329,10 @@ export class CRuntime {
                 if (pointerVar.subtype === "DIRECT") {
                     return "->" + this.makeValueString(pointerVar.pointee, { ...options });
                 } else {
-                    const indexPointerVar = pointerVar as InitIndexPointerVariable<Variable>;
-                    const arrayObjectType = indexPointerVar.t.pointee;
-                    const asArithmeticElemType: ArithmeticType | null = variables.asArithmeticType(arrayObjectType);
-                    if (asArithmeticElemType?.sig === "I8" || asArithmeticElemType?.sig === "U8") {
+                    const indexPointerVar = pointerVar as TrueIndexPointerVariable<Variable>;
+                    if (indexPointerVar.t.pointee.sig === "I8" || indexPointerVar.t.pointee.sig === "U8") {
                         // string representation
-                        return `"${this.getStringFromCharArray(indexPointerVar as InitIndexPointerVariable<ArithmeticVariable>)}"`;
+                        return `"${this.getStringFromCharArray(indexPointerVar as TrueIndexPointerVariable<ArithmeticVariable>)}"`;
                     } else if (options.noArray) {
                         return "{ /*...*/ }";
                     } else {
@@ -1353,7 +1354,7 @@ export class CRuntime {
     };
 
     /** Parses an character array representing the UTF-8 sequence into a string. */
-    getStringFromCharArray(src: InitIndexPointerVariable<ArithmeticVariable>, len: number | null = null): string {
+    getStringFromCharArray(src: TrueIndexPointerVariable<ArithmeticVariable>, len: number | null = null): string {
         if (!(src.t.pointee.sig === "I8" || src.t.pointee.sig === "U8")) {
             this.raiseException("Not a char array")
         }
@@ -1459,7 +1460,11 @@ export class CRuntime {
         if (pointerTarget !== null && iptrVar !== null) {
             if (variables.typesEqual(pointerTarget.pointee, iptrVar.t.pointee)) {
                 if (pointerTarget.sizeConstraint === null || pointerTarget.sizeConstraint === iptrVar.t.sizeConstraint) {
-                    return variables.indexPointer(iptrVar.pointee, iptrVar.index, pointerTarget.sizeConstraint !== null, null);
+                    if (iptrVar.pointee !== null) {
+                        return variables.indexPointer(iptrVar.pointee, iptrVar.index, pointerTarget.sizeConstraint !== null, null);
+                    } else {
+                        return variables.indexNullPointer(iptrVar.t.pointee, iptrVar.index, null);
+                    }
                 }
             }
         }
@@ -1633,7 +1638,11 @@ export class CRuntime {
         if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            if (variable.lvHolder === "SELF") {
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+            } else {
+                this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            }
         }
         return (variable as InitArithmeticVariable).value;
     }
@@ -1649,7 +1658,11 @@ export class CRuntime {
         if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            if (variable.lvHolder === "SELF") {
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+            } else {
+                this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            }
         }
         const value = (variable as InitArithmeticVariable).value;
         if (typeof value === "number") {
@@ -1681,7 +1694,11 @@ export class CRuntime {
         if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            if (variable.lvHolder === "SELF") {
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+            } else {
+                this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            }
         }
         return (variable as InitArithmeticNumVariable).value;
     }
@@ -1690,14 +1707,22 @@ export class CRuntime {
         if (variable.state === "UNINIT") {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            if (variable.lvHolder === "SELF") {
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+            } else {
+                this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            }
         }
         return variable as InitVariable;
     }
 
     unbound(variable: MaybeUnboundVariable): Variable {
         if (variable.state === "UNBOUND") {
-            this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            if (variable.lvHolder === "SELF") {
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+            } else {
+                this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
+            }
         }
         return variable as Variable;
     }

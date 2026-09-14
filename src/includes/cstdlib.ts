@@ -42,7 +42,7 @@ export = {
             }
         };
         function getWordString(rt: CRuntime, _l: PointerVariable<ArithmeticNumVariable>): string {
-            const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+            const l = variables.asTrueIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
             let char = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index)) as number;
             while ([9, 10, 32].includes(char)) {
                 l.index++;

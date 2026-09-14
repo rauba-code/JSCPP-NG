@@ -588,6 +588,9 @@ const defaultOpHandler: OpHandler[] = [
                 return variables.deref(l) as MaybeUnboundVariable;
             }
             if (l.subtype === "INDEX") {
+                if (l.pointee === null) {
+                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + rt.getVariableNames(l)[0] ?? "<internal>")
+                }
                 return variables.arrayMember<Variable>(l.pointee, num(i) + l.index) as MaybeUnboundVariable;
             }
             rt.raiseException("(Segmentation fault) attempt to access a non-array pointer member outside the bounds")
@@ -606,6 +609,9 @@ const defaultOpHandler: OpHandler[] = [
                 return variables.clone(rt, l, null, false);
             }
             if (l.subtype === "INDEX") {
+                if (l.pointee === null) {
+                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + rt.getVariableNames(l)[0] ?? "<internal>")
+                }
                 return variables.indexPointer(l.pointee, l.index + num(i), false, null, false);
             }
             rt.raiseException("Not yet implemented");
@@ -620,6 +626,9 @@ const defaultOpHandler: OpHandler[] = [
             }
             const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
             if (l.subtype === "INDEX") {
+                if (l.pointee === null) {
+                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + rt.getVariableNames(l)[0] ?? "<internal>")
+                }
                 return variables.indexPointer(l.pointee, l.index++, false, null, false);
             }
             rt.raiseException("Not yet implemented");
@@ -634,6 +643,9 @@ const defaultOpHandler: OpHandler[] = [
             }
             const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
             if (l.subtype === "INDEX") {
+                if (l.pointee === null) {
+                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + rt.getVariableNames(l)[0] ?? "<internal>")
+                }
                 return variables.indexPointer(l.pointee, ++l.index, false, null, false);
             }
             rt.raiseException("Not yet implemented");

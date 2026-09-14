@@ -5,7 +5,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, InitArithmeticNumVariable, ArithmeticNumVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, InitArithmeticNumVariable, ArithmeticNumVariable, TrueIndexPointerVariable } from "../variables";
 
 interface ArrayType<T extends ObjectType, N extends number> extends AbstractTemplatedClassType<null, [T, ObjectType]> {
     readonly identifier: "array",
@@ -16,7 +16,7 @@ type ArrayVariable<T extends Variable, N extends number> = AbstractVariable<Arra
 
 interface ArrayValue<T extends Variable, N extends number> extends InitValue<ArrayVariable<T, N>> {
     members: {
-        "_data": InitIndexPointerVariable<T>,
+        "_data": TrueIndexPointerVariable<T>,
         "_size": InitArithmeticNumVariable,
     }
 }

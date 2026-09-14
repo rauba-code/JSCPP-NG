@@ -2,7 +2,7 @@ import { asResult } from "../interpreter";
 import { CRuntime, FunctionCallInstance, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, InitDirectPointerVariable, ArithmeticVariable, PointerType, ClassVariable, InitArithmeticNumVariable } from "../variables";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, ArithmeticVariable, PointerType, ClassVariable, InitArithmeticNumVariable, TrueIndexPointerVariable, TrueDirectPointerVariable } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -34,8 +34,8 @@ export = {
             if (_l.t.pointee.sig === "FUNCTION" || _r.t.pointee.sig === "FUNCTION") {
                 rt.raiseException("sort: invalid argument")
             }
-            const l: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(_l) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
-            const r: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(_r) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
+            const l: TrueIndexPointerVariable<Variable> = variables.asTrueIndexPointer(_l) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
+            const r: TrueIndexPointerVariable<Variable> = variables.asTrueIndexPointer(_r) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
             if (l.pointee !== r.pointee) {
                 rt.raiseException("sort: expected parameters 'first' and 'last' to point to a same memory region");
             }
@@ -50,7 +50,7 @@ export = {
             }
             const clref_t: MaybeLeftCV<ObjectType> = { t: l.pointee.objectType, isConst: true, lvHolder: "SELF" };
             const cmpObj = _cmp !== null ? variables.asClass(_cmp) : null;
-            const cmpFun = (_cmp !== null) ? (variables.asInitDirectPointer(_cmp) as InitDirectPointerVariable<Function> ?? null) : null;
+            const cmpFun = (_cmp !== null) ? (variables.asTrueDirectPointer(_cmp) as TrueDirectPointerVariable<Function> ?? null) : null;
             const ltFun = (cmpFun === null) ? (cmpObj ? rt.getOpByParams("{global}", "o(_call)", [cmpObj, clref_t, clref_t], []) : rt.getFuncByParams("{global}", "o(_<_)", [clref_t, clref_t], [])) : null;
             function sortCmp(li: number, ri: number): number {
                 // JavaScript specifically wants a symmetrical comparator, so we compare both sides
@@ -72,9 +72,9 @@ export = {
             });
             return "VOID";
         }
-        function* extreme_element(rt: CRuntime, _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>, fnname: string, op: OpSignature): Gen<InitIndexPointerVariable<Variable>> {
-            const first = variables.asInitIndexPointer(_first) ?? rt.raiseException(fnname + "(): Expected 'first' to point to an element");
-            const last = variables.asInitIndexPointer(_last) ?? rt.raiseException(fnname + "(): Expected 'last' to point to an element");
+        function* extreme_element(rt: CRuntime, _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>, fnname: string, op: OpSignature): Gen<TrueIndexPointerVariable<Variable>> {
+            const first = variables.asTrueIndexPointer(_first) ?? rt.raiseException(fnname + "(): Expected 'first' to point to an element");
+            const last = variables.asTrueIndexPointer(_last) ?? rt.raiseException(fnname + "(): Expected 'last' to point to an element");
             if (first.pointee !== last.pointee) {
                 rt.raiseException(fnname + "(): Expected 'first' and 'last' to point to an element of the same memory region");
             }
@@ -110,8 +110,8 @@ export = {
             const iter2 = getIterSymbols(first2, last2);
             const d_pp = rt.getOpByParams("{global}", "o(++_)", [d_first], []);
 
-            let ltFun: InitDirectPointerVariable<Function> | FunctionCallInstance | null = (_ltFun !== null)
-                ? variables.asInitDirectPointer(_ltFun) as InitDirectPointerVariable<Function>
+            let ltFun: TrueDirectPointerVariable<Function> | FunctionCallInstance | null = (_ltFun !== null)
+                ? variables.asTrueDirectPointer(_ltFun) as TrueDirectPointerVariable<Function>
                 ?? rt.raiseException("set_intersection: expected a pointer to a function")
                 : null;
 
@@ -207,8 +207,8 @@ export = {
 
             const fname = "set_includes";
 
-            let ltFun: FunctionCallInstance | InitDirectPointerVariable<Function> | null = (_ltFun !== null)
-                ? variables.asInitDirectPointer(_ltFun) as InitDirectPointerVariable<Function>
+            let ltFun: FunctionCallInstance | TrueDirectPointerVariable<Function> | null = (_ltFun !== null)
+                ? variables.asTrueDirectPointer(_ltFun) as TrueDirectPointerVariable<Function>
                 ?? rt.raiseException("set_intersection: expected a pointer to a function")
                 : null;
             let retv: boolean = true;
@@ -300,8 +300,8 @@ export = {
                 op: "reverse",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
                 default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" {
-                    const l: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(lhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
-                    const r: InitIndexPointerVariable<Variable> = variables.asInitIndexPointer(rhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
+                    const l: TrueIndexPointerVariable<Variable> = variables.asTrueIndexPointer(lhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
+                    const r: TrueIndexPointerVariable<Variable> = variables.asTrueIndexPointer(rhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
                     if (l.pointee !== r.pointee) {
                         rt.raiseException("sort: expected parameters 'first' and 'last' to point to a same memory region");
                     }
@@ -333,7 +333,7 @@ export = {
                 op: "minmax_element",
                 type: "!ParamObject FUNCTION CLASS pair < PTR ?0 PTR ?0 > ( PTR ?0 PTR ?0 )",
                 *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): Gen<PairVariable<InitIndexPointerVariable<Variable>, InitIndexPointerVariable<Variable>>> {
-                    const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("minmax_element(): Expected 'first' to point to an element");
+                    const first = variables.asTrueIndexPointer(_first) ?? rt.raiseException("minmax_element(): Expected 'first' to point to an element");
                     const mini = yield* extreme_element(rt, variables.indexPointer(first.pointee, first.index, false, null), _last, "minmax_element", "o(_<_)");
                     const maxi = yield* extreme_element(rt, variables.indexPointer(first.pointee, first.index, false, null), _last, "minmax_element", "o(_>_)");
                     return {
@@ -580,7 +580,7 @@ export = {
                         rt.raiseException("remove_if(): Expected 'first' and 'last' to point to an element of the same memory region");
                     }
 
-                    const predicate = variables.asInitDirectPointer(_predicate) as InitDirectPointerVariable<Function>
+                    const predicate = variables.asTrueDirectPointer(_predicate) as TrueDirectPointerVariable<Function>
                         ?? rt.raiseException("remove(): expected a pointer to a function");
 
                     const predicateDeref: Function = predicate.pointee;
