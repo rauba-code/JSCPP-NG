@@ -3,7 +3,7 @@ import { StringVariable } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
 import * as common from "../shared/common";
 import * as utf8 from "../utf8";
-import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, ClassType, ClassVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, ClassType, ClassVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, InitPointerVariable, MaybeLeft, PointerVariable, TrueIndexPointerVariable, variables } from "../variables";
 
 type IfstreamValue = ios_base.IStreamValue & {
     members: {
@@ -242,7 +242,7 @@ export = {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS ifstream < > ( PTR I8 )",
                 default(_rt: CRuntime, _templateTypes: [ClassType], _path: PointerVariable<ArithmeticNumVariable>): IfStreamVariable {
-                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const pathPtr = variables.asTrueIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + rt.getVariableNames(_path) ?? "<internal>");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
                     variables.arithmeticNumAssign(rt, result.members.fd, _open(_rt, result, pathPtr));
@@ -253,7 +253,7 @@ export = {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS ifstream < > ( CLREF CLASS string < > )",
                 default(_rt: CRuntime, _templateTypes: [ClassType], _path: StringVariable): IfStreamVariable {
-                    const pathPtr = variables.asInitIndexPointerOfElem(_path.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const pathPtr = variables.asTrueIndexPointerOfElem(_path.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(_path) ?? "<internal>");
                     const result = rt.defaultValue(thisType, "SELF") as IfStreamVariable;
 
                     variables.arithmeticNumAssign(rt, result.members.fd, _open(_rt, result, pathPtr));
@@ -270,9 +270,9 @@ export = {
             let b = l.members.buf;
             const count = rt.arithmeticValue(_count);
             const delim = rt.arithmeticValue(_delim);
-            const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
+            const s = variables.asTrueIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
             if (s === null) {
-                rt.raiseException("Not an index pointer");
+                rt.raiseException("Unexpected null- or invalid pointer");
             }
             if (b.index >= b.pointee.values.length) {
                 variables.arithmeticNumAssign(rt, l.members.eofbit, 1);
@@ -458,7 +458,7 @@ export = {
                 op: "open",
                 type: "FUNCTION VOID ( LREF CLASS ifstream < > PTR I8 )",
                 default(rt: CRuntime, _templateTypes: [], l: IfStreamVariable, _path: PointerVariable<ArithmeticNumVariable>): "VOID" {
-                    const pathPtr = variables.asInitIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                    const pathPtr = variables.asTrueIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     _open(rt, l, pathPtr);
                     return "VOID";
                 }
@@ -526,7 +526,7 @@ export = {
             },
         ]);
 
-        const _open = function(_rt: CRuntime, _this: IfStreamVariable, right: InitIndexPointerVariable<ArithmeticNumVariable>): number {
+        const _open = function(_rt: CRuntime, _this: IfStreamVariable, right: TrueIndexPointerVariable<ArithmeticNumVariable>): number {
             const fd = _rt.openFile(right, ios_base.openmode.in);
 
             if (fd !== -1) {

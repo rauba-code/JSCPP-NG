@@ -2,7 +2,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
-import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, InitDirectPointerVariable, InitArithmeticBigVariable, LValueHolder } from "../variables";
+import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, InitArithmeticNumVariable, InitArithmeticBigVariable, LValueHolder, TrueDirectPointerVariable, InitDirectPointerVariable, PointerVariable } from "../variables";
 
 
 interface MapNodeType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
@@ -13,9 +13,9 @@ type MapNodeVariable<T extends Variable> = AbstractVariable<MapNodeType<T["t"]>,
 
 interface MapNodeValue<T extends Variable> extends InitValue<MapNodeVariable<T>> {
     members: {
-        "lhs": PointerVariable<MapNodeVariable<T>>,
-        "rhs": PointerVariable<MapNodeVariable<T>>,
-        "parent": PointerVariable<MapNodeVariable<T>>,
+        "lhs": InitDirectPointerVariable<MapNodeVariable<T>>,
+        "rhs": InitDirectPointerVariable<MapNodeVariable<T>>,
+        "parent": InitDirectPointerVariable<MapNodeVariable<T>>,
         "is_red": InitArithmeticNumVariable,
         "key": T,
     }
@@ -29,8 +29,8 @@ type MapIteratorVariable<T extends Variable> = AbstractVariable<MapIteratorType<
 
 interface MapIteratorValue<T extends Variable> extends InitValue<MapIteratorVariable<T>> {
     members: {
-        "node": PointerVariable<MapNodeVariable<T>>,
-        "last": PointerVariable<MapNodeVariable<T>>,
+        "node": InitDirectPointerVariable<MapNodeVariable<T>>,
+        "last": InitDirectPointerVariable<MapNodeVariable<T>>,
     }
 }
 
@@ -52,7 +52,7 @@ type MapVariable<TKey extends Variable, TT extends Variable> = AbstractVariable<
 
 interface MapValue<TKey extends Variable, TT extends Variable> extends InitValue<MapVariable<TKey, TT>> {
     members: {
-        "root": PointerVariable<MapNodeVariable<PairVariable<TKey, TT>>>,
+        "root": InitDirectPointerVariable<MapNodeVariable<PairVariable<TKey, TT>>>,
         "_size": InitArithmeticBigVariable,
         // cache of common types to avoid constructing new ones
         "_t_pair": EmptyVariable<PairVariable<Variable, Variable>>,
@@ -71,7 +71,8 @@ export = {
         type __map = MapVariable<Variable, Variable>;
         type __node = MapNodeVariable<__pair>;
         type __map_iter = MapIteratorVariable<__pair>;
-        type __dptr_node = InitDirectPointerVariable<__node>;
+        type __ptr_node = InitDirectPointerVariable<__node>;
+        type __tptr_node = TrueDirectPointerVariable<__node>;
 
         const _createPairType: (templateSpec: [ObjectType, ObjectType]) => __pair['t'] = (templateSpec) => ({
             "sig": "CLASS",
@@ -101,9 +102,9 @@ export = {
         function _createMapNodeMembers(mapIterType: __node['t'], key: __pair, is_red: boolean): __node['members'] {
             const ptrType = { sig: "PTR" as "PTR", pointee: mapIterType, sizeConstraint: null };
             return {
-                lhs: { t: ptrType, lvHolder: "SELF", state: "UNINIT", isConst: false },
-                rhs: { t: ptrType, lvHolder: "SELF", state: "UNINIT", isConst: false },
-                parent: { t: ptrType, lvHolder: "SELF", state: "UNINIT", isConst: false },
+                lhs: { t: ptrType, lvHolder: "SELF", state: "INIT", subtype: "DIRECT", pointee: null, isConst: false },
+                rhs: { t: ptrType, lvHolder: "SELF", state: "INIT", subtype: "DIRECT", pointee: null, isConst: false },
+                parent: { t: ptrType, lvHolder: "SELF", state: "INIT", subtype: "DIRECT", pointee: null, isConst: false },
                 is_red: { t: { sig: "BOOL" }, lvHolder: "SELF", state: "INIT", value: (is_red) ? 1 : 0, isConst: false },
                 key
             };
@@ -145,17 +146,17 @@ export = {
         }, ["lhs", "rhs", "parent", "is_red", "key"], {});
 
         function _node_delete(thisVal: __node): void {
-            if (thisVal.members.lhs.state !== "UNINIT") {
-                _ptr_node_delete((thisVal.members.lhs as __dptr_node));
+            if (thisVal.members.lhs.pointee !== null) {
+                _ptr_node_delete((thisVal.members.lhs as __tptr_node));
                 (thisVal as any).lvHolder = "UNBOUND";
             }
-            if (thisVal.members.rhs.state !== "UNINIT") {
-                _ptr_node_delete((thisVal.members.rhs as __dptr_node));
+            if (thisVal.members.rhs.pointee !== null) {
+                _ptr_node_delete((thisVal.members.rhs as __tptr_node));
                 (thisVal as any).lvHolder = "UNBOUND";
             }
         }
 
-        function _ptr_node_delete(thisVal: __dptr_node): void {
+        function _ptr_node_delete(thisVal: __tptr_node): void {
             _node_delete(thisVal.pointee);
             delete (thisVal as any).pointee;
             (thisVal as any).lvHolder = "UNBOUND";
@@ -202,7 +203,7 @@ export = {
                     subtype: "DIRECT",
                     isConst: false,
                     pointee: node
-                } : variables.uninitPointer(nodeType, null, "SELF") as PointerVariable<__node>,
+                } : variables.uninitPointer(nodeType, null, "SELF") as __ptr_node,
                 last: (last !== null) ? {
                     t: {
                         sig: "PTR",
@@ -214,7 +215,7 @@ export = {
                     subtype: "DIRECT",
                     isConst: false,
                     pointee: last
-                } : variables.uninitPointer(nodeType, null, "SELF") as PointerVariable<__node>,
+                } : variables.uninitPointer(nodeType, null, "SELF") as __ptr_node,
             };
         }
 
@@ -253,19 +254,19 @@ export = {
         });
 
         function _iter_advance(thisVar: __map_iter, forward: boolean): "VOID" {
-            let node: __dptr_node | null = variables.asInitDirectPointer2(thisVar.members.node);
+            let node = thisVar.members.node;
             const into: "lhs" | "rhs" = (forward) ? "rhs" : "lhs";
             const from: "lhs" | "rhs" = (forward) ? "lhs" : "rhs";
-            if (node === null) {
+            if (node.pointee === null) {
                 const last = variables.asInitDirectPointerPointee(thisVar.members.last);
                 if (last !== null) {
-                    variables.directPointerAssign2(rt, thisVar.members.node, last);
+                    thisVar.members.node.pointee = last;
                 } else {
                     // pass
                 }
                 return "VOID";
             }
-            variables.directPointerAssign2(rt, thisVar.members.last, node.pointee);
+            thisVar.members.last.pointee = node.pointee;
             let child: __node | null = variables.asInitDirectPointerPointee(node.pointee.members[into]);
             if (child !== null) {
                 node.pointee = child;
@@ -278,11 +279,11 @@ export = {
                 for (; ;) {
                     const parent: __node | null = variables.asInitDirectPointerPointee(node.pointee.members.parent);
                     if (parent === null) {
-                        (node as any) = { isConst: false, state: "UNINIT", lvHolder: "SELF" };
+                        node = { t: node.t, isConst: false, state: "INIT", subtype: "DIRECT", pointee: null, lvHolder: "SELF" };
                         break;
                     }
-                    if (parent.members[from].state === "INIT" &&
-                        node.pointee === (parent.members[from] as __dptr_node).pointee) {
+                    if (parent.members[from].pointee !== null &&
+                        node.pointee === (parent.members[from] as __tptr_node).pointee) {
                         node.pointee = parent;
                         break;
                     }
@@ -297,8 +298,8 @@ export = {
                 op: "o(*_)",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS map_iterator < ?0 > )",
                 default(rt: CRuntime, _templateTypes: [], thisVar: __map_iter): Variable {
-                    if (thisVar.members.node.state === "INIT") {
-                        return (thisVar.members.node as __dptr_node).pointee.members.key;
+                    if (thisVar.members.node.pointee !== null) {
+                        return (thisVar.members.node as __tptr_node).pointee.members.key;
                     }
                     rt.raiseException("map_iterator::operator*(): Attempted dereference of a null-iterator");
                 }
@@ -341,7 +342,7 @@ export = {
                 op: "o(_==_)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS map_iterator < ?0 > CLREF CLASS map_iterator < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: [], lhs: __map_iter, rhs: __map_iter): InitArithmeticNumVariable {
-                    const isEq: boolean = (lhs.members.node.state === "UNINIT") ? (rhs.members.node.state === "UNINIT") : (lhs === rhs);
+                    const isEq: boolean = (lhs.members.node.pointee === null) ? (rhs.members.node.pointee === null) : (lhs === rhs);
                     return variables.arithmeticNum("BOOL", isEq ? 1 : 0, null);
                 }
             },
@@ -349,7 +350,7 @@ export = {
                 op: "o(_!=_)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS map_iterator < ?0 > CLREF CLASS map_iterator < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: [], lhs: __map_iter, rhs: __map_iter): InitArithmeticNumVariable {
-                    const isEq: boolean = (lhs.members.node.state === "UNINIT") ? (rhs.members.node.state === "UNINIT") : (lhs === rhs);
+                    const isEq: boolean = (lhs.members.node.pointee === null) ? (rhs.members.node.pointee === null) : (lhs === rhs);
                     return variables.arithmeticNum("BOOL", isEq ? 0 : 1, null);
                 }
             },
@@ -374,7 +375,7 @@ export = {
             const iterType = _createMapIterType([pairType]);
             const nodeType = _createMapNodeType([pairType]);
             return {
-                root: variables.uninitPointer(_createMapNodeType([pairType]), null, "SELF") as PointerVariable<__node>,
+                root: variables.uninitPointer(_createMapNodeType([pairType]), null, "SELF") as __ptr_node,
                 _size: variables.arithmeticBig("U64", BigInt(0), "SELF"),
                 _t_pair: _createEmptyVar(pairType),
                 _t_iter: _createEmptyVar(iterType),
@@ -425,8 +426,8 @@ export = {
             op: "o(_ctor)",
             type: "!ParamObject !ParamObject FUNCTION CLASS map < ?0 ?1 > ( PTR CLASS pair < ?0 ?1 > PTR CLASS pair < ?0 ?1 > )",
             *default(rt: CRuntime, templateTypes: [__map['t']], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<__map> {
-                const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("map constructor: expected valid begin iterator");
-                const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("map constructor: expected valid end iterator");
+                const begin = variables.asTrueIndexPointer(_begin) ?? rt.raiseException("map constructor: expected valid begin iterator");
+                const end = variables.asTrueIndexPointer(_end) ?? rt.raiseException("map constructor: expected valid end iterator");
 
                 if (begin.pointee !== end.pointee) {
                     rt.raiseException("map constructor: iterators must point to same memory region");
@@ -472,7 +473,7 @@ export = {
                                 ),
                         };
                         if (parent) {
-                            variables.directPointerAssign2(rt, nn.members.parent, parent);
+                            nn.members.parent.pointee = parent;
                         }
                         const rlhs = variables.asInitDirectPointerPointee(rn.members.lhs);
                         if (rlhs !== null) {
@@ -495,12 +496,12 @@ export = {
                 type: "!ParamObject !ParamObject FUNCTION LREF ?0 ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, key: Variable): Gen<Variable> {
                     const it = yield* _find(rt, thisVar, key);
-                    if (it.members.node.state === "INIT") {
-                        return (it.members.node as __dptr_node).pointee.members.key.members.second;
+                    if (it.members.node.pointee !== null) {
+                        return (it.members.node as __tptr_node).pointee.members.key.members.second;
                     }
                     const defval = yield* rt.defaultValue2(thisVar.t.templateSpec[1], "SELF");
                     const ins = yield* _insert(rt, thisVar, _createPairVar(thisVar.members._t_pair.t.templateSpec[0], variables.clone(rt, key, "SELF", true), defval));
-                    return (ins[0].members.node as __dptr_node).pointee.members.key.members.second;
+                    return (ins[0].members.node as __tptr_node).pointee.members.key.members.second;
                 }
 
 
@@ -508,33 +509,33 @@ export = {
         ]);
 
         function _assert_parent(rt: CRuntime, node: __node) {
-            const parent = variables.asInitDirectPointer2(node.members.parent);
-            const assertion = (parent === null) ||
-                (parent.pointee.members.lhs.state === "INIT" && (parent.pointee.members.lhs as __dptr_node).pointee === node) ||
-                (parent.pointee.members.rhs.state === "INIT" && (parent.pointee.members.rhs as __dptr_node).pointee === node);
+            const parent = node.members.parent;
+            const assertion = (parent.pointee === null) ||
+                (parent.pointee.members.lhs.pointee !== null && (parent.pointee.members.lhs as __tptr_node).pointee === node) ||
+                (parent.pointee.members.rhs.pointee !== null && (parent.pointee.members.rhs as __tptr_node).pointee === node);
             if (!assertion) {
                 rt.raiseException("std::map<Key, T>: Parent rule assertion failed");
             }
         }
 
-        function _assert_rb(rt: CRuntime, root: __dptr_node): boolean {
-            function _assert_rb_inner(rt: CRuntime, node: __dptr_node): number {
+        function _assert_rb(rt: CRuntime, root: __tptr_node): boolean {
+            function _assert_rb_inner(rt: CRuntime, node: __tptr_node): number {
                 let depth_lhs = 1;
                 let depth_rhs = 1;
-                const lhs = variables.asInitDirectPointer2(node.pointee.members.lhs);
-                const rhs = variables.asInitDirectPointer2(node.pointee.members.rhs);
+                const lhs = node.pointee.members.lhs;
+                const rhs = node.pointee.members.rhs;
                 const is_red = node.pointee.members.is_red.value;
-                if (lhs !== null) {
+                if (lhs.pointee !== null) {
                     if (is_red && lhs.pointee.members.is_red.value) {
                         return -1;
                     }
-                    depth_lhs = _assert_rb_inner(rt, lhs);
+                    depth_lhs = _assert_rb_inner(rt, lhs as __tptr_node);
                 }
-                if (rhs !== null) {
+                if (rhs.pointee !== null) {
                     if (is_red && rhs.pointee.members.is_red.value) {
                         return -1;
                     }
-                    depth_rhs = _assert_rb_inner(rt, rhs);
+                    depth_rhs = _assert_rb_inner(rt, rhs as __tptr_node);
                 }
                 if (depth_lhs !== depth_rhs || depth_lhs === -1) {
                     return -1;
@@ -544,7 +545,7 @@ export = {
             return _assert_rb_inner(rt, root) !== -1;
         }
 
-        function _rotate_right(rt: CRuntime, g: __node, g_ref: PointerVariable<__node>): void {
+        function _rotate_right(rt: CRuntime, g: __node, g_ref: __ptr_node): void {
             // Case 6a.
             // [((n), p=R, [b?]), g=B, [u?]]
             // Rotate right.
@@ -554,41 +555,32 @@ export = {
             // ; map_node<Key> *b = p->rhs;      // opt
             // ; map_node<Key> *ggp = g->parent; // opt
 
-            const p = (g.members.lhs as __dptr_node).pointee;
+            const p = (g.members.lhs as __tptr_node).pointee;
             const b = variables.asInitDirectPointerPointee(p.members.rhs);
             const ggp = variables.asInitDirectPointerPointee(g.members.parent);
             // ; g->lhs = b;
-            if (b === null) {
-                g.members.lhs.state = "UNINIT";
-            } else {
-                // because b_dptr is an init direct pointer
-                (g.members.lhs as __dptr_node).pointee = b;
-            }
+            g.members.lhs.pointee = b;
             // ; if (b) {
             // ;   b->parent = g;
             // ; }
             if (b !== null) {
-                variables.directPointerAssign2(rt, b.members.parent, g);
+                b.members.parent.pointee = g;
             }
             // ((n), p=R, !)    [[b?], g=B, [u?]]
             // g->rhs and u?->parent do not change
             // p->lhs and n?->parent do not change
             // ; p->rhs = g;
-            variables.directPointerAssign2(rt, p.members.rhs, g);
+            p.members.rhs.pointee = g;
             // ; g->parent = p;
-            variables.directPointerAssign2(rt, g.members.parent, p);
+            g.members.parent.pointee = p;
             // ; p->parent = ggp;
-            if (ggp === null) {
-                p.members.parent.state = "UNINIT";
-            } else {
-                variables.directPointerAssign2(rt, p.members.parent, ggp);
-            }
+            p.members.parent.pointee = ggp;
             // ; *g_ref = p;
             variables.directPointerAssign2(rt, g_ref, p);
             _assert_parent(rt, p);
         }
 
-        function _rotate_left(rt: CRuntime, g: __node, g_ref: PointerVariable<__node>): void {
+        function _rotate_left(rt: CRuntime, g: __node, g_ref: __ptr_node): void {
             // Case 6b.
             // [[u?], g=B, ([b?], p=R, (n))]
             // Rotate left.
@@ -598,34 +590,34 @@ export = {
             // ; map_node<Key> *b = p->lhs;      // opt
             // ; map_node<Key> *ggp = g->parent; // opt
 
-            const p = (g.members.rhs as __dptr_node).pointee;
+            const p = (g.members.rhs as __tptr_node).pointee;
             const b = variables.asInitDirectPointerPointee(p.members.lhs);
             const ggp = variables.asInitDirectPointerPointee(g.members.parent);
             // ; g->rhs = b;
             if (b === null) {
-                g.members.rhs.state = "UNINIT";
+                g.members.rhs.pointee = null;
             } else {
                 // because g->rhs is init before the operation 
-                (g.members.rhs as __dptr_node).pointee = b;
+                (g.members.rhs as __tptr_node).pointee = b;
             }
             // ; if (b) {
             // ;   b->parent = g;
             // ; }
             if (b !== null) {
-                variables.directPointerAssign2(rt, b.members.parent, g);
+                b.members.parent.pointee = g;
             }
             // ((n), p=R, !)    [[b?], g=B, [u?]]
             // g->lhs and u?->parent do not change
             // p->rhs and n?->parent do not change
             // ; p->lhs = g;
-            variables.directPointerAssign2(rt, p.members.lhs, g);
+            p.members.lhs.pointee = g;
             // ; g->parent = p;
-            variables.directPointerAssign2(rt, g.members.parent, p);
+            g.members.parent.pointee = p;
             // ; p->parent = ggp;
             if (ggp === null) {
-                p.members.parent.state = "UNINIT";
+                p.members.parent.pointee = null;
             } else {
-                variables.directPointerAssign2(rt, p.members.parent, ggp);
+                p.members.parent.pointee = ggp;
             }
             // ; *g_ref = p;
             variables.directPointerAssign2(rt, g_ref, p);
@@ -664,8 +656,8 @@ export = {
             for (; ;) {
                 const ltResult = yield* common.invokeCmp(rt, ltInst, result.members.key.members.first, key);
                 if (ltResult) {
-                    const node_rhs: __dptr_node | null = variables.asInitDirectPointer2(result.members.rhs);
-                    if (node_rhs !== null) {
+                    const node_rhs: __ptr_node = result.members.rhs;
+                    if (node_rhs.pointee !== null) {
                         result = node_rhs.pointee;
                         continue;
                     } else {
@@ -674,8 +666,8 @@ export = {
                 }
                 const gtResult = yield* common.invokeCmp(rt, gtInst, result.members.key.members.first, key);
                 if (gtResult) {
-                    const node_lhs: __dptr_node | null = variables.asInitDirectPointer2(result.members.lhs);
-                    if (node_lhs !== null) {
+                    const node_lhs: __ptr_node = result.members.lhs;
+                    if (node_lhs.pointee !== null) {
                         result = node_lhs.pointee;
                         continue;
                     } else {
@@ -694,7 +686,7 @@ export = {
             const rootValue = variables.asInitDirectPointerPointee(thisVar.members.root);
             if (rootValue === null) {
                 const rootNode = _createMapNodeVar(nodeType, value, false);
-                variables.directPointerAssign2(rt, thisVar.members.root, rootNode);
+                thisVar.members.root.pointee = rootNode;
                 thisVar.members._size.value++;
                 return [_createMapIterVar(iterType, nodeType, rootNode, null), true];
             }
@@ -704,21 +696,21 @@ export = {
             const gtInst = rt.getOpByParams("{global}", "o(_>_)", [value, value], []);
             for (; ;) {
                 if (yield* common.invokeCmp(rt, ltInst, parentValue.members.key, value)) {
-                    if (parentValue.members.rhs.state === "INIT") {
-                        parentValue = (parentValue.members.rhs as __dptr_node).pointee;
+                    if (parentValue.members.rhs.pointee !== null) {
+                        parentValue = (parentValue.members.rhs as __tptr_node).pointee;
                         continue;
                     } else {
-                        variables.directPointerAssign2(rt, parentValue.members.rhs, nodeValue);
-                        variables.directPointerAssign2(rt, nodeValue.members.parent, parentValue);
+                        parentValue.members.rhs.pointee = nodeValue;
+                        nodeValue.members.parent.pointee = parentValue;
                         break;
                     }
                 } else if (yield* common.invokeCmp(rt, gtInst, parentValue.members.key, value)) {
-                    if (parentValue.members.lhs.state === "INIT") {
-                        parentValue = (parentValue.members.lhs as __dptr_node).pointee;
+                    if (parentValue.members.lhs.pointee !== null) {
+                        parentValue = (parentValue.members.lhs as __tptr_node).pointee;
                         continue;
                     } else {
-                        variables.directPointerAssign2(rt, parentValue.members.lhs, nodeValue);
-                        variables.directPointerAssign2(rt, nodeValue.members.parent, parentValue);
+                        parentValue.members.lhs.pointee = nodeValue;
+                        nodeValue.members.parent.pointee = parentValue;
                         break;
                     }
                 } else {
@@ -745,9 +737,9 @@ export = {
                 const grhs = variables.asInitDirectPointerPointee(grandparentValue.members.rhs);
                 const uncle: __node | null = (glhs !== null && glhs === parentValue) ? grhs : glhs;
                 if (uncle === null || uncle.members.is_red.value === 0) {
-                    if (grandparentValue.members.lhs.state === "INIT" &&
+                    if (grandparentValue.members.lhs.pointee !== null &&
                         grandparentValue.members.lhs.pointee === parentValue) {
-                        if (parentValue.members.rhs.state === "INIT" &&
+                        if (parentValue.members.rhs.pointee !== null &&
                             parentValue.members.rhs.pointee === nodeValue) {
                             // Case 5a. Parent is red, sibling of parent (uncle) is black or does
                             // not exist, parent->key < node->key < grandparent->key.
@@ -756,7 +748,7 @@ export = {
                             // [(([b?], p=R, .), n=R, .), g=B, [u?]]
                             _rotate_left(rt, parentValue, grandparentValue.members.lhs);
                             nodeValue = parentValue;
-                            parentValue = (grandparentValue.members.lhs as __dptr_node).pointee;
+                            parentValue = (grandparentValue.members.lhs as __tptr_node).pointee;
                             _assert_parent(rt, parentValue);
                             // [(([b?], n=R, .), p=R, .), g=B, [u?]]
                         }
@@ -771,7 +763,7 @@ export = {
                             rt,
                             grandparentValue,
                             (ggp !== null) ?
-                                ((ggp.members.lhs.state === "INIT" && ggp.members.lhs.pointee === grandparentValue) ?
+                                ((ggp.members.lhs.pointee !== null && ggp.members.lhs.pointee === grandparentValue) ?
                                     (ggp.members.lhs) :
                                     (ggp.members.rhs)
                                 ) : (thisVar.members.root));
@@ -780,13 +772,13 @@ export = {
                         grandparentValue.members.is_red.value = 1;
                         // [(n), p=B, ([b?], g=R, [u?])]
                     } else { /* if (grandparent->rhs == parent) */
-                        if (parentValue.members.lhs.state === "INIT" &&
+                        if (parentValue.members.lhs.pointee !== null &&
                             parentValue.members.lhs.pointee === nodeValue) {
                             // Case 5b. Parent is red, sibling of parent (uncle) is black or does
                             // not exist, grandparent->key < node->key < parent->key.
                             _rotate_right(rt, parentValue, grandparentValue.members.rhs);
                             nodeValue = parentValue;
-                            parentValue = (grandparentValue.members.rhs as __dptr_node).pointee;
+                            parentValue = (grandparentValue.members.rhs as __tptr_node).pointee;
                             _assert_parent(rt, parentValue);
                         }
                         // Case 6b. Parent is red, sibling of parent (uncle) is black or does
@@ -796,7 +788,7 @@ export = {
                             rt,
                             grandparentValue,
                             (ggp !== null) ?
-                                ((ggp.members.lhs.state === "INIT" && ggp.members.lhs.pointee === grandparentValue) ?
+                                ((ggp.members.lhs.pointee !== null && ggp.members.lhs.pointee === grandparentValue) ?
                                     (ggp.members.lhs) :
                                     (ggp.members.rhs)
                                 ) : (thisVar.members.root));
@@ -836,65 +828,65 @@ export = {
             let parent: __node | null = variables.asInitDirectPointerPointee(node.members.parent);
             const lhs: __node | null = variables.asInitDirectPointerPointee(node.members.lhs);
             const rhs: __node | null = variables.asInitDirectPointerPointee(node.members.rhs);
-            node.members.lhs.state = "UNINIT";
-            node.members.rhs.state = "UNINIT";
+            node.members.lhs.pointee = null;
+            node.members.rhs.pointee = null;
             if (lhs !== null && rhs !== null) {
                 // if node->rhs exists, then the next node also exists.
-                const nextNode: __dptr_node = next.members.node as __dptr_node;
+                const nextNode: __tptr_node = next.members.node as __tptr_node;
                 // swap
                 // safe since the lvHolder of both variables are SELF
                 const t = node.members.key;
                 node.members.key = nextNode.pointee.members.key;
                 nextNode.pointee.members.key = t;
-                variables.directPointerAssign2(rt, node.members.lhs, lhs);
-                variables.directPointerAssign2(rt, node.members.rhs, rhs);
+                node.members.lhs.pointee = lhs;
+                node.members.rhs.pointee = rhs;
                 return _erase(rt, thisVar, next);
             } else if (lhs !== null && rhs === null) {
                 if (parent === null) {
-                    variables.directPointerAssign2(rt, thisVar.members.root, lhs);
-                    lhs.members.parent.state = "UNINIT";
+                    thisVar.members.root.pointee = lhs;
+                    lhs.members.parent.pointee = null;
                 } else if (node === variables.asInitDirectPointerPointee(parent.members.lhs)) {
-                    variables.directPointerAssign2(rt, parent.members.lhs, lhs);
-                    variables.directPointerAssign2(rt, lhs.members.parent, parent);
+                    parent.members.lhs.pointee = lhs;
+                    lhs.members.parent.pointee = parent;
                 } else {
-                    variables.directPointerAssign2(rt, parent.members.rhs, lhs);
-                    variables.directPointerAssign2(rt, lhs.members.parent, parent);
+                    parent.members.rhs.pointee = lhs;
+                    lhs.members.parent.pointee = parent;
                 }
                 lhs.members.is_red.value = 0;
                 thisVar.members._size.value--;
                 _node_delete(node);
             } else if (lhs === null && rhs !== null) {
                 if (parent === null) {
-                    variables.directPointerAssign2(rt, thisVar.members.root, rhs);
-                    rhs.members.parent.state = "UNINIT";
+                    thisVar.members.root.pointee = rhs;
+                    rhs.members.parent.pointee = null;
                 } else if (node === variables.asInitDirectPointerPointee(parent.members.lhs)) {
-                    variables.directPointerAssign2(rt, parent.members.lhs, rhs);
-                    variables.directPointerAssign2(rt, rhs.members.parent, parent);
+                    parent.members.lhs.pointee = rhs;
+                    rhs.members.parent.pointee = parent;
                 } else {
-                    variables.directPointerAssign2(rt, parent.members.rhs, rhs);
-                    variables.directPointerAssign2(rt, rhs.members.parent, parent);
+                    parent.members.rhs.pointee = rhs;
+                    rhs.members.parent.pointee = parent;
                 }
                 rhs.members.is_red.value = 0;
                 thisVar.members._size.value--;
                 _node_delete(node);
             } else if (parent === null) {
-                thisVar.members.root.state = "UNINIT";
+                thisVar.members.root.pointee = null;
                 thisVar.members._size.value--;
                 _node_delete(node);
             } else if (node.members.is_red.value === 1) {
                 if (node === variables.asInitDirectPointerPointee(parent.members.lhs)) {
-                    parent.members.lhs.state = "UNINIT";
+                    parent.members.lhs.pointee = null;
                 } else {
-                    parent.members.rhs.state = "UNINIT";
+                    parent.members.rhs.pointee = null;
                 }
                 thisVar.members._size.value--;
                 _node_delete(node);
             } else {
                 let dir_lhs: boolean = node === variables.asInitDirectPointerPointee(parent.members.lhs);
                 if (dir_lhs) {
-                    parent.members.lhs.state = "UNINIT";
+                    parent.members.lhs.pointee = null;
                 } else {
-                    parent.members.rhs.state = "UNINIT";
+                    parent.members.rhs.pointee = null;
                 }
                 thisVar.members._size.value--;
                 _node_delete(node);
@@ -906,18 +898,18 @@ export = {
                 for (; ;) {
                     if (dir_lhs) {
                         // I just assume at this point
-                        sibling = (parent.members.rhs as __dptr_node).pointee;
+                        sibling = (parent.members.rhs as __tptr_node).pointee;
                         close_nephew = variables.asInitDirectPointerPointee(sibling.members.lhs);
                         distant_nephew = variables.asInitDirectPointerPointee(sibling.members.rhs);
                     } else {
-                        sibling = (parent.members.lhs as __dptr_node).pointee;
+                        sibling = (parent.members.lhs as __tptr_node).pointee;
                         close_nephew = variables.asInitDirectPointerPointee(sibling.members.rhs);
                         distant_nephew = variables.asInitDirectPointerPointee(sibling.members.lhs);
                     }
                     if (sibling.members.is_red.value === 1) {
                         // Case 3.
                         const gp: __node | null = variables.asInitDirectPointerPointee(parent.members.parent);
-                        const p_ref: PointerVariable<__node> =
+                        const p_ref: __ptr_node =
                             (gp !== null) ? ((variables.asInitDirectPointerPointee(gp.members.lhs) === parent) ? gp.members.lhs : gp.members.rhs)
                                 : thisVar.members.root;
                         if (dir_lhs) {
@@ -992,7 +984,7 @@ export = {
                 }
                 if (c === 5 || c === 6) {
                     const gp: __node | null = variables.asInitDirectPointerPointee(parent.members.parent);
-                    const p_ref: PointerVariable<__node> =
+                    const p_ref: __ptr_node =
                         (gp !== null) ? ((variables.asInitDirectPointerPointee(gp.members.lhs) === parent) ? gp.members.lhs : gp.members.rhs)
                             : thisVar.members.root;
                     if (dir_lhs) {
@@ -1009,12 +1001,12 @@ export = {
         }
 
         function _clear(thisVar: __map): void {
-            const root: __dptr_node | null = variables.asInitDirectPointer2(thisVar.members.root);
-            if (root !== null) {
+            const root: __ptr_node = thisVar.members.root;
+            if (root.pointee !== null) {
                 // hotfix due to a dangling pointer in copied containers
-                //_node_delete(root.pointee);
+                _node_delete(root.pointee);
                 delete (root as any).pointee;
-                (root as any).state = "UNINIT";
+                root.pointee = null;
                 thisVar.members._size.value = BigInt(0);
             }
 
@@ -1200,8 +1192,8 @@ export = {
                 type: "!ParamObject !ParamObject FUNCTION LREF ?0 ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
                 *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, key: Variable): Gen<Variable> {
                     const it = yield* _find(rt, thisVar, key);
-                    if (it.members.node.state === "INIT") {
-                        return (it.members.node as __dptr_node).pointee.members.key.members.second;
+                    if (it.members.node.pointee !== null) {
+                        return (it.members.node as __tptr_node).pointee.members.key.members.second;
                     }
                     rt.raiseException("map::at(): Out of bounds exception");
                 }
@@ -1220,7 +1212,7 @@ export = {
                     const mapVar = args[0] as __map;
                     const value = args[1];
                     const found = yield* _find(rt, mapVar, value);
-                    return variables.arithmeticNum("I32", found.members.node.state === "INIT" ? 1 : 0, null, false);
+                    return variables.arithmeticNum("I32", found.members.node.pointee !== null ? 1 : 0, null, false);
                 }
             },
             {
@@ -1231,7 +1223,7 @@ export = {
                     const mapVar = args[0] as __map;
                     const value = args[1];
                     const found = yield* _find(rt, mapVar, value);
-                    return variables.arithmeticNum("BOOL", found.members.node.state === "INIT" ? 1 : 0, null, false);
+                    return variables.arithmeticNum("BOOL", found.members.node.pointee !== null ? 1 : 0, null, false);
                 }
             },
             {
@@ -1252,8 +1244,8 @@ export = {
                 op: "_assert_rb",
                 type: "!ParamObject !ParamObject FUNCTION VOID ( CLREF CLASS map < ?0 ?1 > )",
                 default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): "VOID" {
-                    const root = variables.asInitDirectPointer2(thisVar.members.root);
-                    if (root !== null && !_assert_rb(rt, root)) {
+                    const root = thisVar.members.root;
+                    if (root.pointee !== null && !_assert_rb(rt, root as __tptr_node)) {
                         rt.raiseException("std::map<Key>::_assert_rb(): Red-black tree integrity assertion failed");
                     }
                     return "VOID"

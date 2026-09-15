@@ -2,7 +2,7 @@ import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, InitArithmeticNumVariable, ArithmeticNumVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, InitArithmeticNumVariable, ArithmeticNumVariable, TrueIndexPointerVariable } from "../variables";
 
 interface VectorType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "vector",
@@ -12,7 +12,7 @@ type VectorVariable<T extends Variable> = AbstractVariable<VectorType<T["t"]>, V
 
 interface VectorValue<T extends Variable> extends InitValue<VectorVariable<T>> {
     members: {
-        "_ptr": InitIndexPointerVariable<T>,
+        "_ptr": TrueIndexPointerVariable<T>,
         "_sz": InitArithmeticNumVariable,
         "_cap": InitArithmeticNumVariable,
     }
@@ -61,8 +61,8 @@ export = {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( PTR ?0 PTR ?0 )",
                 *default(rt: CRuntime, _templateTypes: [VectorType<ObjectType>], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<VectorVariable<Variable>> {
-                    const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("vector constructor: expected valid begin iterator");
-                    const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("vector constructor: expected valid end iterator");
+                    const begin = variables.asTrueIndexPointer(_begin) ?? rt.raiseException("vector constructor: expected valid begin iterator");
+                    const end = variables.asTrueIndexPointer(_end) ?? rt.raiseException("vector constructor: expected valid end iterator");
 
                     if (begin.pointee !== end.pointee) {
                         rt.raiseException("vector constructor: iterators must point to same memory region");

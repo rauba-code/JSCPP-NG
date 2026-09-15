@@ -4,7 +4,7 @@
 import { InitializerListVariable } from "../initializer_list";
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { InitIndexPointerVariable, Variable, variables, InitArithmeticNumVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticNumVariable, PointerVariable } from "../variables";
+import { InitIndexPointerVariable, Variable, variables, InitArithmeticNumVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticNumVariable, PointerVariable, TrueIndexPointerVariable } from "../variables";
 
 interface UnorderedSetType<T extends ObjectType> extends AbstractTemplatedClassType<null, [T]> {
     readonly identifier: "unordered_set",
@@ -14,7 +14,7 @@ type UnorderedSetVariable<T extends Variable> = AbstractVariable<UnorderedSetTyp
 
 interface UnorderedSetValue<T extends Variable> extends InitValue<UnorderedSetVariable<T>> {
     members: {
-        "_data": InitIndexPointerVariable<T>,
+        "_data": TrueIndexPointerVariable<T>,
         "_sz": InitArithmeticNumVariable,
         "_cap": InitArithmeticNumVariable,
     }
@@ -57,8 +57,8 @@ export = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS unordered_set < ?0 > ( PTR ?0 PTR ?0 )",
             *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<Variable> {
-                const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("unordered_set constructor: expected valid begin iterator");
-                const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("unordered_set constructor: expected valid end iterator");
+                const begin = variables.asTrueIndexPointer(_begin) ?? rt.raiseException("unordered_set constructor: expected valid begin iterator");
+                const end = variables.asTrueIndexPointer(_end) ?? rt.raiseException("unordered_set constructor: expected valid end iterator");
                 
                 if (begin.pointee !== end.pointee) {
                     rt.raiseException("unordered_set constructor: iterators must point to same memory region");
@@ -198,8 +198,8 @@ export = {
                     const beginPtr = args[1] as PointerVariable<Variable>;
                     const endPtr = args[2] as PointerVariable<Variable>;
                     
-                    const begin = variables.asInitIndexPointer(beginPtr) ?? rt.raiseException("unordered_set::insert: expected valid begin iterator");
-                    const end = variables.asInitIndexPointer(endPtr) ?? rt.raiseException("unordered_set::insert: expected valid end iterator");
+                    const begin = variables.asTrueIndexPointer(beginPtr) ?? rt.raiseException("unordered_set::insert: expected valid begin iterator");
+                    const end = variables.asTrueIndexPointer(endPtr) ?? rt.raiseException("unordered_set::insert: expected valid end iterator");
                     
                     if (begin.pointee !== end.pointee) {
                         rt.raiseException("unordered_set::insert: iterators must point to same memory region");

@@ -1,5 +1,5 @@
 import { CRuntime } from "../rt";
-import { AbstractVariable, ArithmeticNumVariable, ArithmeticVariable, ClassType, InitArithmeticNumVariable, InitArithmeticVariable, InitIndexPointerVariable, InitValue, ObjectType, PointerVariable, TrueIndexPointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticNumVariable, ArithmeticVariable, ClassType, InitArithmeticNumVariable, InitArithmeticVariable, InitIndexPointerVariable, InitValue, ObjectType, TrueIndexPointerVariable, variables } from "../variables";
 
 export function skipSpace(rt: CRuntime, buf: TrueIndexPointerVariable<ArithmeticNumVariable>): void {
     if (buf.pointee.values.length === 0) {
@@ -134,7 +134,7 @@ export type StringVariable = AbstractVariable<StringType, StringValue>;
 
 export interface StringValue extends InitValue<StringVariable> {
     members: {
-        "_ptr": InitIndexPointerVariable<ArithmeticVariable>
+        "_ptr": InitIndexPointerVariable<ArithmeticNumVariable>
         "_size": InitArithmeticNumVariable,
     }
 }

@@ -1,4 +1,4 @@
-import { AbstractVariable, ArithmeticNumVariable, InitArithmeticNumVariable, InitIndexPointerVariable, InitValue } from "../variables";
+import { AbstractVariable, ArithmeticNumVariable, InitArithmeticNumVariable, InitValue, TrueIndexPointerVariable } from "../variables";
 
 export const openmode = {
     /** Seek to the end of the stream before each write. */
@@ -53,7 +53,7 @@ export type IStreamVariable = AbstractVariable<IStreamType, IStreamValue>;
 export interface IStreamValue extends InitValue<IStreamVariable> {
     members: {
         /** The input buffer. */
-        "buf": InitIndexPointerVariable<ArithmeticNumVariable>,
+        "buf": TrueIndexPointerVariable<ArithmeticNumVariable>,
         /** The UNIX-like input file descriptor (0 for stdin, >=3 for files). */
         "fd": InitArithmeticNumVariable,
         /** The end-of-file status flag. */

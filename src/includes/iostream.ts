@@ -219,7 +219,7 @@ export = {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 )",
             *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: PointerVariable<ArithmeticNumVariable>): Gen<IStreamVariable> {
-                const r = variables.asInitIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
+                const r = variables.asTrueIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + rt.getVariableNames(_r) ?? "<internal>");
                 const eofbit = l.members.eofbit;
                 const failbit = l.members.failbit;
                 const buf = l.members.buf;
@@ -353,9 +353,9 @@ export = {
                 let b = l.members.buf;
                 const count = rt.arithmeticNumValue(_count);
                 const delim = rt.arithmeticNumValue(_delim);
-                const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
+                const s = variables.asTrueIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
                 if (s === null) {
-                    rt.raiseException("Not an index pointer");
+                    rt.raiseException("Unexpected null- or invalid pointer" + rt.getVariableNames(_s) ?? "<internal>");
                 }
                 const oldiptr = variables.clone(rt, b, "SELF", false);
                 if (b.index >= b.pointee.values.length) {

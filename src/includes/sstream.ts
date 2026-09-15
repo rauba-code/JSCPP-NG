@@ -203,9 +203,9 @@ export = {
                 let b = l.members.buf;
                 const count = rt.arithmeticNumValue(_count);
                 const delim = rt.arithmeticNumValue(_delim);
-                const s = variables.asInitIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
+                const s = variables.asTrueIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
                 if (s === null) {
-                    rt.raiseException("Not an index pointer");
+                    rt.raiseException("Unexpected null- or invalid pointer");
                 }
                 if (b.index >= b.pointee.values.length) {
                     variables.arithmeticNumAssign(rt, l.members.eofbit, 1);

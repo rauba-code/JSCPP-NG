@@ -74,8 +74,8 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > PTR I8 )`,
         default(rt: CRuntime, _templateTypes: [], l: ios_base.OStreamVariable, r: PointerVariable<ArithmeticVariable>): ios_base.OStreamVariable {
-            const iptr = variables.asInitIndexPointerOfElem(r, variables.uninitArithmeticNum("I8", null)) ??
-                rt.raiseException("Variable is not an initialised index pointer");
+            const iptr = variables.asTrueIndexPointerOfElem(r, variables.uninitArithmeticNum("I8", null)) ??
+                rt.raiseException("Unexpected null- or invalid pointer");
             if (l.members.width.value >= 0) {
                 const padded = pad(rt, rt.getStringFromCharArray(iptr), l.members.position_mode.value, l.members.width.value, l.members.fill.value);
                 const str = rt.getCharArrayFromString(padded);
@@ -92,7 +92,7 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > CLREF CLASS string < > )`,
         default(rt: CRuntime, _templateTypes: [], l: ios_base.OStreamVariable, r: StringVariable): ios_base.OStreamVariable {
-            const iptr = variables.asInitIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null));
+            const iptr = variables.asTrueIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null));
             if (iptr === null) {
                 return l;
             }

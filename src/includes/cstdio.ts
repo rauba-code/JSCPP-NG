@@ -48,7 +48,7 @@ export = {
                 type: "FUNCTION I32 ( PTR I8 FunctionParamOrEnd",
                 op: "printf",
                 default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>, ...args: Variable[]): InitArithmeticNumVariable {
-                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    const l = variables.asTrueIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer");
                     let chr: number;
                     type FormatOptions = {
                         flagAlternateForm: boolean;
@@ -177,7 +177,7 @@ export = {
                                         state = "NORMAL";
                                         break;
                                     case ascii_s:
-                                        const strVar = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index char pointer");
+                                        const strVar = variables.asTrueIndexPointerOfElem(args[0], variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid char pointer");
                                         let schr: number;
                                         for (let j = 0; (schr = (rt.arithmeticValue(variables.arrayMember(strVar.pointee, strVar.index + j))) as number) !== 0; j++) {
                                             output.push(schr);
@@ -351,7 +351,7 @@ export = {
                 type: "FUNCTION I32 ( PTR I8 )",
                 op: "puts",
                 default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
-                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    const l = variables.asTrueIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("puts: Unexpected null- or invalid pointer");
                     const str = rt.getStringFromCharArray(l) + "\n";
                     const stdio = rt.stdio();
                     stdio.write(str);
@@ -362,8 +362,8 @@ export = {
                 type: "FUNCTION I32 ( PTR I8 PTR I8 FunctionParamOrEnd",
                 op: "sscanf",
                 default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>, _fmt: PointerVariable<ArithmeticNumVariable>, ...args: Variable[]): InitArithmeticNumVariable {
-                    const l = variables.asInitIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
-                    const fmt = variables.asInitIndexPointerOfElem(_fmt, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                    const l = variables.asTrueIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("sscanf: Unexpected null- or invalid pointer");
+                    const fmt = variables.asTrueIndexPointerOfElem(_fmt, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("sscanf: Unexpected null- or invalid pointer");
                     let li = 0;
                     let lc: number = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + li)) as number;
                     let fc: number;
@@ -399,7 +399,7 @@ export = {
                                     }
                                     break;
                                 case ascii_s:
-                                    const vstr = variables.asInitIndexPointerOfElem(args[0], variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
+                                    const vstr = variables.asTrueIndexPointerOfElem(args[0], variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("sscanf: Unexpected null- or invalid pointer");
                                     let vi = 0;
                                     args = args.slice(1);
                                     while (!whitespace.includes(lc) && lc !== 0) {
@@ -418,7 +418,7 @@ export = {
                                         li++;
                                         lc = rt.arithmeticValue(variables.arrayMember(l.pointee, l.index + li)) as number;
                                     }
-                                    const vptr = variables.asInitPointer(args[0]) ?? rt.raiseException("sscanf: Variable a is not an initialised index pointer");
+                                    const vptr = variables.asInitPointer(args[0]) ?? rt.raiseException("sscanf: Unexpected null- or invalid pointer");
                                     args = args.slice(1);
                                     if (vptr.t.pointee.sig === "FUNCTION") {
                                         rt.raiseException("sscanf: Expected a pointer to an arithmetic value");
