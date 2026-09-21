@@ -47,6 +47,7 @@ const term = {
     "F32": Object,
     "F64": Object,
     "BOOL": Object,
+    "NULLPTR_T": Object,
     //"STRINGLITERAL": Object, // unused
     //"CHARLITERAL": Object, // unused
     //"INTLITERAL": Object, // unused
@@ -101,7 +102,7 @@ export function constructTypeParser(): LLParser {
     const typeBNF: { [symbol: string]: LexSym[][] } = {
         "Type": [["Object", "VOID", "Function", "LRef"]],
         "Object": [["ParamObject", "Array"]],
-        "ParamObject": [["Class", "Arithmetic", "NULLPTR", "Pointer"]],
+        "ParamObject": [["Class", "Arithmetic", "NULLPTR_T", "Pointer"]],
         "Parametric": [["ParamObject", "LRef", "CLRef", "MemberType"]],
         "LRef": [["LREF"], ["LValue"]],
         "CLRef": [["CLREF"], ["LValue"]],

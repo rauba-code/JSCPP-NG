@@ -1,6 +1,6 @@
 import { initializerListInit } from "./initializer_list";
 import { CRuntime, OpSignature } from "./rt";
-import { ArithmeticVariable, PointerVariable, Variable, Function, variables, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable, PointeeVariable, InitDirectPointerVariable, ObjectType, ClassVariable, ArithmeticNumSig, InitArithmeticNumValue, InitArithmeticNumVariable, ArithmeticBigSig, InitArithmeticBigValue, InitArithmeticBigVariable } from "./variables";
+import { ArithmeticVariable, PointerVariable, Variable, Function, variables, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable, PointeeVariable, InitDirectPointerVariable, ObjectType, ClassVariable, ArithmeticNumSig, InitArithmeticNumValue, InitArithmeticNumVariable, ArithmeticBigSig, InitArithmeticBigValue, InitArithmeticBigVariable, NullptrVariable } from "./variables";
 
 function raiseSupportException(rt: CRuntime, l: Variable, r: Variable, op: string): never {
     rt.raiseException(`${rt.makeTypeStringOfVar(l)} does not support ${op} on ${rt.makeTypeStringOfVar(r)}`);
@@ -515,7 +515,7 @@ const defaultOpHandler: OpHandler[] = [
         op: "o(_=_)",
         type: "!Pointer FUNCTION ?0 ( LREF ?0 ?0 )",
         default(rt, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitPointerVariable<PointeeVariable> {
-            const l = rt.expectValue(_l) as InitPointerVariable<PointeeVariable>;
+            const l = rt.unbound(_l) as PointerVariable<PointeeVariable>;
             const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
             if (!(l.t.sizeConstraint === null || l.t.sizeConstraint === r.t.sizeConstraint)) {
                 rt.raiseException("Assignment between pointers of invalid sizes");
@@ -528,7 +528,21 @@ const defaultOpHandler: OpHandler[] = [
             } else if (r.subtype === "DIRECT") {
                 variables.directPointerAssign(rt, l, r);
             }
-            return l;
+            return l as InitPointerVariable<PointeeVariable>;
+        }
+    },
+    {
+        op: "o(_=_)",
+        type: "!Pointer FUNCTION ?0 ( LREF ?0 CLREF NULLPTR_T )",
+        default(rt, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: NullptrVariable): InitPointerVariable<PointeeVariable> {
+            const l = rt.unbound(_l) as PointerVariable<PointeeVariable>;
+            if (!(l.t.sizeConstraint === null)) {
+                rt.raiseException("Invalid assignment of fixed-size array to nullptr");
+            }
+            l.state = "INIT";
+            (l as InitPointerVariable<PointeeVariable>).subtype = "DIRECT";
+            (l as InitPointerVariable<PointeeVariable>).pointee = null;
+            return l as InitPointerVariable<PointeeVariable>;
         }
     },
     {
@@ -674,5 +688,5 @@ export function addDefaultOperations(rt: CRuntime): void {
     defaultOpHandler.forEach((x: OpHandler) => {
         rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), [], null);
     })
-    rt.defVar("JSCPP_VERSION", variables.arithmeticNum("U32", 1001, null, true), false, true);
+    //rt.defVar("JSCPP_VERSION", variables.arithmeticNum("U32", 1001, null, true), false, true);
 }

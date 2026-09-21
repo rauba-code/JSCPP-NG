@@ -808,7 +808,7 @@ function checkAssignable(rt: CRuntime, v: Variable): void {
 }
 
 function toStringSequenceInner(rt: CRuntime, type: AnyType, result: string[]): void {
-    if (type.sig in arithmeticSig) {
+    if (type.sig in arithmeticSig || type.sig === "NULLPTR_T") {
         result.push(type.sig);
         return;
     }

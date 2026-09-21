@@ -324,7 +324,7 @@ export class CRuntime {
         for (let i = this.scope.length - 1; i >= 0; i--) {
             let scope = this.scope[i];
             for (const [name, val] of Object.entries(scope.variables)) {
-                if (!(name in rdict) && "t" in val && "v" in val && Object.entries(val).length > 1 && !("hidden" in val)) {
+                if (!(name in rdict) && "t" in val && Object.entries(val).length > 1 && !("hidden" in val)) {
                     insertVal(rdict, name, val, 0, name);
                 }
             }
@@ -483,8 +483,8 @@ export class CRuntime {
                     nameAsChild = `${parentName}[0]`;
                     parentName = `<pointer>`;
                 }
-                let val = variables.deref(parentPtr) as Variable;
-                if (!("hidden" in val)) {
+                let val = variables.deref(parentPtr) as MaybeUnboundVariable;
+                if (!("hidden" in val) && val.state !== "UNBOUND") {
                     insertVal(dict, `*${parentName}`, val, parentList[parentId - vbegin][1], nameAsChild);
                 }
             }
@@ -1202,6 +1202,9 @@ export class CRuntime {
                 const x = type as ArithmeticType;
                 return variables.arithmeticProperties[x.sig].name;
             },
+            "NULLPTR_T": () => {
+                return "nullptr_t";
+            },
             "VOID": () => {
                 return "void";
             },
@@ -1639,7 +1642,7 @@ export class CRuntime {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.state === "UNBOUND") {
             if (variable.lvHolder === "SELF") {
-                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? ""}`);
             } else {
                 this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
             }
@@ -1659,7 +1662,7 @@ export class CRuntime {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.state === "UNBOUND") {
             if (variable.lvHolder === "SELF") {
-                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? ""}`);
             } else {
                 this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
             }
@@ -1695,7 +1698,7 @@ export class CRuntime {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.state === "UNBOUND") {
             if (variable.lvHolder === "SELF") {
-                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? ""}`);
             } else {
                 this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
             }
@@ -1708,7 +1711,7 @@ export class CRuntime {
             this.raiseException("Access of an uninitialised value of variable " + this.getVariableNames(variable)[0] ?? "<internal>")
         } else if (variable.state === "UNBOUND") {
             if (variable.lvHolder === "SELF") {
-                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? ""}`);
             } else {
                 this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
             }
@@ -1719,7 +1722,7 @@ export class CRuntime {
     unbound(variable: MaybeUnboundVariable): Variable {
         if (variable.state === "UNBOUND") {
             if (variable.lvHolder === "SELF") {
-                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? "<internal>"}.`);
+                this.raiseException(`(Segmentation fault) dereference of a null-pointer ${this.getVariableNames(variable)[0] ?? ""}`);
             } else {
                 this.raiseException(`(Segmentation fault) access of an out-of-bounds index ${variable.lvHolder.index} in an array of size ${variable.lvHolder.array.values.length}.`);
             }

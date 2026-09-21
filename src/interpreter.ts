@@ -1,6 +1,6 @@
 import { resolveIdentifier } from "./shared/string_utils";
 import { CRuntime, FunctionCallInstance, MemberMap, MemberObject, OpSignature, RuntimeScope } from "./rt";
-import { ClassType, ClassVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig, InitArithmeticBigVariable, InitArithmeticNumVariable, ArithmeticBigVariable, TrueIndexPointerVariable } from "./variables";
+import { ClassType, ClassVariable, MaybeLeft, MaybeUnboundArithmeticVariable, ObjectType, PointerType, Variable, variables, MaybeUnboundVariable, InitIndexPointerVariable, FunctionType, ResultOrGen, Gen, MaybeLeftCV, Function, InitPointerVariable, PointerVariable, ArithmeticNumVariable, ArithmeticNumSig, ArithmeticBigSig, InitArithmeticBigVariable, InitArithmeticNumVariable, ArithmeticBigVariable, TrueIndexPointerVariable, NullptrVariable } from "./variables";
 import { createInitializerList } from "./initializer_list";
 
 const sampleGeneratorFunction = function*(): Generator<null, void, void> {
@@ -283,6 +283,13 @@ export type TypeSpecifier_basic = {
 export type TypeSpecifier_decltype = {
     type: "TypeSpecifier_decltype",
     expression: any, /* XExpression */
+}
+export interface XBooleanConstant extends StatementMeta {
+    type: "BooleanConstant"
+    value: "true" | "false"
+}
+export interface XNullPointerConstant extends StatementMeta {
+    type: "NullPointerConstant"
 }
 
 type DeclaratorYield = { name: string, type: MaybeLeft<ObjectType> };
@@ -1980,11 +1987,12 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 }
                 rt.raiseException(`Invalid string prefix error: '${s.prefix}'`);
             },
-            BooleanConstant(interp, s, _param) {
-                ({
-                    rt
-                } = interp);
+            BooleanConstant(_interp, s: XBooleanConstant, _param) {
                 return variables.arithmeticNum("BOOL", s.value === "true" ? 1 : 0, null);
+            },
+            NullPointerConstant(_interp, _s: XNullPointerConstant, _param) {
+                const nullptr : NullptrVariable = { t: { sig: "NULLPTR_T" }, isConst: true, lvHolder: null, state: "INIT" };
+                return nullptr;
             },
             CharacterConstant(interp, s, _param) {
                 ({
@@ -1997,22 +2005,13 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 return variables.arithmeticNum("I8", a[0].charCodeAt(0), null);
             },
             *FloatConstant(interp, s, param): ResultOrGen<ArithmeticNumVariable> {
-                ({
-                    rt
-                } = interp);
                 const val = yield* interp.visit(interp, s.Expression, param);
                 return variables.arithmeticNum("F64", val.value, null);
             },
-            DecimalFloatConstant(interp, s, _param): ArithmeticNumVariable {
-                ({
-                    rt
-                } = interp);
+            DecimalFloatConstant(_interp, s, _param): ArithmeticNumVariable {
                 return variables.arithmeticNum("F64", parseFloat(s.value), null);
             },
-            HexFloatConstant(interp, s, _param): ArithmeticNumVariable {
-                ({
-                    rt
-                } = interp);
+            HexFloatConstant(_interp, s, _param): ArithmeticNumVariable {
                 return variables.arithmeticNum("F64", parseInt(s.value, 16), null);
             },
             DecimalConstant(interp, s: XDecimalConstant, _param): ArithmeticNumVariable | ArithmeticBigVariable {
