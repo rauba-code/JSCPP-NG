@@ -526,7 +526,16 @@ const defaultOpHandler: OpHandler[] = [
                 }
                 variables.indexPointerAssign(rt, l as InitPointerVariable<Variable>, (r as InitIndexPointerVariable<Variable>).pointee, r.index);
             } else if (r.subtype === "DIRECT") {
-                variables.directPointerAssign(rt, l, r);
+                if (r.pointee !== null) {
+                    variables.directPointerAssign2(rt, l, r.pointee);
+                } else {
+                    if (!(l.t.sizeConstraint === null)) {
+                        rt.raiseException("Invalid assignment of fixed-size array to nullptr");
+                    }
+                    l.state = "INIT";
+                    (l as InitPointerVariable<PointeeVariable>).subtype = "DIRECT";
+                    (l as InitPointerVariable<PointeeVariable>).pointee = null;
+                }
             }
             return l as InitPointerVariable<PointeeVariable>;
         }
