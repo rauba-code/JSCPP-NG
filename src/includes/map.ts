@@ -203,7 +203,7 @@ export = {
                     subtype: "DIRECT",
                     isConst: false,
                     pointee: node
-                } : variables.uninitPointer(nodeType, null, "SELF") as __ptr_node,
+                } : variables.directNullPointer(nodeType, "SELF"),
                 last: (last !== null) ? {
                     t: {
                         sig: "PTR",
@@ -215,7 +215,7 @@ export = {
                     subtype: "DIRECT",
                     isConst: false,
                     pointee: last
-                } : variables.uninitPointer(nodeType, null, "SELF") as __ptr_node,
+                } : variables.directNullPointer(nodeType, "SELF"),
             };
         }
 
@@ -375,7 +375,7 @@ export = {
             const iterType = _createMapIterType([pairType]);
             const nodeType = _createMapNodeType([pairType]);
             return {
-                root: variables.uninitPointer(_createMapNodeType([pairType]), null, "SELF") as __ptr_node,
+                root: variables.directNullPointer(_createMapNodeType([pairType]), "SELF") as __ptr_node,
                 _size: variables.arithmeticBig("U64", BigInt(0), "SELF"),
                 _t_pair: _createEmptyVar(pairType),
                 _t_iter: _createEmptyVar(iterType),

@@ -166,7 +166,7 @@ export = {
                     subtype: "DIRECT",
                     isConst: false,
                     pointee: node
-                } : variables.uninitPointer(nodeType, null, "SELF") as __ptr_node,
+                } : variables.directNullPointer(nodeType, "SELF"),
                 last: (last !== null) ? {
                     t: {
                         sig: "PTR",
@@ -178,7 +178,7 @@ export = {
                     subtype: "DIRECT",
                     isConst: false,
                     pointee: last
-                } : variables.uninitPointer(nodeType, null, "SELF") as __ptr_node,
+                } : variables.directNullPointer(nodeType, "SELF"),
             };
         }
 
@@ -322,7 +322,7 @@ export = {
 
         function _createSetMembers(setType: SetType<ObjectType>): __set['members'] {
             return {
-                root: variables.uninitPointer(_createSetNodeType(setType.templateSpec), null, "SELF") as __ptr_node,
+                root: variables.directNullPointer(_createSetNodeType(setType.templateSpec), "SELF") as __ptr_node,
                 _size: variables.arithmeticBig("U64", BigInt(0), "SELF"),
             }
         }

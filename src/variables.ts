@@ -500,7 +500,7 @@ export const variables = {
                 const _x = object as InitPointerVariable<PointeeVariable>;
                 if (_x.subtype === "DIRECT") {
                     if ((_x as InitDirectPointerVariable<PointeeVariable>).pointee === null) {
-                        return { t: (_x as InitDirectPointerVariable<PointeeVariable>).t, lvHolder: _lvHolder, isConst: isConst, state: "INIT", pointee: null } as InitDirectPointerVariable<PointeeVariable>;
+                        return { t: (_x as InitDirectPointerVariable<PointeeVariable>).t, lvHolder: _lvHolder, isConst: isConst, state: "INIT", subtype: "DIRECT", pointee: null };
                     }
                     else {
                         return variables.directPointer((_x as TrueDirectPointerVariable<PointeeVariable>).pointee, _lvHolder, isConst);

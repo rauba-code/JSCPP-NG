@@ -674,4 +674,5 @@ export function addDefaultOperations(rt: CRuntime): void {
     defaultOpHandler.forEach((x: OpHandler) => {
         rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), [], null);
     })
+    rt.defVar("JSCPP_VERSION", variables.arithmeticNum("U32", 1001, null, true), false, true);
 }
