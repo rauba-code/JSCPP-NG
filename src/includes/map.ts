@@ -279,7 +279,7 @@ export = {
                 for (; ;) {
                     const parent: __node | null = variables.asInitDirectPointerPointee(node.pointee.members.parent);
                     if (parent === null) {
-                        node = { t: node.t, isConst: false, state: "INIT", subtype: "DIRECT", pointee: null, lvHolder: "SELF" };
+                        node.pointee = null;
                         break;
                     }
                     if (parent.members[from].pointee !== null &&
@@ -342,7 +342,7 @@ export = {
                 op: "o(_==_)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS map_iterator < ?0 > CLREF CLASS map_iterator < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: [], lhs: __map_iter, rhs: __map_iter): InitArithmeticNumVariable {
-                    const isEq: boolean = (lhs.members.node.pointee === null) ? (rhs.members.node.pointee === null) : (lhs === rhs);
+                    const isEq: boolean = (lhs.members.node.pointee === rhs.members.node.pointee);
                     return variables.arithmeticNum("BOOL", isEq ? 1 : 0, null);
                 }
             },
@@ -350,7 +350,7 @@ export = {
                 op: "o(_!=_)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS map_iterator < ?0 > CLREF CLASS map_iterator < ?0 > )",
                 default(_rt: CRuntime, _templateTypes: [], lhs: __map_iter, rhs: __map_iter): InitArithmeticNumVariable {
-                    const isEq: boolean = (lhs.members.node.pointee === null) ? (rhs.members.node.pointee === null) : (lhs === rhs);
+                    const isEq: boolean = (lhs.members.node.pointee === rhs.members.node.pointee);
                     return variables.arithmeticNum("BOOL", isEq ? 0 : 1, null);
                 }
             },
