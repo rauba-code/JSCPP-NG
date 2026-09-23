@@ -130,7 +130,7 @@ export = {
                 bstack: variables.indexPointer(bmem, 0, true, "SELF"),
                 istack: variables.indexPointer(imem, 0, true, "SELF"),
                 slen: variables.arithmeticNum("I32", 0, "SELF"),
-                link: variables.uninitPointer(umapLinkType, null, "SELF"),
+                link: variables.directNullPointer(umapLinkType, "SELF"),
             } as __umap_iter['members'];
         };
 
@@ -149,9 +149,9 @@ export = {
         }, ["bstack", "istack", "slen", "link"], {});
 
         function _iter_next(thisVar: __umap_iter): "VOID" {
-            if (thisVar.members.link.state === "INIT") {
-                let link = thisVar.members.link as __tptr_link;
-                if (link.pointee.members.next.state === "INIT") {
+            if (thisVar.members.link.pointee !== null) {
+                const link = thisVar.members.link as __tptr_link;
+                if (link.pointee.members.next.pointee !== null) {
                     link.pointee = (link.pointee.members.next as __tptr_link).pointee;
                     return "VOID";
                 }
@@ -163,11 +163,9 @@ export = {
                 if (slen.value < STACK_SIZE) {
                     let is_any: boolean = false;
                     for (let i = istackArr[slen.value - 1].value; i < (1 << BITS_BRANCH); i++) {
-                        if ((bstackArr[slen.value - 1] as __tptr_branch).pointee.members.branches.pointee.values[i].state === "INIT") {
+                        if ((bstackArr[slen.value - 1] as __tptr_branch).pointee.members.branches.pointee.values[i].pointee !== null) {
                             istackArr[slen.value - 1].value = i + 1;
                             istackArr[slen.value].value = 0;
-                            bstackArr[slen.value].state = "INIT";
-                            (bstackArr[slen.value] as __tptr_branch).subtype = "DIRECT";
                             (bstackArr[slen.value] as __tptr_branch).pointee = ((bstackArr[slen.value - 1] as __tptr_branch).pointee.members.branches.pointee.values[i] as __tptr_branch).pointee;
                             slen.value++;
                             is_any = true;
@@ -184,10 +182,8 @@ export = {
                     }
                 } else {
                     for (let i = istackArr[slen.value - 1].value; i < (1 << BITS_BRANCH); i++) {
-                        if ((bstackArr[slen.value - 1] as __tptr_branch).pointee.members.leaves.pointee.values[i].state === "INIT") {
+                        if ((bstackArr[slen.value - 1] as __tptr_branch).pointee.members.leaves.pointee.values[i].pointee !== null) {
                             istackArr[slen.value - 1].value = i + 1;
-                            thisVar.members.link.state = "INIT";
-                            (thisVar.members.link as __tptr_link).subtype = "DIRECT";
                             (thisVar.members.link as __tptr_link).pointee = ((bstackArr[slen.value - 1] as __tptr_branch).pointee.members.leaves.pointee.values[i] as __tptr_link).pointee;
                             return "VOID";
                         }
@@ -217,7 +213,7 @@ export = {
                     thisVar.members.slen.value = x.members.slen.value;
                     variables.directPointerAssign(rt, thisVar.members.link, x.members.link);
                     for (let i = 0; i < STACK_SIZE; i++) {
-                        if (x.members.bstack.pointee.values[i].state === "INIT") {
+                        if (x.members.bstack.pointee.values[i].pointee !== null) {
                             thisVar.members.bstack.pointee.values[i].state = "INIT";
                             (thisVar.members.bstack.pointee.values[i] as any).subtype = "DIRECT";
                             (thisVar.members.bstack.pointee.values[i] as any).pointee = (x.members.bstack.pointee.values[i] as __tptr_branch).pointee;
@@ -252,14 +248,14 @@ export = {
                     thisVar.members.slen.value = STACK_SIZE;
                     thisVar.members.bstack.pointee.values[0].state = "INIT";
                     for (let i = 0; i < STACK_SIZE; i++) {
-                        if (bstack.pointee.values[i].state === "INIT") {
+                        if (bstack.pointee.values[i].pointee !== null) {
                             thisVar.members.bstack.pointee.values[i].state = "INIT";
                             (thisVar.members.bstack.pointee.values[i] as __tptr_branch).subtype = "DIRECT";
                             (thisVar.members.bstack.pointee.values[i] as __tptr_branch).pointee = (bstack.pointee.values[i] as __tptr_branch).pointee;
                         }
                         thisVar.members.istack.pointee.values[i].value = istack.pointee.values[i].value;
                     }
-                    if (link.state === "INIT") {
+                    if (link.pointee !== null) {
                         thisVar.members.link.state = "INIT";
                         (thisVar.members.link as any).subtype = "DIRECT";
                         (thisVar.members.link as any).pointee = link.pointee;
@@ -277,7 +273,7 @@ export = {
                 op: "o(*_)",
                 type: "!ParamObject !ParamObject FUNCTION LREF CLASS pair < ?0 ?1 > ( LREF CLASS unordered_map_iterator < ?0 ?1 > )",
                 default(rt: CRuntime, _templateTypes: [], thisVar: __umap_iter): __pair {
-                    if (thisVar.members.link.state === "INIT") {
+                    if (thisVar.members.link.pointee !== null) {
                         return (thisVar.members.link as __tptr_link).pointee.members.child;
                     }
                     rt.raiseException("unordered_map_iterator::operator*(): Attempted dereference of a null-iterator");
@@ -305,9 +301,6 @@ export = {
                 op: "o(_==_)",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS unordered_map_iterator < ?0 ?1 > CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticNumVariable {
-                    if (lhs.members.link.pointee === null || rhs.members.link.pointee === null) {
-                        return variables.arithmeticNum("BOOL", lhs.members.link.state === rhs.members.link.state ? 1 : 0, null);
-                    }
                     return variables.arithmeticNum("BOOL", lhs.members.link.pointee === rhs.members.link.pointee ? 1 : 0, null);
                 }
             },
@@ -315,9 +308,6 @@ export = {
                 op: "o(_!=_)",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS unordered_map_iterator < ?0 ?1 > CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
                 default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticNumVariable {
-                    if (lhs.members.link.pointee === null || rhs.members.link.pointee === null) {
-                        return variables.arithmeticNum("BOOL", (lhs.members.link.state !== rhs.members.link.state) ? 1 : 0, null);
-                    }
                     return variables.arithmeticNum("BOOL", (lhs.members.link.pointee !== rhs.members.link.pointee) ? 1 : 0, null);
                 }
             },
@@ -334,11 +324,11 @@ export = {
                 const umapLinkType = _createUMapLinkType(dataItem.templateSpec);
                 let bmem = variables.arrayMemory<__ptr_branch>(variables.pointerType(umapBranchType, null), []);
                 for (let i = 0; i < (1 << BITS_BRANCH); i++) {
-                    bmem.values.push((variables.uninitPointer(bmem.objectType.pointee, null, { array: bmem, index: i }) as __ptr_branch));
+                    bmem.values.push((variables.directNullPointer(bmem.objectType.pointee, { array: bmem, index: i }) as __ptr_branch));
                 }
                 let lmem = variables.arrayMemory<__ptr_link>(variables.pointerType(umapLinkType, null), []);
                 for (let i = 0; i < (1 << BITS_BRANCH); i++) {
-                    lmem.values.push((variables.uninitPointer(lmem.objectType.pointee, null, { array: lmem, index: i }) as __ptr_link));
+                    lmem.values.push((variables.directNullPointer(lmem.objectType.pointee, { array: lmem, index: i }) as __ptr_link));
                 }
                 return {
                     branches: variables.indexPointer(bmem, 0, true, "SELF"),
@@ -350,13 +340,13 @@ export = {
 
         function _branch_clear(thisVal: __branch): void {
             for (let i = 0; i < (1 << BITS_BRANCH); i++) {
-                if (thisVal.members.branches.pointee.values[i].state === "INIT") {
+                if (thisVal.members.branches.pointee.values[i].pointee !== null) {
                     _branch_clear((thisVal.members.branches.pointee.values[i] as __tptr_branch).pointee);
                     ((thisVal.members.branches.pointee.values[i] as __tptr_branch).pointee as any).lvHolder = "UNBOUND";
                     delete (thisVal.members.branches.pointee.values[i] as any).pointee;
                     thisVal.members.branches.pointee.values[i].pointee = null;
                 }
-                if (thisVal.members.leaves.pointee.values[i].state === "INIT") {
+                if (thisVal.members.leaves.pointee.values[i].pointee !== null) {
                     // no destructor for __link
                     ((thisVal.members.leaves.pointee.values[i] as __tptr_link).pointee as any).lvHolder = "UNBOUND";
                     delete (thisVal.members.leaves.pointee.values[i] as any).pointee;
@@ -391,7 +381,7 @@ export = {
             factory: function*(dataItem: __link['t']): Gen<MemberMap> {
                 const tkey = dataItem.templateSpec[0];
                 const tval = dataItem.templateSpec[1];
-                const next = variables.uninitPointer(dataItem, null, "SELF") as __ptr_link;
+                const next = variables.directNullPointer(dataItem, "SELF") as __ptr_link;
                 const childType: __pair['t'] = {
                     "identifier": "pair",
                     "sig": "CLASS",
