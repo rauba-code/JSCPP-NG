@@ -9,6 +9,7 @@ import Debugger from "./debugger"
 import * as PEGUtil from "pegjs-util";
 import * as defaults from "./defaults";
 import { InitArithmeticNumValue, MaybeUnboundArithmeticVariable } from "./variables";
+import { SourceFileInstance, SourceListings, validatedSourceListings } from "./vfs";
 
 const includes: { [fileName: string]: IncludeModule } = {
     // array: require("./includes/array"),
@@ -63,7 +64,7 @@ for (const alias of Object.keys(headerAlias)) {
 
 export type InputFunction = () => Promise<string>;
 
-function run(code: string, input: InputFunction, config: JSCPPConfig, stopped = false): Debugger | number | ExternRuntimeApi {
+function run(code: string | SourceListings, input: InputFunction, config: JSCPPConfig, stopped = false): Debugger | number | ExternRuntimeApi {
     let step;
     let inputbuffer = ""; // input.toString();
     let proceed = !stopped;
@@ -204,9 +205,16 @@ function run(code: string, input: InputFunction, config: JSCPPConfig, stopped = 
     const rt = new CRuntime(_config);
     defaults.addDefaultOperations(rt);
 
-    code = code.toString();
-    const oldCode = code;
-    const pcode = preprocessor.parse(rt, code);
+    let pcode: string;
+    let oldCode: string;
+    if (typeof code === "string") {
+        oldCode = code;
+        pcode = preprocessor.parse(rt, code);
+    } else {
+        const listings = validatedSourceListings(code);
+        oldCode = (listings.files.get(listings.entryPoint) as SourceFileInstance).contents;
+        pcode = preprocessor.parse(rt, oldCode, listings);
+    }
 
     const result = PEGUtil.parse(ast, pcode);
     if (result.error != null) {

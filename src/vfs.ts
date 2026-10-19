@@ -31,7 +31,7 @@ export type PathResolutionFormat = "POSIX";
 export type SourceListings = {
     /**
      * Path resolution format for given sources.
-     * @see PathResolutionFormat for more details.
+     * {@see PathResolutionFormat} for more details.
      */
     readonly format: PathResolutionFormat;
     /** 

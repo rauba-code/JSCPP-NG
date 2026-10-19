@@ -3,6 +3,7 @@ import * as prepast from "./prepast";
 import * as PEGUtil from "pegjs-util";
 import { BaseInterpreter } from "./interpreter";
 import { CRuntime, CRuntimeError } from "./rt";
+import { canonicalAbsolutePath, resolveInclude, SourceListings } from "./vfs";
 
 interface Macro {
     type: "function" | "simple";
@@ -68,14 +69,20 @@ interface IdentifierSpec {
 
 type Statement = TranslationUnitSpec | CodeSpec | PrepIncludeLibSpec | PrepIncludeLocalSpec | PrepSimpleMacroSpec | PrepFunctionMacroSpec | PrepUndefSpec | PrepIfdefSpec | PrepIfndefSpec | PrepElseSpec | PrepEndifSpec | IdentifierSpec;
 
+
 class Preprocessor extends BaseInterpreter<Statement> {
     ret: string;
     macros: { [name: string]: Macro };
     doinclude: boolean[];
     macroStack: Statement[];
+    vfs?: {
+        listings: SourceListings,
+        fileName: string,
+        sourceParentDir: string
+    };
     visitors: { [name: string]: (interp: Preprocessor, s: Statement, param?: any) => any };
 
-    constructor(rt: CRuntime) {
+    constructor(rt: CRuntime, sourceListings?: SourceListings, fileName?: string, sourceParentDir?: string) {
         super(rt);
         const pushInc = function(b: boolean) {
             this.doinclude.push(this.doinclude[this.doinclude.length - 1] && b);
@@ -86,6 +93,9 @@ class Preprocessor extends BaseInterpreter<Statement> {
         this.macros = {};
         this.macroStack = [];
         this.doinclude = [true];
+        if (sourceListings !== undefined) {
+            this.vfs = { listings: sourceListings, fileName: fileName ?? "<unknown>", sourceParentDir: sourceParentDir ?? canonicalAbsolutePath(sourceListings.format, sourceListings.entryPoint + "/..") }
+        }
         this.visitors = {
             TranslationUnit(interp, s: TranslationUnitSpec, code) {
                 let i = 0;
@@ -114,20 +124,38 @@ class Preprocessor extends BaseInterpreter<Statement> {
                 interp.newMacroFunction(s.Identifier, s.Args, s.Replacement);
             },
             PrepIncludeLib(interp, s: PrepIncludeLibSpec, _code) {
-                interp.rt.include(s.name);
+                if (rt.config.includes !== undefined && s.name in rt.config.includes) {
+                    interp.rt.include(s.name);
+                    return;
+                } else if (interp.vfs !== undefined) {
+                    const fileInst = resolveInclude(interp.vfs.listings, s.name, interp.vfs.sourceParentDir, "angle");
+                    if (fileInst !== null) {
+                        const nestedPrep = new Preprocessor(rt, interp.vfs.listings, fileInst.path, canonicalAbsolutePath(interp.vfs.listings.format, fileInst.path + "/.."));
+                        interp.ret += nestedPrep.parse(fileInst.contents);
+                        return;
+                    }
+                }
+                interp.raiseException("Cannot find file: " + s.name);
             },
             PrepIncludeLocal(interp, s: PrepIncludeLocalSpec, _code) {
                 if (interp.rt.config.includes === undefined) {
-                    interp.rt.raiseException("[Preprocessor].interp.rt.config.includes is undefined");
+                    interp.raiseException("[Preprocessor].interp.rt.config.includes is undefined");
                 } else {
                     const {
                         includes
                     } = interp.rt.config;
                     if (s.name in includes) {
                         interp.rt.include(s.name);// includes[s.name].load(interp.rt);
-                    } else {
-                        interp.rt.raiseException("cannot find file: " + s.name);
+                        return;
+                    } else if (interp.vfs !== undefined) {
+                        const fileInst = resolveInclude(interp.vfs.listings, s.name, interp.vfs.sourceParentDir, "quote");
+                        if (fileInst !== null) {
+                            const nestedPrep = new Preprocessor(rt, interp.vfs.listings, fileInst.path, canonicalAbsolutePath(interp.vfs.listings.format, fileInst.path + "/.."));
+                            interp.ret += nestedPrep.parse(fileInst.contents);
+                            return;
+                        }
                     }
+                    interp.raiseException("cannot find file: " + s.name);
                 }
             },
             PrepUndef(interp, s: PrepUndefSpec, _code) {
@@ -146,21 +174,33 @@ class Preprocessor extends BaseInterpreter<Statement> {
                     const x = interp.doinclude.pop();
                     pushInc(!x);
                 } else {
-                    interp.rt.raiseException("#else must be used after a #if");
+                    interp.raiseException("#else must be used after a #if");
                 }
             },
             PrepEndif(interp, _s: PrepEndifSpec, _code) {
                 if (interp.doinclude.length > 1) {
                     interp.doinclude.pop();
                 } else {
-                    interp.rt.raiseException("#endif must be used after a #if");
+                    interp.raiseException("#endif must be used after a #if");
                 }
             },
             unknown(interp, s, _code) {
-                interp.rt.raiseException("unhandled syntax " + s.type);
+                interp.raiseException("unhandled syntax " + s.type);
             }
         };
     }
+
+    raiseException(msg: string, lc?: { line: number, column: number }): never {
+        if (this.vfs !== undefined) {
+            msg = `In file ${JSON.stringify(this.vfs.fileName)}: ${msg}`;
+        }
+        if (lc !== undefined) {
+            throw new CRuntimeError(msg, lc.line, lc.column);
+        } else {
+            this.rt.raiseException(msg);
+        }
+    }
+
     visit(s: Statement, code: string) {
         if ("type" in s) {
             // const _node = this.currentNode;
@@ -173,7 +213,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
             // this.currentNode = _node;
         } else {
             this.currentNode = s;
-            this.rt.raiseException("untyped syntax structure: " + JSON.stringify(s));
+            this.raiseException("untyped syntax structure: " + JSON.stringify(s));
         }
     };
 
@@ -197,7 +237,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
 
     newMacro(id: any, replacement: any): void {
         if (this.isMacroDefined(id)) {
-            this.rt.raiseException("macro " + id.val + " is already defined");
+            this.raiseException("macro " + id.val + " is already defined");
         }
         this.macros[id.val] = {
             type: "simple",
@@ -207,7 +247,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
 
     newMacroFunction(id: any, args: any[], replacement: any): void {
         if (this.isMacroDefined(id)) {
-            this.rt.raiseException("macro " + id.val + " is already defined");
+            this.raiseException("macro " + id.val + " is already defined");
         }
         this.macros[id.val] = {
             type: "function",
@@ -221,7 +261,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
             return node.val + node.space;
         } else {
             if (node in this.macroStack) {
-                this.rt.raiseException("recursive macro detected");
+                this.raiseException("recursive macro detected");
             }
             this.macroStack.push(node);
             if (node.type === "Identifier") {
@@ -257,14 +297,14 @@ class Preprocessor extends BaseInterpreter<Statement> {
             const name = node.Identifier.val;
             const argsText = node.Args;
             if (!(name in this.macros)) {
-                this.rt.raiseException(`[Preprocessor].macros[${name}] is undefined`);
+                this.raiseException(`[Preprocessor].macros[${name}] is undefined`);
             }
             const rep = this.macros[name].replacement;
             const {
                 args
             } = this.macros[name];
             if (args === undefined) {
-                this.rt.raiseException("args is undefined");
+                this.raiseException("args is undefined");
             }
             if (args.length === argsText.length) {
                 let ret = "";
@@ -274,7 +314,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
                         const v = this.work(rep[i]);
                         ret += v;
                     } else if (rep[i].type === "StringLiteral") {
-                        this.rt.raiseException("StringLiteral handling in macros is not yet implemented!");
+                        this.raiseException("StringLiteral handling in macros is not yet implemented!");
                     } else {
                         let argi = -1;
                         let j = 0;
@@ -302,7 +342,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
                 }
                 return ret;
             } else {
-                this.rt.raiseException("macro " + name + " requires " + args.length + " arguments (" + argsText.length + " given)");
+                this.raiseException("macro " + name + " requires " + args.length + " arguments (" + argsText.length + " given)");
             }
         } else {
             const node = _node as any;
@@ -328,7 +368,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
         if (result.error != null) {
             const line = result.error.line;
             const column = result.error.column
-            throw new CRuntimeError(`[line ${line}:${column}] Syntax error`, line, column);
+            this.raiseException(`[line ${line}:${column}] Syntax error`, { line, column });
         }
         this.rt.interp = this;
         return this.visit(result.ast, code);
@@ -336,6 +376,6 @@ class Preprocessor extends BaseInterpreter<Statement> {
 }
 
 
-export function parse(rt: CRuntime, code: string) {
-    return new Preprocessor(rt).parse(code);
+export function parse(rt: CRuntime, code: string, listings?: SourceListings) {
+    return new Preprocessor(rt, listings, listings?.entryPoint).parse(code);
 }
