@@ -821,6 +821,7 @@ Keyword
       / "long"
       / "namespace"
       / "new"
+      / "nullptr"
       / "register"
       / "restrict"
       / "return"
@@ -951,12 +952,18 @@ Constant
     / IntegerConstant 
     / EnumerationConstant 
     / CharacterConstant
-    / BooleanConstant) {return a;}
+    / BooleanConstant
+    / NullPointerConstant) {return a;}
     ;
 
 BooleanConstant
     = a:(TRUE / FALSE) {
       return addPositionInfo({type:'BooleanConstant', value:a});
+    }
+    
+NullPointerConstant
+    = NULLPTR {
+      return addPositionInfo({type:'NullPointerConstant'});
     }
 
 IntegerConstant
@@ -1144,3 +1151,4 @@ SCOPEOP    =  a:"::"        Spacing {return a;};
 EOT        =  !_    ;
 
 _          =  . ;
+
