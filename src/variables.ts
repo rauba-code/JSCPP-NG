@@ -37,8 +37,8 @@ export interface ArithmeticProperties {
     readonly isFloat: boolean,
     readonly isBig: boolean,
     readonly bytes: number,
-    readonly minv: number | BigInt,
-    readonly maxv: number | BigInt,
+    readonly minv: number | bigint,
+    readonly maxv: number | bigint,
     readonly asSigned: ArithmeticSig
 }
 

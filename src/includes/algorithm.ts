@@ -2,7 +2,7 @@ import { asResult } from "../interpreter";
 import { CRuntime, FunctionCallInstance, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
-import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, ArithmeticVariable, PointerType, ClassVariable, InitArithmeticNumVariable, TrueIndexPointerVariable, TrueDirectPointerVariable } from "../variables";
+import { InitIndexPointerVariable, PointeeVariable, PointerVariable, Function, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ResultOrGen, MaybeLeftCV, ObjectType, ArithmeticVariable, PointerType, ClassVariable, InitArithmeticNumVariable, TrueIndexPointerVariable, TrueDirectPointerVariable, LValueIndexHolder } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -67,8 +67,12 @@ export = {
             }
             indexRegion.sort(sortCmp);
             indexRegion.forEach((ri, ci) => {
-                l.pointee.values[l.index + ci] = region[ri];
-                (l.pointee.values[l.index + ci] as any).lvHolder.index = l.index + ci;
+                const lvHolder = l.pointee.values[l.index + ci].lvHolder as LValueIndexHolder<Variable>;
+                (lvHolder as any).index = l.index + ci;
+                l.pointee.values[l.index + ci] = {
+                    ...region[ri],
+                    lvHolder
+                } as Variable;
             });
             return "VOID";
         }
@@ -310,7 +314,13 @@ export = {
                         return "VOID";
                     }
                     for (let i = 0; i < region.length; i++) {
-                        l.pointee.values[l.index + i] = { lvHolder: { array: l.pointee.values, index: l.index + i }, ...region[(region.length - 1) - i] }
+                        const lvHolder = l.pointee.values[l.index + i].lvHolder as LValueIndexHolder<Variable>;
+                        (lvHolder as any).index = l.index + i;
+                        l.pointee.values[l.index + i] = {
+                            ...region[(region.length - 1) - i],
+                            lvHolder
+                        } as Variable;
+
                     }
                     return "VOID";
                 }

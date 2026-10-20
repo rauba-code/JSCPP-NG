@@ -247,7 +247,11 @@ export = {
                     }
                     const _sz: number = --vec.members._sz.value;
                     for (let i = pos.index; i < _sz; i++) {
-                        pos.pointee.values[i] = { lvHolder: pos.pointee.values[i], ...pos.pointee.values[i + 1] };
+                        const lvHolder = pos.pointee.values[i].lvHolder;
+                        pos.pointee.values[i] = { 
+                            ...pos.pointee.values[i + 1],
+                            lvHolder, 
+                        } as Variable;
                     }
                     return pos;
                 }
@@ -294,7 +298,11 @@ export = {
                     pos.pointee = pointee;
                     const _sz: number = vec.members._sz.value;
                     for (let i = _sz - 1; i - tailSize >= Math.max(pos.index, 0); i--) {
-                        pointee.values[i] = { lvHolder: pointee.values[i], ...pointee.values[i - tailSize] };
+                        const lvHolder = pointee.values[i].lvHolder;
+                        pointee.values[i] = { 
+                            ...pointee.values[i - tailSize],
+                            lvHolder
+                        } as Variable;
                     }
                     for (let i = 0; i < tailSize; i++) {
                         pointee.values[pos.index + i] = variables.clone(rt, rt.unbound(variables.arrayMember(tailPointee, i) as MaybeUnboundVariable), { index: pos.index + i, array: pointee }, false, true);
@@ -317,7 +325,11 @@ export = {
                     const diff = Math.max(0, last.index - first.index);
                     const _sz: number = (vec.members._sz.value -= diff);
                     for (let i = first.index; i < _sz; i++) {
-                        first.pointee.values[i] = { lvHolder: first.pointee.values[i], ...first.pointee.values[i + diff] };
+                        const lvHolder = first.pointee.values[i].lvHolder;
+                        first.pointee.values[i] = { 
+                            ...first.pointee.values[i + diff],
+                            lvHolder,
+                        } as Variable;
                     }
                     return first;
                 }

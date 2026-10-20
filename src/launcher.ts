@@ -149,7 +149,7 @@ function run(code: string | SourceListings, input: InputFunction, config: JSCPPC
                 process.stdout?.write(s); // write to node.js standard output
             }
         },
-        includes: this.includes,
+        includes,
         loadedLibraries: [],
         unsigned_overflow: "error",
     };

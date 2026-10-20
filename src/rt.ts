@@ -663,7 +663,7 @@ export class CRuntime {
                         if (argTypes[i].lvHolder === null) {
                             const arg = args[i];
                             if (arg.t.sig !== "PTR" || arg.t.sizeConstraint === null) {
-                                args[i] = variables.clone(this, args[i], "SELF", false);
+                                args[i] = variables.clone(rt, args[i], "SELF", false);
                             }
                         }
                         if (args[i].isConst && !argTypes[i].isConst) {
@@ -820,9 +820,9 @@ export class CRuntime {
                             let i = 0;
                             for (const child of listArgs) {
                                 memory.values.push({
-                                    lvHolder: { array: memory, index: i },
-                                    ...child
-                                });
+                                    ...child,
+                                    lvHolder: { array: memory, index: i } as LValueIndexHolder<Variable>,
+                                } as Variable);
                                 i++;
                             }
                             const initList: InitializerListVariable<Variable> = {

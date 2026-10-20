@@ -1513,7 +1513,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 if (expr === "VOID") {
                     rt.raiseException("Delete-statement error: Expected non-void expression");
                 }
-                const ptrExpr : InitPointerVariable<Variable | Function> = variables.asInitPointer(rt.unbound(expr)) ?? rt.raiseException("Delete-statement error: Expected an init pointer expression");
+                const ptrExpr: InitPointerVariable<Variable | Function> = variables.asInitPointer(rt.unbound(expr)) ?? rt.raiseException("Delete-statement error: Expected an init pointer expression");
                 if (ptrExpr.t.pointee.sig === "FUNCTION") {
                     rt.raiseException("Delete-statement error: Cannot delete a function pointer");
                 }
@@ -1991,7 +1991,7 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                 return variables.arithmeticNum("BOOL", s.value === "true" ? 1 : 0, null);
             },
             NullPointerConstant(_interp, _s: XNullPointerConstant, _param) {
-                const nullptr : NullptrVariable = { t: { sig: "NULLPTR_T" }, isConst: true, lvHolder: null, state: "INIT" };
+                const nullptr: NullptrVariable = { t: { sig: "NULLPTR_T" }, isConst: true, lvHolder: null, state: "INIT" };
                 return nullptr;
             },
             CharacterConstant(interp, s, _param) {
@@ -2169,9 +2169,11 @@ export class Interpreter extends BaseInterpreter<InterpStatement> {
                         if (isIterable(x)) {
                             ret = yield* x;
                         } else {
+                            // @ts-ignore
                             ret = yield x;
                         }
                     } else {
+                        // @ts-ignore
                         ret = yield null;
                     }
                 } else {
