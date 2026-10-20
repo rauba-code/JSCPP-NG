@@ -84,15 +84,15 @@ class Preprocessor extends BaseInterpreter<Statement> {
 
     constructor(rt: CRuntime, sourceListings?: SourceListings, fileName?: string, sourceParentDir?: string) {
         super(rt);
-        const pushInc = function(b: boolean) {
-            this.doinclude.push(this.doinclude[this.doinclude.length - 1] && b);
-        };
 
         this.rt = rt;
         this.ret = "";
         this.macros = {};
         this.macroStack = [];
         this.doinclude = [true];
+        const pushInc = function(interp: Preprocessor, b: boolean) {
+            interp.doinclude.push(interp.doinclude[interp.doinclude.length - 1] && b);
+        };
         if (sourceListings !== undefined) {
             this.vfs = { listings: sourceListings, fileName: fileName ?? "<unknown>", sourceParentDir: sourceParentDir ?? canonicalAbsolutePath(sourceListings.format, sourceListings.entryPoint + "/..") }
         }
@@ -164,15 +164,15 @@ class Preprocessor extends BaseInterpreter<Statement> {
                 }
             },
             PrepIfdef(interp, s: PrepIfdefSpec, _code) {
-                pushInc(interp.isMacroDefined(s.Identifier));
+                pushInc(interp, interp.isMacroDefined(s.Identifier));
             },
             PrepIfndef(interp, s: PrepIfndefSpec, _code) {
-                pushInc(!interp.isMacroDefined(s.Identifier));
+                pushInc(interp, !interp.isMacroDefined(s.Identifier));
             },
             PrepElse(interp, _s: PrepElseSpec, _code) {
                 if (interp.doinclude.length > 1) {
                     const x = interp.doinclude.pop();
-                    pushInc(!x);
+                    pushInc(interp, !x);
                 } else {
                     interp.raiseException("#else must be used after a #if");
                 }
