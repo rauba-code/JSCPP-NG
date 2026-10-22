@@ -37,7 +37,6 @@ lib/
 demo/*.js
 demo/*.js.map
 .tscache
-src/ast.js
-src/prepast.js
+src/generated/
 jscpp-ng.iml
 package-lock.json
