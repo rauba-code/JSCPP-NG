@@ -47,8 +47,9 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 FunctionParamOrEnd",
                 op: "printf",
-                default(rt: CRuntime, _templateTypes: [], _l: PointerVariable<ArithmeticNumVariable>, ...args: Variable[]): InitArithmeticNumVariable {
-                    const l = variables.asTrueIndexPointerOfElem(_l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer");
+                default(rt: CRuntime, _templateTypes, ...xargs: Variable[]): InitArithmeticNumVariable {
+                    let args = xargs.slice(1);
+                    const l = variables.asTrueIndexPointerOfElem(xargs[0] as PointerVariable<ArithmeticNumVariable>, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer");
                     let chr: number;
                     type FormatOptions = {
                         flagAlternateForm: boolean;

@@ -3,7 +3,7 @@
 
 import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
-import { CRuntime } from "../rt";
+import { CRuntime, MemberFactory, TypeMappingFunction } from "../rt";
 import * as common from "../shared/common";
 import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, InitArithmeticNumVariable, ArithmeticNumVariable, TrueIndexPointerVariable } from "../variables";
 
@@ -40,15 +40,16 @@ export = {
                     _data: variables.indexPointer<Variable>(memory, 0, false, "SELF"),
                     _size: variables.arithmeticNum("I32", sizeValue, "SELF"),
                 }
-            }
+            } as MemberFactory
         }, ["_data", "_size"], {});
 
         const ctorHandler: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS array < ?0 ?1 > ( CLASS initializer_list < ?0 > )",
-            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticVariable>): Gen<ArrayVariable<Variable, number>> {
+            *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<ArrayVariable<Variable, number>>{
+                const [list] = args as [InitializerListVariable<ArithmeticVariable>];
                 const thisType = variables.classType("array", list.t.templateSpec, null) as ArrayType<ObjectType, number>;
-                const arr = yield* rt.defaultValue2(thisType, "SELF");
+                const arr = (yield* rt.defaultValue2(thisType, "SELF")) as ArrayVariable<Variable, number>;
                 const listmem = list.members._values.pointee;
                 const arraySize = arr.members._size.value;
 
@@ -61,14 +62,15 @@ export = {
             }
         };
 
-        rt.explicitListInitTable["array"] = (arr: ArrayType<ObjectType, number>) => arr.templateSpec[0];
+        rt.explicitListInitTable["array"] = ((arr: ArrayType<ObjectType, number>) => arr.templateSpec[0]) as TypeMappingFunction;
         rt.regFunc(ctorHandler.default, variables.classType("array", [], null), ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1], null);
 
         common.regOps(rt, [
             {
                 op: "o(_[_])",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: ArrayVariable<Variable, number>, _idx: ArithmeticNumVariable): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable{
+                    const [l, _idx] = args as [ArrayVariable<Variable, number>, ArithmeticNumVariable];
                     const idx = rt.arithmeticNumValue(_idx);
                     if (idx < 0 || idx >= l.members._size.value) {
                         rt.raiseException("array::operator[]: index out of range error");
@@ -82,28 +84,32 @@ export = {
             {
                 op: "begin",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS array < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitIndexPointerVariable<Variable> {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<Variable>{
+                    const [arr] = args as [ArrayVariable<Variable, number>];
                     return variables.indexPointer(arr.members._data.pointee, arr.members._data.index, false, null, false);
                 }
             },
             {
                 op: "end",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS array < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitIndexPointerVariable<Variable> {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<Variable>{
+                    const [arr] = args as [ArrayVariable<Variable, number>];
                     return variables.indexPointer(arr.members._data.pointee, arr.members._data.index + arr.members._size.value, false, null, false);
                 }
             },
             {
                 op: "size",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS array < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticVariable{
+                    const [arr] = args as [ArrayVariable<Variable, number>];
                     return variables.arithmeticNum("I32", arr.members._size.value, null, false);
                 }
             },
             {
                 op: "at",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > I32 )",
-                default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>, _idx: ArithmeticNumVariable): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable{
+                    const [arr, _idx] = args as [ArrayVariable<Variable, number>, ArithmeticNumVariable];
                     const idx = rt.arithmeticNumValue(_idx);
                     if (idx < 0 || idx >= arr.members._size.value) {
                         rt.raiseException("array::at(): index out of range error");
@@ -114,7 +120,8 @@ export = {
             {
                 op: "front",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > )",
-                default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable{
+                    const [arr] = args as [ArrayVariable<Variable, number>];
                     if (arr.members._size.value === 0) {
                         rt.raiseException("array::front(): array is empty");
                     }
@@ -124,7 +131,8 @@ export = {
             {
                 op: "back",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS array < ?0 ?1 > )",
-                default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable{
+                    const [arr] = args as [ArrayVariable<Variable, number>];
                     if (arr.members._size.value === 0) {
                         rt.raiseException("array::back(): array is empty");
                     }
@@ -134,21 +142,24 @@ export = {
             {
                 op: "empty",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS array < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable{
+                    const [arr] = args as [ArrayVariable<Variable, number>];
                     return variables.arithmeticNum("BOOL", arr.members._size.value === 0 ? 1 : 0, null, false);
                 }
             },
             {
                 op: "max_size",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS array < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable{
+                    const [arr] = args as [ArrayVariable<Variable, number>];
                     return variables.arithmeticNum("I32", arr.members._size.value, null, false);
                 }
             },
             {
                 op: "fill",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS array < ?0 ?1 > CLREF ?0 )",
-                default(rt: CRuntime, _templateTypes: [], arr: ArrayVariable<Variable, number>, value: Variable): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID"{
+                    const [arr, value] = args as [ArrayVariable<Variable, number>, Variable];
                     const size = arr.members._size.value;
                     for (let i = 0; i < size; i++) {
                         arr.members._data.pointee.values[i] = variables.clone(rt, value, { index: i, array: arr.members._data.pointee }, false, true);
@@ -159,7 +170,8 @@ export = {
             {
                 op: "swap",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS array < ?0 ?1 > LREF CLASS array < ?0 ?1 > )",
-                default(rt: CRuntime, _templateTypes: [], arr1: ArrayVariable<Variable, number>, arr2: ArrayVariable<Variable, number>): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID"{
+                    const [arr1, arr2] = args as [ArrayVariable<Variable, number>, ArrayVariable<Variable, number>];
                     if (arr1.members._size.value !== arr2.members._size.value) {
                         rt.raiseException("array::swap(): arrays must have the same size");
                     }
@@ -176,3 +188,6 @@ export = {
         ])
     }
 };
+
+
+

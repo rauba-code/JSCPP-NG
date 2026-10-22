@@ -3,7 +3,7 @@ import { FunHandler, OpHandler } from "../shared/common";
 import * as ios_base from "../shared/ios_base";
 import * as ios_base_impl from "../shared/ios_base_impl"
 import { StringVariable } from "../shared/string_utils";
-import { AbstractVariable, ArithmeticNumVariable, ClassType, InitArithmeticNumVariable, MaybeLeft, PointerVariable, TrueIndexPointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticNumVariable, ClassType, InitArithmeticNumVariable, MaybeLeft, PointerVariable, TrueIndexPointerVariable, Variable, variables } from "../variables";
 
 type OfstreamValue = ios_base.OStreamValue & {
     members: {
@@ -33,8 +33,9 @@ export = {
         const ctorHandlers: OpHandler[] = [{
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( PTR I8 )",
-            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticNumVariable>): OfStreamVariable {
-                const pathPtr = variables.asTrueIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + rt.getVariableNames(_path) ?? "<internal>");
+            default(_rt: CRuntime, _templateTypes, ...args: Variable[]): OfStreamVariable {
+                const [_path] = args as [PointerVariable<ArithmeticNumVariable>];
+                const pathPtr = variables.asTrueIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + (rt.getVariableNames(_path) ?? "<internal>"));
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
                 _open(_rt, result, pathPtr, ios_base.openmode.out);
@@ -44,8 +45,9 @@ export = {
         {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( PTR I8 I32 )",
-            default(_rt: CRuntime, _templateTypes: [], _path: PointerVariable<ArithmeticNumVariable>, mode: ArithmeticNumVariable): OfStreamVariable {
-                const pathPtr = variables.asTrueIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + rt.getVariableNames(_path) ?? "<internal>");
+            default(_rt: CRuntime, _templateTypes, ...args: Variable[]): OfStreamVariable {
+                const [_path, mode] = args as [PointerVariable<ArithmeticNumVariable>, ArithmeticNumVariable];
+                const pathPtr = variables.asTrueIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + (rt.getVariableNames(_path) ?? "<internal>"));
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
                 _open(_rt, result, pathPtr, rt.arithmeticNumValue(mode));
@@ -55,8 +57,9 @@ export = {
         {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > )",
-            default(_rt: CRuntime, _templateTypes: [], _path: StringVariable): OfStreamVariable {
-                const pathPtr = variables.asTrueIndexPointerOfElem(_path.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string" + rt.getVariableNames(_path) ?? "<internal>");
+            default(_rt: CRuntime, _templateTypes, ...args: Variable[]): OfStreamVariable {
+                const [_path] = args as [StringVariable];
+                const pathPtr = variables.asTrueIndexPointerOfElem(_path.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string" + (rt.getVariableNames(_path) ?? "<internal>"));
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
                 _open(_rt, result, pathPtr, ios_base.openmode.out);
@@ -66,8 +69,9 @@ export = {
         {
             op: "o(_ctor)",
             type: "FUNCTION CLASS ofstream < > ( CLREF CLASS string < > I32 )",
-            default(_rt: CRuntime, _templateTypes: [], _path: StringVariable, mode: ArithmeticNumVariable): OfStreamVariable {
-                const pathPtr = variables.asTrueIndexPointerOfElem(_path.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(_path) ?? "<internal>");
+            default(_rt: CRuntime, _templateTypes, ...args: Variable[]): OfStreamVariable {
+                const [_path, mode] = args as [StringVariable, ArithmeticNumVariable];
+                const pathPtr = variables.asTrueIndexPointerOfElem(_path.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(_path) ?? "<internal>"));
                 const result = rt.defaultValue(thisType, "SELF") as OfStreamVariable;
 
                 _open(_rt, result, pathPtr, rt.arithmeticNumValue(mode));
@@ -94,7 +98,8 @@ export = {
             {
                 op: "close",
                 type: "FUNCTION VOID ( LREF CLASS ofstream < > )",
-                default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [l] = args as [OfStreamVariable];
                     rt.fileClose(l.members.fd);
                     l.members._is_open.value = 0;
                     return "VOID";
@@ -103,8 +108,9 @@ export = {
             {
                 op: "open",
                 type: "FUNCTION VOID ( LREF CLASS ofstream < > PTR I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: OfStreamVariable, _path: PointerVariable<ArithmeticNumVariable>): "VOID" {
-                    const pathPtr = variables.asTrueIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + rt.getVariableNames(_path) ?? "<internal>");
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [l, _path] = args as [OfStreamVariable, PointerVariable<ArithmeticNumVariable>];
+                    const pathPtr = variables.asTrueIndexPointerOfElem(_path, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + (rt.getVariableNames(_path) ?? "<internal>"));
                     _open(rt, l, pathPtr, ios_base.openmode.out);
                     return "VOID";
                 }
@@ -112,7 +118,8 @@ export = {
             {
                 op: "is_open",
                 type: "FUNCTION BOOL ( LREF CLASS ofstream < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: OfStreamVariable): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [OfStreamVariable];
                     return variables.arithmeticNum("BOOL", l.members._is_open.value, null);
                 }
             },
@@ -122,3 +129,4 @@ export = {
         })
     }
 };
+

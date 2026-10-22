@@ -9,7 +9,8 @@ export = {
             {
                 op: "accumulate",
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>, init: Variable): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [_first, _last, init] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>, Variable];
                     if (_first.t.pointee.sig === "FUNCTION" || _last.t.pointee.sig === "FUNCTION") {
                         rt.raiseException("accumulate(): Expected a pointer to an object variable");
                     }
@@ -32,3 +33,4 @@ export = {
         ]);
     }
 };
+

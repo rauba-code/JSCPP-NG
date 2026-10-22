@@ -124,7 +124,7 @@ function startDebug() {
                             break;
                     }
                 } catch (e) {
-                    console.log("command failed: " + e.stack);
+                    console.log("command failed: " + ((e instanceof Error) ? e.stack : "<unknown>"));
                 }
 
                 if (done === false) {

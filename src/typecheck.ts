@@ -504,7 +504,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                             if (xretv) {
                                 const projectedSuper: string[] = xsuperCandidate.dst.map((x) => {
                                     if (x.startsWith("?")) {
-                                        const idx = parseInt(x.substr(1));
+                                        const idx = parseInt(x.slice(1));
                                         if (!(idx in xpair.wildcards) || typeof (xpair.wildcards[idx]) === "number") {
                                             throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
                                         }
@@ -730,7 +730,7 @@ function parseFunctionMatchInner(parser: LLParser, scope: NonTerm, pair: Functio
                                         }
                                         const projectedSuper: string[] = src.map((x) => {
                                             if (x.startsWith("?")) {
-                                                const idx = parseInt(x.substr(1));
+                                                const idx = parseInt(x.slice(1));
                                                 if (!(idx in xpair.wildcards) || typeof (xpair.wildcards[idx]) === "number") {
                                                     throw new TypeParseError("Typecheck: Error attempting to convert from brace-enclosed list (internal error)")
                                                 }

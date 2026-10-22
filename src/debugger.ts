@@ -29,14 +29,21 @@ export default class Debugger {
         this.srcByLines = (oldSrc || src || "").split("\n");
         this.prevNode = null;
         this.done = false;
+        this.breakpoints = new Set<number>();
         this.conditions = {
-            isStatement(_prevNode: AstNode, newStmt: AstNode | null) {
+            isStatement(_prevNode: AstNode | null, newStmt: AstNode | null) {
                 return (newStmt != null ? newStmt.type.indexOf("Statement") >= 0 : null);
             },
-            positionChanged(prevNode: AstNode, newStmt: AstNode) {
+            positionChanged(prevNode: AstNode | null, newStmt: AstNode | null) {
+                if (newStmt === null) {
+                    return false;
+                }
                 return ((prevNode != null ? prevNode.eOffset : undefined) !== newStmt.eOffset) || ((prevNode != null ? prevNode.sOffset : undefined) !== newStmt.sOffset);
             },
-            lineChanged(prevNode: AstNode, newStmt: AstNode) {
+            lineChanged(prevNode: AstNode | null, newStmt: AstNode | null) {
+                if (newStmt === null) {
+                    return false;
+                }
                 return (prevNode != null ? prevNode.sLine : undefined) !== newStmt.sLine;
             }
         };

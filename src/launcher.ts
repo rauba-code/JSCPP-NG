@@ -1,12 +1,9 @@
-// logger = require("tracer").colorConsole();
 import { CRuntime, CRuntimeError, ExternRuntimeApi, IncludeModule, JSCPPConfig, mergeConfig } from "./rt";
 
 import { Interpreter } from "./interpreter";
-import ast = require("./ast");
+import ast = require("./generated/ast");
 import preprocessor = require("./preprocessor");
 import Debugger from "./debugger"
-// @ts-ignore;
-import * as PEGUtil from "pegjs-util";
 import * as defaults from "./defaults";
 import { InitArithmeticNumValue, MaybeUnboundArithmeticVariable } from "./variables";
 import { SourceFileInstance, SourceListings, validatedSourceListings } from "./vfs";
@@ -117,7 +114,7 @@ function run(code: string | SourceListings, input: InputFunction, config: JSCPPC
         fstream,
         stdio: {
             promiseError(promise_error) {
-                console.log(promise_error.message);
+                console.log((promise_error instanceof Error) ? (promise_error.message) : "<unknown>");
             },
             cinStop() {
                 handleStop();
@@ -216,7 +213,7 @@ function run(code: string | SourceListings, input: InputFunction, config: JSCPPC
         pcode = preprocessor.parse(rt, oldCode, listings);
     }
 
-    const result = PEGUtil.parse(ast, pcode);
+    const result = ast.parse(pcode);
     if (result.error != null) {
         throw new CRuntimeError(`[line ${result.error.line}:${result.error.column}] Syntax error`, result.error.line, result.error.column);
     }

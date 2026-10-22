@@ -1,33 +1,33 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { ArithmeticNumSig, ArithmeticNumVariable, InitArithmeticNumVariable, variables } from "../variables";
+import { ArithmeticNumSig, ArithmeticNumVariable, CFunction2, InitArithmeticNumVariable, Variable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
         rt.include("bits/abs.h");
         rt.defVar("INFINITY", variables.arithmeticNum("F32", Number.POSITIVE_INFINITY, null, true), false, true);
         rt.defVar("NAN", variables.arithmeticNum("F32", Number.NaN, null, true), false, true);
-        function commonUnaryNum(fn: (l: number) => number, sig: ArithmeticNumSig | null): (rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable) => InitArithmeticNumVariable {
-            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable): InitArithmeticNumVariable {
-                const l = rt.arithmeticNumValue(_l);
-                const retv = variables.arithmeticNum(sig ?? _l.t.sig, fn(l), null, false);
+        function commonUnaryNum(fn: (l: number) => number, sig: ArithmeticNumSig | null): CFunction2 {
+            return function(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                const l = rt.arithmeticNumValue(args[0] as ArithmeticNumVariable);
+                const retv = variables.arithmeticNum(sig ?? (args[0] as ArithmeticNumVariable).t.sig, fn(l), null, false);
                 rt.adjustArithmeticNumValue(retv);
                 return retv;
             }
         }
-        function commonBinaryNum(fn: (l: number, r: number) => number, sig: ArithmeticNumSig): (rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable, r: ArithmeticNumVariable) => InitArithmeticNumVariable {
-            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable): InitArithmeticNumVariable {
-                const l = rt.arithmeticNumValue(_l);
-                const r = rt.arithmeticNumValue(_r);
+        function commonBinaryNum(fn: (l: number, r: number) => number, sig: ArithmeticNumSig): CFunction2 {
+            return function(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                const l = rt.arithmeticNumValue(args[0] as ArithmeticNumVariable);
+                const r = rt.arithmeticNumValue(args[1] as ArithmeticNumVariable);
                 const retv = variables.arithmeticNum(sig, fn(l, r), null, false);
                 rt.adjustArithmeticNumValue(retv);
                 return retv;
             }
         }
-        /*function commonBinaryBig(fn: (l: bigint, r: bigint) => bigint, sig: ArithmeticBigSig): (rt: CRuntime, _templateTypes: [], l: ArithmeticBigVariable, r: ArithmeticBigVariable) => InitArithmeticBigVariable {
-            return function(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable, _r: ArithmeticBigVariable): InitArithmeticBigVariable {
-                const l = rt.arithmeticValue(_l) as bigint;
-                const r = rt.arithmeticValue(_r) as bigint;
+        /*function commonBinaryBig(fn: (l: bigint, r: bigint) => bigint, sig: ArithmeticBigSig): CFunction {
+            return function(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable {
+                const l = rt.arithmeticValue(args[0] as ArithmeticBigVariable) as bigint;
+                const r = rt.arithmeticValue(args[1] as ArithmeticBigVariable) as bigint;
                 const retv = variables.arithmeticBig(sig, fn(l, r), null, false);
                 rt.adjustArithmeticBigValue(retv);
                 return retv;

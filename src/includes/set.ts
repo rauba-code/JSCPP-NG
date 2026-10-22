@@ -1,5 +1,5 @@
 import { InitializerListVariable } from "../initializer_list";
-import { CRuntime } from "../rt";
+import { CRuntime, MemberFactory, TypeMappingFunction } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
 import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, PointerVariable, InitArithmeticNumVariable, InitDirectPointerVariable, InitArithmeticBigVariable, LValueHolder, TrueDirectPointerVariable } from "../variables";
@@ -105,7 +105,7 @@ export = {
         }
 
         rt.defineStruct2("{global}", "set_node", {
-            numTemplateArgs: 1, factory: _createSetNodeMembersDefault
+            numTemplateArgs: 1, factory: _createSetNodeMembersDefault as MemberFactory
         }, ["lhs", "rhs", "parent", "is_red", "key"], {});
 
         function _node_delete(thisVal: __node): void {
@@ -194,9 +194,9 @@ export = {
 
         // const setIteratorSig = "!ParamObject CLASS set_iterator < ?0 >".split(" ");
         rt.defineStruct2("{global}", "set_iterator", {
-            numTemplateArgs: 1, factory(iterType: __node['t']): __set_iter['members'] {
+            numTemplateArgs: 1, factory: function(iterType: __node['t']): __set_iter['members'] {
                 return _createSetIterMembers(_createSetNodeType(iterType.templateSpec), null, null);
-            }
+            } as MemberFactory
         }, ["node"], {
             // ["value_type"]: [{ src: setIteratorSig, dst: ["?0"]}],
             // ["pointer"]: [{ src: setIteratorSig, dst: ["PTR", "?0"]}],
@@ -247,7 +247,8 @@ export = {
             {
                 op: "o(*_)",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS set_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], thisVar: __set_iter): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable {
+                    const [thisVar] = args as [__set_iter];
                     if (thisVar.members.node.pointee !== null) {
                         return (thisVar.members.node as __tptr_node).pointee.members.key;
                     }
@@ -257,7 +258,8 @@ export = {
             {
                 op: "o(++_)",
                 type: "!ParamObject FUNCTION LREF CLASS set_iterator < ?0 > ( LREF CLASS set_iterator < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], thisVar: __set_iter): __set_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar] = args as [__set_iter];
                     _iter_advance(thisVar, true);
                     return thisVar;
                 }
@@ -265,7 +267,8 @@ export = {
             {
                 op: "o(_++)",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], thisVar: __set_iter): __set_iter {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar] = args as [__set_iter];
                     const thatVar = variables.clone(rt, thisVar, null, false);
                     _iter_advance(thisVar, true);
                     return thatVar;
@@ -274,7 +277,8 @@ export = {
             {
                 op: "o(--_)",
                 type: "!ParamObject FUNCTION LREF CLASS set_iterator < ?0 > ( LREF CLASS set_iterator < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], thisVar: __set_iter): __set_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar] = args as [__set_iter];
                     _iter_advance(thisVar, false);
                     return thisVar;
                 }
@@ -282,7 +286,8 @@ export = {
             {
                 op: "o(_--)",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], thisVar: __set_iter): __set_iter {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar] = args as [__set_iter];
                     const thatVar = variables.clone(rt, thisVar, null, false);
                     _iter_advance(thisVar, false);
                     return thatVar;
@@ -291,7 +296,8 @@ export = {
             {
                 op: "o(_==_)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set_iterator < ?0 > CLREF CLASS set_iterator < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], lhs: __set_iter, rhs: __set_iter): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [lhs, rhs] = args as [__set_iter, __set_iter];
                     const isEq: boolean = (lhs.members.node.pointee === rhs.members.node.pointee);
                     return variables.arithmeticNum("BOOL", isEq ? 1 : 0, null);
                 }
@@ -299,7 +305,8 @@ export = {
             {
                 op: "o(_!=_)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set_iterator < ?0 > CLREF CLASS set_iterator < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], lhs: __set_iter, rhs: __set_iter): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [lhs, rhs] = args as [__set_iter, __set_iter];
                     const isEq: boolean = (lhs.members.node.pointee === rhs.members.node.pointee);
                     return variables.arithmeticNum("BOOL", isEq ? 0 : 1, null);
                 }
@@ -338,7 +345,7 @@ export = {
         }
 
         const setSig = "!ParamObject CLASS set < ?0 >".split(" ");
-        rt.defineStruct2("{global}", "set", { numTemplateArgs: 1, factory: _createSetMembers }, ["_data", "_sz", "_cap"], {
+        rt.defineStruct2("{global}", "set", { numTemplateArgs: 1, factory: _createSetMembers as MemberFactory }, ["_data", "_sz", "_cap"], {
             ["key_type"]: [{ src: setSig, dst: ["?0"] }],
             ["value_type"]: [{ src: setSig, dst: ["?0"] }],
             ["iterator"]: [{ src: setSig, dst: ["CLASS", "set_iterator", "<", "?0", ">"] }], // implementation-dependent
@@ -352,8 +359,9 @@ export = {
         const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS set < ?0 > ( CLASS initializer_list < ?0 > )",
-            *default(rt: CRuntime, templateTypes: [__set['t']], list: InitializerListVariable<Variable>): Gen<__set> {
-                const setVar = _createSetVar(templateTypes[0], null);
+            *default(rt: CRuntime, templateTypes, ...args: Variable[]): Gen<__set> {
+                const [list] = args as [InitializerListVariable<Variable>];
+                const setVar = _createSetVar(templateTypes[0] as __set['t'], null);
                 const listmem = list.members._values.pointee;
 
                 for (let i = 0; i < listmem.values.length; i++) {
@@ -368,7 +376,8 @@ export = {
         const ctorHandler2: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS set < ?0 > ( PTR ?0 PTR ?0 )",
-            *default(rt: CRuntime, templateTypes: [__set['t']], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<__set> {
+            *default(rt: CRuntime, templateTypes, ...args: Variable[]): Gen<__set> {
+                const [_begin, _end] = args as [PointerVariable<Variable>, PointerVariable<Variable>];
                 const begin = variables.asTrueIndexPointer(_begin) ?? rt.raiseException("set constructor: expected valid begin iterator");
                 const end = variables.asTrueIndexPointer(_end) ?? rt.raiseException("set constructor: expected valid end iterator");
 
@@ -376,7 +385,7 @@ export = {
                     rt.raiseException("set constructor: iterators must point to same memory region");
                 }
 
-                const setVar = _createSetVar(templateTypes[0], null);
+                const setVar = _createSetVar(templateTypes[0] as __set['t'], null);
 
                 for (let i = begin.index; i < end.index; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(begin.pointee, i) as MaybeUnboundVariable);
@@ -387,7 +396,7 @@ export = {
             }
         };
 
-        rt.explicitListInitTable["set"] = (setType: SetType<ObjectType>) => setType.templateSpec[0];
+        rt.explicitListInitTable["set"] = ((setType: SetType<ObjectType>) => setType.templateSpec[0]) as TypeMappingFunction;
         rt.regFunc(ctorHandler1.default, variables.classType("set", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1], null);
         rt.regFunc(ctorHandler2.default, variables.classType("set", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1], null);
 
@@ -395,7 +404,8 @@ export = {
             {
                 op: "o(_=_)",
                 type: "!ParamObject FUNCTION CLASS set < ?0 > ( LREF CLASS set < ?0 > CLREF CLASS set < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], lset: __set, rset: __set): __set {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __set {
+                    const [lset, rset] = args as [__set, __set];
                     _clear(lset);
                     const rr: __node | null = variables.asInitDirectPointerPointee(rset.members.root);
                     if (rr === null) {
@@ -936,7 +946,8 @@ export = {
         common.regGlobalFuncs(rt, [{
             op: "_print",
             type: "FUNCTION VOID ( CLREF CLASS set < I32 > )",
-            default(rt: CRuntime, _templateTypes: ObjectType[], set: SetVariable<InitArithmeticNumVariable>): "VOID" {
+            default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                const [set] = args as [SetVariable<InitArithmeticNumVariable>];
                 const stdio = rt.stdio();
                 function _set_int_print_tree_inner(node: SetNodeValue<InitArithmeticNumVariable>, shift: number): void {
                     const lhs = variables.asInitDirectPointerPointee(node.members.lhs);
@@ -964,35 +975,40 @@ export = {
             {
                 op: "begin",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): __set_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar] = args as [__set];
                     return _begin(thisVar);
                 }
             },
             {
                 op: "end",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): __set_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar] = args as [__set];
                     return _end(thisVar);
                 }
             },
             /*{
                 op: "rbegin",
                 type: "!ParamObject FUNCTION CLASS reverse_iterator < CLASS set_iterator < ?0 > > ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): __set_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar] = args as [__set];
                     return _begin(thisVar);
                 }
             },
             {
                 op: "rend",
                 type: "!ParamObject FUNCTION CLASS reverse_iterator < CLASS set_iterator < ?0 > > ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): __set_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar] = args as [__set];
                     return _end(thisVar);
                 }
             },*/
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION CLASS pair < CLASS set_iterator < ?0 > BOOL > ( LREF CLASS set < ?0 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, value: Variable): Gen<PairVariable<__set_iter, InitArithmeticNumVariable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<PairVariable<__set_iter, InitArithmeticNumVariable>> {
+                    const [thisVar, value] = args as [__set, Variable];
                     const result = yield* _insert(rt, thisVar, value);
                     return {
                         t: {
@@ -1023,7 +1039,8 @@ export = {
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, _pos: __set_iter, value: Variable) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<SetIteratorVariable<Variable>> {
+                    const [thisVar, _pos, value] = args as [__set, __set_iter, Variable];
                     // same as above, ignoring the 'pos' argument, 
                     // returning iterator only
                     return (yield* _insert(rt, thisVar, value))[0];
@@ -1032,7 +1049,8 @@ export = {
             {
                 op: "insert",
                 type: "!ParamObject !ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > ?1 ?1 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, first: Variable, last: Variable): Gen<"VOID"> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<"VOID"> {
+                    const [thisVar, first, last] = args as [__set, Variable, Variable];
                     const eqFunc = rt.getOpByParams("{global}", "o(_==_)", [first, last], []);
                     const ppFunc = rt.getOpByParams("{global}", "o(_++)", [first], []);
                     const derefFunc = rt.getOpByParams("{global}", "o(*_)", [first], []);
@@ -1052,7 +1070,8 @@ export = {
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > CLASS initializer_list < ?0 > )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, list: InitializerListVariable<Variable>): Gen<"VOID"> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<"VOID"> {
+                    const [thisVar, list] = args as [__set, InitializerListVariable<Variable>];
                     const listmem = list.members._values.pointee;
 
                     let lastInserted: __set_iter | null = null;
@@ -1068,14 +1087,16 @@ export = {
             {
                 op: "erase",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > CLASS set_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, pos: __set_iter): __set_iter {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __set_iter {
+                    const [thisVar, pos] = args as [__set, __set_iter];
                     return _erase(rt, thisVar, pos);
                 }
             },
             {
                 op: "erase",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( LREF CLASS set < ?0 > ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, key: Variable): Gen<__set_iter> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<__set_iter> {
+                    const [thisVar, key] = args as [__set, Variable];
                     const pos = yield* _find(rt, thisVar, key);
                     return _erase(rt, thisVar, pos);
                 }
@@ -1083,7 +1104,8 @@ export = {
             {
                 op: "find",
                 type: "!ParamObject FUNCTION CLASS set_iterator < ?0 > ( CLREF CLASS set < ?0 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set, key: Variable): Gen<__set_iter> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<__set_iter> {
+                    const [thisVar, key] = args as [__set, Variable];
                     return yield* _find(rt, thisVar, key);
                 }
             },
@@ -1110,21 +1132,24 @@ export = {
             {
                 op: "size",
                 type: "!ParamObject FUNCTION I64 ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): InitArithmeticBigVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable {
+                    const [thisVar] = args as [__set];
                     return variables.arithmeticBig("I64", thisVar.members._size.value, null, false);
                 }
             },
             {
                 op: "empty",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [thisVar] = args as [__set];
                     return variables.arithmeticNum("BOOL", (thisVar.members._size.value === BigInt(0)) ? 1 : 0, null, false);
                 }
             },
             {
                 op: "_assert_rb",
                 type: "!ParamObject FUNCTION VOID ( CLREF CLASS set < ?0 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [thisVar] = args as [__set];
                     const root = thisVar.members.root;
                     if (root.pointee !== null && !_assert_rb(rt, root as __tptr_node)) {
                         rt.raiseException("std::set<Key>::_assert_rb(): Red-black tree integrity assertion failed");
@@ -1135,7 +1160,8 @@ export = {
             {
                 op: "clear",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS set < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __set): "VOID" {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [thisVar] = args as [__set];
                     _clear(thisVar);
                     return "VOID";
                 }
@@ -1143,3 +1169,6 @@ export = {
         ])
     }
 };
+
+
+

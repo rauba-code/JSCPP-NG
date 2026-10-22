@@ -1,8 +1,8 @@
 import { asResult } from "../interpreter";
-import { CRuntime, OpSignature } from "../rt";
+import { CRuntime, MemberFactory, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { PairType, PairVariable } from "../shared/utility";
-import { Gen, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
+import { Gen, InitArithmeticNumVariable, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -14,14 +14,15 @@ export = {
                     first: asResult(firstVarYield) ?? (yield* firstVarYield as Gen<Variable>),
                     second: asResult(secondVarYield) ?? (yield* secondVarYield as Gen<Variable>),
                 }
-            }
+            } as MemberFactory
         }, ["first", "second"], {});
         rt.ct.list["pair"].src.push("CLASS __list_prototype < ?0 ?1 >".split(" "));
         common.regGlobalFuncs(rt, [
             {
                 op: "swap",
                 type: "!ParamObject FUNCTION VOID ( LREF ?0 LREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], lhs: Variable, rhs: Variable) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<"VOID"> {
+                    const [lhs, rhs] = args as [Variable, Variable];
                     const temp = variables.clone(rt, lhs, "SELF", false, true);
                     const assignLhsYield = rt.invokeCall(rt.getOpByParams("{global}", "o(_=_)", [lhs, rhs], []), [], lhs, rhs);
                     asResult(assignLhsYield) ?? (yield* assignLhsYield as Gen<Variable>);
@@ -33,7 +34,8 @@ export = {
             {
                 op: "make_pair",
                 type: "!ParamObject !ParamObject FUNCTION CLASS pair < ?0 ?1 > ( ?0 ?1 )",
-                default(rt: CRuntime, _templateTypes: [], lhs: Variable, rhs: Variable): PairVariable<Variable, Variable> {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): PairVariable<Variable, Variable> {
+                    const [lhs, rhs] = args as [Variable, Variable];
                     return {
                         t: {
                             sig: "CLASS",
@@ -86,45 +88,53 @@ export = {
             {
                 op: "o(_<_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
-                *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticNumVariable> {
+                    const [lhs, rhs] = args as [__pair, __pair];
                     return variables.arithmeticNum("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) < 0) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_>_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
-                *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticNumVariable> {
+                    const [lhs, rhs] = args as [__pair, __pair];
                     return variables.arithmeticNum("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) > 0) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_<=_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
-                *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticNumVariable> {
+                    const [lhs, rhs] = args as [__pair, __pair];
                     return variables.arithmeticNum("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) < 0 || (yield* lex_eq(rt, lhs, rhs))) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_>=_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
-                *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticNumVariable> {
+                    const [lhs, rhs] = args as [__pair, __pair];
                     return variables.arithmeticNum("BOOL", ((yield* lex_cmp(rt, lhs, rhs)) > 0 || (yield* lex_eq(rt, lhs, rhs))) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_==_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
-                *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticNumVariable> {
+                    const [lhs, rhs] = args as [__pair, __pair];
                     return variables.arithmeticNum("BOOL", (yield* lex_eq(rt, lhs, rhs)) ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_!=_)",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?2 ?3 > )",
-                *default(rt: CRuntime, _templateTypes: [], lhs: __pair, rhs: __pair) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticNumVariable> {
+                    const [lhs, rhs] = args as [__pair, __pair];
                     return variables.arithmeticNum("BOOL", (yield* lex_eq(rt, lhs, rhs)) ? 0 : 1, null);
                 }
             },
         ])
     }
 };
+
+

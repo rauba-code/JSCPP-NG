@@ -1,5 +1,5 @@
 import { CRuntime } from "../rt";
-import { InitArithmeticNumVariable, MaybeLeft, variables } from "../variables";
+import { InitArithmeticNumVariable, MaybeLeft, Variable, variables } from "../variables";
 import { IOManipTokenType, IOManipTokenVariable, iomanip_token_mode, IStreamVariable, OStreamVariable } from "../shared/ios_base";
 import { FunHandler, OpHandler } from "../shared/common";
 
@@ -7,7 +7,8 @@ function overloadIomanip(rt: CRuntime, structName: string) {
     const opHandlers: OpHandler[] = [{
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > CLASS iomanip_token < > )`,
-        default(rt: CRuntime, _templateTypes: [], l: OStreamVariable, r: IOManipTokenVariable): OStreamVariable {
+        default(rt: CRuntime, _templateTypes, ...args: Variable[]): OStreamVariable {
+            const [l, r] = args as [OStreamVariable, IOManipTokenVariable];
             switch (r.members.mode.value) {
                 case iomanip_token_mode.setbase:
                     const base = rt.arithmeticValue(r.members.param);
@@ -61,7 +62,8 @@ function overloadIomanipInput(rt: CRuntime, structName: string) {
     const opHandlers: OpHandler[] = [{
         op: "o(_>>_)",
         type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > CLASS iomanip_token < > )`,
-        default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: IOManipTokenVariable): any {
+        default(rt: CRuntime, _templateTypes, ...args: Variable[]): any {
+            const [l, r] = args as [IStreamVariable, IOManipTokenVariable];
             switch (r.members.mode.value) {
                 case iomanip_token_mode.setbase:
                     rt.raiseException("Not yet implemented")
@@ -159,28 +161,32 @@ export = {
             {
                 op: "setbase",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
-                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): IOManipTokenVariable {
+                    const [r] = args as [InitArithmeticNumVariable];
                     return createIOManipToken(rt, iomanip_token_mode.setbase, r.value);
                 }
             },
             {
                 op: "setfill",
                 type: "FUNCTION CLASS iomanip_token < > ( I8 )",
-                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): IOManipTokenVariable {
+                    const [r] = args as [InitArithmeticNumVariable];
                     return createIOManipToken(rt, iomanip_token_mode.setfill, r.value);
                 }
             },
             {
                 op: "setprecision",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
-                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): IOManipTokenVariable {
+                    const [r] = args as [InitArithmeticNumVariable];
                     return createIOManipToken(rt, iomanip_token_mode.setprecision, r.value);
                 }
             },
             {
                 op: "setw",
                 type: "FUNCTION CLASS iomanip_token < > ( I32 )",
-                default(rt: CRuntime, _templateTypes: [], r: InitArithmeticNumVariable): IOManipTokenVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): IOManipTokenVariable {
+                    const [r] = args as [InitArithmeticNumVariable];
                     return createIOManipToken(rt, iomanip_token_mode.setw, r.value);
                 }
             },
@@ -190,7 +196,7 @@ export = {
             rt.regFunc(x.default, "{global}", x.op, rt.typeSignature(x.type), [], null);
         });
 
-        ["fixed", "scientific", "hexfloat", "defaultfloat", "left", "right", "internal", "boolalpha", "noboolalpha", "noskipws", "skipws"].forEach((x: keyof typeof iomanip_token_mode) => {
+        (["fixed", "scientific", "hexfloat", "defaultfloat", "left", "right", "internal", "boolalpha", "noboolalpha", "noskipws", "skipws"] as (keyof typeof iomanip_token_mode)[]).forEach((x: keyof typeof iomanip_token_mode) => {
             const token = createIOManipToken(rt, iomanip_token_mode[x], null);
             rt.addToNamespace("std", x, token, true);
         })
@@ -202,4 +208,5 @@ export = {
 
     }
 }
+
 

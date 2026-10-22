@@ -278,32 +278,33 @@ export = {
             {
                 op: "sort",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner(rt, lhs, rhs); }
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" { const [lhs, rhs] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>]; return sort_inner(rt, lhs, rhs); }
             },
             {
                 op: "sort",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
-                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: PointerVariable<Function>): "VOID" { return sort_inner(rt, lhs, rhs, cmp); }
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" { const [lhs, rhs, cmp] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>, PointerVariable<Function>]; return sort_inner(rt, lhs, rhs, cmp); }
             },
             {
                 op: "sort",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 CLREF Class )",
-                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: ClassVariable): "VOID" { return sort_inner(rt, lhs, rhs, cmp); }
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" { const [lhs, rhs, cmp] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>, ClassVariable]; return sort_inner(rt, lhs, rhs, cmp); }
             },
             {
                 op: "stable_sort",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" { return sort_inner(rt, lhs, rhs); }
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" { const [lhs, rhs] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>]; return sort_inner(rt, lhs, rhs); }
             },
             {
                 op: "stable_sort",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 CLREF ?0 ) )",
-                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>, cmp: ClassVariable): "VOID" { return sort_inner(rt, lhs, rhs, cmp); }
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" { const [lhs, rhs, cmp] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>, ClassVariable]; return sort_inner(rt, lhs, rhs, cmp); }
             },
             {
                 op: "reverse",
                 type: "!ParamObject FUNCTION VOID ( PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, _templateTypes: [], lhs: PointerVariable<PointeeVariable>, rhs: PointerVariable<PointeeVariable>): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [lhs, rhs] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>];
                     const l: TrueIndexPointerVariable<Variable> = variables.asTrueIndexPointer(lhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'first'");
                     const r: TrueIndexPointerVariable<Variable> = variables.asTrueIndexPointer(rhs) ?? rt.raiseException("sort: expected a pointer to a memory region for the parameter 'last'");
                     if (l.pointee !== r.pointee) {
@@ -328,21 +329,24 @@ export = {
             {
                 op: "min_element",
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+                    const [_first, _last] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>];
                     return yield* extreme_element(rt, _first, _last, "min_element", "o(_<_)");
                 }
             },
             {
                 op: "max_element",
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+                    const [_first, _last] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>];
                     return yield* extreme_element(rt, _first, _last, "max_element", "o(_>_)");
                 }
             },
             {
                 op: "minmax_element",
                 type: "!ParamObject FUNCTION CLASS pair < PTR ?0 PTR ?0 > ( PTR ?0 PTR ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): Gen<PairVariable<InitIndexPointerVariable<Variable>, InitIndexPointerVariable<Variable>>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<PairVariable<InitIndexPointerVariable<Variable>, InitIndexPointerVariable<Variable>>> {
+                    const [_first, _last] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>];
                     const first = variables.asTrueIndexPointer(_first) ?? rt.raiseException("minmax_element(): Expected 'first' to point to an element");
                     const mini = yield* extreme_element(rt, variables.indexPointer(first.pointee, first.index, false, null), _last, "minmax_element", "o(_<_)");
                     const maxi = yield* extreme_element(rt, variables.indexPointer(first.pointee, first.index, false, null), _last, "minmax_element", "o(_>_)");
@@ -366,7 +370,8 @@ export = {
             {
                 op: "find",
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>, value: Variable): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+                    const [_first, _last, value] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>, Variable];
                     if (_first.t.pointee.sig === "FUNCTION" || _last.t.pointee.sig === "FUNCTION") {
                         rt.raiseException("find(): Expected a pointer to an object variable");
                     }
@@ -389,7 +394,8 @@ export = {
             {
                 op: "distance",
                 type: "!ParamObject FUNCTION I32 ( PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, _templateTypes: [], _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>): InitArithmeticVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticVariable {
+                    const [_first, _last] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>];
                     if (_first.t.pointee.sig === "FUNCTION" || _last.t.pointee.sig === "FUNCTION") {
                         rt.raiseException("find(): Expected a pointer to an object variable");
                     }
@@ -404,7 +410,8 @@ export = {
             {
                 op: "fill_n",
                 type: "!ParamObject !Arithmetic !ParamObject FUNCTION ?0 ( ?0 ?1 CLREF ?2 )",
-                *default(rt: CRuntime, _templateTypes: [], first: Variable, count: ArithmeticVariable, value: Variable): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first, count, value] = args as [Variable, ArithmeticVariable, Variable];
                     //let first = variables.asInitIndexPointer(_first) ?? rt.raiseException("fill_n(): Expected 'first' to point to an element");
                     const c = rt.arithmeticValue(count);
                     const ppInst = rt.getOpByParams("{global}", "o(_++)", [first], []);
@@ -438,108 +445,89 @@ export = {
             {
                 op: "set_intersection",
                 type: "!ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    d_first: Variable): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first1, last1, first2, last2, d_first] = args as [Variable, Variable, Variable, Variable, Variable];
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, null, { a: false, b: false, ab: true });
                 }
             },
             {
                 op: "set_intersection",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 PTR FUNCTION BOOL ( ?3 ?3 ) )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    d_first: Variable, comp: PointerVariable<Function>): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first1, last1, first2, last2, d_first, comp] = args as [Variable, Variable, Variable, Variable, Variable, PointerVariable<Function>];
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: false, b: false, ab: true });
                 }
             },
             {
                 op: "set_union",
                 type: "!ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    d_first: Variable): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first1, last1, first2, last2, d_first] = args as [Variable, Variable, Variable, Variable, Variable];
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, null, { a: true, b: true, ab: true });
                 }
             },
             {
                 op: "set_union",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 PTR FUNCTION BOOL ( ?3 ?3 ) )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    d_first: Variable, comp: PointerVariable<Function>): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first1, last1, first2, last2, d_first, comp] = args as [Variable, Variable, Variable, Variable, Variable, PointerVariable<Function>];
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: true, ab: true });
                 }
             },
             {
                 op: "set_difference",
                 type: "!ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    d_first: Variable): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first1, last1, first2, last2, d_first] = args as [Variable, Variable, Variable, Variable, Variable];
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, null, { a: true, b: false, ab: false });
                 }
             },
             {
                 op: "set_difference",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 PTR FUNCTION BOOL ( ?3 ?3 ) )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    d_first: Variable, comp: PointerVariable<Function>): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first1, last1, first2, last2, d_first, comp] = args as [Variable, Variable, Variable, Variable, Variable, PointerVariable<Function>];
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: false, ab: false });
                 }
             },
             {
                 op: "set_symmetric_difference",
                 type: "!ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    d_first: Variable): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first1, last1, first2, last2, d_first] = args as [Variable, Variable, Variable, Variable, Variable];
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, null, { a: true, b: true, ab: false });
                 }
             },
             {
                 op: "set_symmetric_difference",
                 type: "!ParamObject !ParamObject !ParamObject !ParamObject FUNCTION ?2 ( ?0 ?0 ?1 ?1 ?2 PTR FUNCTION BOOL ( ?3 ?3 ) )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    d_first: Variable, comp: PointerVariable<Function>): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [first1, last1, first2, last2, d_first, comp] = args as [Variable, Variable, Variable, Variable, Variable, PointerVariable<Function>];
                     return yield* set_operation(rt, first1, last1, first2, last2, d_first, comp, { a: true, b: true, ab: false });
                 }
             },
             {
                 op: "includes",
                 type: "!ParamObject FUNCTION ?0 ( ?0 ?0 ?0 ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable): Gen<InitArithmeticVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticVariable> {
+                    const [first1, last1, first2, last2] = args as [Variable, Variable, Variable, Variable];
                     return yield* set_includes(rt, first1, last1, first2, last2, null);
                 }
             },
             {
                 op: "includes",
                 type: "!ParamObject !ParamObject FUNCTION ?0 ( ?0 ?0 ?0 ?0 PTR FUNCTION BOOL ( ?1 ?1 ) )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    first1: Variable, last1: Variable,
-                    first2: Variable, last2: Variable,
-                    comp: PointerVariable<Function>): Gen<InitArithmeticVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticVariable> {
+                    const [first1, last1, first2, last2, comp] = args as [Variable, Variable, Variable, Variable, PointerVariable<Function>];
                     return yield* set_includes(rt, first1, last1, first2, last2, comp);
                 }
             },
             {
                 op: "remove",
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>,
-                    value: Variable): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+
+                    const [_first, _last, value] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>, Variable];
 
                     const FNAME = 'remove';
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("remove(): Expected 'first' to point to an element");
@@ -579,9 +567,9 @@ export = {
             {
                 op: "remove_if",
                 type: "!ParamObject FUNCTION PTR ?0 ( PTR ?0 PTR ?0 PTR FUNCTION BOOL ( CLREF ?0 ) )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[],
-                    _first: PointerVariable<PointeeVariable>, _last: PointerVariable<PointeeVariable>,
-                    _predicate: PointerVariable<Function>): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+
+                    const [_first, _last, _predicate] = args as [PointerVariable<PointeeVariable>, PointerVariable<PointeeVariable>, PointerVariable<Function>];
 
                     const FNAME = 'remove_if';
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("remove_if(): Expected 'first' to point to an element");
@@ -651,3 +639,4 @@ export = {
         ]);
     }
 };
+

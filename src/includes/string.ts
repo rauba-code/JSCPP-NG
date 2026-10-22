@@ -2,7 +2,7 @@ import { asResult } from "../interpreter";
 import { CRuntime, OpSignature } from "../rt";
 import * as common from "../shared/common";
 import { strcmp, StringType, StringVariable, strncmp } from "../shared/string_utils";
-import { ArithmeticBigVariable, ArithmeticNumVariable, ClassType, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, LValueIndexHolder, MaybeLeft, PointerVariable, ResultOrGen, variables } from "../variables";
+import { ArithmeticBigVariable, ArithmeticNumVariable, ClassVariable, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, LValueIndexHolder, MaybeLeft, PointerVariable, ResultOrGen, Variable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -16,15 +16,14 @@ export = {
                 name: "_size",
                 variable: variables.arithmeticNum("I32", 0, "SELF")
             }
-        ], {}, (rt, x: StringVariable) => {
+        ], {}, ((rt, x: StringVariable) => {
             const lptr = variables.asTrueIndexPointerOfElem(x.members._ptr, variables.uninitArithmeticNum("I8", null));
             if (lptr !== null) {
                 return JSON.stringify(rt.getStringFromCharArray(lptr));
             } else {
                 return "\"\"";
             }
-
-        })
+        }) as (rt: CRuntime, x: ClassVariable) => string);
 
         rt.addToNamespace("std::string", "npos", variables.arithmeticNum("I32", -1, "SELF", true), true);
 
@@ -32,7 +31,8 @@ export = {
             return [{
                 op,
                 type: "FUNCTION BOOL ( CLREF CLASS string < > CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l, r] = args as [StringVariable, StringVariable];
                     const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const rptr = variables.asTrueIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     return variables.arithmeticNum("BOOL", fn(strncmp(rt, lptr, rptr, l.members._size.value)) ? 1 : 0, null);
@@ -41,7 +41,8 @@ export = {
             {
                 op,
                 type: "FUNCTION BOOL ( CLREF CLASS string < > PTR I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l, r] = args as [StringVariable, PointerVariable<ArithmeticNumVariable>];
                     const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const rptr = variables.asTrueIndexPointerOfElem(r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     return variables.arithmeticNum("BOOL", fn(strcmp(rt, lptr, rptr)) ? 1 : 0, null);
@@ -50,7 +51,8 @@ export = {
             {
                 op,
                 type: "FUNCTION BOOL ( PTR I8 CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticNumVariable>, r: StringVariable): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l, r] = args as [PointerVariable<ArithmeticNumVariable>, StringVariable];
                     const lptr = variables.asTrueIndexPointerOfElem(l, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     const rptr = variables.asTrueIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     return variables.arithmeticNum("BOOL", fn(strcmp(rt, lptr, rptr)) ? 1 : 0, null);
@@ -62,7 +64,8 @@ export = {
             {
                 op: "o(_=_)",
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > PTR I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable, _r: PointerVariable<ArithmeticNumVariable>): StringVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): StringVariable {
+                    const [l, _r] = args as [StringVariable, PointerVariable<ArithmeticNumVariable>];
                     const r = variables.asTrueIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     let i: number = 0;
                     while (rt.arithmeticValue(variables.arrayMember(r.pointee, r.index + i)) !== 0) {
@@ -77,7 +80,8 @@ export = {
             {
                 op: "o(_=_)",
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): StringVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): StringVariable {
+                    const [l, r] = args as [StringVariable, StringVariable];
                     l.members._size.value = r.members._size.value;
                     const rptr = variables.asTrueIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null));
                     if (rptr === null) {
@@ -98,7 +102,8 @@ export = {
             {
                 op: "o(_[_])",
                 type: "FUNCTION LREF I8 ( LREF CLASS string < > I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable, _idx: ArithmeticNumVariable): ArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): ArithmeticNumVariable {
+                    const [l, _idx] = args as [StringVariable, ArithmeticNumVariable];
                     const idx = rt.arithmeticNumValue(_idx);
                     if (idx < 0 || idx >= l.members._size.value) {
                         return variables.uninitArithmeticNum("I8", "SELF"); // C++11 behaviour
@@ -110,7 +115,8 @@ export = {
             {
                 op: "o(_+_)",
                 type: "FUNCTION CLASS string < > ( CLREF CLASS string < > CLREF CLASS string < > )",
-                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l, r] = args as [StringVariable, StringVariable];
                     const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
                     const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
                     const { ptr, size } = strConcat(rt, l, r.members._ptr, r.members._size.value);
@@ -122,7 +128,8 @@ export = {
             {
                 op: "o(_+_)",
                 type: "FUNCTION CLASS string < > ( CLREF CLASS string < > I8 )",
-                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: ArithmeticNumVariable): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l, r] = args as [StringVariable, ArithmeticNumVariable];
                     const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
                     const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
                     const memory = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), []);
@@ -137,7 +144,8 @@ export = {
             {
                 op: "o(_+=_)",
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: StringVariable): StringVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): StringVariable {
+                    const [l, r] = args as [StringVariable, StringVariable];
                     const { ptr, size } = strConcat(rt, l, r.members._ptr, r.members._size.value);
                     l.members._ptr = ptr;
                     l.members._size.value = size;
@@ -147,7 +155,8 @@ export = {
             {
                 op: "o(_+=_)",
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: ArithmeticNumVariable): StringVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): StringVariable {
+                    const [l, r] = args as [StringVariable, ArithmeticNumVariable];
                     const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                     lptr.pointee.values[lptr.pointee.values.length - 1].state = "INIT";
                     (lptr.pointee.values[lptr.pointee.values.length - 1] as InitArithmeticNumValue).value = rt.arithmeticNumValue(r);
@@ -158,9 +167,9 @@ export = {
             },
         ]);
         function strConcat(rt: CRuntime, l: StringVariable, _r: PointerVariable<ArithmeticNumVariable>, rsz: number): { size: number, ptr: InitIndexPointerVariable<ArithmeticNumVariable> } {
-            const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+            const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
             const lsz = l.members._size.value;
-            const rptr = variables.asTrueIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + rt.getVariableNames(_r)[0] ?? "<internal>");
+            const rptr = variables.asTrueIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + (rt.getVariableNames(_r)[0] ?? "<internal>"));
             const memory = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), []);
             for (let i = 0; i < lsz; i++) {
                 const chr = rt.arithmeticNumValue2(variables.arrayMember(lptr.pointee, lptr.index + i));
@@ -179,10 +188,11 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS string < > ( PTR I8 )",
-                *default(rt: CRuntime, _templateTypes: [ClassType], _r: PointerVariable<ArithmeticNumVariable>): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [_r] = args as [PointerVariable<ArithmeticNumVariable>];
                     const lYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
                     const l = asResult(lYield) ?? (yield* lYield as Gen<StringVariable>);
-                    const r = variables.asTrueIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + rt.getVariableNames(_r)[0] ?? "<internal>");
+                    const r = variables.asTrueIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + (rt.getVariableNames(_r)[0] ?? "<internal>"));
                     let i: number = 0;
                     while (rt.arithmeticValue(variables.arrayMember(r.pointee, r.index + i)) !== 0) {
                         i++;
@@ -196,7 +206,8 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "FUNCTION CLASS string < > ( I32 I8 )",
-                *default(rt: CRuntime, _templateTypes: [ClassType], _count: InitArithmeticNumVariable, _ch: InitArithmeticNumVariable): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [_count, _ch] = args as [InitArithmeticNumVariable, InitArithmeticNumVariable];
                     const count = _count.value;
                     if (count < 0) {
                         rt.raiseException("string::string(): invalid size");
@@ -224,23 +235,26 @@ export = {
             {
                 op: "empty",
                 type: "FUNCTION BOOL ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     return variables.arithmeticNum("BOOL", l.members._size.value === 0 ? 1 : 0, null);
                 }
             },
             {
                 op: "begin",
                 type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitIndexPointerVariable<ArithmeticNumVariable> {
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<ArithmeticNumVariable> {
+                    const [l] = args as [StringVariable];
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
                     return variables.indexPointer(lptr.pointee, lptr.index, false, null);
                 }
             },
             {
                 op: "substr",
                 type: "FUNCTION CLASS string < > ( CLREF CLASS string < > I32 I32 )",
-                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, pos: InitArithmeticNumVariable, count: InitArithmeticNumVariable): Gen<StringVariable> {
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l, pos, count] = args as [StringVariable, InitArithmeticNumVariable, InitArithmeticNumVariable];
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
                     const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
                     const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
                     if (l.members._size.value < pos.value) {
@@ -254,8 +268,9 @@ export = {
             {
                 op: "substr",
                 type: "FUNCTION CLASS string < > ( CLREF CLASS string < > I32 )",
-                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, pos: InitArithmeticNumVariable): Gen<StringVariable> {
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l, pos] = args as [StringVariable, InitArithmeticNumVariable];
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
                     const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
                     const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
                     if (l.members._size.value < pos.value) {
@@ -269,8 +284,9 @@ export = {
             {
                 op: "substr",
                 type: "FUNCTION CLASS string < > ( CLREF CLASS string < > )",
-                *default(rt: CRuntime, _templateTypes: [], l: StringVariable): Gen<StringVariable> {
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l] = args as [StringVariable];
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
                     const strYield = rt.defaultValue2(thisType, "SELF") as ResultOrGen<StringVariable>;
                     const str = asResult(strYield) ?? (yield* strYield as Gen<StringVariable>);
                     str.members._ptr = variables.indexPointer(lptr.pointee, lptr.index, false, "SELF");
@@ -281,7 +297,8 @@ export = {
             {
                 op: "find",
                 type: "FUNCTION I32 ( LREF CLASS string < > I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable, r: InitArithmeticNumVariable): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l, r] = args as [StringVariable, InitArithmeticNumVariable];
                     const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null));
                     if (lptr === null) {
                         return variables.arithmeticNum("I32", -1, null);
@@ -299,9 +316,10 @@ export = {
             {
                 op: "replace",
                 type: "FUNCTION LREF CLASS string < > ( LREF CLASS string < > I32 I32 CLREF CLASS string < > )",
-                *default(rt: CRuntime, _templateTypes: [], l: StringVariable, pos: InitArithmeticNumVariable, count: InitArithmeticNumVariable, r: StringVariable): Gen<StringVariable> {
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
-                    const rptr = variables.asTrueIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(r)[0] ?? "<internal>");
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l, pos, count, r] = args as [StringVariable, InitArithmeticNumVariable, InitArithmeticNumVariable, StringVariable];
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
+                    const rptr = variables.asTrueIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(r)[0] ?? "<internal>"));
                     const lsz = l.members._size.value;
                     const rsz = r.members._size.value;
                     l.members._ptr = variables.indexPointer(variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), []), 0, false, "SELF");
@@ -328,31 +346,34 @@ export = {
             {
                 op: "end",
                 type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitIndexPointerVariable<ArithmeticNumVariable> {
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<ArithmeticNumVariable> {
+                    const [l] = args as [StringVariable];
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
                     return variables.indexPointer(lptr.pointee, lptr.index + l.members._size.value, false, null);
                 }
             },
             {
                 op: "front",
                 type: "FUNCTION LREF I8 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): ArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): ArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     if (l.members._size.value === 0) {
                         return variables.uninitArithmeticNum("I8", "SELF"); // C++11 behaviour
                     }
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
                     return variables.arrayMember(lptr.pointee, lptr.index) as ArithmeticNumVariable;
                 }
             },
             {
                 op: "pop_back",
                 type: "FUNCTION VOID ( LREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [l] = args as [StringVariable];
                     const size = l.members._size.value;
                     if (size === 0) {
                         rt.raiseException("string::pop_back(): string is empty");
                     }
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
                     const newSize = size - 1;
                     l.members._size.value = newSize;
                     const nullChar = variables.arithmeticNum("I8", 0, { array: lptr.pointee, index: lptr.index + newSize });
@@ -363,19 +384,21 @@ export = {
             {
                 op: "back",
                 type: "FUNCTION LREF I8 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): ArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): ArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     const size = l.members._size.value;
                     if (size === 0) {
                         return variables.uninitArithmeticNum("I8", "SELF"); // C++11 behaviour
                     }
-                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+                    const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
                     return variables.arrayMember(lptr.pointee, lptr.index + size - 1) as ArithmeticNumVariable;
                 }
             },
             {
                 op: "data",
                 type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitPointerVariable<ArithmeticNumVariable> {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitPointerVariable<ArithmeticNumVariable> {
+                    const [l] = args as [StringVariable];
                     const size = l.members._size.value;
                     if (size === 0) {
                         return variables.directPointer(variables.uninitArithmeticNum("I8", "SELF"), null); // C++11 behaviour
@@ -386,21 +409,24 @@ export = {
             {
                 op: "c_str",
                 type: "FUNCTION PTR I8 ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: StringVariable): PointerVariable<ArithmeticNumVariable> {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): PointerVariable<ArithmeticNumVariable> {
+                    const [l] = args as [StringVariable];
                     return l.members._ptr;
                 }
             },
             {
                 op: "length",
                 type: "FUNCTION I32 ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     return variables.arithmeticNum("I32", l.members._size.value, null);
                 }
             },
             {
                 op: "size",
                 type: "FUNCTION I32 ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     return variables.arithmeticNum("I32", l.members._size.value, null);
                 }
             },
@@ -415,7 +441,7 @@ export = {
         const ascii_e: number = 0x65;
 
         function stox(rt: CRuntime, l: StringVariable, mode: "I32" | "U32" | "F32" | "F64"): InitArithmeticNumVariable | null {
-            const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+            const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
             const limits = variables.arithmeticProperties[mode];
             let chr: number;
             let ci: number = -1;
@@ -493,7 +519,7 @@ export = {
         }
 
         function stox_big(rt: CRuntime, l: StringVariable, mode: "I64" | "U64"): InitArithmeticBigVariable | null {
-            const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + rt.getVariableNames(l)[0] ?? "<internal>");
+            const lptr = variables.asTrueIndexPointerOfElem(l.members._ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null-string " + (rt.getVariableNames(l)[0] ?? "<internal>"));
             const limits = variables.arithmeticProperties[mode];
             let chr: number;
             let ci: number = -1;
@@ -627,7 +653,8 @@ export = {
             {
                 op: "stoi",
                 type: "FUNCTION I32 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     return stox(rt, l, "I32") ?? rt.raiseException("stoi: Invalid argument (expected a string containing a number)");
 
                 }
@@ -635,7 +662,8 @@ export = {
             {
                 op: "stol",
                 type: "FUNCTION I32 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     return stox(rt, l, "I32") ?? rt.raiseException("stol: Invalid argument (expected a string containing a number)");
 
                 }
@@ -643,7 +671,8 @@ export = {
             {
                 op: "stoul",
                 type: "FUNCTION U32 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     return stox(rt, l, "U32") ?? rt.raiseException("stol: Invalid argument (expected a string containing a number)");
 
                 }
@@ -651,7 +680,8 @@ export = {
             {
                 op: "stoll",
                 type: "FUNCTION I64 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticBigVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable {
+                    const [l] = args as [StringVariable];
                     return stox_big(rt, l, "I64") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
 
                 }
@@ -659,7 +689,8 @@ export = {
             {
                 op: "stoull",
                 type: "FUNCTION U64 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticBigVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable {
+                    const [l] = args as [StringVariable];
                     return stox_big(rt, l, "U64") ?? rt.raiseException("stoull: Invalid argument (expected a string containing a number)");
 
                 }
@@ -667,7 +698,8 @@ export = {
             {
                 op: "stof",
                 type: "FUNCTION F32 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     return stox(rt, l, "F32") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
 
                 }
@@ -675,7 +707,8 @@ export = {
             {
                 op: "stod",
                 type: "FUNCTION F64 ( CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], l: StringVariable): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [l] = args as [StringVariable];
                     return stox(rt, l, "F64") ?? rt.raiseException("stoll: Invalid argument (expected a string containing a number)");
 
                 }
@@ -683,28 +716,32 @@ export = {
             {
                 op: "to_string",
                 type: "FUNCTION CLASS string < > ( I32 )",
-                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l] = args as [ArithmeticNumVariable];
                     return yield* integer_to_string(rt, l);
                 }
             },
             {
                 op: "to_string",
                 type: "FUNCTION CLASS string < > ( U32 )",
-                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l] = args as [ArithmeticNumVariable];
                     return yield* integer_to_string(rt, l);
                 }
             },
             {
                 op: "to_string",
                 type: "FUNCTION CLASS string < > ( I64 )",
-                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticBigVariable): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l] = args as [ArithmeticBigVariable];
                     return yield* integer_to_string_big(rt, l);
                 }
             },
             {
                 op: "to_string",
                 type: "FUNCTION CLASS string < > ( U64 )",
-                *default(rt: CRuntime, _templateTypes: [], l: ArithmeticBigVariable): Gen<StringVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<StringVariable> {
+                    const [l] = args as [ArithmeticBigVariable];
                     return yield* integer_to_string_big(rt, l);
                 }
             },
@@ -712,5 +749,6 @@ export = {
 
     }
 }
+
 
 

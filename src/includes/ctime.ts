@@ -1,13 +1,14 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { ArithmeticBigVariable, InitArithmeticBigVariable, variables } from "../variables";
+import { ArithmeticBigVariable, InitArithmeticBigVariable, Variable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
         common.regGlobalFuncs(rt, [{
             type: "FUNCTION I64 ( I64 )",
             op: "time",
-            default(rt: CRuntime, _templateTypes: [], l: ArithmeticBigVariable): InitArithmeticBigVariable {
+            default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable{
+                const [l] = args as [ArithmeticBigVariable];
                 if (rt.arithmeticValue(l) != 0) {
                     rt.raiseException("time(): non-zero/non-nullptr argument is unsupported")
                 }
@@ -17,5 +18,6 @@ export = {
         }]);
     }
 }
+
 
 

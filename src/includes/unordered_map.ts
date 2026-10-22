@@ -1,6 +1,6 @@
 import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
-import { CRuntime, MemberMap, num } from "../rt";
+import { CRuntime, MemberFactory, MemberMap, num, TypeMappingFunction } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
 import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, InitArithmeticNumVariable, InitDirectPointerVariable, TrueDirectPointerVariable, TrueIndexPointerVariable, PointerVariable } from "../variables";
@@ -145,7 +145,7 @@ export = {
         // satisfies LegacyForwardIterator
         rt.defineStruct2("{global}", "unordered_map_iterator", {
             numTemplateArgs: 2,
-            factory: _iteratorFactory
+            factory: _iteratorFactory as MemberFactory
         }, ["bstack", "istack", "slen", "link"], {});
 
         function _iter_next(thisVar: __umap_iter): "VOID" {
@@ -197,8 +197,8 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( )",
-                default(_rt: CRuntime, templateTypes: [__umap_iter['t']]): __umap_iter {
-                    const thisType = templateTypes[0];
+                default(_rt: CRuntime, templateTypes): __umap_iter {
+                    const thisType = templateTypes[0] as __umap_iter['t'];
                     const thisVar: __umap_iter = _createUMapIterVar(thisType);
 
                     return thisVar;
@@ -207,8 +207,9 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
-                default(rt: CRuntime, templateTypes: [__umap_iter['t']], x: __umap_iter): __umap_iter {
-                    const thisType = templateTypes[0];
+                default(rt: CRuntime, templateTypes, ...args: Variable[]): __umap_iter {
+                    const [x] = args as [__umap_iter];
+                    const thisType = templateTypes[0] as __umap_iter['t'];
                     const thisVar: __umap_iter = _createUMapIterVar(thisType);
                     thisVar.members.slen.value = x.members.slen.value;
                     variables.directPointerAssign(rt, thisVar.members.link, x.members.link);
@@ -227,8 +228,9 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( PTR CLASS unordered_map_branch_node < ?0 ?1 > )",
-                default(_rt: CRuntime, templateTypes: [__umap_iter['t']], top: __tptr_branch): __umap_iter {
-                    const thisType = templateTypes[0];
+                default(_rt: CRuntime, templateTypes, ...args: Variable[]): __umap_iter {
+                    const [top] = args as [__tptr_branch];
+                    const thisType = templateTypes[0] as __umap_iter['t'];
                     const thisVar: __umap_iter = _createUMapIterVar(thisType);
                     thisVar.members.slen.value = 1;
                     thisVar.members.bstack.pointee.values[0].state = "INIT";
@@ -242,8 +244,9 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( PTR PTR CLASS unordered_map_branch_node < ?0 ?1 > PTR I32 PTR CLASS unordered_map_link_node < ?0 ?1 > )",
-                default(_rt: CRuntime, templateTypes: [__umap_iter['t']], bstack: TrueIndexPointerVariable<__ptr_branch>, istack: TrueIndexPointerVariable<InitArithmeticNumVariable>, link: __ptr_link): __umap_iter {
-                    const thisType = templateTypes[0];
+                default(_rt: CRuntime, templateTypes, ...args: Variable[]): __umap_iter {
+                    const [bstack, istack, link] = args as [TrueIndexPointerVariable<__ptr_branch>, TrueIndexPointerVariable<InitArithmeticNumVariable>, __ptr_link];
+                    const thisType = templateTypes[0] as __umap_iter['t'];
                     const thisVar: __umap_iter = _createUMapIterVar(thisType);
                     thisVar.members.slen.value = STACK_SIZE;
                     thisVar.members.bstack.pointee.values[0].state = "INIT";
@@ -272,7 +275,8 @@ export = {
             {
                 op: "o(*_)",
                 type: "!ParamObject !ParamObject FUNCTION LREF CLASS pair < ?0 ?1 > ( LREF CLASS unordered_map_iterator < ?0 ?1 > )",
-                default(rt: CRuntime, _templateTypes: [], thisVar: __umap_iter): __pair {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __pair {
+                    const [thisVar] = args as [__umap_iter];
                     if (thisVar.members.link.pointee !== null) {
                         return (thisVar.members.link as __tptr_link).pointee.members.child;
                     }
@@ -283,7 +287,8 @@ export = {
             {
                 op: "o(++_)",
                 type: "!ParamObject !ParamObject FUNCTION LREF CLASS unordered_map_iterator < ?0 ?1 > ( LREF CLASS unordered_map_iterator < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], thisVar: __umap_iter): __umap_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __umap_iter {
+                    const [thisVar] = args as [__umap_iter];
                     _iter_next(thisVar);
                     return thisVar;
                 }
@@ -291,7 +296,8 @@ export = {
             {
                 op: "o(_++)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_iterator < ?0 ?1 > ( LREF CLASS unordered_map_iterator < ?0 ?1 > )",
-                default(rt: CRuntime, _templateTypes: [], thisVar: __umap_iter): __umap_iter {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __umap_iter {
+                    const [thisVar] = args as [__umap_iter];
                     const thatVar = variables.clone(rt, thisVar, null, false);
                     _iter_next(thisVar);
                     return thatVar;
@@ -300,14 +306,16 @@ export = {
             {
                 op: "o(_==_)",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS unordered_map_iterator < ?0 ?1 > CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [lhs, rhs] = args as [__umap_iter, __umap_iter];
                     return variables.arithmeticNum("BOOL", lhs.members.link.pointee === rhs.members.link.pointee ? 1 : 0, null);
                 }
             },
             {
                 op: "o(_!=_)",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS unordered_map_iterator < ?0 ?1 > CLREF CLASS unordered_map_iterator < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: [], lhs: __umap_iter, rhs: __umap_iter): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [lhs, rhs] = args as [__umap_iter, __umap_iter];
                     return variables.arithmeticNum("BOOL", (lhs.members.link.pointee !== rhs.members.link.pointee) ? 1 : 0, null);
                 }
             },
@@ -335,7 +343,7 @@ export = {
                     leaves: variables.indexPointer(lmem, 0, true, "SELF"),
                     size: variables.arithmeticNum("I32", 0, "SELF"),
                 };
-            }
+            } as MemberFactory
         }, ["branches", "leaves", "size"], {});
 
         function _branch_clear(thisVal: __branch): void {
@@ -360,8 +368,8 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_branch_node < ?0 ?1 > ( )",
-                *default(rt: CRuntime, templateTypes: [__branch['t']]): Gen<__branch> {
-                    const thisType = templateTypes[0];
+                *default(rt: CRuntime, templateTypes): Gen<__branch> {
+                    const thisType = templateTypes[0] as __branch['t'];
                     const thisVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<__branch>;
 
                     return thisVar;
@@ -393,15 +401,15 @@ export = {
                     child,
                     next,
                 };
-            }
+            } as MemberFactory
         }, ["child", "next"], {});
 
         const umapLinkCtorList: common.OpHandler[] = [
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map_link_node < ?0 ?1 > ( )",
-                *default(rt: CRuntime, templateTypes: [__link['t']]): Gen<__link> {
-                    const thisType = templateTypes[0];
+                *default(rt: CRuntime, templateTypes): Gen<__link> {
+                    const thisType = templateTypes[0] as __link['t'];
                     const thisVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<__link>;
 
                     return thisVar;
@@ -430,7 +438,7 @@ export = {
                 return {
                     tree: branchVar,
                 }
-            }
+            } as MemberFactory
         }, ["tree"], {
             ["key_type"]: [{ src: umapSig, dst: ["?0"] }],
             ["mapped_type"]: [{ src: umapSig, dst: ["?1"] }],
@@ -441,14 +449,14 @@ export = {
             ["const_reference"]: [{ src: umapSig, dst: ["CLREF", "CLASS", "pair", "<", "?0", "?1", ">"] }],
         });
 
-        rt.explicitListInitTable["unordered_map"] = (umap: __umap['t']) => ({ sig: "CLASS", identifier: "pair", templateSpec: umap.templateSpec, memberOf: null });
+        rt.explicitListInitTable["unordered_map"] = ((umap: __umap['t']) => ({ sig: "CLASS", identifier: "pair", templateSpec: umap.templateSpec, memberOf: null })) as TypeMappingFunction;
 
         const umapCtorList: common.OpHandler[] = [
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map < ?0 ?1 > ( )",
-                *default(rt: CRuntime, templateTypes: [__umap['t']]): Gen<__umap> {
-                    const thisType = templateTypes[0];
+                *default(rt: CRuntime, templateTypes): Gen<__umap> {
+                    const thisType = templateTypes[0] as __umap['t'];
                     const thisVar = yield* rt.defaultValue2(thisType, "SELF") as Gen<__umap>;
 
                     return thisVar;
@@ -457,9 +465,10 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS unordered_map < ?0 ?1 > ( CLASS initializer_list < CLASS pair < ?0 ?1 > > )",
-                *default(rt: CRuntime, _templateTypes: [__umap['t']], list: InitializerListVariable<__pair>): Gen<__umap> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<__umap> {
+                    const [list] = args as [InitializerListVariable<__pair>];
                     const thisType = variables.classType("unordered_map", list.t.templateSpec[0].templateSpec, null) as __umap['t'];
-                    const thisVar = yield* rt.defaultValue2(thisType, "SELF");
+                    const thisVar = (yield* rt.defaultValue2(thisType, "SELF")) as __umap;
                     const listmem = list.members._values.pointee;
 
                     for (let i = 0; i < listmem.values.length; i++) {
@@ -478,7 +487,8 @@ export = {
         /*const ctorHandler2: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS unordered_map < ?0 > ( PTR ?0 PTR ?0 )",
-            *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<__umap> {
+            *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<__umap> {
+                const [_begin, _end] = args as [PointerVariable<Variable>, PointerVariable<Variable>];
                 const begin = variables.asInitIndexPointer(_begin) ?? rt.raiseException("unordered_map constructor: expected valid begin iterator");
                 const end = variables.asInitIndexPointer(_end) ?? rt.raiseException("unordered_map constructor: expected valid end iterator");
 
@@ -730,7 +740,8 @@ export = {
             {
                 op: "o(_[_])",
                 type: "!ParamObject !ParamObject FUNCTION LREF ?1 ( CLREF CLASS unordered_map < ?0 ?1 > CLREF ?0 )",
-                *default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __umap, index: Variable): Gen<Variable> {
+                *default(_rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [thisVar, index] = args as [__umap, Variable];
                     const found = yield* _insert(rt, thisVar, {
                         t: {
                             sig: "CLASS",
@@ -881,7 +892,8 @@ export = {
             {
                 op: "erase",
                 type: "!ParamObject !ParamObject FUNCTION PTR CLASS pair < ?0 ?1 > ( LREF CLASS unordered_map < ?0 ?1 > CLASS unordered_map_iterator < ?0 ?1 > )",
-                *default(rt: CRuntime, _templateTypes: [], _thisVar: __umap, pos: __umap_iter): Gen<__umap_iter> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<__umap_iter> {
+                    const [_thisVar, pos] = args as [__umap, __umap_iter];
                     if (pos.members.link.pointee === null) {
                         rt.raiseException("unordered_map::erase(): Argument error (expected an iterator pointing to a member of a map");
                     }
@@ -976,4 +988,6 @@ export = {
         ])
     }
 };
+
+
 

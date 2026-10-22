@@ -26,7 +26,9 @@ const isGeneratorFunction = (f: any): boolean => {
 
 export class BaseInterpreter<TNode> {
     rt: CRuntime;
+    // @ts-ignore (supplied by AST)
     currentNode: TNode;
+    // @ts-ignore (supplied by AST)
     source: string;
     constructor(rt: CRuntime) {
         this.rt = rt;

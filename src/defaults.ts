@@ -1,6 +1,6 @@
 import { initializerListInit } from "./initializer_list";
 import { CRuntime, OpSignature } from "./rt";
-import { ArithmeticVariable, PointerVariable, Variable, Function, variables, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable, PointeeVariable, InitDirectPointerVariable, ObjectType, ClassVariable, ArithmeticNumSig, InitArithmeticNumValue, InitArithmeticNumVariable, ArithmeticBigSig, InitArithmeticBigValue, InitArithmeticBigVariable, NullptrVariable } from "./variables";
+import { ArithmeticVariable, PointerVariable, Variable, Function, variables, InitArithmeticVariable, InitPointerVariable, InitIndexPointerVariable, InitVariable, MaybeUnboundVariable, PointeeVariable, InitDirectPointerVariable, ObjectType, ClassVariable, ArithmeticNumSig, InitArithmeticNumValue, InitArithmeticNumVariable, ArithmeticBigSig, InitArithmeticBigValue, InitArithmeticBigVariable, NullptrVariable, CFunction3 } from "./variables";
 
 function raiseSupportException(rt: CRuntime, l: Variable, r: Variable, op: string): never {
     rt.raiseException(`${rt.makeTypeStringOfVar(l)} does not support ${op} on ${rt.makeTypeStringOfVar(r)}`);
@@ -21,7 +21,9 @@ function num(x: number | bigint): number {
     return (typeof x === "number") ? x : Number(BigInt.asUintN(32, x));
 }
 
-function binaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable, op: (a: number | bigint, b: number | bigint) => number | bigint): InitArithmeticVariable {
+type BinaryOpVariant = (a: number | bigint, b: number | bigint) => number | bigint;
+
+function binaryArithmeticOp(rt: CRuntime, l: ArithmeticVariable, r: ArithmeticVariable, op: BinaryOpVariant): InitArithmeticVariable {
     const lv = rt.arithmeticValue(l);
     const rv = rt.arithmeticValue(r);
     const retType = rt.promoteNumeric(l.t, r.t);
@@ -144,210 +146,210 @@ const defaultOpHandler: OpHandler[] = [
     {
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
         op: "o(_*_)",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryArithmeticOp(rt, l, r, (x: number, y: number) => x * y);
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryArithmeticOp(rt, l, r, ((x: number, y: number) => x * y) as BinaryOpVariant);
+        } as CFunction3
     },
     {
         op: "o(_/_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryArithmeticOp(rt, l, r, (x: number, y: number) => ((y === 0) ? rt.raiseException("Attempted division by zero") : x / y));
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryArithmeticOp(rt, l, r, ((x: number, y: number) => ((y === 0) ? rt.raiseException("Attempted division by zero") : x / y)) as BinaryOpVariant);
+        } as CFunction3
     },
     {
         op: "o(_%_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerOp(rt, l, r, (x: number, y: number) => ((y === 0) ? rt.raiseException("Attempted modulo zero") : x % y), "%");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerOp(rt, l, r, ((x: number, y: number) => ((y === 0) ? rt.raiseException("Attempted modulo zero") : x % y)) as BinaryOpVariant, "%");
+        } as CFunction3
     },
     {
         op: "o(_+_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryArithmeticOp(rt, l, r, (x: number, y: number) => x + y);
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryArithmeticOp(rt, l, r, ((x: number, y: number) => x + y) as BinaryOpVariant);
+        } as CFunction3
     },
     {
         op: "o(_-_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryArithmeticOp(rt, l, r, (x: number, y: number) => x - y);
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryArithmeticOp(rt, l, r, ((x: number, y: number) => x - y) as BinaryOpVariant);
+        } as CFunction3
     },
     {
         op: "o(-_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
             return unaryArithmeticOp(rt, l, (x) => -x);
-        }
+        } as CFunction3
     },
     {
         op: "o(+_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
             return unaryArithmeticOp(rt, l, (x) => x);
-        }
+        } as CFunction3
     },
     {
         op: "o(_<<_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerOp(rt, l, r, (x: number, y: number) => x << y, "<<");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerOp(rt, l, r, ((x: number, y: number) => x << y) as BinaryOpVariant, "<<");
+        } as CFunction3
     },
     {
         op: "o(_>>_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerOp(rt, l, r, (x: number, y: number) => x >> y, ">>");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerOp(rt, l, r, ((x: number, y: number) => x >> y) as BinaryOpVariant, ">>");
+        } as CFunction3
     },
     {
         op: "o(_<_)",
         type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x < y);
-        }
+        } as CFunction3
     },
     {
         op: "o(_<=_)",
         type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x <= y);
-        }
+        } as CFunction3
     },
     {
         op: "o(_>_)",
         type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x > y);
-        }
+        } as CFunction3
     },
     {
         op: "o(_>=_)",
         type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x >= y);
-        }
+        } as CFunction3
     },
     {
         op: "o(_==_)",
         type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x == y);
-        }
+        } as CFunction3
     },
     {
         op: "o(_!=_)",
         type: "FUNCTION BOOL ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticCmp(rt, l, r, (x, y) => x != y);
-        }
+        } as CFunction3
     },
     {
         op: "o(_&_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerOp(rt, l, r, (x: number, y: number) => x & y, "&");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerOp(rt, l, r, (((x: number, y: number) => x & y) as BinaryOpVariant) as BinaryOpVariant, "&");
+        } as CFunction3
     },
     {
         op: "o(_^_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerOp(rt, l, r, (x: number, y: number) => x ^ y, "^");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerOp(rt, l, r, (((x: number, y: number) => x ^ y) as BinaryOpVariant) as BinaryOpVariant, "^");
+        } as CFunction3
     },
     {
         op: "o(_|_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerOp(rt, l, r, (x: number, y: number) => x | y, "|");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerOp(rt, l, r, (((x: number, y: number) => x | y) as BinaryOpVariant) as BinaryOpVariant, "|");
+        } as CFunction3
     },
     {
         op: "o(_=_)",
         type: "!Arithmetic FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return binaryArithmeticDirectAssign(rt, l, r);
-        }
+        } as CFunction3
     },
     {
         op: "o(_+=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryArithmeticAssign(rt, l, r, (x: number, y: number) => x + y);
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryArithmeticAssign(rt, l, r, ((x: number, y: number) => x + y) as BinaryOpVariant);
+        } as CFunction3
     },
     {
         op: "o(_-=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryArithmeticAssign(rt, l, r, (x: number, y: number) => x - y);
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryArithmeticAssign(rt, l, r, ((x: number, y: number) => x - y) as BinaryOpVariant);
+        } as CFunction3
     },
     {
         op: "o(_*=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryArithmeticAssign(rt, l, r, (x: number, y: number) => x * y);
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryArithmeticAssign(rt, l, r, ((x: number, y: number) => x * y) as BinaryOpVariant);
+        } as CFunction3
     },
     {
         op: "o(_/=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryArithmeticAssign(rt, l, r, (x: number, y: number) => ((y === 0) ? rt.raiseException("Attempted division by zero") : x / y));
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryArithmeticAssign(rt, l, r, ((x: number, y: number) => ((y === 0) ? rt.raiseException("Attempted division by zero") : x / y)) as BinaryOpVariant);
+        } as CFunction3
     },
     {
         op: "o(_%=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerAssign(rt, l, r, (x: number, y: number) => ((y === 0) ? rt.raiseException("Attempted modulo zero") : x % y), "%");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerAssign(rt, l, r, ((x: number, y: number) => ((y === 0) ? rt.raiseException("Attempted modulo zero") : x % y)) as BinaryOpVariant, "%");
+        } as CFunction3
     },
     {
         op: "o(_<<=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerAssign(rt, l, r, (x: number, y: number) => x << y, "<<");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerAssign(rt, l, r, ((x: number, y: number) => x << y) as BinaryOpVariant, "<<");
+        } as CFunction3
     },
     {
         op: "o(_>>=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerAssign(rt, l, r, (x: number, y: number) => x >> y, ">>");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerAssign(rt, l, r, ((x: number, y: number) => x >> y) as BinaryOpVariant, ">>");
+        } as CFunction3
     },
     {
         op: "o(_&=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerAssign(rt, l, r, (x: number, y: number) => x >> y, "&");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerAssign(rt, l, r, ((x: number, y: number) => x >> y) as BinaryOpVariant, "&");
+        } as CFunction3
     },
     {
         op: "o(_^=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerAssign(rt, l, r, (x: number, y: number) => x >> y, "^");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerAssign(rt, l, r, ((x: number, y: number) => x >> y) as BinaryOpVariant, "^");
+        } as CFunction3
     },
     {
         op: "o(_|=_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic CLREF Arithmetic )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
-            return binaryIntegerAssign(rt, l, r, (x: number, y: number) => x >> y, "|");
-        }
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+            return binaryIntegerAssign(rt, l, r, ((x: number, y: number) => x >> y) as BinaryOpVariant, "|");
+        } as CFunction3
     },
     {
         op: "o(_++)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic )",
-        default(rt: CRuntime, _templateType: [], _l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], _l: ArithmeticVariable): InitArithmeticVariable {
             checkLeftAssign(rt, _l);
             if (_l.t.sig in variables.arithmeticNumSig) {
                 const l = _l as InitArithmeticNumVariable;
@@ -367,12 +369,12 @@ const defaultOpHandler: OpHandler[] = [
                 }
             }
             rt.raiseException("Unreachable");
-        }
+        } as CFunction3
     },
     {
         op: "o(_--)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic )",
-        default(rt: CRuntime, _templateType: [], _l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], _l: ArithmeticVariable): InitArithmeticVariable {
             checkLeftAssign(rt, _l);
             if (_l.t.sig in variables.arithmeticNumSig) {
                 const l = _l as InitArithmeticNumVariable;
@@ -392,12 +394,12 @@ const defaultOpHandler: OpHandler[] = [
                 }
             }
             rt.raiseException("Unreachable");
-        }
+        } as CFunction3
     },
     {
         op: "o(++_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic )",
-        default(rt: CRuntime, _templateType: [], _l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], _l: ArithmeticVariable): InitArithmeticVariable {
             checkLeftAssign(rt, _l);
             if (_l.t.sig in variables.arithmeticNumSig) {
                 const l = _l as InitArithmeticNumVariable;
@@ -417,12 +419,12 @@ const defaultOpHandler: OpHandler[] = [
                 }
             }
             rt.raiseException("Unreachable");
-        }
+        } as CFunction3
     },
     {
         op: "o(--_)",
         type: "FUNCTION Arithmetic ( LREF Arithmetic )",
-        default(rt: CRuntime, _templateType: [], _l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], _l: ArithmeticVariable): InitArithmeticVariable {
             checkLeftAssign(rt, _l);
             if (_l.t.sig in variables.arithmeticNumSig) {
                 const l = _l as InitArithmeticNumVariable;
@@ -442,19 +444,19 @@ const defaultOpHandler: OpHandler[] = [
                 }
             }
             rt.raiseException("Unreachable");
-        }
+        } as CFunction3
     },
     {
         op: "o(_,_)",
         type: "FUNCTION ParamObject ( ParamObject ParamObject )",
-        default(_rt, _templateType: [], _l, r) {
+        default: function(_rt, _templateType: [], _l, r) {
             return r as InitVariable;
-        }
+        } as CFunction3
     },
     {
         op: "o(~_)",
         type: "FUNCTION Arithmetic ( CLREF Arithmetic )",
-        default(rt: CRuntime, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
             if (l.t.sig in variables.arithmeticNumSig) {
                 const ret = variables.arithmeticNum(l.t.sig as ArithmeticNumSig, ~(rt.arithmeticValue(l) as number), null);
                 rt.adjustArithmeticNumValue(ret);
@@ -464,26 +466,26 @@ const defaultOpHandler: OpHandler[] = [
                 rt.adjustArithmeticBigValue(ret);
                 return ret;
             }
-        }
+        } as CFunction3
     },
     {
         op: "o(!_)",
         type: "FUNCTION BOOL ( CLREF Arithmetic )",
-        default(rt: CRuntime, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
             return variables.arithmeticNum("BOOL", (rt.arithmeticValue(l) !== 0) ? 0 : 1, null);
-        }
+        } as CFunction3
     },
     {
         op: "o(_bool)",
         type: "FUNCTION BOOL ( CLREF Arithmetic )",
-        default(rt: CRuntime, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], l: ArithmeticVariable): InitArithmeticVariable {
             return variables.arithmeticNum("BOOL", (rt.arithmeticValue(l) !== 0) ? 1 : 0, null);
-        }
+        } as CFunction3
     },
     {
         op: "o(_==_)",
         type: "!Pointer FUNCTION BOOL ( ?0 ?0 )",
-        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitArithmeticVariable {
             const l = rt.expectValue(_l) as InitPointerVariable<PointeeVariable>;
             const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
             if (l.subtype === "DIRECT" && r.subtype === "DIRECT") {
@@ -494,12 +496,12 @@ const defaultOpHandler: OpHandler[] = [
             } else {
                 return variables.arithmeticNum("BOOL", 0, null);
             }
-        }
+        } as CFunction3
     },
     {
         op: "o(_!=_)",
         type: "!Pointer FUNCTION BOOL ( ?0 ?0 )",
-        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitArithmeticVariable {
+        default: function(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitArithmeticVariable {
             const l = rt.expectValue(_l) as InitPointerVariable<PointeeVariable>;
             const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
             if (l.subtype === "DIRECT" && r.subtype === "DIRECT") {
@@ -509,12 +511,12 @@ const defaultOpHandler: OpHandler[] = [
             } else {
                 return variables.arithmeticNum("BOOL", 1, null);
             }
-        }
+        } as CFunction3
     },
     {
         op: "o(_=_)",
         type: "!Pointer FUNCTION ?0 ( LREF ?0 ?0 )",
-        default(rt, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitPointerVariable<PointeeVariable> {
+        default: function(rt, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: PointerVariable<PointeeVariable>): InitPointerVariable<PointeeVariable> {
             const l = rt.unbound(_l) as PointerVariable<PointeeVariable>;
             const r = rt.expectValue(_r) as InitPointerVariable<PointeeVariable>;
             if (!(l.t.sizeConstraint === null || l.t.sizeConstraint === r.t.sizeConstraint)) {
@@ -538,12 +540,12 @@ const defaultOpHandler: OpHandler[] = [
                 }
             }
             return l as InitPointerVariable<PointeeVariable>;
-        }
+        } as CFunction3
     },
     {
         op: "o(_=_)",
         type: "!Pointer FUNCTION ?0 ( LREF ?0 CLREF NULLPTR_T )",
-        default(rt, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: NullptrVariable): InitPointerVariable<PointeeVariable> {
+        default: function(rt, _templateType: [], _l: PointerVariable<PointeeVariable>, _r: NullptrVariable): InitPointerVariable<PointeeVariable> {
             const l = rt.unbound(_l) as PointerVariable<PointeeVariable>;
             if (!(l.t.sizeConstraint === null)) {
                 rt.raiseException("Invalid assignment of fixed-size array to nullptr");
@@ -552,22 +554,22 @@ const defaultOpHandler: OpHandler[] = [
             (l as InitPointerVariable<PointeeVariable>).subtype = "DIRECT";
             (l as InitPointerVariable<PointeeVariable>).pointee = null;
             return l as InitPointerVariable<PointeeVariable>;
-        }
+        } as CFunction3
     },
     {
         op: "o(_=_)",
         type: "!Class FUNCTION ?0 ( LREF ?0 CLREF ?0 )",
-        default(rt, _templateType: [], l: ClassVariable, r: ClassVariable): ClassVariable {
+        default: function(rt, _templateType: [], l: ClassVariable, r: ClassVariable): ClassVariable {
             // default copy-assignment operator
             // can be overriden
             Object.entries(r.members).map(([k, v]) => l.members[k] = variables.clone(rt, v, "SELF", false, true));
             return l;
-        }
+        } as CFunction3
     },
     {
         op: "o(&_)",
         type: "!LValue FUNCTION PTR ?0 ( LREF ?0 )",
-        default(rt: CRuntime, _templateType: [], l: Variable | Function): InitDirectPointerVariable<PointeeVariable> | InitIndexPointerVariable<Variable> {
+        default: function(rt: CRuntime, _templateType: [], l: Variable | Function): InitDirectPointerVariable<PointeeVariable> | InitIndexPointerVariable<Variable> {
             if (l.lvHolder === null) {
                 rt.raiseException("Cannot refer to a non-lvalue"); // unreachable
             } else if (l.lvHolder === "SELF") {
@@ -578,30 +580,30 @@ const defaultOpHandler: OpHandler[] = [
             }
             const holder = l.lvHolder;
             return variables.indexPointer<Variable>(holder.array, holder.index, false, null);
-        }
+        } as CFunction3
     },
     {
         op: "o(&_)",
         type: "!Function FUNCTION PTR ?0 ( CLREF ?0 )",
-        default(_rt: CRuntime, _templateType: [], l: Function): InitDirectPointerVariable<Function> {
+        default: function(_rt: CRuntime, _templateType: ObjectType[], l: Function): InitDirectPointerVariable<Function> {
             return variables.directPointer(l, null);
-        }
+        } as unknown as CFunction3
     },
     {
         op: "o(*_)",
         type: "!LValue FUNCTION LREF ?0 ( PTR ?0 )",
-        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): MaybeUnboundVariable {
+        default: function(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): MaybeUnboundVariable {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot dereference a function pointer");
             }
             const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
             return variables.deref<Variable>(l) as MaybeUnboundVariable;
-        }
+        } as CFunction3
     },
     {
         op: "o(_[_])",
         type: "!LValue FUNCTION LREF ?0 ( PTR ?0 Arithmetic )",
-        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, index: ArithmeticVariable): MaybeUnboundVariable {
+        default: function(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, index: ArithmeticVariable): MaybeUnboundVariable {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot dereference a function pointer");
             }
@@ -612,17 +614,17 @@ const defaultOpHandler: OpHandler[] = [
             }
             if (l.subtype === "INDEX") {
                 if (l.pointee === null) {
-                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + rt.getVariableNames(l)[0] ?? "<internal>")
+                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + (rt.getVariableNames(l)[0] ?? "<internal>"))
                 }
                 return variables.arrayMember<Variable>(l.pointee, num(i) + l.index) as MaybeUnboundVariable;
             }
             rt.raiseException("(Segmentation fault) attempt to access a non-array pointer member outside the bounds")
-        }
+        } as CFunction3
     },
     {
         op: "o(_+_)",
         type: "!Pointer FUNCTION ?0 ( ?0 Arithmetic )",
-        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, index: ArithmeticVariable): PointerVariable<PointeeVariable> {
+        default: function(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>, index: ArithmeticVariable): PointerVariable<PointeeVariable> {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot move out of function pointer index");
             }
@@ -633,61 +635,61 @@ const defaultOpHandler: OpHandler[] = [
             }
             if (l.subtype === "INDEX") {
                 if (l.pointee === null) {
-                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + rt.getVariableNames(l)[0] ?? "<internal>")
+                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + (rt.getVariableNames(l)[0] ?? "<internal>"))
                 }
                 return variables.indexPointer(l.pointee, l.index + num(i), false, null, false);
             }
             rt.raiseException("Not yet implemented");
-        }
+        } as CFunction3
     },
     {
         op: "o(_++)",
         type: "!Pointer FUNCTION ?0 ( LREF ?0 )",
-        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): PointerVariable<PointeeVariable> {
+        default: function(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): PointerVariable<PointeeVariable> {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot move out of function pointer index");
             }
             const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
             if (l.subtype === "INDEX") {
                 if (l.pointee === null) {
-                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + rt.getVariableNames(l)[0] ?? "<internal>")
+                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + (rt.getVariableNames(l)[0] ?? "<internal>"))
                 }
                 return variables.indexPointer(l.pointee, l.index++, false, null, false);
             }
             rt.raiseException("Not yet implemented");
-        }
+        } as CFunction3
     },
     {
         op: "o(++_)",
         type: "!Pointer FUNCTION ?0 ( LREF ?0 )",
-        default(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): PointerVariable<PointeeVariable> {
+        default: function(rt: CRuntime, _templateType: [], _l: PointerVariable<PointeeVariable>): PointerVariable<PointeeVariable> {
             if (variables.asFunctionType(_l.t.pointee) !== null) {
                 rt.raiseException("Cannot move out of function pointer index");
             }
             const l = rt.expectValue(_l) as InitPointerVariable<Variable>;
             if (l.subtype === "INDEX") {
                 if (l.pointee === null) {
-                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + rt.getVariableNames(l)[0] ?? "<internal>")
+                    rt.raiseException("(Segmentation fault) attempt to dereference a null-pointer " + (rt.getVariableNames(l)[0] ?? "<internal>"))
                 }
                 return variables.indexPointer(l.pointee, ++l.index, false, null, false);
             }
             rt.raiseException("Not yet implemented");
-        }
+        } as CFunction3
     },
     {
         op: "o(_||_)",
         type: "FUNCTION BOOL ( BOOL BOOL )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return variables.arithmeticNum("BOOL", (rt.arithmeticValue(l) as number) | (rt.arithmeticValue(r) as number), null, false)
 
-        }
+        } as CFunction3
     },
     {
         op: "o(_&&_)",
         type: "FUNCTION BOOL ( BOOL BOOL )",
-        default(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
+        default: function(rt, _templateType: [], l: ArithmeticVariable, r: ArithmeticVariable): InitArithmeticVariable {
             return variables.arithmeticNum("BOOL", (rt.arithmeticValue(l) as number) & (rt.arithmeticValue(r) as number), null, false)
-        }
+        } as CFunction3
     },
 ];
 

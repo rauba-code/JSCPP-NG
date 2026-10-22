@@ -66,7 +66,7 @@ export interface IStreamValue extends InitValue<IStreamVariable> {
         "boolalpha": InitArithmeticNumVariable,
         /** The skipws input modifier flag (skip whitespace) */
         "skipws": InitArithmeticNumVariable,
-        
+
     },
 }
 

@@ -1,6 +1,6 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
-import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, InitValue, PointerVariable, variables } from "../variables";
+import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, InitValue, ObjectType, PointerVariable, Variable, variables } from "../variables";
 import * as utf8 from "../utf8";
 
 interface DivType {
@@ -56,19 +56,19 @@ export = {
             }
             return utf8.fromUtf8CharArray(new Uint8Array(wordValues));
         }
-        function abs(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable): InitArithmeticNumVariable {
+        function abs(rt: CRuntime, _templateTypes: ObjectType[], _l: ArithmeticNumVariable): InitArithmeticNumVariable {
             const l = rt.arithmeticNumValue(_l);
             const retv = variables.arithmeticNum(_l.t.sig, Math.abs(l), null);
             rt.adjustArithmeticNumValue(retv);
             return retv;
         }
-        function llabs(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable): InitArithmeticBigVariable {
+        function llabs(rt: CRuntime, _templateTypes: ObjectType[], _l: ArithmeticBigVariable): InitArithmeticBigVariable {
             const l = rt.arithmeticValue(_l) as bigint;
             const retv = variables.arithmeticBig(_l.t.sig, (l >= 0) ? l : -l, null);
             rt.adjustArithmeticBigValue(retv);
             return retv;
         }
-        function div(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable, ctype: "div_t" | "ldiv_t"): DivVariable {
+        function div(rt: CRuntime, _templateTypes: ObjectType[], _l: ArithmeticNumVariable, _r: ArithmeticNumVariable, ctype: "div_t" | "ldiv_t"): DivVariable {
             const l = rt.arithmeticNumValue(_l);
             const r = rt.arithmeticNumValue(_r);
             if (r === 0) {
@@ -81,7 +81,7 @@ export = {
                 "rem": variables.arithmeticNum("I32", rem, null),
             }, null) as DivVariable
         }
-        function lldiv(rt: CRuntime, _templateTypes: [], _l: ArithmeticBigVariable, _r: ArithmeticBigVariable): DivVariable {
+        function lldiv(rt: CRuntime, _templateTypes: ObjectType[], _l: ArithmeticBigVariable, _r: ArithmeticBigVariable): DivVariable {
             const l = rt.arithmeticValue(_l) as bigint;
             const r = rt.arithmeticValue(_r) as bigint;
             if (r === BigInt(0)) {
@@ -131,7 +131,8 @@ export = {
             {
                 type: "FUNCTION F64 ( PTR I8 )",
                 op: "atof",
-                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable{
+                    const [l] = args as [PointerVariable<ArithmeticNumVariable>];
                     const num = Number.parseFloat(getWordString(rt, l));
                     return variables.arithmeticNum("F64", num, null);
                 }
@@ -139,7 +140,8 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 )",
                 op: "atoi",
-                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable{
+                    const [l] = args as [PointerVariable<ArithmeticNumVariable>];
                     const num = Number.parseInt(getWordString(rt, l));
                     return variables.arithmeticNum("I32", (Number.isNaN(num)) ? 0 : num, null);
                 }
@@ -147,7 +149,8 @@ export = {
             {
                 type: "FUNCTION I32 ( PTR I8 )",
                 op: "atol",
-                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable{
+                    const [l] = args as [PointerVariable<ArithmeticNumVariable>];
                     const num = Number.parseInt(getWordString(rt, l));
                     return variables.arithmeticNum("I32", (Number.isNaN(num)) ? 0 : num, null);
                 }
@@ -155,7 +158,8 @@ export = {
             {
                 type: "FUNCTION I64 ( PTR I8 )",
                 op: "atoll",
-                default(rt: CRuntime, _templateTypes: [], l: PointerVariable<ArithmeticNumVariable>): InitArithmeticBigVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable{
+                    const [l] = args as [PointerVariable<ArithmeticNumVariable>];
                     let num: bigint;
                     try {
                         num = BigInt(getWordString(rt, l));
@@ -170,7 +174,8 @@ export = {
             {
                 type: "FUNCTION CLASS div_t < > ( I32 I32 )",
                 op: "div",
-                default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable, r: ArithmeticNumVariable): DivVariable { 
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): DivVariable{ 
+                    const [l, r] = args as [ArithmeticNumVariable, ArithmeticNumVariable]; 
                     return div(rt, _templateTypes, l, r, "div_t");
                 }
             },
@@ -182,7 +187,8 @@ export = {
             {
                 type: "FUNCTION CLASS ldiv_t < > ( I32 I32 )",
                 op: "ldiv",
-                default(rt: CRuntime, _templateTypes: [], l: ArithmeticNumVariable, r: ArithmeticNumVariable): DivVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): DivVariable{
+                    const [l, r] = args as [ArithmeticNumVariable, ArithmeticNumVariable];
                     return div(rt, _templateTypes, l, r, "ldiv_t");
                 }
             },
@@ -194,7 +200,8 @@ export = {
             {
                 type: "FUNCTION VOID ( U32 )",
                 op: "srand",
-                default(rt: CRuntime, _templateTypes: [], _l: ArithmeticNumVariable): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID"{
+                    const [_l] = args as [ArithmeticNumVariable];
                     const l = rt.arithmeticNumValue(_l);
                     rng.seed(l);
                     return "VOID";
@@ -203,7 +210,7 @@ export = {
             {
                 type: "FUNCTION I32 ( )",
                 op: "rand",
-                default(_rt: CRuntime, _templateTypes: []): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes): InitArithmeticNumVariable{
                     return variables.arithmeticNum("I32", rng.random(), null, false);
                 }
             },
@@ -212,5 +219,6 @@ export = {
 
     }
 }
+
 
 

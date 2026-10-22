@@ -1,5 +1,5 @@
 import { CRuntime, MemberObject } from "../rt";
-import { ArithmeticProperties, ArithmeticVariable, PointerVariable, variables } from "../variables";
+import { ArithmeticNumVariable, ArithmeticProperties, ArithmeticVariable, CFunction, PointerVariable, Variable, variables } from "../variables";
 import * as common from "./common";
 import * as ios_base from "./ios_base";
 import * as unixapi from "../shared/unixapi";
@@ -73,7 +73,8 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
     common.regOps(rt, [{
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > PTR I8 )`,
-        default(rt: CRuntime, _templateTypes: [], l: ios_base.OStreamVariable, r: PointerVariable<ArithmeticVariable>): ios_base.OStreamVariable {
+        default(rt: CRuntime, _templateTypes, ...args: Variable[]): ios_base.OStreamVariable {
+            const [l, r] = args as [ios_base.OStreamVariable, PointerVariable<ArithmeticVariable>];
             const iptr = variables.asTrueIndexPointerOfElem(r, variables.uninitArithmeticNum("I8", null)) ??
                 rt.raiseException("Unexpected null- or invalid pointer");
             if (l.members.width.value >= 0) {
@@ -91,7 +92,8 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
     {
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > CLREF CLASS string < > )`,
-        default(rt: CRuntime, _templateTypes: [], l: ios_base.OStreamVariable, r: StringVariable): ios_base.OStreamVariable {
+        default(rt: CRuntime, _templateTypes, ...args: Variable[]): ios_base.OStreamVariable {
+            const [l, r] = args as [ios_base.OStreamVariable, StringVariable];
             const iptr = variables.asTrueIndexPointerOfElem(r.members._ptr, variables.uninitArithmeticNum("I8", null));
             if (iptr === null) {
                 return l;
@@ -110,12 +112,14 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
     {
         op: "o(_<<_)",
         type: `FUNCTION LREF CLASS ${name} < > ( LREF CLASS ${name} < > Arithmetic )`,
-        default(rt: CRuntime, _templateTypes: [], l: ios_base.OStreamVariable, r: ArithmeticVariable): ios_base.OStreamVariable {
+        default(rt: CRuntime, _templateTypes, ...args: Variable[]): ios_base.OStreamVariable {
+            const [l, r] = args as [ios_base.OStreamVariable, ArithmeticVariable];
             const num = rt.arithmeticValue(r);
             const numProperties = variables.arithmeticProperties[r.t.sig];
             function numstr(rt: CRuntime, l: ios_base.OStreamVariable, num: number | bigint, numProperties: ArithmeticProperties): string {
                 if (r.t.sig === "I8") {
-                    return rt.getStringFromCharArray(variables.indexPointer(variables.arrayMemory(r.t, [r]), 0, false, null));
+                    const _r = r as ArithmeticNumVariable;
+                    return rt.getStringFromCharArray(variables.indexPointer(variables.arrayMemory(_r.t, [_r]), 0, false, null));
                 }
                 if (r.t.sig === "BOOL" && l.members.boolalpha.value === 1) {
                     return num !== 0 ? "true" : "false";
@@ -159,20 +163,20 @@ export function defineOstream(rt: CRuntime, name: string, moreMembers: MemberObj
     {
         op: "o(!_)",
         type: `FUNCTION BOOL ( LREF CLASS ${name} < > )`,
-        default(_rt: CRuntime, _templateTypes: [], _this: ios_base.OStreamVariable) {
+        default: function(_rt: CRuntime, _templateTypes: [], _this: ios_base.OStreamVariable) {
             const failbit = _this.members.failbit.value;
             const badbit = _this.members.badbit.value;
             return variables.arithmeticNum("BOOL", failbit | badbit, null);
-        }
+        } as CFunction
     },
     {
         op: "o(_bool)",
         type: `FUNCTION BOOL ( LREF CLASS ${name} < > )`,
-        default(_rt: CRuntime, _templateTypes: [], _this: ios_base.OStreamVariable): ArithmeticVariable {
+        default: function(_rt: CRuntime, _templateTypes: [], _this: ios_base.OStreamVariable): ArithmeticVariable {
             const failbit = _this.members.failbit.value;
             const badbit = _this.members.badbit.value;
             return variables.arithmeticNum("BOOL", (failbit !== 0 || badbit !== 0) ? 0 : 1, null);
-        }
+        } as CFunction
     },
     ]);
 }

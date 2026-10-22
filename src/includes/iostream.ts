@@ -1,7 +1,7 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
 import * as ios_base_impl from "../shared/ios_base_impl";
-import { ArithmeticBigVariable, ArithmeticNumVariable, ClassVariable, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, variables } from "../variables";
+import { ArithmeticBigVariable, ArithmeticNumVariable, ClassVariable, Gen, InitArithmeticBigVariable, InitArithmeticNumValue, InitArithmeticNumVariable, InitArithmeticVariable, InitPointerVariable, MaybeLeft, PointerVariable, Variable, variables } from "../variables";
 import * as unixapi from "../shared/unixapi";
 import * as utf8 from "../utf8";
 import { IStreamType, IStreamVariable, OStreamType, OStreamVariable } from "../shared/ios_base";
@@ -134,7 +134,8 @@ export = {
         common.regOps(rt, [{
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > LREF Arithmetic )",
-            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: ArithmeticNumVariable | ArithmeticBigVariable): Gen<IStreamVariable> {
+            *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<IStreamVariable> {
+                const [l, r] = args as [IStreamVariable, ArithmeticNumVariable | ArithmeticBigVariable];
                 const eofbit = l.members.eofbit;
                 const failbit = l.members.failbit;
                 const buf = l.members.buf;
@@ -218,8 +219,9 @@ export = {
         {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 )",
-            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: PointerVariable<ArithmeticNumVariable>): Gen<IStreamVariable> {
-                const r = variables.asTrueIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + rt.getVariableNames(_r) ?? "<internal>");
+            *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<IStreamVariable> {
+                const [l, _r] = args as [IStreamVariable, PointerVariable<ArithmeticNumVariable>];
+                const r = variables.asTrueIndexPointerOfElem(_r, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Unexpected null- or invalid pointer " + (rt.getVariableNames(_r) ?? "<internal>"));
                 const eofbit = l.members.eofbit;
                 const failbit = l.members.failbit;
                 const buf = l.members.buf;
@@ -259,7 +261,8 @@ export = {
         {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS ws_t < > )",
-            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _r: ClassVariable): Gen<IStreamVariable> {
+            *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<IStreamVariable> {
+                const [l, _r] = args as [IStreamVariable, ClassVariable];
                 const eofbit = l.members.eofbit;
                 const failbit = l.members.failbit;
                 const buf = l.members.buf;
@@ -283,7 +286,8 @@ export = {
         {
             op: "o(_>>_)",
             type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
-            *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, r: StringVariable): Gen<IStreamVariable> {
+            *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<IStreamVariable> {
+                const [l, r] = args as [IStreamVariable, StringVariable];
                 const memory = variables.arrayMemory<ArithmeticNumVariable>(variables.arithmeticNumType("I8"), []);
                 const eofbit = l.members.eofbit;
                 const failbit = l.members.failbit;
@@ -355,7 +359,7 @@ export = {
                 const delim = rt.arithmeticNumValue(_delim);
                 const s = variables.asTrueIndexPointerOfElem(_s, variables.uninitArithmeticNum("I8", null));
                 if (s === null) {
-                    rt.raiseException("Unexpected null- or invalid pointer" + rt.getVariableNames(_s) ?? "<internal>");
+                    rt.raiseException("Unexpected null- or invalid pointer" + (rt.getVariableNames(_s) ?? "<internal>"));
                 }
                 const oldiptr = variables.clone(rt, b, "SELF", false);
                 if (b.index >= b.pointee.values.length) {
@@ -462,7 +466,8 @@ export = {
             {
                 op: "get",
                 type: "FUNCTION I32 ( LREF CLASS istream < > )",
-                *default(rt: CRuntime, _templateTypes: [], l: IStreamVariable): Gen<ArithmeticNumVariable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<ArithmeticNumVariable> {
+                    const [l] = args as [IStreamVariable];
                     const retv = yield* readChar(rt, l);
                     const buf = l.members.buf;
                     variables.indexPointerAssignIndex(rt, buf, buf.index + 1);
@@ -472,14 +477,16 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 I32 I8 )",
-                default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable, _delim: ArithmeticNumVariable): IStreamVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStreamVariable {
+                    const [l, _s, _count, _delim] = args as [IStreamVariable, InitPointerVariable<ArithmeticNumVariable>, ArithmeticNumVariable, ArithmeticNumVariable];
                     return _getline(rt, l, _s, _count, _delim);
                 }
             },
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > PTR I8 I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: IStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable): IStreamVariable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStreamVariable {
+                    const [l, _s, _count] = args as [IStreamVariable, InitPointerVariable<ArithmeticNumVariable>, ArithmeticNumVariable];
                     return _getline(rt, l, _s, _count, variables.arithmeticNum("I8", 10, "SELF"));
                 }
             }
@@ -489,7 +496,8 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > I8 )",
-                default(rt: CRuntime, _templateTypes: [], input: IStreamVariable, str: StringVariable, delim: ArithmeticNumVariable) {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStreamVariable {
+                    const [input, str, delim] = args as [IStreamVariable, StringVariable, ArithmeticNumVariable];
                     _getlineStr(rt, input, str, delim);
                     return input;
                 }
@@ -497,7 +505,8 @@ export = {
             {
                 op: "getline",
                 type: "FUNCTION LREF CLASS istream < > ( LREF CLASS istream < > CLREF CLASS string < > )",
-                default(rt: CRuntime, _templateTypes: [], input: IStreamVariable, str: StringVariable) {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStreamVariable {
+                    const [input, str] = args as [IStreamVariable, StringVariable];
                     _getlineStr(rt, input, str, variables.arithmeticNum("I8", 10, null));
                     return input;
                 }
@@ -506,3 +515,5 @@ export = {
 
     }
 }
+
+

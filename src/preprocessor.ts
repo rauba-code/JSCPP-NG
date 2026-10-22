@@ -1,6 +1,4 @@
-import * as prepast from "./prepast";
-// @ts-ignore
-import * as PEGUtil from "pegjs-util";
+import * as prepast from "./generated/prepast";
 import { BaseInterpreter } from "./interpreter";
 import { CRuntime, CRuntimeError } from "./rt";
 import { canonicalAbsolutePath, resolveInclude, SourceListings } from "./vfs";
@@ -69,6 +67,7 @@ interface IdentifierSpec {
 
 type Statement = TranslationUnitSpec | CodeSpec | PrepIncludeLibSpec | PrepIncludeLocalSpec | PrepSimpleMacroSpec | PrepFunctionMacroSpec | PrepUndefSpec | PrepIfdefSpec | PrepIfndefSpec | PrepElseSpec | PrepEndifSpec | IdentifierSpec;
 
+type Visitor = (interp: Preprocessor, s: Statement, param?: any) => any;
 
 class Preprocessor extends BaseInterpreter<Statement> {
     ret: string;
@@ -80,7 +79,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
         fileName: string,
         sourceParentDir: string
     };
-    visitors: { [name: string]: (interp: Preprocessor, s: Statement, param?: any) => any };
+    visitors: { [name: string]: Visitor };
 
     constructor(rt: CRuntime, sourceListings?: SourceListings, fileName?: string, sourceParentDir?: string) {
         super(rt);
@@ -97,7 +96,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
             this.vfs = { listings: sourceListings, fileName: fileName ?? "<unknown>", sourceParentDir: sourceParentDir ?? canonicalAbsolutePath(sourceListings.format, sourceListings.entryPoint + "/..") }
         }
         this.visitors = {
-            TranslationUnit(interp, s: TranslationUnitSpec, code) {
+            TranslationUnit: function(interp, s: TranslationUnitSpec, code) {
                 let i = 0;
                 while (i < s.lines.length) {
                     const dec = s.lines[i];
@@ -106,8 +105,8 @@ class Preprocessor extends BaseInterpreter<Statement> {
                     i++;
                 }
                 return interp.ret;
-            },
-            Code(interp, s: CodeSpec, _code) {
+            } as Visitor,
+            Code: function(interp, s: CodeSpec, _code) {
                 if (interp.doinclude[interp.doinclude.length - 1]) {
                     let i = 0;
                     while (i < s.val.length) {
@@ -116,14 +115,14 @@ class Preprocessor extends BaseInterpreter<Statement> {
                         i++;
                     }
                 }
-            },
-            PrepSimpleMacro(interp, s: PrepSimpleMacroSpec, _code) {
+            } as Visitor,
+            PrepSimpleMacro: function(interp, s: PrepSimpleMacroSpec, _code) {
                 interp.newMacro(s.Identifier, s.Replacement);
-            },
-            PrepFunctionMacro(interp, s: PrepFunctionMacroSpec, _code) {
+            } as Visitor,
+            PrepFunctionMacro: function(interp, s: PrepFunctionMacroSpec, _code) {
                 interp.newMacroFunction(s.Identifier, s.Args, s.Replacement);
-            },
-            PrepIncludeLib(interp, s: PrepIncludeLibSpec, _code) {
+            } as Visitor,
+            PrepIncludeLib: function(interp, s: PrepIncludeLibSpec, _code) {
                 if (rt.config.includes !== undefined && s.name in rt.config.includes) {
                     interp.rt.include(s.name);
                     return;
@@ -136,8 +135,8 @@ class Preprocessor extends BaseInterpreter<Statement> {
                     }
                 }
                 interp.raiseException("Cannot find file: " + s.name);
-            },
-            PrepIncludeLocal(interp, s: PrepIncludeLocalSpec, _code) {
+            } as Visitor,
+            PrepIncludeLocal: function(interp, s: PrepIncludeLocalSpec, _code) {
                 if (interp.rt.config.includes === undefined) {
                     interp.raiseException("[Preprocessor].interp.rt.config.includes is undefined");
                 } else {
@@ -157,33 +156,33 @@ class Preprocessor extends BaseInterpreter<Statement> {
                     }
                     interp.raiseException("cannot find file: " + s.name);
                 }
-            },
-            PrepUndef(interp, s: PrepUndefSpec, _code) {
+            } as Visitor,
+            PrepUndef: function(interp, s: PrepUndefSpec, _code) {
                 if (interp.isMacroDefined(s.Identifier)) {
                     delete interp.macros[s.Identifier.val];
                 }
-            },
-            PrepIfdef(interp, s: PrepIfdefSpec, _code) {
+            } as Visitor,
+            PrepIfdef: function(interp, s: PrepIfdefSpec, _code) {
                 pushInc(interp, interp.isMacroDefined(s.Identifier));
-            },
-            PrepIfndef(interp, s: PrepIfndefSpec, _code) {
+            } as Visitor,
+            PrepIfndef: function(interp, s: PrepIfndefSpec, _code) {
                 pushInc(interp, !interp.isMacroDefined(s.Identifier));
-            },
-            PrepElse(interp, _s: PrepElseSpec, _code) {
+            } as Visitor,
+            PrepElse: function(interp, _s: PrepElseSpec, _code) {
                 if (interp.doinclude.length > 1) {
                     const x = interp.doinclude.pop();
                     pushInc(interp, !x);
                 } else {
                     interp.raiseException("#else must be used after a #if");
                 }
-            },
-            PrepEndif(interp, _s: PrepEndifSpec, _code) {
+            } as Visitor,
+            PrepEndif: function(interp, _s: PrepEndifSpec, _code) {
                 if (interp.doinclude.length > 1) {
                     interp.doinclude.pop();
                 } else {
                     interp.raiseException("#endif must be used after a #if");
                 }
-            },
+            } as Visitor,
             unknown(interp, s, _code) {
                 interp.raiseException("unhandled syntax " + s.type);
             }
@@ -364,7 +363,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
     };
 
     parse(code: string) {
-        const result = PEGUtil.parse(prepast, code);
+        const result = prepast.parse(code);
         if (result.error != null) {
             const line = result.error.line;
             const column = result.error.column

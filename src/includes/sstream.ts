@@ -3,7 +3,7 @@ import { StringVariable } from "../shared/string_utils";
 import * as ios_base from "../shared/ios_base";
 import * as common from "../shared/common";
 import * as utf8 from "../utf8";
-import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, ClassType, InitArithmeticBigVariable, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, variables } from "../variables";
+import { AbstractVariable, ArithmeticBigVariable, ArithmeticNumVariable, ClassType, InitArithmeticBigVariable, InitArithmeticNumVariable, InitIndexPointerVariable, InitPointerVariable, MaybeLeft, Variable, variables } from "../variables";
 
 type IStringStreamValue = ios_base.IStreamValue;
 type IStringStreamVariable = AbstractVariable<ios_base.OStreamType, IStringStreamValue>;
@@ -48,7 +48,8 @@ export = {
                 {
                     op: "o(!_)",
                     type: `FUNCTION BOOL ( LREF CLASS ${structName} < > )`,
-                    default(_rt: CRuntime, _templateTypes: [], _this: IStringStreamVariable) {
+                    default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                        const [_this] = args as [IStringStreamVariable];
                         const failbit = _this.members.failbit.value;
                         const badbit = _this.members.badbit.value;
                         return variables.arithmeticNum("BOOL", failbit | badbit, null);
@@ -57,7 +58,8 @@ export = {
                 {
                     op: "o(_bool)",
                     type: `FUNCTION BOOL ( LREF CLASS ${structName} < > )`,
-                    default(_rt: CRuntime, _templateTypes: [], _this: IStringStreamVariable): ArithmeticNumVariable {
+                    default(_rt: CRuntime, _templateTypes, ...args: Variable[]): ArithmeticNumVariable {
+                        const [_this] = args as [IStringStreamVariable];
                         const failbit = _this.members.failbit.value;
                         const badbit = _this.members.badbit.value;
                         return variables.arithmeticNum("BOOL", (failbit !== 0 || badbit !== 0) ? 0 : 1, null);
@@ -66,7 +68,8 @@ export = {
                 {
                     op: "o(_>>_)",
                     type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > LREF Arithmetic )`,
-                    default(_rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, r: ArithmeticNumVariable | ArithmeticBigVariable): IStringStreamVariable {
+                    default(_rt: CRuntime, _templateTypes, ...args: Variable[]): IStringStreamVariable {
+                        const [l, r] = args as [IStringStreamVariable, ArithmeticNumVariable | ArithmeticBigVariable];
                         // TODO: this and istream functions share equal code. Merge into a single shared function
                         const buf = l.members.buf;
                         const eofbit = l.members.eofbit;
@@ -136,7 +139,8 @@ export = {
                 {
                     op: "o(_>>_)",
                     type: `FUNCTION LREF CLASS istream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > )`,
-                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, r: StringVariable): IStringStreamVariable {
+                    default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStringStreamVariable {
+                        const [l, r] = args as [IStringStreamVariable, StringVariable];
                         const eofbit = l.members.eofbit;
                         const failbit = l.members.failbit;
                         const buf = l.members.buf;
@@ -186,7 +190,8 @@ export = {
             const ctorHandler: common.OpHandler = {
                 op: "o(_ctor)",
                 type: `FUNCTION CLASS ${structName} < > ( CLREF CLASS string < > )`,
-                default(_rt: CRuntime, _templateTypes: [], s: StringVariable): IStringStreamVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): IStringStreamVariable {
+                    const [s] = args as [StringVariable];
                     const result = rt.defaultValue(thisType, "SELF") as IStringStreamVariable;
                     const sbuf = variables.asInitIndexPointer(s.members._ptr) as InitIndexPointerVariable<ArithmeticNumVariable> | null;
                     if (sbuf !== null) {
@@ -263,7 +268,8 @@ export = {
                 {
                     op: "get",
                     type: `FUNCTION I32 ( LREF CLASS ${structName} < > )`,
-                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable): InitArithmeticNumVariable {
+                    default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                        const [l] = args as [IStringStreamVariable];
                         let b = l.members.buf;
                         if (b.pointee.values.length <= b.index) {
                             l.members.eofbit.value = 1;
@@ -280,14 +286,16 @@ export = {
                 {
                     op: "getline",
                     type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > PTR I8 I32 I8 )`,
-                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable, _delim: ArithmeticNumVariable): IStringStreamVariable {
+                    default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStringStreamVariable {
+                        const [l, _s, _count, _delim] = args as [IStringStreamVariable, InitPointerVariable<ArithmeticNumVariable>, ArithmeticNumVariable, ArithmeticNumVariable];
                         return _getline(rt, l, _s, _count, _delim);
                     }
                 },
                 {
                     op: "getline",
                     type: `FUNCTION LREF CLASS ${structName} < > ( LREF CLASS ${structName} < > PTR I8 I32 )`,
-                    default(rt: CRuntime, _templateTypes: [], l: IStringStreamVariable, _s: InitPointerVariable<ArithmeticNumVariable>, _count: ArithmeticNumVariable): IStringStreamVariable {
+                    default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStringStreamVariable {
+                        const [l, _s, _count] = args as [IStringStreamVariable, InitPointerVariable<ArithmeticNumVariable>, ArithmeticNumVariable];
                         return _getline(rt, l, _s, _count, variables.arithmeticNum("I8", 10, "SELF"));
                     }
                 },
@@ -297,7 +305,8 @@ export = {
                 {
                     op: "getline",
                     type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > I8 )`,
-                    default(rt: CRuntime, _templateTypes: [], input: IStringStreamVariable, str: StringVariable, delim: ArithmeticNumVariable) {
+                    default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStringStreamVariable {
+                        const [input, str, delim] = args as [IStringStreamVariable, StringVariable, ArithmeticNumVariable];
                         _getlineStr(rt, input, str, delim);
                         return input;
                     }
@@ -305,7 +314,8 @@ export = {
                 {
                     op: "getline",
                     type: `FUNCTION LREF CLASS sstream < > ( LREF CLASS ${structName} < > CLREF CLASS string < > )`,
-                    default(rt: CRuntime, _templateTypes: [], input: IStringStreamVariable, str: StringVariable) {
+                    default(rt: CRuntime, _templateTypes, ...args: Variable[]): IStringStreamVariable {
+                        const [input, str] = args as [IStringStreamVariable, StringVariable];
                         _getlineStr(rt, input, str, variables.arithmeticNum("I8", 10, null));
                         return input;
                     }
@@ -314,4 +324,6 @@ export = {
         }
     }
 };
+
+
 

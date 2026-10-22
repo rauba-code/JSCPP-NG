@@ -1,6 +1,6 @@
 import { InitializerListVariable } from "../initializer_list";
 import { asResult } from "../interpreter";
-import { CRuntime } from "../rt";
+import { CRuntime, MemberFactory, TypeMappingFunction } from "../rt";
 import * as common from "../shared/common";
 import { InitIndexPointerVariable, Variable, variables, InitArithmeticVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticVariable, PointerVariable, InitArithmeticNumVariable, ArithmeticNumVariable, TrueIndexPointerVariable } from "../variables";
 
@@ -24,13 +24,13 @@ export = {
         rt.include("iterator");
         const vectorSig: string[] = "!ParamObject CLASS vector < ?0 >".split(" ");
         rt.defineStruct2("{global}", "vector", {
-            numTemplateArgs: 1, factory: (dataItem: VectorType<ObjectType>) => {
+            numTemplateArgs: 1, factory: function(dataItem: VectorType<ObjectType>) {
                 return {
                     _ptr: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF"),
                     _sz: variables.arithmeticNum("I32", 0, "SELF"),
                     _cap: variables.arithmeticNum("I32", 0, "SELF"),
                 }
-            }
+            } as MemberFactory
         }, ["_ptr", "_sz", "_cap"], {
             ["value_type"]: [{ src: vectorSig, dst: ["?0"] }],
             ["iterator"]: [{ src: vectorSig, dst: ["PTR", "?0"] }],
@@ -43,9 +43,10 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( CLASS initializer_list < ?0 > )",
-                *default(rt: CRuntime, _templateTypes: [VectorType<ObjectType>], list: InitializerListVariable<ArithmeticVariable>): Gen<VectorVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<VectorVariable<Variable>> {
+                    const [list] = args as [InitializerListVariable<ArithmeticVariable>];
                     const thisType = variables.classType("vector", list.t.templateSpec, null) as VectorType<ObjectType>;
-                    const vec = yield* rt.defaultValue2(thisType, "SELF");
+                    const vec = (yield* rt.defaultValue2(thisType, "SELF")) as VectorVariable<Variable>;
                     const listmem = list.members._values.pointee;
                     const memory = variables.arrayMemory<Variable>(thisType.templateSpec[0], []);
                     for (let i = 0; i < listmem.values.length; i++) {
@@ -60,7 +61,8 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( PTR ?0 PTR ?0 )",
-                *default(rt: CRuntime, _templateTypes: [VectorType<ObjectType>], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<VectorVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<VectorVariable<Variable>> {
+                    const [_begin, _end] = args as [PointerVariable<Variable>, PointerVariable<Variable>];
                     const begin = variables.asTrueIndexPointer(_begin) ?? rt.raiseException("vector constructor: expected valid begin iterator");
                     const end = variables.asTrueIndexPointer(_end) ?? rt.raiseException("vector constructor: expected valid end iterator");
 
@@ -70,7 +72,7 @@ export = {
 
                     const elementType = begin.pointee.objectType;
                     const thisType = variables.classType("vector", [elementType], null) as VectorType<ObjectType>;
-                    const vec = yield* rt.defaultValue2(thisType, "SELF");
+                    const vec = (yield* rt.defaultValue2(thisType, "SELF")) as VectorVariable<Variable>;
 
                     const elementCount = end.index - begin.index;
                     if (elementCount > 0) {
@@ -93,10 +95,10 @@ export = {
             {
                 op: "o(_ctor)",
                 type: "!ParamObject FUNCTION CLASS vector < ?0 > ( I32 )",
-                *default(rt: CRuntime, templateTypes: [VectorType<ObjectType>], count: InitArithmeticNumVariable): Gen<VectorVariable<Variable>> {
+                *default(rt: CRuntime, templateTypes, count: InitArithmeticNumVariable): Gen<VectorVariable<Variable>> {
                     // NOTE: This constructor is marked as explicit in standard C++
-                    const thisType = variables.classType("vector", [templateTypes[0].templateSpec[0]], null) as VectorType<ObjectType>;
-                    const vec = yield* rt.defaultValue2(thisType, "SELF");
+                    const thisType = variables.classType("vector", [(templateTypes[0] as VectorType<ObjectType>).templateSpec[0]], null) as VectorType<ObjectType>;
+                    const vec = (yield* rt.defaultValue2(thisType, "SELF")) as VectorVariable<Variable>;
                     yield* _grow(rt, vec, count.value);
                     // Proceed. _grow fills the array with default members already.
                     return vec;
@@ -128,7 +130,7 @@ export = {
             }*/
         ];
 
-        rt.explicitListInitTable["vector"] = (vec: VectorType<ObjectType>) => vec.templateSpec[0];
+        rt.explicitListInitTable["vector"] = ((vec: VectorType<ObjectType>) => vec.templateSpec[0]) as TypeMappingFunction;
         for (const ctorHandler of ctorHandlers) {
             rt.regFunc(ctorHandler.default, variables.classType("vector", [], null), ctorHandler.op, rt.typeSignature(ctorHandler.type), [-1], null);
         }
@@ -161,7 +163,8 @@ export = {
             {
                 op: "o(_[_])",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > I32 )",
-                default(rt: CRuntime, _templateTypes: [], l: VectorVariable<Variable>, _idx: ArithmeticNumVariable): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable {
+                    const [l, _idx] = args as [VectorVariable<Variable>, ArithmeticNumVariable];
                     const idx = rt.arithmeticValue(_idx) as number;
                     if (idx < 0 || idx >= l.members._sz.value) {
                         rt.raiseException("vector::operator[]: index out of range error");
@@ -174,21 +177,24 @@ export = {
             {
                 op: "begin",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS vector < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitIndexPointerVariable<Variable> {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<Variable> {
+                    const [vec] = args as [VectorVariable<Variable>];
                     return variables.indexPointer(vec.members._ptr.pointee, vec.members._ptr.index, false, null, false);
                 }
             },
             {
                 op: "end",
                 type: "!ParamObject FUNCTION PTR ?0 ( CLREF CLASS vector < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitIndexPointerVariable<Variable> {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<Variable> {
+                    const [vec] = args as [VectorVariable<Variable>];
                     return variables.indexPointer(vec.members._ptr.pointee, vec.members._ptr.index + vec.members._sz.value, false, null, false);
                 }
             },
             {
                 op: "push_back",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, tail: Variable): Gen<"VOID"> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<"VOID"> {
+                    const [vec, tail] = args as [VectorVariable<Variable>, Variable];
                     yield* _grow(rt, vec, 1);
                     const index = vec.members._ptr.index + vec.members._sz.value - 1;
                     vec.members._ptr.pointee.values[index] = variables.clone(rt, tail, { index, array: vec.members._ptr.pointee }, false, true);
@@ -198,7 +204,8 @@ export = {
             {
                 op: "resize",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > I32 CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _size: ArithmeticNumVariable, tail: Variable): Gen<"VOID"> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<"VOID"> {
+                    const [vec, _size, tail] = args as [VectorVariable<Variable>, ArithmeticNumVariable, Variable];
                     const size = rt.arithmeticValue(_size) as number;
                     const oldSize = vec.members._sz.value;
                     if (size <= oldSize) {
@@ -215,7 +222,8 @@ export = {
             {
                 op: "pop_back",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [vec] = args as [VectorVariable<Variable>];
                     if (vec.members._sz.value === 0) {
                         rt.raiseException("vector::pop_back(): vector is empty");
                     }
@@ -226,21 +234,24 @@ export = {
             {
                 op: "size",
                 type: "!ParamObject FUNCTION I32 ( CLREF CLASS vector < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [vec] = args as [VectorVariable<Variable>];
                     return variables.arithmeticNum("I32", vec.members._sz.value, null, false);
                 }
             },
             {
                 op: "empty",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS vector < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): InitArithmeticVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticVariable {
+                    const [vec] = args as [VectorVariable<Variable>];
                     return variables.arithmeticNum("BOOL", (vec.members._sz.value === 0) ? 1 : 0, null, false);
                 }
             },
             {
                 op: "erase",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 )",
-                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _pos: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<Variable> {
+                    const [vec, _pos] = args as [VectorVariable<Variable>, PointerVariable<Variable>];
                     const pos = variables.asInitIndexPointer(_pos) ?? rt.raiseException("vector::erase(): expected 'pos' to point to the vector element");
                     if (pos.pointee !== vec.members._ptr.pointee) {
                         rt.raiseException("vector::erase(): expected 'pos' to point to the vector element");
@@ -259,7 +270,8 @@ export = {
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _pos: PointerVariable<Variable>, tail: Variable): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+                    const [vec, _pos, tail] = args as [VectorVariable<Variable>, PointerVariable<Variable>, Variable];
                     const pos = variables.asInitIndexPointer(_pos) ?? rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
                     if (pos.pointee !== vec.members._ptr.pointee) {
                         rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
@@ -286,7 +298,8 @@ export = {
             {
                 op: "insert",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 CLREF CLASS initializer_list < ?0 > )",
-                *default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _pos: PointerVariable<Variable>, tail: InitializerListVariable<Variable>): Gen<InitIndexPointerVariable<Variable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitIndexPointerVariable<Variable>> {
+                    const [vec, _pos, tail] = args as [VectorVariable<Variable>, PointerVariable<Variable>, InitializerListVariable<Variable>];
                     const pos = variables.asInitIndexPointer(_pos) ?? rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
                     if (pos.pointee !== vec.members._ptr.pointee) {
                         rt.raiseException("vector::insert(): expected 'pos' to point to the vector element");
@@ -313,7 +326,8 @@ export = {
             {
                 op: "erase",
                 type: "!ParamObject FUNCTION PTR ?0 ( LREF CLASS vector < ?0 > PTR ?0 PTR ?0 )",
-                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>, _first: PointerVariable<Variable>, _last: PointerVariable<Variable>): InitIndexPointerVariable<Variable> {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<Variable> {
+                    const [vec, _first, _last] = args as [VectorVariable<Variable>, PointerVariable<Variable>, PointerVariable<Variable>];
                     const first = variables.asInitIndexPointer(_first) ?? rt.raiseException("vector::erase(): expected 'first' to point to the vector element");
                     const last = variables.asInitIndexPointer(_last) ?? rt.raiseException("vector::erase(): expected 'last' to point to the vector element");
                     if (first.pointee !== vec.members._ptr.pointee) {
@@ -337,7 +351,8 @@ export = {
             {
                 op: "clear",
                 type: "!ParamObject FUNCTION VOID ( LREF CLASS vector < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): "VOID" {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [vec] = args as [VectorVariable<Variable>];
                     vec.members._sz.value = 0;
                     return "VOID";
                 }
@@ -345,7 +360,8 @@ export = {
             {
                 op: "back",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable {
+                    const [vec] = args as [VectorVariable<Variable>];
                     const sz = vec.members._sz.value;
                     if (sz === 0) {
                         rt.raiseException("vector::back(): vector is empty");
@@ -356,7 +372,8 @@ export = {
             {
                 op: "back",
                 type: "!ParamObject FUNCTION LREF ?0 ( LREF CLASS vector < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable {
+                    const [vec] = args as [VectorVariable<Variable>];
                     const sz = vec.members._sz.value;
                     if (sz === 0) {
                         rt.raiseException("vector::back(): vector is empty");
@@ -367,7 +384,8 @@ export = {
             {
                 op: "front",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS vector < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable {
+                    const [vec] = args as [VectorVariable<Variable>];
                     if (vec.members._sz.value === 0) {
                         rt.raiseException("vector::front(): vector is empty");
                     }
@@ -377,7 +395,8 @@ export = {
             {
                 op: "front",
                 type: "!ParamObject FUNCTION LREF ?0 ( LREF CLASS vector < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], vec: VectorVariable<Variable>): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable {
+                    const [vec] = args as [VectorVariable<Variable>];
                     if (vec.members._sz.value === 0) {
                         rt.raiseException("vector::front(): vector is empty");
                     }
@@ -387,3 +406,4 @@ export = {
         ])
     }
 };
+

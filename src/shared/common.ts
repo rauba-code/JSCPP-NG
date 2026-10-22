@@ -1,11 +1,11 @@
 import { asResult } from "../interpreter";
 import { CRuntime, FunctionCallInstance, OpSignature } from "../rt";
-import { ArithmeticVariable, ClassType, Gen, MaybeUnboundVariable, ObjectType, ResultOrGen, Variable, variables } from "../variables";
+import { ArithmeticVariable, CFunction, CFunction2, ClassType, Gen, MaybeUnboundVariable, ResultOrGen, Variable, variables } from "../variables";
 
 export type OpHandler = {
     type: string,
     op: OpSignature,
-    default: ((rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]) => ResultOrGen<Variable>),
+    default: CFunction,
     /**
      * List of template specifier wildcard indices. 
      * Negative indices represent template types not bound to parameters.
@@ -30,7 +30,7 @@ export type OpHandler = {
 export type FunHandler = {
     type: string,
     op: string,
-    default: ((rt: CRuntime, templateTypes: ObjectType[], ...args: Variable[]) => ResultOrGen<Variable | "VOID">)
+    default: CFunction2
     /**
      * List of template specifier wildcard indices. 
      * Negative indices represent template types not bound to parameters.

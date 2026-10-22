@@ -1,8 +1,5 @@
-// TODO: Validate and cleanup unordered_set
-// First make set work
-
 import { InitializerListVariable } from "../initializer_list";
-import { CRuntime } from "../rt";
+import { CRuntime, MemberFactory, TypeMappingFunction } from "../rt";
 import * as common from "../shared/common";
 import { InitIndexPointerVariable, Variable, variables, InitArithmeticNumVariable, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, ArithmeticNumVariable, PointerVariable, TrueIndexPointerVariable } from "../variables";
 
@@ -24,22 +21,23 @@ export = {
     load(rt: CRuntime) {
         rt.include("cstddef");
         rt.defineStruct2("{global}", "unordered_set", {
-            numTemplateArgs: 1, factory: (dataItem: UnorderedSetType<ObjectType>) => {
+            numTemplateArgs: 1, factory: ((dataItem: UnorderedSetType<ObjectType>) => {
                 return {
                     _data: variables.indexPointer<Variable>(variables.arrayMemory<Variable>(dataItem.templateSpec[0], []), 0, false, "SELF"),
                     _sz: variables.arithmeticNum("I32", 0, "SELF"),
                     _cap: variables.arithmeticNum("I32", 0, "SELF"),
                 }
-            }
+            }) as MemberFactory
         }, ["_data", "_sz", "_cap"], {});
 
         // Constructor from initializer_list
         const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS unordered_set < ?0 > ( CLASS initializer_list < ?0 > )",
-            *default(rt: CRuntime, _templateTypes: [], list: InitializerListVariable<ArithmeticNumVariable>): Gen<UnorderedSetVariable<Variable>> {
+            *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<UnorderedSetVariable<Variable>> {
+                const [list] = args as [InitializerListVariable<ArithmeticNumVariable>];
                 const thisType = variables.classType("unordered_set", list.t.templateSpec, null) as UnorderedSetType<ObjectType>;
-                const usetVar = yield* rt.defaultValue2(thisType, "SELF");
+                const usetVar = (yield* rt.defaultValue2(thisType, "SELF")) as UnorderedSetVariable<Variable>;
                 const listmem = list.members._values.pointee;
                 
                 // Add all elements with duplicate removal (no sorting needed for unordered_set)
@@ -56,7 +54,8 @@ export = {
         const ctorHandler2: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject FUNCTION CLASS unordered_set < ?0 > ( PTR ?0 PTR ?0 )",
-            *default(rt: CRuntime, _templateTypes: ObjectType[], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<Variable> {
+            *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                const [_begin, _end] = args as [PointerVariable<Variable>, PointerVariable<Variable>];
                 const begin = variables.asTrueIndexPointer(_begin) ?? rt.raiseException("unordered_set constructor: expected valid begin iterator");
                 const end = variables.asTrueIndexPointer(_end) ?? rt.raiseException("unordered_set constructor: expected valid end iterator");
                 
@@ -78,7 +77,7 @@ export = {
             }
         };
 
-        rt.explicitListInitTable["unordered_set"] = (usetType: UnorderedSetType<ObjectType>) => usetType.templateSpec[0];
+        rt.explicitListInitTable["unordered_set"] = ((usetType: UnorderedSetType<ObjectType>) => usetType.templateSpec[0]) as TypeMappingFunction;
         rt.regFunc(ctorHandler1.default, variables.classType("unordered_set", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1], null);
         rt.regFunc(ctorHandler2.default, variables.classType("unordered_set", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1], null);
 

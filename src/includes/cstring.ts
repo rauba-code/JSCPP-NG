@@ -1,7 +1,7 @@
 import { CRuntime } from "../rt";
 import * as common from "../shared/common";
 import { strcmp } from "../shared/string_utils";
-import { ArithmeticNumVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, InitIndexPointerVariable, PointerVariable, variables } from "../variables";
+import { ArithmeticNumVariable, InitArithmeticBigVariable, InitArithmeticNumVariable, InitIndexPointerVariable, PointerVariable, Variable, variables } from "../variables";
 
 export = {
     load(rt: CRuntime) {
@@ -9,7 +9,8 @@ export = {
         common.regGlobalFuncs(rt, [{
             type: "FUNCTION I64 ( PTR I8 )",
             op: "strlen",
-            default(rt: CRuntime, _templateTypes: [], _ptr: PointerVariable<ArithmeticNumVariable>): InitArithmeticBigVariable {
+            default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable{
+                const [_ptr] = args as [PointerVariable<ArithmeticNumVariable>];
                 const ptr = variables.asTrueIndexPointerOfElem(_ptr, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable is not an initialised index pointer");
                 let cnt = 0;
                 while (rt.arithmeticValue(variables.arrayMember(ptr.pointee, ptr.index + cnt)) !== 0) {
@@ -20,7 +21,8 @@ export = {
         }, {
             type: "FUNCTION I32 ( PTR I8 PTR I8 )",
             op: "strcmp",
-            default(rt: CRuntime, _templateTypes: [], _a: PointerVariable<ArithmeticNumVariable>, _b: PointerVariable<ArithmeticNumVariable>): InitArithmeticNumVariable {
+            default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable{
+                const [_a, _b] = args as [PointerVariable<ArithmeticNumVariable>, PointerVariable<ArithmeticNumVariable>];
                 const a = variables.asTrueIndexPointerOfElem(_a, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                 const b = variables.asTrueIndexPointerOfElem(_b, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
                 return variables.arithmeticNum("I32", strcmp(rt, a, b), null, false);
@@ -28,7 +30,8 @@ export = {
         }, {
             type: "FUNCTION PTR I8 ( PTR I8 PTR I8 )",
             op: "strcat",
-            default(rt: CRuntime, _templateTypes: [], _a: PointerVariable<ArithmeticNumVariable>, _b: PointerVariable<ArithmeticNumVariable>): InitIndexPointerVariable<ArithmeticNumVariable> {
+            default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<ArithmeticNumVariable>{
+                const [_a, _b] = args as [PointerVariable<ArithmeticNumVariable>, PointerVariable<ArithmeticNumVariable>];
                 const a = variables.asTrueIndexPointerOfElem(_a, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                 const b = variables.asTrueIndexPointerOfElem(_b, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
                 let ai = 0;
@@ -46,7 +49,8 @@ export = {
         }, {
             type: "FUNCTION PTR I8 ( PTR I8 PTR I8 )",
             op: "strcpy",
-            default(rt: CRuntime, _templateTypes: [], _a: PointerVariable<ArithmeticNumVariable>, _b: PointerVariable<ArithmeticNumVariable>): InitIndexPointerVariable<ArithmeticNumVariable> {
+            default(rt: CRuntime, _templateTypes, ...args: Variable[]): InitIndexPointerVariable<ArithmeticNumVariable>{
+                const [_a, _b] = args as [PointerVariable<ArithmeticNumVariable>, PointerVariable<ArithmeticNumVariable>];
                 const a = variables.asTrueIndexPointerOfElem(_a, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable a is not an initialised index pointer");
                 const b = variables.asTrueIndexPointerOfElem(_b, variables.uninitArithmeticNum("I8", null)) ?? rt.raiseException("Variable b is not an initialised index pointer");
                 let bv : number;
@@ -61,4 +65,5 @@ export = {
 
     }
 }
+
 

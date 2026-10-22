@@ -1,5 +1,5 @@
 import { InitializerListVariable } from "../initializer_list";
-import { CRuntime } from "../rt";
+import { CRuntime, MemberFactory, TypeMappingFunction } from "../rt";
 import * as common from "../shared/common";
 import { PairVariable } from "../shared/utility";
 import { Variable, variables, Gen, MaybeUnboundVariable, ObjectType, InitValue, AbstractVariable, AbstractTemplatedClassType, InitArithmeticNumVariable, InitArithmeticBigVariable, LValueHolder, TrueDirectPointerVariable, InitDirectPointerVariable, PointerVariable } from "../variables";
@@ -142,7 +142,7 @@ export = {
         }
 
         rt.defineStruct2("{global}", "map_node", {
-            numTemplateArgs: 1, factory: _createMapNodeMembersDefault
+            numTemplateArgs: 1, factory: _createMapNodeMembersDefault as MemberFactory
         }, ["lhs", "rhs", "parent", "is_red", "key"], {});
 
         function _node_delete(thisVal: __node): void {
@@ -244,9 +244,9 @@ export = {
 
         // const mapIteratorSig = "!ParamObject CLASS map_iterator < ?0 >".split(" ");
         rt.defineStruct2("{global}", "map_iterator", {
-            numTemplateArgs: 1, factory(iterType: __node['t']): __map_iter['members'] {
+            numTemplateArgs: 1, factory: function(iterType: __node['t']): __map_iter['members'] {
                 return _createMapIterMembers(_createMapNodeType(iterType.templateSpec), null, null);
-            }
+            } as MemberFactory
         }, ["node"], {
             // ["value_type"]: [{ src: mapIteratorSig, dst: ["?0"]}],
             // ["pointer"]: [{ src: mapIteratorSig, dst: ["PTR", "?0"]}],
@@ -297,7 +297,8 @@ export = {
             {
                 op: "o(*_)",
                 type: "!ParamObject FUNCTION LREF ?0 ( CLREF CLASS map_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], thisVar: __map_iter): Variable {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): Variable {
+                    const [thisVar] = args as [__map_iter];
                     if (thisVar.members.node.pointee !== null) {
                         return (thisVar.members.node as __tptr_node).pointee.members.key;
                     }
@@ -307,7 +308,8 @@ export = {
             {
                 op: "o(++_)",
                 type: "!ParamObject FUNCTION LREF CLASS map_iterator < ?0 > ( LREF CLASS map_iterator < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], thisVar: __map_iter): __map_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar] = args as [__map_iter];
                     _iter_advance(thisVar, true);
                     return thisVar;
                 }
@@ -315,7 +317,8 @@ export = {
             {
                 op: "o(_++)",
                 type: "!ParamObject FUNCTION CLASS map_iterator < ?0 > ( LREF CLASS map_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], thisVar: __map_iter): __map_iter {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar] = args as [__map_iter];
                     const thatVar = variables.clone(rt, thisVar, null, false);
                     _iter_advance(thisVar, true);
                     return thatVar;
@@ -324,7 +327,8 @@ export = {
             {
                 op: "o(--_)",
                 type: "!ParamObject FUNCTION LREF CLASS map_iterator < ?0 > ( LREF CLASS map_iterator < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], thisVar: __map_iter): __map_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar] = args as [__map_iter];
                     _iter_advance(thisVar, false);
                     return thisVar;
                 }
@@ -332,7 +336,8 @@ export = {
             {
                 op: "o(_--)",
                 type: "!ParamObject FUNCTION CLASS map_iterator < ?0 > ( LREF CLASS map_iterator < ?0 > )",
-                default(rt: CRuntime, _templateTypes: [], thisVar: __map_iter): __map_iter {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar] = args as [__map_iter];
                     const thatVar = variables.clone(rt, thisVar, null, false);
                     _iter_advance(thisVar, false);
                     return thatVar;
@@ -341,7 +346,8 @@ export = {
             {
                 op: "o(_==_)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS map_iterator < ?0 > CLREF CLASS map_iterator < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], lhs: __map_iter, rhs: __map_iter): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [lhs, rhs] = args as [__map_iter, __map_iter];
                     const isEq: boolean = (lhs.members.node.pointee === rhs.members.node.pointee);
                     return variables.arithmeticNum("BOOL", isEq ? 1 : 0, null);
                 }
@@ -349,7 +355,8 @@ export = {
             {
                 op: "o(_!=_)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS map_iterator < ?0 > CLREF CLASS map_iterator < ?0 > )",
-                default(_rt: CRuntime, _templateTypes: [], lhs: __map_iter, rhs: __map_iter): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [lhs, rhs] = args as [__map_iter, __map_iter];
                     const isEq: boolean = (lhs.members.node.pointee === rhs.members.node.pointee);
                     return variables.arithmeticNum("BOOL", isEq ? 0 : 1, null);
                 }
@@ -394,7 +401,7 @@ export = {
         }
 
         const mapSig = "!ParamObject CLASS map < ?0 ?1 >".split(" ");
-        rt.defineStruct2("{global}", "map", { numTemplateArgs: 1, factory: _createMapMembers }, ["_data", "_sz", "_cap"], {
+        rt.defineStruct2("{global}", "map", { numTemplateArgs: 1, factory: _createMapMembers as MemberFactory }, ["_data", "_sz", "_cap"], {
             ["key_type"]: [{ src: mapSig, dst: ["?0"] }],
             ["mapped_type"]: [{ src: mapSig, dst: ["?1"] }],
             ["value_type"]: [{ src: mapSig, dst: "CLASS pair < ?0 ?1 >".split(' ') }],
@@ -409,8 +416,9 @@ export = {
         const ctorHandler1: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject !ParamObject FUNCTION CLASS map < ?0 ?1 > ( CLASS initializer_list < CLASS pair < ?0 ?1 > > )",
-            *default(rt: CRuntime, templateTypes: [__map['t']], list: InitializerListVariable<__pair>): Gen<__map> {
-                const mapVar = _createMapVar(templateTypes[0], null);
+            *default(rt: CRuntime, templateTypes, ...args: Variable[]): Gen<__map> {
+                const [list] = args as [InitializerListVariable<__pair>];
+                const mapVar = _createMapVar(templateTypes[0] as __map['t'], null);
                 const listmem = list.members._values.pointee;
 
                 for (let i = 0; i < listmem.values.length; i++) {
@@ -425,7 +433,8 @@ export = {
         const ctorHandler2: common.OpHandler = {
             op: "o(_ctor)",
             type: "!ParamObject !ParamObject FUNCTION CLASS map < ?0 ?1 > ( PTR CLASS pair < ?0 ?1 > PTR CLASS pair < ?0 ?1 > )",
-            *default(rt: CRuntime, templateTypes: [__map['t']], _begin: PointerVariable<Variable>, _end: PointerVariable<Variable>): Gen<__map> {
+            *default(rt: CRuntime, templateTypes, ...args: Variable[]): Gen<__map> {
+                const [_begin, _end] = args as [PointerVariable<Variable>, PointerVariable<Variable>];
                 const begin = variables.asTrueIndexPointer(_begin) ?? rt.raiseException("map constructor: expected valid begin iterator");
                 const end = variables.asTrueIndexPointer(_end) ?? rt.raiseException("map constructor: expected valid end iterator");
 
@@ -433,7 +442,7 @@ export = {
                     rt.raiseException("map constructor: iterators must point to same memory region");
                 }
 
-                const mapVar = _createMapVar(templateTypes[0], null);
+                const mapVar = _createMapVar(templateTypes[0] as __map['t'], null);
 
                 for (let i = begin.index; i < end.index; i++) {
                     const currentValue = rt.unbound(variables.arrayMember(begin.pointee, i) as MaybeUnboundVariable) as __pair;
@@ -444,7 +453,7 @@ export = {
             }
         };
 
-        rt.explicitListInitTable["map"] = (mapType: MapType<ObjectType, ObjectType>) => _createPairType(mapType.templateSpec);
+        rt.explicitListInitTable["map"] = ((mapType: MapType<ObjectType, ObjectType>) => _createPairType(mapType.templateSpec)) as TypeMappingFunction;
         rt.regFunc(ctorHandler1.default, variables.classType("map", [], null), ctorHandler1.op, rt.typeSignature(ctorHandler1.type), [-1], null);
         rt.regFunc(ctorHandler2.default, variables.classType("map", [], null), ctorHandler2.op, rt.typeSignature(ctorHandler2.type), [-1], null);
 
@@ -452,7 +461,8 @@ export = {
             {
                 op: "o(_=_)",
                 type: "!ParamObject !ParamObject FUNCTION CLASS map < ?0 ?1 > ( LREF CLASS map < ?0 ?1 > CLREF CLASS map < ?0 ?1 > )",
-                default(rt: CRuntime, _templateTypes: [], lmap: __map, rmap: __map): __map {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __map {
+                    const [lmap, rmap] = args as [__map, __map];
                     _clear(lmap);
                     const rr: __node | null = variables.asInitDirectPointerPointee(rmap.members.root);
                     if (rr === null) {
@@ -494,7 +504,8 @@ export = {
             {
                 op: "o(_[_])",
                 type: "!ParamObject !ParamObject FUNCTION LREF ?0 ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, key: Variable): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [thisVar, key] = args as [__map, Variable];
                     const it = yield* _find(rt, thisVar, key);
                     if (it.members.node.pointee !== null) {
                         return (it.members.node as __tptr_node).pointee.members.key.members.second;
@@ -1016,7 +1027,8 @@ export = {
         common.regGlobalFuncs(rt, [{
             op: "_print",
             type: "!ParamObject FUNCTION VOID ( CLREF CLASS map < I32 ?0 > )",
-            default(rt: CRuntime, _templateTypes: ObjectType[], map: MapVariable<InitArithmeticNumVariable, Variable>): "VOID" {
+            default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                const [map] = args as [MapVariable<InitArithmeticNumVariable, Variable>];
                 const stdio = rt.stdio();
                 function _map_int_print_tree_inner(node: MapNodeValue<PairVariable<InitArithmeticNumVariable, Variable>>, shift: number): void {
                     const lhs = variables.asInitDirectPointerPointee(node.members.lhs);
@@ -1044,35 +1056,40 @@ export = {
             {
                 op: "begin",
                 type: "!ParamObject !ParamObject FUNCTION CLASS map_iterator < CLASS pair < ?0 ?1 > > ( CLREF CLASS map < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): __map_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar] = args as [__map];
                     return _begin(thisVar);
                 }
             },
             {
                 op: "end",
                 type: "!ParamObject !ParamObject FUNCTION CLASS map_iterator < CLASS pair < ?0 ?1 > > ( CLREF CLASS map < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): __map_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar] = args as [__map];
                     return _end(thisVar);
                 }
             },
             /*{
                 op: "rbegin",
                 type: "!ParamObject !ParamObject FUNCTION CLASS reverse_iterator < CLASS map_iterator < CLASS pair < ?0 ?1 > > > ( CLREF CLASS map < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): __map_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar] = args as [__map];
                     return _begin(thisVar);
                 }
             },
             {
                 op: "rend",
                 type: "!ParamObject !ParamObject FUNCTION CLASS reverse_iterator < CLASS map_iterator < CLASS pair < ?0 ?1 > > > ( CLREF CLASS map < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): __map_iter {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar] = args as [__map];
                     return _end(thisVar);
                 }
             },*/
             {
                 op: "insert",
                 type: "!ParamObject !ParamObject FUNCTION CLASS pair < CLASS map_iterator < CLASS pair < ?0 ?1 > > BOOL > ( LREF CLASS map < ?0 ?1 > CLREF CLASS pair < ?0 ?1 > )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, value: __pair): Gen<PairVariable<__map_iter, InitArithmeticNumVariable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<PairVariable<__map_iter, InitArithmeticNumVariable>> {
+                    const [thisVar, value] = args as [__map, __pair];
                     const result = yield* _insert(rt, thisVar, value);
                     return {
                         t: {
@@ -1103,7 +1120,8 @@ export = {
             {
                 op: "insert",
                 type: "!ParamObject !ParamObject FUNCTION CLASS pair < CLASS map_iterator < CLASS pair < ?0 ?1 > > BOOL > ( LREF CLASS map < ?0 ?1 > CLREF CLASS pair < ?0 ?1 > CLREF CLASS pair < ?0 ?1 > )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, _pos: __map_iter, value: __pair): Gen<PairVariable<__map_iter, InitArithmeticNumVariable>> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<PairVariable<__map_iter, InitArithmeticNumVariable>> {
+                    const [thisVar, _pos, value] = args as [__map, __map_iter, __pair];
                     // same as above, ignoring the 'pos' argument, 
                     // returning iterator only
                     const result = yield* _insert(rt, thisVar, value);
@@ -1136,7 +1154,8 @@ export = {
             {
                 op: "insert",
                 type: "!ParamObject !ParamObject !ParamObject FUNCTION VOID ( LREF CLASS map < ?0 ?1 > ?2 ?2 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, first: Variable, last: Variable): Gen<"VOID"> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<"VOID"> {
+                    const [thisVar, first, last] = args as [__map, Variable, Variable];
                     const eqFunc = rt.getOpByParams("{global}", "o(_==_)", [first, last], []);
                     const ppFunc = rt.getOpByParams("{global}", "o(_++)", [first], []);
                     const derefFunc = rt.getOpByParams("{global}", "o(*_)", [first], []);
@@ -1159,7 +1178,8 @@ export = {
             {
                 op: "insert",
                 type: "!ParamObject !ParamObject FUNCTION VOID ( LREF CLASS map < ?0 ?1 > CLASS initializer_list < CLASS pair < ?0 ?1 > > )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, list: InitializerListVariable<__pair>): Gen<"VOID"> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<"VOID"> {
+                    const [thisVar, list] = args as [__map, InitializerListVariable<__pair>];
                     const listmem = list.members._values.pointee;
 
                     let lastInserted: __map_iter | null = null;
@@ -1175,14 +1195,16 @@ export = {
             {
                 op: "erase",
                 type: "!ParamObject !ParamObject FUNCTION CLASS map_iterator < CLASS pair < ?0 ?1 > > ( LREF CLASS map < ?0 ?1 > CLASS map_iterator < CLASS pair < ?0 ?1 > > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, pos: __map_iter): __map_iter {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): __map_iter {
+                    const [thisVar, pos] = args as [__map, __map_iter];
                     return _erase(rt, thisVar, pos);
                 }
             },
             {
                 op: "erase",
                 type: "!ParamObject !ParamObject FUNCTION CLASS map_iterator < CLASS pair < ?0 ?1 > > ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, key: Variable): Gen<__map_iter> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<__map_iter> {
+                    const [thisVar, key] = args as [__map, Variable];
                     const pos = yield* _find(rt, thisVar, key);
                     return _erase(rt, thisVar, pos);
                 }
@@ -1190,7 +1212,8 @@ export = {
             {
                 op: "at",
                 type: "!ParamObject !ParamObject FUNCTION LREF ?0 ( LREF CLASS map < ?0 ?1 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, key: Variable): Gen<Variable> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<Variable> {
+                    const [thisVar, key] = args as [__map, Variable];
                     const it = yield* _find(rt, thisVar, key);
                     if (it.members.node.pointee !== null) {
                         return (it.members.node as __tptr_node).pointee.members.key.members.second;
@@ -1201,7 +1224,8 @@ export = {
             {
                 op: "find",
                 type: "!ParamObject !ParamObject FUNCTION CLASS map_iterator < CLASS pair < ?0 ?1 > > ( CLREF CLASS map < ?0 ?1 > CLREF ?0 )",
-                *default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map, key: Variable): Gen<__map_iter> {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<__map_iter> {
+                    const [thisVar, key] = args as [__map, Variable];
                     return yield* _find(rt, thisVar, key);
                 }
             },
@@ -1229,21 +1253,24 @@ export = {
             {
                 op: "size",
                 type: "!ParamObject !ParamObject FUNCTION I64 ( CLREF CLASS map < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): InitArithmeticBigVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable {
+                    const [thisVar] = args as [__map];
                     return variables.arithmeticBig("I64", thisVar.members._size.value, null, false);
                 }
             },
             {
                 op: "empty",
                 type: "!ParamObject !ParamObject FUNCTION BOOL ( CLREF CLASS map < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): InitArithmeticNumVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticNumVariable {
+                    const [thisVar] = args as [__map];
                     return variables.arithmeticNum("BOOL", (thisVar.members._size.value === BigInt(0)) ? 1 : 0, null, false);
                 }
             },
             {
                 op: "_assert_rb",
                 type: "!ParamObject !ParamObject FUNCTION VOID ( CLREF CLASS map < ?0 ?1 > )",
-                default(rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): "VOID" {
+                default(rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [thisVar] = args as [__map];
                     const root = thisVar.members.root;
                     if (root.pointee !== null && !_assert_rb(rt, root as __tptr_node)) {
                         rt.raiseException("std::map<Key>::_assert_rb(): Red-black tree integrity assertion failed");
@@ -1254,7 +1281,8 @@ export = {
             {
                 op: "clear",
                 type: "!ParamObject !ParamObject FUNCTION VOID ( LREF CLASS map < ?0 ?1 > )",
-                default(_rt: CRuntime, _templateTypes: ObjectType[], thisVar: __map): "VOID" {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): "VOID" {
+                    const [thisVar] = args as [__map];
                     _clear(thisVar);
                     return "VOID";
                 }
@@ -1262,3 +1290,5 @@ export = {
         ])
     }
 };
+
+

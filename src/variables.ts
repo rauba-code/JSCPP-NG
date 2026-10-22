@@ -218,7 +218,7 @@ export type ArithmeticType = ArithmeticNumType | ArithmeticBigType;
 export type ClassType = {
     readonly sig: "CLASS",
     readonly identifier: string,
-    readonly templateSpec: ObjectType[],
+    readonly templateSpec: ObjectType[] | [ObjectType] | [ObjectType, ObjectType],
     readonly memberOf: ClassType | null,
 }
 
@@ -414,6 +414,7 @@ export type MaybeUnboundClassVariable = AbstractVariable<ClassType, MaybeUnbound
 export type MaybeUnboundPointerVariable<VElem extends Variable | Function> = AbstractVariable<PointerType<VElem["t"]>, MaybeUnboundPointerValue<VElem>>;
 export type MaybeUnboundNullptrVariable = AbstractVariable<NullptrType, MaybeUnboundNullptrValue>;
 
+
 // Equals to 'Object' in typecheck notation
 export type Variable = ArithmeticVariable | ClassVariable | NullptrVariable | PointerVariable<PointeeVariable>;
 export type InitVariable = InitArithmeticVariable | InitClassVariable | NullptrVariable | InitPointerVariable<ArithmeticVariable | ClassVariable | Function | NullptrVariable | PointerVariable<any>>;
@@ -422,6 +423,9 @@ export type MaybeUnboundVariable = MaybeUnboundArithmeticVariable | MaybeUnbound
 export type Gen<T> = Generator<unknown, T, unknown>;
 export type ResultOrGen<T> = T | Gen<T>;
 export type CFunction = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<MaybeUnboundVariable | "VOID">;
+export type CFunction2 = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<Variable | "VOID">;
+export type CFunction3 = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => MaybeUnboundVariable;
+export type CFunction4 = (rt: CRuntime, templateArgs: [], ...args: Variable[]) => MaybeUnboundVariable;
 export type CFunctionBool = (rt: CRuntime, templateArgs: ObjectType[], ...args: Variable[]) => ResultOrGen<InitArithmeticNumVariable>;
 
 export const variables = {
@@ -492,11 +496,13 @@ export const variables = {
     clone<TVar extends Variable>(rt: CRuntime, object: TVar, lvHolder: LValueHolder<TVar>, isConst: boolean = false, allowUninit: boolean = false): TVar {
         type BranchKey = "ARITHMETIC" | "PTR" | "CLASS" | "FUNCTION";
         let branch: { [sig in BranchKey]: (x: LValueHolder<Variable>) => Variable } = {
-            "ARITHMETIC": (_lvHolder: LValueHolder<InitArithmeticVariable>) => {
+            "ARITHMETIC": (__lvHolder) => {
+                const _lvHolder = __lvHolder as LValueHolder<InitArithmeticVariable>;
                 const x = object as InitArithmeticVariable;
                 return { t: { sig: x.t.sig }, value: x.value, lvHolder: _lvHolder, isConst: isConst, state: "INIT" } as InitArithmeticVariable;
             },
-            "PTR": (_lvHolder: LValueHolder<InitPointerVariable<PointeeVariable>>) => {
+            "PTR": (__lvHolder) => {
+                const _lvHolder = __lvHolder as LValueHolder<InitPointerVariable<PointeeVariable>>;
                 const _x = object as InitPointerVariable<PointeeVariable>;
                 if (_x.subtype === "DIRECT") {
                     if ((_x as InitDirectPointerVariable<PointeeVariable>).pointee === null) {
@@ -525,12 +531,13 @@ export const variables = {
                     }
                 }
             },
-            "CLASS": (_lvHolder: LValueHolder<InitClassVariable>) => {
+            "CLASS": (__lvHolder) => {
+                const _lvHolder = __lvHolder as LValueHolder<InitClassVariable>
                 const x = object as InitClassVariable;
                 const members = Object.fromEntries(Object.entries(x.members).map(([k, v]: [string, Variable]) => [k, variables.clone(rt, v, "SELF", false, true)]));
                 return variables.class(x.t, members, _lvHolder, isConst);
             },
-            "FUNCTION": (_lvHolder: LValueHolder<any>) => {
+            "FUNCTION": (_lvHolder) => {
                 rt.raiseException("Cannot clone a function");
             },
         }
@@ -539,18 +546,20 @@ export const variables = {
                 rt.raiseException("Attempted clone of an uninitialised value");
             }
             branch = {
-                "ARITHMETIC": (_lvHolder: LValueHolder<ArithmeticVariable>) => {
+                "ARITHMETIC": (__lvHolder) => {
+                    const _lvHolder = __lvHolder as LValueHolder<ArithmeticVariable>
                     const x = object as ArithmeticNumVariable;
                     return { t: { sig: x.t.sig }, state: "UNINIT", lvHolder: _lvHolder, isConst } as ArithmeticVariable;
                 },
-                "PTR": (_lvHolder: LValueHolder<PointerVariable<PointeeVariable>>) => {
+                "PTR": (__lvHolder) => {
+                    const _lvHolder = __lvHolder as LValueHolder<PointerVariable<PointeeVariable>>
                     const x = object as PointerVariable<PointeeVariable>;
                     return variables.uninitPointer(x.t.pointee, x.t.sizeConstraint, _lvHolder, isConst);
                 },
-                "CLASS": () => {
+                "CLASS": (_) => {
                     rt.raiseException("unreachable");
                 },
-                "FUNCTION": () => {
+                "FUNCTION": (_) => {
                     rt.raiseException("unreachable");
                 },
             }
