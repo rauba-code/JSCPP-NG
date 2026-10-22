@@ -1,8 +1,8 @@
 import { asResult } from "../interpreter";
-import { big, CRuntime, MemberMap } from "../rt";
+import { big, CRuntime, MemberFactory, MemberMap } from "../rt";
 import * as common from "../shared/common";
 import { StringVariable } from "../shared/string_utils";
-import { AbstractTemplatedClassType, AbstractVariable, ArithmeticSig, Gen, InitArithmeticBigVariable, InitValue, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
+import { AbstractTemplatedClassType, AbstractVariable, ArithmeticSig, Gen, InitArithmeticBigVariable, InitArithmeticNumVariable, InitValue, MaybeUnboundVariable, ObjectType, Variable, variables } from "../variables";
 
 /* 
  * Generic function object type.
@@ -29,21 +29,22 @@ export = {
         // Instead, overloaded __hash function is declared.
         rt.defineStruct2("{global}", "hash", {
             numTemplateArgs: 1,
-            factory(_dataItem: FOType<"hash", ObjectType>) { return {} as MemberMap; }
+            factory: function(_dataItem: FOType<"hash", ObjectType>) { return {} as MemberMap; } as MemberFactory
         }, [], {});
         rt.defineStruct2("{global}", "greater", {
             numTemplateArgs: 1,
-            factory(_dataItem: FOType<"greater", ObjectType>) { return {} as MemberMap; }
+            factory: function(_dataItem: FOType<"greater", ObjectType>) { return {} as MemberMap; } as MemberFactory
         }, [], {});
         rt.defineStruct2("{global}", "less", {
             numTemplateArgs: 1,
-            factory(_dataItem: FOType<"less", ObjectType>) { return {} as MemberMap; }
+            factory: function(_dataItem: FOType<"less", ObjectType>) { return {} as MemberMap; } as MemberFactory
         }, [], {});
         function arithmeticHashFn(sig: ArithmeticSig): common.FunHandler {
             return {
                 op: "__hash",
                 type: `FUNCTION I64 ( ${sig} )`,
-                default(_rt: CRuntime, _template: [], x: InitArithmeticBigVariable): InitArithmeticBigVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable {
+                    const [x] = args as [InitArithmeticBigVariable];
                     return variables.arithmeticBig("I64", big(x.value), null);
                 }
             };
@@ -53,7 +54,8 @@ export = {
                 op: "o(_call)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS greater < ?0 > CLREF ?0 CLREF ?0 )",
                 templateTypes: [0],
-                *default(rt: CRuntime, _templateTypes: ObjectType[], fnobj: FOVariable<"greater", Variable>, lhs: Variable, rhs: Variable) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticNumVariable> {
+                    const [fnobj, lhs, rhs] = args as [FOVariable<"greater", Variable>, Variable, Variable];
                     if (fnobj.t.templateSpec[0].sig in variables.arithmeticSig) {
                         return variables.arithmeticNum("BOOL", (rt.arithmeticValue(lhs) > rt.arithmeticValue(rhs)) ? 1 : 0, null);
                     }
@@ -73,7 +75,8 @@ export = {
                 op: "o(_call)",
                 type: "!ParamObject FUNCTION BOOL ( CLREF CLASS less < ?0 > CLREF ?0 CLREF ?0 )",
                 templateTypes: [0],
-                *default(rt: CRuntime, _templateTypes: ObjectType[], fnobj: FOVariable<"less", Variable>, lhs: Variable, rhs: Variable) {
+                *default(rt: CRuntime, _templateTypes, ...args: Variable[]): Gen<InitArithmeticNumVariable> {
+                    const [fnobj, lhs, rhs] = args as [FOVariable<"less", Variable>, Variable, Variable];
                     if (fnobj.t.templateSpec[0].sig in variables.arithmeticSig) {
                         return variables.arithmeticNum("BOOL", (rt.arithmeticValue(lhs) < rt.arithmeticValue(rhs)) ? 1 : 0, null);
                     }
@@ -107,7 +110,8 @@ export = {
             {
                 op: "__hash",
                 type: "FUNCTION I64 ( CLREF CLASS string < > )",
-                default(_rt: CRuntime, _template: [], x: StringVariable): InitArithmeticBigVariable {
+                default(_rt: CRuntime, _templateTypes, ...args: Variable[]): InitArithmeticBigVariable {
+                    const [x] = args as [StringVariable];
                     // NOTE: original function uses copied CLASS string < > 
                     // but to avoid costly copying, CLREF is added.
                     let h: number = 7919;
@@ -127,3 +131,5 @@ export = {
 
     }
 }
+
+

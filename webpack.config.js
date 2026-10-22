@@ -10,16 +10,22 @@ export default {
     entry: "./src/index.ts",
     target: "web",
     output: {
-        filename: "app.bundle.js",
+        filename: "JSCPP.js",
         path: path.resolve(__dirname, 'dist')
     },
     module: {
         rules: [
-            { test: /\.ts$/, use: "ts-loader" },
+            {
+                test: /\.ts$/, use: "ts-loader",
+                exclude: [
+                    "/unit-tests/*",
+                    "/integration-tests/*",
+                ]
+            },
         ],
     },
     resolve: {
-        extensions: [ '.ts', '.js' ],
+        extensions: ['.ts', '.js'],
         extensionAlias: {
             '.ts': ['.js', '.ts'],
         }

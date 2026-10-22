@@ -36,7 +36,9 @@ node_modules
 lib/
 demo/*.js
 demo/*.js.map
+jscpp-ng.iml
+
 .tscache
 src/generated/
-jscpp-ng.iml
-package-lock.json
+
+dist/
