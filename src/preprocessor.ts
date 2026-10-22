@@ -370,7 +370,7 @@ class Preprocessor extends BaseInterpreter<Statement> {
             this.raiseException(`[line ${line}:${column}] Syntax error`, { line, column });
         }
         this.rt.interp = this;
-        return this.visit(result.ast, code);
+        return this.visit(result, code);
     };
 }
 

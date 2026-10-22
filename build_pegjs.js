@@ -53,7 +53,7 @@ function ensureDirSync(dirPath) {
  */
 function execPeg(inpath, outpath) {
     const programName = "npx";
-    const args = ["pegjs", "-o", outpath, inpath];
+    const args = ["peggy", "-o", outpath, "--format", "es", inpath];
     log(`Executing \`${programName} ${args.map((x) => JSON.stringify(x)).join(" ")}\``);
     return child_process.execFile(programName, args);
 }

@@ -1,7 +1,7 @@
 import { CRuntime, CRuntimeError, ExternRuntimeApi, IncludeModule, JSCPPConfig, mergeConfig } from "./rt";
 
 import { Interpreter } from "./interpreter";
-import ast = require("./generated/ast");
+import * as ast from "./generated/ast";
 import preprocessor = require("./preprocessor");
 import Debugger from "./debugger"
 import * as defaults from "./defaults";
@@ -218,7 +218,7 @@ function run(code: string | SourceListings, input: InputFunction, config: JSCPPC
         throw new CRuntimeError(`[line ${result.error.line}:${result.error.column}] Syntax error`, result.error.line, result.error.column);
     }
     const interpreter = new Interpreter(rt);
-    const defGen = interpreter.run(result.ast, pcode);
+    const defGen = interpreter.run(result, pcode);
     while (true) {
         step = defGen.next();
         if (step.done) { break; }

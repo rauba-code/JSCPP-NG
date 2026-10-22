@@ -1,7 +1,7 @@
 import * as app from "./launcher";
 if (typeof globalThis === "object") {
     Object.defineProperty(globalThis, "JSCPP", {
-        value: app,
+        value: app.default,
         enumerable: false,
         configurable: false,
         writable: false,
@@ -9,7 +9,7 @@ if (typeof globalThis === "object") {
 } else if (typeof window === "object") {
     /* Legacy browsers support (pre-ES6) */
     Object.defineProperty(window, "JSCPP", {
-        value: app,
+        value: app.default,
         enumerable: false,
         configurable: false,
         writable: false,
